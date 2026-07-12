@@ -16,19 +16,18 @@ and writing changes to Markdown are outside this specification.
 
 ## Project Discovery
 
-Load project directories from the global configuration defined by ADR0004.
-Inspect only the immediate files in each directory and select files whose
-extension is `.md`, compared case-insensitively. Do not recurse into child
-directories.
+Load the explicit project file paths from the global configuration defined by
+ADR0004. Every configured path must use the `.md` extension, compared
+case-insensitively. Do not discover other Markdown files from the same
+directory.
 
-Canonicalize file paths and load a file only once when configured directories
-overlap. Sort valid projects alphabetically by display title, then by canonical
-path when titles match.
+Canonicalize file paths and load a file only once when it appears more than
+once in configuration. Sort valid projects alphabetically by display title,
+then by canonical path when titles match.
 
-A missing or unreadable configured directory appears as an error entry in the
-project sidebar. A malformed or unreadable project file also appears as a
-project error. Errors from one source must not prevent valid projects from
-loading.
+A missing, malformed, or unreadable configured project file appears as an error
+entry in the project sidebar. Errors from one project must not prevent valid
+projects from loading.
 
 ## Markdown Project Format
 
@@ -94,10 +93,15 @@ recognized metadata from the displayed title and show it in the row and detail
 fields. The remaining title must be non-empty. An unrecognized emoji or text is
 part of the title and must be preserved.
 
-Multiple priority/start/due fields, an invalid recognized date, or an empty
-title are malformed todo metadata. Report the canonical file path, source line,
-and reason in the project's error preview. A project containing malformed
-recognized todo metadata is an error project and contributes no todos to `All`.
+Only complete metadata matching the documented syntax is interpreted. An
+incomplete date marker such as `📅`, a non-ISO value such as `📅 tomorrow`, or
+an invalid calendar date such as `📅 2026-02-30` remains ordinary title text so
+one unfinished annotation cannot prevent the project from loading.
+
+Multiple recognized priority/start/due fields or an empty title are malformed
+todo metadata. Report the canonical file path, source line, and reason in the
+project's error preview. A project containing malformed recognized todo
+metadata is an error project and contributes no todos to `All`.
 
 Indented non-checkbox list items and indented paragraphs belong to the parent
 todo as notes. Indented task-list items are subtasks and may nest recursively.
@@ -204,8 +208,8 @@ configurable.
 
 ## Empty States
 
-- No discovered Markdown files: show `No projects found` and list the
-  configured directories.
+- No configured project files: configuration validation fails before rendering.
+- No valid project files: show project error entries for every configured path.
 - Valid projects but no active todos: show `No active todos`; suggest
   `:completed` when completed todos exist.
 - A project or heading with no visible todos: show `No todos in this view`.
@@ -216,8 +220,8 @@ configurable.
 
 ## Acceptance Scenarios
 
-1. Immediate Markdown files from every configured directory appear as projects;
-   nested files do not.
+1. Every configured Markdown file appears once as a project; unconfigured files
+   in the same directories do not.
 2. Project titles use valid YAML front matter and fall back to filenames when
    `title` is absent.
 3. The supplied task example yields reference `134416`, high priority, tag
@@ -226,7 +230,7 @@ configurable.
 5. Completed todos are hidden initially and toggled with `:completed`.
 6. Wide, medium, and narrow terminals use the layouts and navigation described
    above without losing access to projects, todos, details, or commands.
-7. A malformed project or inaccessible directory appears as an error entry
+7. A malformed, missing, or inaccessible project file appears as an error entry
    while valid projects remain browsable.
 8. Browsing never modifies project Markdown files.
 

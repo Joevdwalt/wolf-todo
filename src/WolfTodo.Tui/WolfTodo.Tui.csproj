@@ -14,6 +14,5 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets/wolf.txt" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="keybindings.toml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

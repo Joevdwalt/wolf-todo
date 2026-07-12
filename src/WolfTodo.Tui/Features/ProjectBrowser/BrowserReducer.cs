@@ -1,0 +1,145 @@
+using WolfTodo.Tui.Features.Configuration;
+
+namespace WolfTodo.Tui.Features.ProjectBrowser;
+
+public sealed class BrowserReducer
+{
+    public BrowserTransition Reduce(
+        BrowserState state,
+        ConsoleKeyInfo key,
+        ApplicationConfiguration configuration,
+        BrowserView view)
+    {
+        if (state.IsCommandMode)
+        {
+            return ReduceCommand(state, key, configuration);
+        }
+
+        if (key.KeyChar == ':')
+        {
+            return Transition(state with
+            {
+                IsCommandMode = true,
+                Command = ":",
+                Error = null
+            });
+        }
+
+        if (key.Key == ConsoleKey.Tab)
+        {
+            var reverse = key.Modifiers.HasFlag(ConsoleModifiers.Shift);
+            return Transition(state with { Focus = MoveFocus(state.Focus, reverse) });
+        }
+
+        if (key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
+        {
+            var offset = key.Key == ConsoleKey.UpArrow ? -1 : 1;
+
+            return state.Focus == BrowserFocus.Projects
+                ? Transition(state with
+                {
+                    ProjectIndex = MoveIndex(state.ProjectIndex, offset, view.Projects.Length),
+                    TodoIndex = 0,
+                    Error = null
+                })
+                : Transition(state with
+                {
+                    TodoIndex = MoveIndex(state.TodoIndex, offset, view.SelectableTodoCount),
+                    Error = null
+                });
+        }
+
+        if (key.Key == ConsoleKey.Enter)
+        {
+            return Transition(state with
+            {
+                Focus = state.Focus switch
+                {
+                    BrowserFocus.Projects => BrowserFocus.Todos,
+                    BrowserFocus.Todos => BrowserFocus.Details,
+                    _ => BrowserFocus.Details
+                },
+                Error = null
+            });
+        }
+
+        if (key.Key == ConsoleKey.Escape)
+        {
+            return Transition(state with
+            {
+                Focus = state.Focus == BrowserFocus.Details ? BrowserFocus.Todos : BrowserFocus.Projects,
+                Error = null
+            });
+        }
+
+        return Transition(state);
+    }
+
+    private static BrowserTransition ReduceCommand(
+        BrowserState state,
+        ConsoleKeyInfo key,
+        ApplicationConfiguration configuration)
+    {
+        if (key.Key == ConsoleKey.Escape)
+        {
+            return Transition(state with
+            {
+                IsCommandMode = false,
+                Command = string.Empty,
+                Error = null
+            });
+        }
+
+        if (key.Key == ConsoleKey.Enter)
+        {
+            if (state.Command == configuration.QuitCommand)
+            {
+                return new BrowserTransition(state, true);
+            }
+
+            if (state.Command == ":completed")
+            {
+                return Transition(state with
+                {
+                    ShowCompleted = !state.ShowCompleted,
+                    IsCommandMode = false,
+                    Command = string.Empty,
+                    TodoIndex = 0,
+                    Error = null
+                });
+            }
+
+            return Transition(state with
+            {
+                IsCommandMode = false,
+                Command = string.Empty,
+                Error = $"Unknown command: {state.Command}"
+            });
+        }
+
+        if (key.Key == ConsoleKey.Backspace)
+        {
+            var command = state.Command.Length > 1 ? state.Command[..^1] : state.Command;
+            return Transition(state with { Command = command, Error = null });
+        }
+
+        return char.IsControl(key.KeyChar)
+            ? Transition(state)
+            : Transition(state with { Command = state.Command + key.KeyChar, Error = null });
+    }
+
+    private static BrowserFocus MoveFocus(BrowserFocus focus, bool reverse) => (focus, reverse) switch
+    {
+        (BrowserFocus.Projects, false) => BrowserFocus.Todos,
+        (BrowserFocus.Todos, false) => BrowserFocus.Details,
+        (BrowserFocus.Details, false) => BrowserFocus.Projects,
+        (BrowserFocus.Projects, true) => BrowserFocus.Details,
+        (BrowserFocus.Todos, true) => BrowserFocus.Projects,
+        _ => BrowserFocus.Todos
+    };
+
+    private static int MoveIndex(int current, int offset, int count) =>
+        count == 0 ? 0 : Math.Clamp(current + offset, 0, count - 1);
+
+    private static BrowserTransition Transition(BrowserState state) => new(state, false);
+}

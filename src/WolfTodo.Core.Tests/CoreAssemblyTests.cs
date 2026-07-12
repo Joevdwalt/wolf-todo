@@ -1,5 +1,4 @@
 using FluentAssertions;
-
 using WolfTodo.Core;
 
 namespace WolfTodo.Core.Tests;

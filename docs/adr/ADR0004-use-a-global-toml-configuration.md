@@ -11,8 +11,9 @@ catalog and user preferences. The earlier executable-adjacent keybinding file
 defined by ADR0002 would duplicate configuration between the TUI, CLI, and any
 future REPL or web host.
 
-Project files can reside in one or more directories outside the application
-installation. Configuration therefore belongs to the user rather than to an
+Project files can reside anywhere outside the application installation, and
+users need explicit control over which Markdown files Wolf Todo treats as
+projects. Configuration therefore belongs to the user rather than to an
 individual executable.
 
 ## Decision
@@ -29,26 +30,26 @@ The initial schema is:
 
 ```toml
 [projects]
-directories = [
-  "/absolute/path/to/projects",
-  "/another/project/directory"
+files = [
+  "/absolute/path/to/project-one.md",
+  "/absolute/path/to/project-two.md"
 ]
 
 [keybindings]
 quit = ":q"
 ```
 
-`projects.directories` must contain at least one absolute directory path.
-Discover immediate `.md` files in each directory; do not search recursively.
-Canonicalize and deduplicate file paths before loading projects.
+`projects.files` must contain at least one absolute `.md` file path.
+Canonicalize and deduplicate file paths before loading projects. Do not infer
+projects from other files in the same directory.
 
 Use the `Tomlyn` NuGet package to parse the configuration. A missing,
 malformed, or incomplete global configuration is a startup failure. Write a
 clear error to standard error and exit with code `1` before rendering an
 interactive interface.
 
-A valid configuration that names a missing or unreadable directory is not a
-startup failure. Hosts must preserve that source as a catalog error so users
+A valid configuration that names a missing or unreadable project file is not a
+startup failure. Hosts must preserve that project as a catalog error so users
 can diagnose it while continuing to access valid projects.
 
 This decision supersedes ADR0002. TOML and the configurable quit command are
@@ -62,8 +63,8 @@ the shared global configuration.
 - All current and future hosts share one project catalog and user preferences.
 - Configuration survives application upgrades and does not depend on the
   launch directory.
-- Adding a Markdown file to a configured directory automatically creates a
-  project in Wolf Todo.
+- Users control the project catalog explicitly without accidentally loading
+  unrelated Markdown files from the same directory.
 - Platform-standard locations integrate with normal user configuration backup
   and management practices.
 
@@ -72,7 +73,7 @@ the shared global configuration.
 - Configuration discovery differs by operating system.
 - Users must provide absolute paths, reducing portability between machines.
 - A missing or malformed global configuration prevents application startup.
-- Directory and file errors require nonfatal diagnostics in each host.
+- Project-file errors require nonfatal diagnostics in each host.
 
 ## References
 

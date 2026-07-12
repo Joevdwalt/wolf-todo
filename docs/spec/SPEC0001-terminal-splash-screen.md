@@ -13,19 +13,19 @@ screen, and shared command-mode behavior.
 
 At startup, the application must load the global `config.toml` defined by
 ADR0004. The file must contain a non-empty quit command and at least one project
-directory in this schema:
+file in this schema:
 
 ```toml
 [projects]
-directories = ["/absolute/path/to/projects"]
+files = ["/absolute/path/to/project.md"]
 
 [keybindings]
 quit = ":q"
 ```
 
 If the file is missing, malformed, does not contain a non-empty string at
-`keybindings.quit`, or does not contain at least one absolute directory at
-`projects.directories`, the application must write a clear error to standard
+`keybindings.quit`, or does not contain at least one absolute Markdown path at
+`projects.files`, the application must write a clear error to standard
 error and exit with code `1`. It must not render the terminal user interface.
 
 ## Splash Screen

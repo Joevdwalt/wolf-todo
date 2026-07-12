@@ -13,8 +13,8 @@ virtual `All` view aggregates active todos across projects.
 ## Changes
 
 - Replace executable-adjacent keybindings with a shared, platform-standard
-  global TOML configuration containing project directories and keybindings.
-- Define top-level Markdown project discovery, project-title front matter, and
+  global TOML configuration containing explicit project files and keybindings.
+- Define explicit Markdown project loading, project-title front matter, and
   nonfatal source diagnostics.
 - Define an Obsidian Tasks-compatible subset for checkbox status, external
   references, priority, tags, start dates, due dates, notes, and subtasks.

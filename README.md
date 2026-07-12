@@ -36,6 +36,32 @@ Run repository automation through named tasks declared in `TaskFile.yml`.
 This includes build, test, formatting, linting, generation, and maintenance
 operations. Do not use repository scripts directly as the normal workflow.
 
+## Running the TUI
+
+Create the global `config.toml` before starting the TUI:
+
+- Linux: `$XDG_CONFIG_HOME/wtodo/config.toml`, or
+  `~/.config/wtodo/config.toml` when `XDG_CONFIG_HOME` is unset.
+- macOS: `~/Library/Application Support/wtodo/config.toml`.
+- Windows: `%APPDATA%\wtodo\config.toml`.
+
+```toml
+[projects]
+files = [
+  "/absolute/path/to/project-one.md",
+  "/absolute/path/to/project-two.md"
+]
+
+[keybindings]
+quit = ":q"
+```
+
+Each configured Markdown file is one project. Start the application with:
+
+```text
+task run-tui
+```
+
 
 ## AI Guidance
 

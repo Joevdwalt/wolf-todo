@@ -1,23 +1,31 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Splash;
 using WolfTodo.Tui.Infrastructure;
 
 var builder = Host.CreateApplicationBuilder(args);
-var applicationDirectory = AppContext.BaseDirectory;
-
-builder.Services.AddSingleton<HomeScreenReducer>();
+builder.Services.AddSingleton<ProjectMarkdownParser>();
+builder.Services.AddSingleton<ProjectCatalogLoader>();
+builder.Services.AddSingleton<ProjectBrowserPresenter>();
+builder.Services.AddSingleton<BrowserReducer>();
+builder.Services.AddSingleton<IProjectFileSystem, PhysicalProjectFileSystem>();
 builder.Services.AddSingleton<ITerminalUi, SpectreTerminalUi>();
-builder.Services.AddSingleton<IKeybindingsLoader>(serviceProvider =>
-    new TomlKeybindingsLoader(
-        Path.Combine(applicationDirectory, "keybindings.toml"),
+builder.Services.AddSingleton<IApplicationConfigurationLoader>(serviceProvider =>
+    new TomlApplicationConfigurationLoader(
+        GlobalConfigurationPath.Resolve(),
+        File.Exists,
         File.ReadAllText));
 builder.Services.AddSingleton(serviceProvider =>
     new TuiApplication(
-        serviceProvider.GetRequiredService<IKeybindingsLoader>(),
+        serviceProvider.GetRequiredService<IApplicationConfigurationLoader>(),
+        serviceProvider.GetRequiredService<ProjectCatalogLoader>(),
         serviceProvider.GetRequiredService<ITerminalUi>(),
-        serviceProvider.GetRequiredService<HomeScreenReducer>(),
-        File.ReadAllText(Path.Combine(applicationDirectory, "Assets", "wolf.txt"))));
+        serviceProvider.GetRequiredService<ProjectBrowserPresenter>(),
+        serviceProvider.GetRequiredService<BrowserReducer>(),
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Assets", "wolf.txt"))));
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();
