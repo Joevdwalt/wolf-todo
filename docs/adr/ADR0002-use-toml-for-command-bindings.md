@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Superseded by
+[ADR0004: Use a Global TOML Configuration](ADR0004-use-a-global-toml-configuration.md)
 
 ## Context
 
@@ -55,3 +56,4 @@ Detailed command-input and screen behavior is defined by
 
 - [SPEC0001: Terminal Splash Screen](../spec/SPEC0001-terminal-splash-screen.md)
 - [ADR0001: Use .NET and Spectre.Console](ADR0001-use-dotnet-and-spectre-console.md)
+- [ADR0004: Use a Global TOML Configuration](ADR0004-use-a-global-toml-configuration.md)
