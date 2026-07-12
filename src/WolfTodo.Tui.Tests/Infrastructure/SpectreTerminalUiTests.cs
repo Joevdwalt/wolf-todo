@@ -33,7 +33,7 @@ public sealed class SpectreTerminalUiTests
             "/todos/contracts.md",
             null,
             string.Empty);
-        var terminal = new SpectreTerminalUi();
+        var terminal = new SpectreTerminalUi(() => 140, () => 30);
         AnsiConsole.Record();
 
         terminal.ShowBrowser(view);
@@ -41,5 +41,44 @@ public sealed class SpectreTerminalUiTests
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("All").And.Contain("Personal").And.Contain("Milas Contract Renewal");
+        output.Should().Contain("Projects").And.Contain("Todos: All").And.Contain("Details");
+    }
+
+    [Fact]
+    public void ShowBrowser_keeps_wide_column_boundaries_when_details_wrap()
+    {
+        var shortView = ViewWithTitle("Short title");
+        var longView = ViewWithTitle(new string('x', 160));
+
+        var shortHeader = RenderHeader(shortView);
+        var longHeader = RenderHeader(longView);
+
+        longHeader.IndexOf("Todos:", StringComparison.Ordinal)
+            .Should().Be(shortHeader.IndexOf("Todos:", StringComparison.Ordinal));
+        longHeader.IndexOf("Details", StringComparison.Ordinal)
+            .Should().Be(shortHeader.IndexOf("Details", StringComparison.Ordinal));
+    }
+
+    private static BrowserView ViewWithTitle(string title)
+    {
+        var todo = new TodoItem(1, false, null, title, null, [], null, null, string.Empty, [], []);
+        return new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("All", 1, null, null, true)],
+            [new TodoRow(null, todo, 0, true)],
+            todo,
+            "All",
+            "/todos/project.md",
+            null,
+            string.Empty);
+    }
+
+    private static string RenderHeader(BrowserView view)
+    {
+        AnsiConsole.Record();
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view);
+        return AnsiConsole.ExportText()
+            .Split(Environment.NewLine)
+            .First(line => line.Contains("Projects", StringComparison.Ordinal));
     }
 }

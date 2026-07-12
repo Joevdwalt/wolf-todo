@@ -8,7 +8,19 @@ namespace WolfTodo.Tui.Infrastructure;
 
 public sealed class SpectreTerminalUi : ITerminalUi
 {
+    private readonly Func<int> widthProvider;
+    private readonly Func<int> heightProvider;
     private bool browserRendered;
+
+    public SpectreTerminalUi() : this(SafeWindowWidth, SafeWindowHeight)
+    {
+    }
+
+    public SpectreTerminalUi(Func<int> widthProvider, Func<int> heightProvider)
+    {
+        this.widthProvider = widthProvider;
+        this.heightProvider = heightProvider;
+    }
 
     public void ShowSplash(string logo)
     {
@@ -21,7 +33,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             new Text("Wolf Todo"),
             new Text("Press any key to continue"));
 
-        if (Console.WindowWidth < LongestLine(logo) || Console.WindowHeight < 5)
+        if (widthProvider() < LongestLine(logo) || heightProvider() < 5)
         {
             AnsiConsole.WriteLine("Wolf Todo");
             AnsiConsole.WriteLine("Press any key to continue");
@@ -45,16 +57,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
             browserRendered = true;
         }
 
-        var width = SafeWindowWidth();
-        var height = SafeWindowHeight();
+        var width = widthProvider();
+        var height = heightProvider();
 
         if (width >= 120 && height >= 24)
         {
-            WriteWide(view);
+            WriteWide(view, width);
         }
         else if (width >= 80 && height >= 18)
         {
-            WriteMedium(view);
+            WriteMedium(view, width);
         }
         else
         {
@@ -107,64 +119,93 @@ public sealed class SpectreTerminalUi : ITerminalUi
         writer.Flush();
     }
 
-    private static void WriteWide(BrowserView view)
+    private static void WriteWide(BrowserView view, int terminalWidth)
     {
-        var table = CreateLayoutTable(3);
+        const int projectWidth = 22;
+        const int frameAndPaddingWidth = 10;
+        var remainingWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
+        var todoWidth = remainingWidth / 2;
+        var detailWidth = remainingWidth - todoWidth;
+        var table = CreatePaneTable(
+            ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects),
+            ($"Todos: {view.SelectedProjectTitle}", todoWidth, view.State.Focus == BrowserFocus.Todos),
+            ("Details", detailWidth, view.State.Focus == BrowserFocus.Details));
         table.AddRow(
-            ProjectPanel(view),
-            TodoPanel(view),
-            DetailPanel(view));
+            ProjectContent(view),
+            TodoContent(view),
+            DetailContent(view));
         AnsiConsole.Write(table);
     }
 
-    private static void WriteMedium(BrowserView view)
+    private static void WriteMedium(BrowserView view, int terminalWidth)
     {
-        var table = CreateLayoutTable(2);
+        const int projectWidth = 22;
+        const int frameAndPaddingWidth = 7;
+        var contentWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
+        var showDetails = view.State.Focus == BrowserFocus.Details;
+        var table = CreatePaneTable(
+            ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects),
+            (showDetails ? "Details" : $"Todos: {view.SelectedProjectTitle}", contentWidth, true));
         table.AddRow(
-            ProjectPanel(view),
-            view.State.Focus == BrowserFocus.Details ? DetailPanel(view) : TodoPanel(view));
+            ProjectContent(view),
+            showDetails ? DetailContent(view) : TodoContent(view));
         AnsiConsole.Write(table);
     }
 
     private static void WriteNarrow(BrowserView view)
     {
-        var panel = view.State.Focus switch
+        var title = view.State.Focus switch
         {
-            BrowserFocus.Projects => ProjectPanel(view),
-            BrowserFocus.Todos => TodoPanel(view),
-            _ => DetailPanel(view)
+            BrowserFocus.Projects => "Projects",
+            BrowserFocus.Todos => $"Todos: {view.SelectedProjectTitle}",
+            _ => "Details"
         };
+        var content = view.State.Focus switch
+        {
+            BrowserFocus.Projects => ProjectContent(view),
+            BrowserFocus.Todos => TodoContent(view),
+            _ => DetailContent(view)
+        };
+        var table = CreatePaneTable((title, null, true));
+        table.AddRow(content);
 
-        AnsiConsole.Write(panel);
+        AnsiConsole.Write(table);
     }
 
-    private static Table CreateLayoutTable(int columns)
+    private static Table CreatePaneTable(params (string Title, int? Width, bool Focused)[] panes)
     {
-        var table = new Table().NoBorder().Expand();
-        table.HideHeaders();
+        var table = new Table().RoundedBorder().Expand();
 
-        for (var index = 0; index < columns; index++)
+        foreach (var pane in panes)
         {
-            table.AddColumn(new TableColumn(string.Empty));
+            var header = pane.Focused
+                ? new Markup($"[cyan bold]{Markup.Escape(pane.Title)}[/]")
+                : new Markup($"[bold]{Markup.Escape(pane.Title)}[/]");
+            table.AddColumn(new TableColumn(header)
+            {
+                Width = pane.Width,
+                NoWrap = false,
+                Padding = new Padding(1, 0)
+            });
         }
 
         return table;
     }
 
-    private static Panel ProjectPanel(BrowserView view)
+    private static IRenderable ProjectContent(BrowserView view)
     {
         var lines = view.Projects.Select(row =>
         {
             var cursor = row.IsSelected ? ">" : " ";
             var error = row.Error is null ? " " : "!";
             var count = row.Error is null ? $" {row.ActiveCount}" : string.Empty;
-            return new Text($"{cursor}{error} {row.Title}{count}");
+            return (IRenderable)new Text($"{cursor}{error} {row.Title}{count}").Ellipsis();
         });
 
-        return CreatePanel("Projects", lines, view.State.Focus == BrowserFocus.Projects);
+        return CreateContent(lines);
     }
 
-    private static Panel TodoPanel(BrowserView view)
+    private static IRenderable TodoContent(BrowserView view)
     {
         IEnumerable<IRenderable> lines;
 
@@ -180,16 +221,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             lines = view.Todos.Select(row => row.Heading is not null
                 ? (IRenderable)new Markup($"[bold]{Markup.Escape(row.Heading)}[/]")
-                : new Text(FormatTodo(row)));
+                : new Text(FormatTodo(row)).Ellipsis());
         }
 
-        return CreatePanel(
-            $"Todos: {view.SelectedProjectTitle}",
-            lines,
-            view.State.Focus == BrowserFocus.Todos);
+        return CreateContent(lines);
     }
 
-    private static Panel DetailPanel(BrowserView view)
+    private static IRenderable DetailContent(BrowserView view)
     {
         var lines = new List<IRenderable>();
 
@@ -244,21 +282,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
             }
         }
 
-        return CreatePanel("Details", lines, view.State.Focus == BrowserFocus.Details);
+        return CreateContent(lines);
     }
 
-    private static Panel CreatePanel(string title, IEnumerable<IRenderable> lines, bool focused)
+    private static IRenderable CreateContent(IEnumerable<IRenderable> lines)
     {
         var content = lines.ToArray();
-        var panel = new Panel(content.Length == 0 ? new Text(string.Empty) : new Rows(content))
-        {
-            Header = new PanelHeader(title),
-            Expand = true,
-            Border = BoxBorder.Rounded,
-            BorderStyle = focused ? new Style(Color.Cyan1) : Style.Plain
-        };
-
-        return panel;
+        return content.Length == 0 ? new Text(string.Empty) : new Rows(content);
     }
 
     private static string FormatTodo(TodoRow row) => FormatTodo(row.Todo!, row.Depth, row.IsSelected);

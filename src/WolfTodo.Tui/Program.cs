@@ -12,7 +12,7 @@ builder.Services.AddSingleton<ProjectCatalogLoader>();
 builder.Services.AddSingleton<ProjectBrowserPresenter>();
 builder.Services.AddSingleton<BrowserReducer>();
 builder.Services.AddSingleton<IProjectFileSystem, PhysicalProjectFileSystem>();
-builder.Services.AddSingleton<ITerminalUi, SpectreTerminalUi>();
+builder.Services.AddSingleton<ITerminalUi>(new SpectreTerminalUi());
 builder.Services.AddSingleton<IApplicationConfigurationLoader>(serviceProvider =>
     new TomlApplicationConfigurationLoader(
         GlobalConfigurationPath.Resolve(),
