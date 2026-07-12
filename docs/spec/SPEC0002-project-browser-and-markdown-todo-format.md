@@ -183,9 +183,10 @@ Completed todos are hidden by default. The `:completed` command toggles them
 for the current browser session. When visible, show completed todos after open
 todos within their original project and heading groups.
 
-Todo rows display status, optional external reference, title, priority, tags,
-start date, and due date as space permits. The detail preview displays the
-complete title, project, heading path, parsed fields, notes, and nested subtasks.
+Todo rows display status and title, with priority fixed at the right edge. Keep
+each row on one line and truncate overflowing titles with an ellipsis. The
+detail preview displays the complete title, external reference, project,
+heading path, priority, tags, dates, notes, and nested subtasks.
 
 Selecting an error entry replaces the todo/detail content with its diagnostic,
 including the source path and actionable reason. Duplicate project titles are

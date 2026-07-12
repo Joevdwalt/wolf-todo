@@ -70,7 +70,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
         else
         {
-            WriteNarrow(view);
+            WriteNarrow(view, width);
         }
 
         WriteStatus(view, width < 80 || height < 18);
@@ -127,12 +127,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var todoWidth = remainingWidth / 2;
         var detailWidth = remainingWidth - todoWidth;
         var table = CreatePaneTable(
-            ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects),
-            ($"Todos: {view.SelectedProjectTitle}", todoWidth, view.State.Focus == BrowserFocus.Todos),
-            ("Details", detailWidth, view.State.Focus == BrowserFocus.Details));
+            ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
+            ($"Todos: {view.SelectedProjectTitle}", todoWidth, view.State.Focus == BrowserFocus.Todos, true),
+            ("Details", detailWidth, view.State.Focus == BrowserFocus.Details, false));
         table.AddRow(
             ProjectContent(view),
-            TodoContent(view),
+            TodoContent(view, todoWidth - 2),
             DetailContent(view));
         AnsiConsole.Write(table);
     }
@@ -144,16 +144,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var contentWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
         var showDetails = view.State.Focus == BrowserFocus.Details;
         var table = CreatePaneTable(
-            ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects),
-            (showDetails ? "Details" : $"Todos: {view.SelectedProjectTitle}", contentWidth, true));
+            ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
+            (showDetails ? "Details" : $"Todos: {view.SelectedProjectTitle}", contentWidth, true, !showDetails));
         table.AddRow(
             ProjectContent(view),
-            showDetails ? DetailContent(view) : TodoContent(view));
+            showDetails ? DetailContent(view) : TodoContent(view, contentWidth - 2));
         AnsiConsole.Write(table);
     }
 
-    private static void WriteNarrow(BrowserView view)
+    private static void WriteNarrow(BrowserView view, int terminalWidth)
     {
+        const int frameAndPaddingWidth = 4;
+        var contentWidth = terminalWidth - frameAndPaddingWidth;
         var title = view.State.Focus switch
         {
             BrowserFocus.Projects => "Projects",
@@ -163,16 +165,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var content = view.State.Focus switch
         {
             BrowserFocus.Projects => ProjectContent(view),
-            BrowserFocus.Todos => TodoContent(view),
+            BrowserFocus.Todos => TodoContent(view, contentWidth),
             _ => DetailContent(view)
         };
-        var table = CreatePaneTable((title, null, true));
+        var table = CreatePaneTable((title, null, true, view.State.Focus != BrowserFocus.Details));
         table.AddRow(content);
 
         AnsiConsole.Write(table);
     }
 
-    private static Table CreatePaneTable(params (string Title, int? Width, bool Focused)[] panes)
+    private static Table CreatePaneTable(params (string Title, int? Width, bool Focused, bool NoWrap)[] panes)
     {
         var table = new Table().RoundedBorder().Expand();
 
@@ -184,7 +186,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             table.AddColumn(new TableColumn(header)
             {
                 Width = pane.Width,
-                NoWrap = false,
+                NoWrap = pane.NoWrap,
                 Padding = new Padding(1, 0)
             });
         }
@@ -205,7 +207,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return CreateContent(lines);
     }
 
-    private static IRenderable TodoContent(BrowserView view)
+    private static IRenderable TodoContent(BrowserView view, int contentWidth)
     {
         IEnumerable<IRenderable> lines;
 
@@ -220,8 +222,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
         else
         {
             lines = view.Todos.Select(row => row.Heading is not null
-                ? (IRenderable)new Markup($"[bold]{Markup.Escape(row.Heading)}[/]")
-                : new Text(FormatTodo(row)).Ellipsis());
+                ? (IRenderable)new Markup($"[bold]{Markup.Escape(row.Heading)}[/]").Ellipsis()
+                : TodoListRow(row, contentWidth));
         }
 
         return CreateContent(lines);
@@ -277,7 +279,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 {
                     lines.Add(new Text(string.Empty));
                     lines.Add(new Markup("[bold]Subtasks[/]"));
-                    lines.AddRange(todo.Subtasks.Select(subtask => new Text(FormatTodo(subtask, 0, false))));
+                    lines.AddRange(todo.Subtasks.Select(subtask => new Text(FormatDetailedTodo(subtask, 0, false))));
                 }
             }
         }
@@ -291,9 +293,52 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return content.Length == 0 ? new Text(string.Empty) : new Rows(content);
     }
 
-    private static string FormatTodo(TodoRow row) => FormatTodo(row.Todo!, row.Depth, row.IsSelected);
+    private static IRenderable TodoListRow(TodoRow row, int contentWidth)
+    {
+        const int priorityWidth = 3;
+        var todo = row.Todo!;
+        var cursor = row.IsSelected ? ">" : " ";
+        var indent = new string(' ', row.Depth * 2);
+        var status = todo.IsCompleted ? "[x]" : "[ ]";
+        var prefix = $"{cursor} {indent}{status} ";
+        var leftWidth = Math.Max(1, contentWidth - priorityWidth);
+        var titleWidth = Math.Max(1, leftWidth - DisplayWidth(prefix));
+        var title = Truncate(todo.Title, titleWidth);
+        var left = prefix + title;
+        var padding = new string(' ', Math.Max(0, leftWidth - DisplayWidth(left)));
+        var priority = PriorityMarker(todo.Priority).Trim();
 
-    private static string FormatTodo(TodoItem todo, int depth, bool selected)
+        return new Text($"{left}{padding}{priority,3}");
+    }
+
+    private static string Truncate(string value, int width)
+    {
+        if (DisplayWidth(value) <= width)
+        {
+            return value;
+        }
+
+        var result = new System.Text.StringBuilder();
+        var remainingWidth = Math.Max(0, width - 1);
+
+        foreach (var rune in value.EnumerateRunes())
+        {
+            var runeWidth = rune.ToString().GetCellWidth();
+            if (runeWidth > remainingWidth)
+            {
+                break;
+            }
+
+            result.Append(rune.ToString());
+            remainingWidth -= runeWidth;
+        }
+
+        return result.Append('…').ToString();
+    }
+
+    private static int DisplayWidth(string value) => value.GetCellWidth();
+
+    private static string FormatDetailedTodo(TodoItem todo, int depth, bool selected)
     {
         var cursor = selected ? ">" : " ";
         var indent = new string(' ', depth * 2);

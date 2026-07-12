@@ -34,7 +34,7 @@ public sealed class SpectreTerminalUiTests
             null,
             string.Empty);
         var terminal = new SpectreTerminalUi(() => 140, () => 30);
-        AnsiConsole.Record();
+        StartRecording();
 
         terminal.ShowBrowser(view);
         terminal.ShowBrowser(view with { SelectedProjectTitle = "Personal" });
@@ -59,6 +59,49 @@ public sealed class SpectreTerminalUiTests
             .Should().Be(shortHeader.IndexOf("Details", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ShowBrowser_truncates_todo_titles_and_keeps_metadata_in_details()
+    {
+        const string title = "Prepare the unusually detailed contract renewal proposal for the customer before the quarterly review meeting";
+        var todo = new TodoItem(
+            1,
+            false,
+            "134416",
+            title,
+            TodoPriority.High,
+            ["now"],
+            new DateOnly(2026, 7, 8),
+            new DateOnly(2026, 7, 12),
+            "Renewals",
+            ["Review current contract"],
+            []);
+        var view = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("All", 1, null, null, true)],
+            [new TodoRow(null, todo, 0, true)],
+            todo,
+            "All",
+            "/todos/contracts.md",
+            null,
+            string.Empty);
+
+        StartRecording();
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view);
+        var output = AnsiConsole.ExportText();
+        var todoLine = output.Split(Environment.NewLine)
+            .Last(line => line.Contains("Prepare the unusually", StringComparison.Ordinal));
+        var todoPane = todoLine.Split('│')[2];
+
+        todoPane.Should().Contain("Prepare the unusually").And.Contain("…").And.Contain("⏫");
+        todoPane.Should().NotContain("134416").And.NotContain("#now").And.NotContain("2026-07-08");
+        output.Should().Contain("quarterly review")
+            .And.Contain("meeting")
+            .And.Contain("Reference: 134416")
+            .And.Contain("Tags: #now")
+            .And.Contain("Start: 2026-07-08")
+            .And.Contain("Due: 2026-07-12");
+    }
+
     private static BrowserView ViewWithTitle(string title)
     {
         var todo = new TodoItem(1, false, null, title, null, [], null, null, string.Empty, [], []);
@@ -75,10 +118,17 @@ public sealed class SpectreTerminalUiTests
 
     private static string RenderHeader(BrowserView view)
     {
-        AnsiConsole.Record();
+        StartRecording();
         new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view);
         return AnsiConsole.ExportText()
             .Split(Environment.NewLine)
             .First(line => line.Contains("Projects", StringComparison.Ordinal));
+    }
+
+    private static void StartRecording()
+    {
+        AnsiConsole.Record();
+        AnsiConsole.Profile.Width = 140;
+        AnsiConsole.Profile.Height = 30;
     }
 }
