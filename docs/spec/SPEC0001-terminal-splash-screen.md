@@ -28,17 +28,17 @@ and exit with code `1`. It must not render the terminal user interface.
 
 After valid configuration is loaded, clear the terminal and render a vertically
 and horizontally centered splash screen containing the ASCII art from
-`src/assets/wolf.txt`.
+`src/WolfTodo.Tui/Assets/wolf.txt`.
 
 - The title `Wolf Todo`.
 - The prompt `Press any key to continue`.
 
-`src/assets/wolf.txt` is the source of truth for the logo and may be updated
-without changing application code. The application project must bundle the file
-as an application asset and must not require a network request or external
-image viewer to render it. Any keypress transitions to the placeholder home
-screen. The keypress that dismisses the splash screen must not be passed to the
-home screen.
+`src/WolfTodo.Tui/Assets/wolf.txt` is the editable, project-owned source of truth
+for the logo and may be updated without changing application code. The
+application project must bundle the file as an application asset and must not
+require a network request or external image viewer to render it. Any keypress
+transitions to the placeholder home screen. The keypress that dismisses the
+splash screen must not be passed to the home screen.
 
 If the terminal is too small for the centered content, render a readable
 fallback containing the title and continuation prompt instead of failing.
@@ -82,3 +82,4 @@ command interaction.
 
 - [ADR0001: Use .NET and Spectre.Console](../adr/ADR0001-use-dotnet-and-spectre-console.md)
 - [ADR0002: Use TOML for Command Bindings](../adr/ADR0002-use-toml-for-command-bindings.md)
+- [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)
