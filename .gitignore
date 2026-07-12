@@ -16,6 +16,8 @@
 [Tt]est[Rr]esult*/
 coverage/
 coverage*/
+/artifacts/coverage/
+/artifacts/test-results/
 *.coverage
 *.coveragexml
 

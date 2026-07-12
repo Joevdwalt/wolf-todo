@@ -90,11 +90,14 @@ names so callbacks remain readable. Language-required discards, such as
 `out _`, remain allowed.
 
 Create a corresponding xUnit test project for every executable project, and a
-test project for each shared class library. Test projects must use xUnit, the
-.NET test SDK, and FluentAssertions. For every production class, create one
-test class named `<ClassName>Tests` in the mirrored namespace and feature
-folder. Tests must verify observable behavior, including each class's failure
-behavior.
+test project for each shared class library. Test projects must use the
+`xunit.v3.mtp-v2` package with Microsoft Testing Platform (MTP), the MTP
+TRX-report extension, the MTP code-coverage extension, and FluentAssertions.
+Do not reference
+`Microsoft.NET.Test.Sdk`, `xunit.runner.visualstudio`, or Coverlet packages.
+For every production class, create one test class named `<ClassName>Tests` in
+the mirrored namespace and feature folder. Tests must verify observable
+behavior, including each class's failure behavior.
 
 The editable logo source of truth will be
 `src/WolfTodo.Tui/Assets/wolf.txt`. The TUI host owns and bundles this asset;
