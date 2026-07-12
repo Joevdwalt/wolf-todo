@@ -1,0 +1,23 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build all production application projects.
+    cmds:
+      - pwsh -NoProfile -File src/scripts/build.ps1
+  test:
+    desc: Run all unit tests and write TRX results.
+    cmds:
+      - pwsh -NoProfile -File src/scripts/test.ps1
+  coverage:
+    desc: Generate a unit-test coverage report.
+    cmds:
+      - pwsh -NoProfile -File src/scripts/coverage.ps1
+  run-tui:
+    desc: Run the Wolf Todo terminal user interface.
+    cmds:
+      - pwsh -NoProfile -File src/scripts/run-tui.ps1
+  run-cli:
+    desc: Run the Wolf Todo command-line interface.
+    cmds:
+      - pwsh -NoProfile -File src/scripts/run-cli.ps1
