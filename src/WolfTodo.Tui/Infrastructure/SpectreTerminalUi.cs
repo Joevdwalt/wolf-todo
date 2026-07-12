@@ -8,8 +8,11 @@ namespace WolfTodo.Tui.Infrastructure;
 
 public sealed class SpectreTerminalUi : ITerminalUi
 {
+    private bool browserRendered;
+
     public void ShowSplash(string logo)
     {
+        browserRendered = false;
         AnsiConsole.Clear();
 
         var content = new Rows(
@@ -30,7 +33,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     public void ShowBrowser(BrowserView view)
     {
-        AnsiConsole.Clear();
+        var useSynchronizedUpdate = browserRendered && AnsiConsole.Profile.Out.IsTerminal;
+
+        if (browserRendered)
+        {
+            BeginUpdate(useSynchronizedUpdate);
+        }
+        else
+        {
+            AnsiConsole.Clear();
+            browserRendered = true;
+        }
 
         var width = SafeWindowWidth();
         var height = SafeWindowHeight();
@@ -49,6 +62,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
 
         WriteStatus(view, width < 80 || height < 18);
+        EndUpdate(useSynchronizedUpdate);
     }
 
     public void ShowStartupError(string message)
@@ -57,6 +71,41 @@ public sealed class SpectreTerminalUi : ITerminalUi
     }
 
     public ConsoleKeyInfo ReadKey() => Console.ReadKey(intercept: true);
+
+    private static void BeginUpdate(bool synchronized)
+    {
+        if (!AnsiConsole.Profile.Out.IsTerminal)
+        {
+            return;
+        }
+
+        var writer = AnsiConsole.Profile.Out.Writer;
+
+        if (synchronized)
+        {
+            writer.Write("\u001b[?2026h");
+        }
+
+        writer.Write("\u001b[H");
+    }
+
+    private static void EndUpdate(bool synchronized)
+    {
+        if (!AnsiConsole.Profile.Out.IsTerminal)
+        {
+            return;
+        }
+
+        var writer = AnsiConsole.Profile.Out.Writer;
+        writer.Write("\u001b[J");
+
+        if (synchronized)
+        {
+            writer.Write("\u001b[?2026l");
+        }
+
+        writer.Flush();
+    }
 
     private static void WriteWide(BrowserView view)
     {

@@ -9,7 +9,7 @@ namespace WolfTodo.Tui.Tests.Infrastructure;
 public sealed class SpectreTerminalUiTests
 {
     [Fact]
-    public void ShowBrowser_renders_the_selected_project_and_todo()
+    public void ShowBrowser_renders_and_updates_the_selected_project_and_todo()
     {
         var todo = new TodoItem(
             1,
@@ -37,8 +37,9 @@ public sealed class SpectreTerminalUiTests
         AnsiConsole.Record();
 
         terminal.ShowBrowser(view);
+        terminal.ShowBrowser(view with { SelectedProjectTitle = "Personal" });
         var output = AnsiConsole.ExportText();
 
-        output.Should().Contain("All").And.Contain("Milas Contract Renewal");
+        output.Should().Contain("All").And.Contain("Personal").And.Contain("Milas Contract Renewal");
     }
 }
