@@ -7,6 +7,9 @@ public sealed record BrowserState(
     bool ShowCompleted,
     bool IsCommandMode,
     string Command,
+    bool IsFilterMode,
+    string FilterText,
+    string FilterDraft,
     string? Error)
 {
     public static BrowserState Initial { get; } = new(
@@ -15,6 +18,9 @@ public sealed record BrowserState(
         0,
         false,
         false,
+        string.Empty,
+        false,
+        string.Empty,
         string.Empty,
         null);
 }

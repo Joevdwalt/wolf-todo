@@ -102,6 +102,41 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("Due: 2026-07-12");
     }
 
+    [Fact]
+    public void ShowBrowser_renders_filter_editing_and_committed_filter_statuses()
+    {
+        var terminal = new SpectreTerminalUi(() => 140, () => 30);
+        var view = ViewWithTitle("Renew contract");
+        StartRecording();
+
+        terminal.ShowBrowser(view with
+        {
+            State = view.State with { IsFilterMode = true, FilterDraft = "renew" }
+        });
+        terminal.ShowBrowser(view with
+        {
+            State = view.State with { FilterText = "renew" }
+        });
+        var output = AnsiConsole.ExportText();
+
+        output.Should().Contain("/renew");
+        output.Should().Contain("Filter: /renew").And.Contain("empty Enter clears");
+    }
+
+    [Fact]
+    public void ShowBrowser_includes_the_filter_key_in_wide_and_compact_hints()
+    {
+        var view = ViewWithTitle("Renew contract");
+        StartRecording();
+
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view);
+        new SpectreTerminalUi(() => 70, () => 16).ShowBrowser(view);
+        var output = AnsiConsole.ExportText();
+
+        output.Should().Contain("/ filter  : command");
+        output.Should().Contain("/ filter  : commands  Esc back");
+    }
+
     private static BrowserView ViewWithTitle(string title)
     {
         var todo = new TodoItem(1, false, null, title, null, [], null, null, string.Empty, [], []);

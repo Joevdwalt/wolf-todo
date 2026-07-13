@@ -34,6 +34,29 @@ public sealed class TuiApplicationTests
         terminal.BrowserViews.Should().NotBeEmpty();
     }
 
+    [Fact]
+    public void Run_commits_and_clears_a_filter_before_exiting()
+    {
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('/'),
+            Key('m'),
+            Key(ConsoleKey.Enter),
+            Key('/'),
+            Key(ConsoleKey.Backspace),
+            Key(ConsoleKey.Enter),
+            Key(':'),
+            Key('q'),
+            Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.BrowserViews.Should().Contain(view => view.State.FilterText == "m");
+        terminal.BrowserViews.Last().State.FilterText.Should().BeEmpty();
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal)

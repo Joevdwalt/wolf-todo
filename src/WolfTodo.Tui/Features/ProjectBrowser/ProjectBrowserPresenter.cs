@@ -7,6 +7,7 @@ public sealed class ProjectBrowserPresenter
 {
     public BrowserView CreateView(ProjectCatalog catalog, BrowserState state)
     {
+        var filter = EffectiveFilter(state);
         var projectRows = BuildProjectRows(catalog, state);
         var selectedProjectIndex = Math.Clamp(state.ProjectIndex, 0, Math.Max(0, projectRows.Length - 1));
         var selectedProject = projectRows[selectedProjectIndex];
@@ -22,6 +23,8 @@ public sealed class ProjectBrowserPresenter
 
         var emptyMessage = catalog.Projects.Length == 0
             ? "No projects found"
+            : filter.Length > 0
+                ? $"No todos match /{filter}"
             : state.ShowCompleted
                 ? "No todos in this view"
                 : HasCompletedTodos(selectedProject, catalog)
@@ -82,16 +85,26 @@ public sealed class ProjectBrowserPresenter
             ? catalog.Projects
             : [selectedProject.Project];
         var rows = ImmutableArray.CreateBuilder<TodoRow>();
+        var filter = EffectiveFilter(state);
 
         foreach (var project in projects)
         {
+            var visibleTodos = Flatten(project.Todos)
+                .Where(item => state.ShowCompleted || !item.Todo.IsCompleted)
+                .Where(item => MatchesFilter(item.Todo, filter))
+                .ToArray();
+
+            if (filter.Length > 0 && visibleTodos.Length == 0)
+            {
+                continue;
+            }
+
             if (selectedProject.Project is null)
             {
                 rows.Add(new TodoRow(project.Title, null, 0, false));
             }
 
-            var flattened = Flatten(project.Todos)
-                .Where(item => state.ShowCompleted || !item.Todo.IsCompleted)
+            var flattened = visibleTodos
                 .GroupBy(item => item.Todo.SectionPath);
 
             foreach (var section in flattened)
@@ -110,6 +123,25 @@ public sealed class ProjectBrowserPresenter
 
         return rows.ToImmutable();
     }
+
+    private static string EffectiveFilter(BrowserState state) =>
+        (state.IsFilterMode ? state.FilterDraft : state.FilterText).Trim();
+
+    private static bool MatchesFilter(TodoItem todo, string filter)
+    {
+        if (filter.Length == 0)
+        {
+            return true;
+        }
+
+        return Contains(todo.Title, filter)
+            || Contains(todo.ExternalReference, filter)
+            || Contains(todo.SectionPath, filter)
+            || todo.Tags.Any(tag => Contains(tag, filter) || Contains($"#{tag}", filter));
+    }
+
+    private static bool Contains(string? value, string filter) =>
+        value?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true;
 
     private static IEnumerable<(TodoItem Todo, int Depth)> Flatten(
         IEnumerable<TodoItem> todos,

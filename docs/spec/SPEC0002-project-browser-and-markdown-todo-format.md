@@ -238,6 +238,7 @@ configurable.
 ## References
 
 - [SPEC0001: Terminal Splash Screen](SPEC0001-terminal-splash-screen.md)
+- [SPEC0003: Slash Todo Filter](SPEC0003-slash-todo-filter.md)
 - [ADR0001: Use .NET and Spectre.Console](../adr/ADR0001-use-dotnet-and-spectre-console.md)
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)

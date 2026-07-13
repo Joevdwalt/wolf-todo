@@ -372,11 +372,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static void WriteStatus(BrowserView view, bool compact)
     {
-        var status = view.State.IsCommandMode
-            ? view.State.Command
-            : view.State.Error ?? (compact
-                ? ": commands  Esc back"
-                : "↑↓ navigate  Tab pane  Enter select  : command  :completed  :q");
+        var status = view.State switch
+        {
+            { IsCommandMode: true } => view.State.Command,
+            { IsFilterMode: true } => $"/{view.State.FilterDraft}",
+            { Error: not null } => view.State.Error,
+            { FilterText.Length: > 0 } => $"Filter: /{view.State.FilterText}  / edit  empty Enter clears",
+            _ when compact => "/ filter  : commands  Esc back",
+            _ => "↑↓ navigate  Tab pane  Enter select  / filter  : command  :completed  :q"
+        };
 
         AnsiConsole.Write(new Panel(new Text(status))
         {

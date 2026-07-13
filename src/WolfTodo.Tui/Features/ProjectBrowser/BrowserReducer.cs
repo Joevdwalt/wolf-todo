@@ -15,12 +15,27 @@ public sealed class BrowserReducer
             return ReduceCommand(state, key, configuration);
         }
 
+        if (state.IsFilterMode)
+        {
+            return ReduceFilter(state, key);
+        }
+
         if (key.KeyChar == ':')
         {
             return Transition(state with
             {
                 IsCommandMode = true,
                 Command = ":",
+                Error = null
+            });
+        }
+
+        if (key.KeyChar == '/')
+        {
+            return Transition(state with
+            {
+                IsFilterMode = true,
+                FilterDraft = state.FilterText,
                 Error = null
             });
         }
@@ -73,6 +88,47 @@ public sealed class BrowserReducer
         }
 
         return Transition(state);
+    }
+
+    private static BrowserTransition ReduceFilter(BrowserState state, ConsoleKeyInfo key)
+    {
+        if (key.Key == ConsoleKey.Escape)
+        {
+            return Transition(state with
+            {
+                IsFilterMode = false,
+                FilterDraft = state.FilterText,
+                Error = null
+            });
+        }
+
+        if (key.Key == ConsoleKey.Enter)
+        {
+            var filter = state.FilterDraft.Trim();
+            return Transition(state with
+            {
+                IsFilterMode = false,
+                FilterText = filter,
+                FilterDraft = filter,
+                TodoIndex = 0,
+                Error = null
+            });
+        }
+
+        if (key.Key == ConsoleKey.Backspace)
+        {
+            var filter = state.FilterDraft.Length > 0 ? state.FilterDraft[..^1] : state.FilterDraft;
+            return Transition(state with { FilterDraft = filter, TodoIndex = 0, Error = null });
+        }
+
+        return char.IsControl(key.KeyChar)
+            ? Transition(state)
+            : Transition(state with
+            {
+                FilterDraft = state.FilterDraft + key.KeyChar,
+                TodoIndex = 0,
+                Error = null
+            });
     }
 
     private static BrowserTransition ReduceCommand(
