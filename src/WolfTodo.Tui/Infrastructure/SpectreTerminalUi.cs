@@ -62,15 +62,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         if (width >= 120 && height >= 24)
         {
-            WriteWide(view, width);
+            WriteWide(view, width, height);
         }
         else if (width >= 80 && height >= 18)
         {
-            WriteMedium(view, width);
+            WriteMedium(view, width, height);
         }
         else
         {
-            WriteNarrow(view, width);
+            WriteNarrow(view, width, height);
         }
 
         WriteStatus(view, width < 80 || height < 18);
@@ -119,40 +119,47 @@ public sealed class SpectreTerminalUi : ITerminalUi
         writer.Flush();
     }
 
-    private static void WriteWide(BrowserView view, int terminalWidth)
+    private static void WriteWide(BrowserView view, int terminalWidth, int terminalHeight)
     {
         const int projectWidth = 22;
         const int frameAndPaddingWidth = 10;
         var remainingWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
         var todoWidth = remainingWidth / 2;
         var detailWidth = remainingWidth - todoWidth;
+        var projectLines = ProjectLines(view);
+        var todoLines = TodoLines(view, todoWidth - 2);
+        var detailLines = DetailLines(view);
         var table = CreatePaneTable(
             ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
             ($"Todos: {view.SelectedProjectTitle}", todoWidth, view.State.Focus == BrowserFocus.Todos, true),
             ("Details", detailWidth, view.State.Focus == BrowserFocus.Details, false));
         table.AddRow(
-            ProjectContent(view),
-            TodoContent(view, todoWidth - 2),
-            DetailContent(view));
+            CreateContent(projectLines),
+            CreateContent(todoLines),
+            CreateContent(detailLines));
+        PadToMinimumHeight(table, terminalHeight, projectLines.Count, todoLines.Count, detailLines.Count);
         AnsiConsole.Write(table);
     }
 
-    private static void WriteMedium(BrowserView view, int terminalWidth)
+    private static void WriteMedium(BrowserView view, int terminalWidth, int terminalHeight)
     {
         const int projectWidth = 22;
         const int frameAndPaddingWidth = 7;
         var contentWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
         var showDetails = view.State.Focus == BrowserFocus.Details;
+        var projectLines = ProjectLines(view);
+        var contentLines = showDetails ? DetailLines(view) : TodoLines(view, contentWidth - 2);
         var table = CreatePaneTable(
             ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
             (showDetails ? "Details" : $"Todos: {view.SelectedProjectTitle}", contentWidth, true, !showDetails));
         table.AddRow(
-            ProjectContent(view),
-            showDetails ? DetailContent(view) : TodoContent(view, contentWidth - 2));
+            CreateContent(projectLines),
+            CreateContent(contentLines));
+        PadToMinimumHeight(table, terminalHeight, projectLines.Count, contentLines.Count);
         AnsiConsole.Write(table);
     }
 
-    private static void WriteNarrow(BrowserView view, int terminalWidth)
+    private static void WriteNarrow(BrowserView view, int terminalWidth, int terminalHeight)
     {
         const int frameAndPaddingWidth = 4;
         var contentWidth = terminalWidth - frameAndPaddingWidth;
@@ -162,14 +169,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
             BrowserFocus.Todos => $"Todos: {view.SelectedProjectTitle}",
             _ => "Details"
         };
-        var content = view.State.Focus switch
+        var lines = view.State.Focus switch
         {
-            BrowserFocus.Projects => ProjectContent(view),
-            BrowserFocus.Todos => TodoContent(view, contentWidth),
-            _ => DetailContent(view)
+            BrowserFocus.Projects => ProjectLines(view),
+            BrowserFocus.Todos => TodoLines(view, contentWidth),
+            _ => DetailLines(view)
         };
         var table = CreatePaneTable((title, null, true, view.State.Focus != BrowserFocus.Details));
-        table.AddRow(content);
+        table.AddRow(CreateContent(lines));
+        PadToMinimumHeight(table, terminalHeight, lines.Count);
 
         AnsiConsole.Write(table);
     }
@@ -194,42 +202,35 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return table;
     }
 
-    private static IRenderable ProjectContent(BrowserView view)
+    private static IReadOnlyList<IRenderable> ProjectLines(BrowserView view)
     {
-        var lines = view.Projects.Select(row =>
+        return view.Projects.Select(row =>
         {
             var cursor = row.IsSelected ? ">" : " ";
             var error = row.Error is null ? " " : "!";
             var count = row.Error is null ? $" {row.ActiveCount}" : string.Empty;
             return (IRenderable)new Text($"{cursor}{error} {row.Title}{count}").Ellipsis();
-        });
-
-        return CreateContent(lines);
+        }).ToArray();
     }
 
-    private static IRenderable TodoContent(BrowserView view, int contentWidth)
+    private static IReadOnlyList<IRenderable> TodoLines(BrowserView view, int contentWidth)
     {
-        IEnumerable<IRenderable> lines;
-
         if (view.Diagnostic is not null)
         {
-            lines = [new Text("Select the error entry for details.")];
-        }
-        else if (view.Todos.Length == 0)
-        {
-            lines = [new Text(view.EmptyMessage)];
-        }
-        else
-        {
-            lines = view.Todos.Select(row => row.Heading is not null
-                ? (IRenderable)new Markup($"[bold]{Markup.Escape(row.Heading)}[/]").Ellipsis()
-                : TodoListRow(row, contentWidth));
+            return [new Text("Select the error entry for details.")];
         }
 
-        return CreateContent(lines);
+        if (view.Todos.Length == 0)
+        {
+            return [new Text(view.EmptyMessage)];
+        }
+
+        return view.Todos.Select(row => row.Heading is not null
+            ? (IRenderable)new Markup($"[bold]{Markup.Escape(row.Heading)}[/]").Ellipsis()
+            : TodoListRow(row, contentWidth)).ToArray();
     }
 
-    private static IRenderable DetailContent(BrowserView view)
+    private static IReadOnlyList<IRenderable> DetailLines(BrowserView view)
     {
         var lines = new List<IRenderable>();
 
@@ -284,13 +285,24 @@ public sealed class SpectreTerminalUi : ITerminalUi
             }
         }
 
-        return CreateContent(lines);
+        return lines;
     }
 
-    private static IRenderable CreateContent(IEnumerable<IRenderable> lines)
+    private static IRenderable CreateContent(IReadOnlyList<IRenderable> lines)
     {
-        var content = lines.ToArray();
-        return content.Length == 0 ? new Text(string.Empty) : new Rows(content);
+        return lines.Count == 0 ? new Text(string.Empty) : new Rows(lines);
+    }
+
+    private static void PadToMinimumHeight(Table table, int terminalHeight, params int[] paneLineCounts)
+    {
+        const int tableAndStatusHeight = 6;
+        var minimumContentHeight = Math.Max(1, terminalHeight - tableAndStatusHeight);
+        var renderedContentHeight = Math.Max(1, paneLineCounts.Max());
+
+        for (var row = renderedContentHeight; row < minimumContentHeight; row++)
+        {
+            table.AddEmptyRow();
+        }
     }
 
     private static IRenderable TodoListRow(TodoRow row, int contentWidth)

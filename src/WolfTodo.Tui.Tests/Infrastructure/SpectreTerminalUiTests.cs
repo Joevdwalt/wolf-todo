@@ -137,6 +137,36 @@ public sealed class SpectreTerminalUiTests
         output.Should().Contain("/ filter  : commands  Esc back");
     }
 
+    [Theory]
+    [InlineData(140, 30, BrowserFocus.Projects)]
+    [InlineData(100, 20, BrowserFocus.Todos)]
+    [InlineData(70, 16, BrowserFocus.Todos)]
+    public void ShowBrowser_keeps_the_status_position_when_filtering_reduces_results(
+        int width,
+        int height,
+        BrowserFocus focus)
+    {
+        var unfiltered = RenderBrowser(ViewWithTodoCount(8, focus), width, height);
+        var filteredView = ViewWithTodoCount(1, focus);
+        var filtered = RenderBrowser(
+            filteredView with { State = filteredView.State with { FilterText = "Todo 1" } },
+            width,
+            height);
+
+        unfiltered.Length.Should().BeGreaterThanOrEqualTo(height);
+        filtered.Length.Should().BeGreaterThanOrEqualTo(height);
+        StatusPanelTop(unfiltered).Should().Be(StatusPanelTop(filtered));
+    }
+
+    [Fact]
+    public void ShowBrowser_expands_beyond_the_minimum_height_without_cropping_content()
+    {
+        var lines = RenderBrowser(ViewWithTodoCount(25, BrowserFocus.Todos), 140, 24);
+
+        lines.Length.Should().BeGreaterThan(24);
+        lines.Should().Contain(line => line.Contains("Todo 25", StringComparison.Ordinal));
+    }
+
     private static BrowserView ViewWithTitle(string title)
     {
         var todo = new TodoItem(1, false, null, title, null, [], null, null, string.Empty, [], []);
@@ -151,6 +181,47 @@ public sealed class SpectreTerminalUiTests
             string.Empty);
     }
 
+    private static BrowserView ViewWithTodoCount(int count, BrowserFocus focus)
+    {
+        var todos = Enumerable.Range(1, count)
+            .Select(index => new TodoItem(
+                index,
+                false,
+                null,
+                $"Todo {index}",
+                null,
+                [],
+                null,
+                null,
+                string.Empty,
+                [],
+                []))
+            .ToArray();
+        var rows = todos.Select((todo, index) => new TodoRow(null, todo, 0, index == 0)).ToArray();
+
+        return new BrowserView(
+            BrowserState.Initial with { Focus = focus },
+            [new ProjectRow("All", count, null, null, true)],
+            [.. rows],
+            todos[0],
+            "All",
+            "/todos/project.md",
+            null,
+            string.Empty);
+    }
+
+    private static string[] RenderBrowser(BrowserView view, int width, int height)
+    {
+        StartRecording(width, height);
+        var existingOutputLength = AnsiConsole.ExportText().Length;
+        new SpectreTerminalUi(() => width, () => height).ShowBrowser(view);
+        return AnsiConsole.ExportText()[existingOutputLength..]
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private static int StatusPanelTop(string[] lines) =>
+        Array.FindLastIndex(lines, line => line.StartsWith('╭'));
+
     private static string RenderHeader(BrowserView view)
     {
         StartRecording();
@@ -162,8 +233,13 @@ public sealed class SpectreTerminalUiTests
 
     private static void StartRecording()
     {
+        StartRecording(140, 30);
+    }
+
+    private static void StartRecording(int width, int height)
+    {
         AnsiConsole.Record();
-        AnsiConsole.Profile.Width = 140;
-        AnsiConsole.Profile.Height = 30;
+        AnsiConsole.Profile.Width = width;
+        AnsiConsole.Profile.Height = height;
     }
 }

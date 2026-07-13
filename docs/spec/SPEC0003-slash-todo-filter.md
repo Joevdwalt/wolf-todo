@@ -27,6 +27,11 @@ The normal wide and compact status hints include `/ filter`. Outside filter
 mode, an active filter is displayed in the status area with a hint that `/`
 edits it and an empty submission clears it.
 
+The browser panes must occupy at least the terminal height remaining above the
+status panel in wide, medium, and narrow layouts. Filtering to fewer results
+must not move the status panel upward. Content taller than this minimum expands
+normally and is not cropped.
+
 ## Matching and Presentation
 
 Apply the filter to the selected project's todos. When `All` is selected, apply
@@ -60,6 +65,8 @@ active-todo counts remain unfiltered. When no visible row matches, show
 6. `:completed` continues to control whether matching completed todos are
    eligible for display.
 7. Filtering never modifies project Markdown files.
+8. Filtering from many rows to one row keeps the status panel at the same
+   terminal-relative position in every responsive layout.
 
 ## References
 
