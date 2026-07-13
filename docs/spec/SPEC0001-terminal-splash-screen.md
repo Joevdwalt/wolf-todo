@@ -51,9 +51,10 @@ fallback containing the title and continuation prompt instead of failing.
 
 The project browser must provide a visible command/status area.
 
-Pressing `:` starts command mode and displays the command line beginning with
-`:`. Subsequent typed characters are echoed. Pressing Enter submits the
-command, and pressing Esc cancels command mode and clears its input.
+Pressing the configured command-mode gesture, `:` by default, starts command
+mode and displays the command line beginning with `:`. Subsequent typed
+characters are echoed. Pressing Enter submits the command, and pressing Esc
+cancels command mode and clears its input.
 
 The submitted command is compared case-sensitively with
 `keybindings.quit`. A matching command exits the application with code `0`.
@@ -84,3 +85,4 @@ command interaction.
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)
 - [SPEC0002: Project Browser and Markdown Todo Format](SPEC0002-project-browser-and-markdown-todo-format.md)
+- [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)

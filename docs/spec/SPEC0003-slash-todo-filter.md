@@ -12,8 +12,9 @@ files, configuration, or project counts.
 
 ## Interaction
 
-- Press `/` outside command mode to edit the current filter. Show the prompt as
-  `/` followed by the draft text.
+- Press the configured filter-mode gesture, `/` by default, outside command
+  mode to edit the current filter. Show the prompt as `/` followed by the draft
+  text.
 - Update results live as printable characters are typed. Backspace removes the
   final character. Reset todo selection to the first matching row whenever the
   draft changes.
@@ -72,4 +73,5 @@ active-todo counts remain unfiltered. When no visible row matches, show
 
 - [SPEC0001: Terminal Splash Screen](SPEC0001-terminal-splash-screen.md)
 - [SPEC0002: Project Browser and Markdown Todo Format](SPEC0002-project-browser-and-markdown-todo-format.md)
+- [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)

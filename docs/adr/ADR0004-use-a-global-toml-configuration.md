@@ -82,3 +82,4 @@ the shared global configuration.
 - [ADR0003: Structure Source Code for Testability](ADR0003-structure-source-code-for-testability.md)
 - [SPEC0001: Terminal Splash Screen](../spec/SPEC0001-terminal-splash-screen.md)
 - [SPEC0002: Project Browser and Markdown Todo Format](../spec/SPEC0002-project-browser-and-markdown-todo-format.md)
+- [ADR0005: Use Configurable Browser Key Gestures](ADR0005-use-configurable-browser-key-gestures.md)

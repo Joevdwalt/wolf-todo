@@ -4,4 +4,12 @@ namespace WolfTodo.Tui.Features.Configuration;
 
 public sealed record ApplicationConfiguration(
     ImmutableArray<string> ProjectFiles,
-    string QuitCommand);
+    BrowserKeyBindings KeyBindings)
+{
+    public ApplicationConfiguration(ImmutableArray<string> projectFiles, string quitCommand)
+        : this(projectFiles, BrowserKeyBindings.CreateDefaults(quitCommand))
+    {
+    }
+
+    public string QuitCommand => KeyBindings.QuitCommand;
+}

@@ -10,9 +10,11 @@ public sealed class BrowserReducer
         ApplicationConfiguration configuration,
         BrowserView view)
     {
+        var bindings = configuration.KeyBindings;
+
         if (state.IsCommandMode)
         {
-            return ReduceCommand(state, key, configuration);
+            return ReduceCommand(state, key, bindings);
         }
 
         if (state.IsFilterMode)
@@ -20,7 +22,7 @@ public sealed class BrowserReducer
             return ReduceFilter(state, key);
         }
 
-        if (key.KeyChar == ':')
+        if (bindings.MatchesCommandMode(key))
         {
             return Transition(state with
             {
@@ -30,7 +32,7 @@ public sealed class BrowserReducer
             });
         }
 
-        if (key.KeyChar == '/')
+        if (bindings.MatchesFilterMode(key))
         {
             return Transition(state with
             {
@@ -40,15 +42,15 @@ public sealed class BrowserReducer
             });
         }
 
-        if (key.Key == ConsoleKey.Tab)
+        if (bindings.MatchesFocusNext(key) || bindings.MatchesFocusPrevious(key))
         {
-            var reverse = key.Modifiers.HasFlag(ConsoleModifiers.Shift);
+            var reverse = bindings.MatchesFocusPrevious(key);
             return Transition(state with { Focus = MoveFocus(state.Focus, reverse) });
         }
 
-        if (key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
+        if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
         {
-            var offset = key.Key == ConsoleKey.UpArrow ? -1 : 1;
+            var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
 
             return state.Focus == BrowserFocus.Projects
                 ? Transition(state with
@@ -64,7 +66,7 @@ public sealed class BrowserReducer
                 });
         }
 
-        if (key.Key == ConsoleKey.Enter)
+        if (bindings.MatchesOpen(key))
         {
             return Transition(state with
             {
@@ -78,7 +80,7 @@ public sealed class BrowserReducer
             });
         }
 
-        if (key.Key == ConsoleKey.Escape)
+        if (bindings.MatchesBack(key))
         {
             return Transition(state with
             {
@@ -134,7 +136,7 @@ public sealed class BrowserReducer
     private static BrowserTransition ReduceCommand(
         BrowserState state,
         ConsoleKeyInfo key,
-        ApplicationConfiguration configuration)
+        BrowserKeyBindings bindings)
     {
         if (key.Key == ConsoleKey.Escape)
         {
@@ -148,12 +150,12 @@ public sealed class BrowserReducer
 
         if (key.Key == ConsoleKey.Enter)
         {
-            if (state.Command == configuration.QuitCommand)
+            if (state.Command == bindings.QuitCommand)
             {
                 return new BrowserTransition(state, true);
             }
 
-            if (state.Command == ":completed")
+            if (state.Command == bindings.ToggleCompletedCommand)
             {
                 return Transition(state with
                 {

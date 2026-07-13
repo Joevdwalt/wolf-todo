@@ -131,6 +131,102 @@ public sealed class BrowserReducerTests
         result.State.IsFilterMode.Should().BeFalse();
     }
 
+    [Fact]
+    public void Reduce_moves_with_default_vim_navigation_keys()
+    {
+        var movedDown = reducer.Reduce(BrowserState.Initial, Key('j'), Configuration, NavigationView());
+        var movedUp = reducer.Reduce(movedDown.State, Key('k'), Configuration, NavigationView());
+
+        movedDown.State.ProjectIndex.Should().Be(1);
+        movedUp.State.ProjectIndex.Should().Be(0);
+    }
+
+    [Fact]
+    public void Reduce_opens_and_goes_back_with_default_vim_navigation_keys()
+    {
+        var opened = reducer.Reduce(BrowserState.Initial, Key('l'), Configuration, EmptyView());
+        var backed = reducer.Reduce(opened.State, Key('h'), Configuration, EmptyView());
+
+        opened.State.Focus.Should().Be(BrowserFocus.Todos);
+        backed.State.Focus.Should().Be(BrowserFocus.Projects);
+    }
+
+    [Fact]
+    public void Reduce_uses_replacement_bindings_instead_of_their_defaults()
+    {
+        var bindings = Configuration.KeyBindings with { MoveDown = [KeyGesture.Parse("n")] };
+        var configuration = new ApplicationConfiguration([], bindings);
+
+        var ignored = reducer.Reduce(BrowserState.Initial, Key('j'), configuration, NavigationView());
+        var handled = reducer.Reduce(BrowserState.Initial, Key('n'), configuration, NavigationView());
+
+        ignored.State.ProjectIndex.Should().Be(0);
+        handled.State.ProjectIndex.Should().Be(1);
+    }
+
+    [Fact]
+    public void Reduce_uses_configured_focus_open_and_back_bindings()
+    {
+        var bindings = Configuration.KeyBindings with
+        {
+            FocusNext = [KeyGesture.Parse("Ctrl+N")],
+            FocusPrevious = [KeyGesture.Parse("Ctrl+P")],
+            Open = [KeyGesture.Parse("o")],
+            Back = [KeyGesture.Parse("b")]
+        };
+        var configuration = new ApplicationConfiguration([], bindings);
+
+        var next = reducer.Reduce(
+            BrowserState.Initial,
+            Key(ConsoleKey.N, control: true),
+            configuration,
+            EmptyView());
+        var previous = reducer.Reduce(
+            BrowserState.Initial,
+            Key(ConsoleKey.P, control: true),
+            configuration,
+            EmptyView());
+        var opened = reducer.Reduce(BrowserState.Initial, Key('o'), configuration, EmptyView());
+        var backed = reducer.Reduce(opened.State, Key('b'), configuration, EmptyView());
+
+        next.State.Focus.Should().Be(BrowserFocus.Todos);
+        previous.State.Focus.Should().Be(BrowserFocus.Details);
+        opened.State.Focus.Should().Be(BrowserFocus.Todos);
+        backed.State.Focus.Should().Be(BrowserFocus.Projects);
+    }
+
+    [Fact]
+    public void Reduce_uses_configured_command_and_filter_mode_launchers()
+    {
+        var bindings = Configuration.KeyBindings with
+        {
+            CommandMode = [KeyGesture.Parse("Ctrl+P")],
+            FilterMode = [KeyGesture.Parse("Ctrl+F")]
+        };
+        var configuration = new ApplicationConfiguration([], bindings);
+
+        var command = reducer.Reduce(BrowserState.Initial, Key(ConsoleKey.P, control: true), configuration, EmptyView());
+        var filter = reducer.Reduce(BrowserState.Initial, Key(ConsoleKey.F, control: true), configuration, EmptyView());
+        var oldCommand = reducer.Reduce(BrowserState.Initial, Key(':'), configuration, EmptyView());
+
+        command.State.IsCommandMode.Should().BeTrue();
+        command.State.Command.Should().Be(":");
+        filter.State.IsFilterMode.Should().BeTrue();
+        oldCommand.State.IsCommandMode.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Reduce_uses_the_configured_completed_command()
+    {
+        var bindings = Configuration.KeyBindings with { ToggleCompletedCommand = ":done" };
+        var configuration = new ApplicationConfiguration([], bindings);
+        var state = BrowserState.Initial with { IsCommandMode = true, Command = ":done" };
+
+        var result = reducer.Reduce(state, Key(ConsoleKey.Enter), configuration, EmptyView());
+
+        result.State.ShowCompleted.Should().BeTrue();
+    }
+
     private static BrowserView EmptyView() => new(
         BrowserState.Initial,
         [new ProjectRow("All", 0, null, null, true)],
@@ -141,7 +237,21 @@ public sealed class BrowserReducerTests
         null,
         "No projects found");
 
-    private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+    private static BrowserView NavigationView() => new(
+        BrowserState.Initial,
+        [
+            new ProjectRow("All", 0, null, null, true),
+            new ProjectRow("Alpha", 0, null, null, false)
+        ],
+        ImmutableArray<TodoRow>.Empty,
+        null,
+        "All",
+        null,
+        null,
+        "No todos");
+
+    private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false) =>
+        new('\0', key, false, false, control);
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem2, false, false, false);
 }

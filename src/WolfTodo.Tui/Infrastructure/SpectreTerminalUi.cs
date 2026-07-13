@@ -1,6 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Splash;
 
@@ -43,7 +44,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
     }
 
-    public void ShowBrowser(BrowserView view)
+    public void ShowBrowser(BrowserView view, BrowserKeyBindings keyBindings)
     {
         var useSynchronizedUpdate = browserRendered && AnsiConsole.Profile.Out.IsTerminal;
 
@@ -73,7 +74,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             WriteNarrow(view, width, height);
         }
 
-        WriteStatus(view, width < 80 || height < 18);
+        WriteStatus(view, keyBindings, width < 80 || height < 18);
         EndUpdate(useSynchronizedUpdate);
     }
 
@@ -382,16 +383,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
     }
 
-    private static void WriteStatus(BrowserView view, bool compact)
+    private static void WriteStatus(BrowserView view, BrowserKeyBindings keyBindings, bool compact)
     {
         var status = view.State switch
         {
             { IsCommandMode: true } => view.State.Command,
             { IsFilterMode: true } => $"/{view.State.FilterDraft}",
             { Error: not null } => view.State.Error,
-            { FilterText.Length: > 0 } => $"Filter: /{view.State.FilterText}  / edit  empty Enter clears",
-            _ when compact => "/ filter  : commands  Esc back",
-            _ => "↑↓ navigate  Tab pane  Enter select  / filter  : command  :completed  :q"
+            { FilterText.Length: > 0 } =>
+                $"Filter: /{view.State.FilterText}  {Shortest(keyBindings.FilterMode)} edit  empty Enter clears",
+            _ when compact => CompactStatus(keyBindings),
+            _ => NormalStatus(keyBindings)
         };
 
         AnsiConsole.Write(new Panel(new Text(status))
@@ -400,6 +402,20 @@ public sealed class SpectreTerminalUi : ITerminalUi
             Expand = true
         });
     }
+
+    private static string NormalStatus(BrowserKeyBindings bindings) =>
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} navigate  " +
+        $"{Shortest(bindings.FocusNext)} pane  {Shortest(bindings.Open)} open  {Shortest(bindings.Back)} back  " +
+        $"{Shortest(bindings.FilterMode)} filter  {Shortest(bindings.CommandMode)} command  " +
+        $"{bindings.ToggleCompletedCommand}  {bindings.QuitCommand}";
+
+    private static string CompactStatus(BrowserKeyBindings bindings) =>
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
+        $"{Shortest(bindings.Back)}/{Shortest(bindings.Open)} back/open  " +
+        $"{Shortest(bindings.FilterMode)} filter  {Shortest(bindings.CommandMode)} commands";
+
+    private static string Shortest(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>
+        BrowserKeyBindings.ShortestDisplayName(gestures);
 
     private static int SafeWindowWidth()
     {

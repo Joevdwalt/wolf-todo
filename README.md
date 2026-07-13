@@ -54,7 +54,21 @@ files = [
 
 [keybindings]
 quit = ":q"
+toggle_completed = ":completed"
+move_up = ["UpArrow", "k"]
+move_down = ["DownArrow", "j"]
+focus_next = ["Tab"]
+focus_previous = ["Shift+Tab"]
+open = ["Enter", "l"]
+back = ["Escape", "h"]
+command_mode = [":"]
+filter_mode = ["/"]
 ```
+
+Within `[keybindings]`, only `quit` is required. Omitted bindings use the
+defaults shown above. A configured binding array replaces that action's
+defaults. Bindings accept printable characters, named console keys, and
+`Shift`, `Ctrl`, or `Alt` modifiers such as `Ctrl+K`.
 
 Each configured Markdown file is one project. Start the application with:
 

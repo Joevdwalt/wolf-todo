@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Spectre.Console;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Infrastructure;
 
@@ -8,6 +9,8 @@ namespace WolfTodo.Tui.Tests.Infrastructure;
 
 public sealed class SpectreTerminalUiTests
 {
+    private static readonly BrowserKeyBindings DefaultBindings = BrowserKeyBindings.CreateDefaults(":q");
+
     [Fact]
     public void ShowBrowser_renders_and_updates_the_selected_project_and_todo()
     {
@@ -36,8 +39,8 @@ public sealed class SpectreTerminalUiTests
         var terminal = new SpectreTerminalUi(() => 140, () => 30);
         StartRecording();
 
-        terminal.ShowBrowser(view);
-        terminal.ShowBrowser(view with { SelectedProjectTitle = "Personal" });
+        terminal.ShowBrowser(view, DefaultBindings);
+        terminal.ShowBrowser(view with { SelectedProjectTitle = "Personal" }, DefaultBindings);
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("All").And.Contain("Personal").And.Contain("Milas Contract Renewal");
@@ -86,7 +89,7 @@ public sealed class SpectreTerminalUiTests
             string.Empty);
 
         StartRecording();
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view);
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view, DefaultBindings);
         var output = AnsiConsole.ExportText();
         var todoLine = output.Split(Environment.NewLine)
             .Last(line => line.Contains("Prepare the unusually", StringComparison.Ordinal));
@@ -112,11 +115,11 @@ public sealed class SpectreTerminalUiTests
         terminal.ShowBrowser(view with
         {
             State = view.State with { IsFilterMode = true, FilterDraft = "renew" }
-        });
+        }, DefaultBindings);
         terminal.ShowBrowser(view with
         {
             State = view.State with { FilterText = "renew" }
-        });
+        }, DefaultBindings);
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("/renew");
@@ -129,12 +132,36 @@ public sealed class SpectreTerminalUiTests
         var view = ViewWithTitle("Renew contract");
         StartRecording();
 
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view);
-        new SpectreTerminalUi(() => 70, () => 16).ShowBrowser(view);
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view, DefaultBindings);
+        new SpectreTerminalUi(() => 70, () => 16).ShowBrowser(view, DefaultBindings);
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("/ filter  : command");
-        output.Should().Contain("/ filter  : commands  Esc back");
+        output.Should().Contain("j/k move").And.Contain("h/l back/open");
+    }
+
+    [Fact]
+    public void ShowBrowser_uses_the_shortest_configured_bindings_in_status_hints()
+    {
+        var view = ViewWithTitle("Renew contract");
+        var bindings = BrowserKeyBindings.CreateDefaults(":quit") with
+        {
+            MoveDown = [KeyGesture.Parse("Ctrl+N"), KeyGesture.Parse("n")],
+            MoveUp = [KeyGesture.Parse("Ctrl+P"), KeyGesture.Parse("p")],
+            FilterMode = [KeyGesture.Parse("Ctrl+F")],
+            ToggleCompletedCommand = ":done"
+        };
+        StartRecording();
+        var existingOutputLength = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view, bindings);
+        var output = AnsiConsole.ExportText()[existingOutputLength..];
+
+        output.Should().Contain("n/p navigate")
+            .And.Contain("Ctrl+F filter")
+            .And.Contain(":done")
+            .And.Contain(":quit");
+        output.Should().NotContain("Ctrl+N");
     }
 
     [Theory]
@@ -214,7 +241,7 @@ public sealed class SpectreTerminalUiTests
     {
         StartRecording(width, height);
         var existingOutputLength = AnsiConsole.ExportText().Length;
-        new SpectreTerminalUi(() => width, () => height).ShowBrowser(view);
+        new SpectreTerminalUi(() => width, () => height).ShowBrowser(view, DefaultBindings);
         return AnsiConsole.ExportText()[existingOutputLength..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
     }
@@ -225,7 +252,7 @@ public sealed class SpectreTerminalUiTests
     private static string RenderHeader(BrowserView view)
     {
         StartRecording();
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view);
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view, DefaultBindings);
         return AnsiConsole.ExportText()
             .Split(Environment.NewLine)
             .First(line => line.Contains("Projects", StringComparison.Ordinal));

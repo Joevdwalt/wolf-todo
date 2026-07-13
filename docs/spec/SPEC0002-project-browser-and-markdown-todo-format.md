@@ -138,7 +138,7 @@ At 120 or more columns and at least 24 rows, show all three panes:
 │                    │                                  │ Notes                   │
 │                    │                                  │ • Review contract       │
 ├────────────────────┴──────────────────────────────────┴─────────────────────────┤
-│ ↑↓ navigate  Tab pane  Enter select  : command  :completed  :q                 │
+│ j/k navigate  Tab pane  l open  h back  / filter  : command  :completed  :q    │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -158,7 +158,7 @@ on a todo opens its details over the todo pane; Esc closes the details.
 │   Home           5 │   [ ] Prepare proposal 🔼                                  │
 │ ! Missing source   │                                                             │
 ├────────────────────┴─────────────────────────────────────────────────────────────┤
-│ ↑↓ navigate  Tab pane  Enter details  : command  :completed  :q                 │
+│ j/k navigate  Tab pane  l open  h back  / filter  : command  :completed  :q     │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -167,7 +167,8 @@ on a todo opens its details over the todo pane; Esc closes the details.
 Below 80 columns or 18 rows, show one focused pane. The sequence is projects,
 todos, then details. Enter drills into the next pane and Esc returns to the
 previous pane. The command/status line remains visible when space permits; at
-smaller sizes show `: commands  Esc back` as the compact hint.
+smaller sizes show the concise configured movement, back/open, filter, and
+command bindings.
 
 ## Project and Todo Presentation
 
@@ -194,18 +195,19 @@ disambiguated with their source directory in the detail preview.
 
 ## Interaction
 
-- Up and Down move the selection within the focused pane.
+- Up and Down, or `k` and `j`, move the selection within the focused pane.
 - Tab moves focus to the next visible pane; Shift+Tab moves to the previous.
-- Enter selects a project, opens details, or drills into the next narrow pane.
-- Esc closes details, returns to the previous narrow pane, or cancels command
-  mode.
-- `:` enters command mode using the behavior defined by SPEC0001.
+- Enter or `l` selects a project, opens details, or drills into the next narrow
+  pane.
+- Esc or `h` closes details or returns to the previous pane.
+- The configured command-mode gesture enters command mode using the behavior
+  defined by SPEC0001.
 - `:completed` toggles completed todos.
 - The configured quit command, `:q` by default, exits with code `0`.
 
 The splash-dismissal key must still be consumed before browser interaction.
-Navigation keys are fixed defaults in this version; only the quit command is
-configurable.
+Browser inputs and their Vim-compatible defaults are configurable as defined by
+SPEC0004.
 
 ## Empty States
 
@@ -239,6 +241,7 @@ configurable.
 
 - [SPEC0001: Terminal Splash Screen](SPEC0001-terminal-splash-screen.md)
 - [SPEC0003: Slash Todo Filter](SPEC0003-slash-todo-filter.md)
+- [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
 - [ADR0001: Use .NET and Spectre.Console](../adr/ADR0001-use-dotnet-and-spectre-console.md)
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)

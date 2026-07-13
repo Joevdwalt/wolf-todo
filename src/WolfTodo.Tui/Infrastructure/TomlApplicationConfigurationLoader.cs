@@ -29,8 +29,8 @@ public sealed class TomlApplicationConfigurationLoader(
         }
 
         var files = ReadProjectFiles(document);
-        var quitCommand = ReadQuitCommand(document);
-        return new ApplicationConfiguration(files, quitCommand);
+        var bindings = ReadKeyBindings(document);
+        return new ApplicationConfiguration(files, bindings);
     }
 
     private static ImmutableArray<string> ReadProjectFiles(TomlTable document)
@@ -64,11 +64,16 @@ public sealed class TomlApplicationConfigurationLoader(
         return result.ToImmutable();
     }
 
-    private static string ReadQuitCommand(TomlTable document)
+    private static BrowserKeyBindings ReadKeyBindings(TomlTable document)
     {
         if (!document.TryGetValue("keybindings", out var bindingsValue) ||
-            bindingsValue is not TomlTable keybindings ||
-            !keybindings.TryGetValue("quit", out var quitValue) ||
+            bindingsValue is not TomlTable keybindings)
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: keybindings must be a TOML table.");
+        }
+
+        if (!keybindings.TryGetValue("quit", out var quitValue) ||
             quitValue is not string quitCommand ||
             string.IsNullOrWhiteSpace(quitCommand))
         {
@@ -76,6 +81,129 @@ public sealed class TomlApplicationConfigurationLoader(
                 "Invalid configuration file: keybindings.quit must be a non-empty string.");
         }
 
-        return quitCommand;
+        var defaults = BrowserKeyBindings.CreateDefaults(quitCommand);
+        var completedCommand = ReadOptionalCommand(
+            keybindings,
+            "toggle_completed",
+            defaults.ToggleCompletedCommand);
+        var result = defaults with
+        {
+            ToggleCompletedCommand = completedCommand,
+            MoveUp = ReadGestures(keybindings, "move_up", defaults.MoveUp),
+            MoveDown = ReadGestures(keybindings, "move_down", defaults.MoveDown),
+            FocusNext = ReadGestures(keybindings, "focus_next", defaults.FocusNext),
+            FocusPrevious = ReadGestures(keybindings, "focus_previous", defaults.FocusPrevious),
+            Open = ReadGestures(keybindings, "open", defaults.Open),
+            Back = ReadGestures(keybindings, "back", defaults.Back),
+            CommandMode = ReadGestures(keybindings, "command_mode", defaults.CommandMode),
+            FilterMode = ReadGestures(keybindings, "filter_mode", defaults.FilterMode)
+        };
+
+        ValidateCommands(result);
+        ValidateGestureConflicts(result);
+        return result;
+    }
+
+    private static string ReadOptionalCommand(TomlTable keybindings, string name, string defaultValue)
+    {
+        if (!keybindings.TryGetValue(name, out var value))
+        {
+            return defaultValue;
+        }
+
+        if (value is not string command || string.IsNullOrWhiteSpace(command))
+        {
+            throw new InvalidDataException(
+                $"Invalid configuration file: keybindings.{name} must be a non-empty string.");
+        }
+
+        return command;
+    }
+
+    private static ImmutableArray<KeyGesture> ReadGestures(
+        TomlTable keybindings,
+        string name,
+        ImmutableArray<KeyGesture> defaults)
+    {
+        if (!keybindings.TryGetValue(name, out var value))
+        {
+            return defaults;
+        }
+
+        if (value is not TomlArray gestures || gestures.Count == 0)
+        {
+            throw new InvalidDataException(
+                $"Invalid configuration file: keybindings.{name} must be a non-empty string array.");
+        }
+
+        var result = ImmutableArray.CreateBuilder<KeyGesture>();
+
+        foreach (var gestureValue in gestures)
+        {
+            if (gestureValue is not string gestureText)
+            {
+                throw new InvalidDataException(
+                    $"Invalid configuration file: every keybindings.{name} value must be a key gesture string.");
+            }
+
+            try
+            {
+                result.Add(KeyGesture.Parse(gestureText));
+            }
+            catch (FormatException exception)
+            {
+                throw new InvalidDataException(
+                    $"Invalid configuration file: keybindings.{name} contains {exception.Message}",
+                    exception);
+            }
+        }
+
+        if (result.Distinct().Count() != result.Count)
+        {
+            throw new InvalidDataException(
+                $"Invalid configuration file: keybindings.{name} contains a duplicate key gesture.");
+        }
+
+        return result.ToImmutable();
+    }
+
+    private static void ValidateCommands(BrowserKeyBindings bindings)
+    {
+        if (bindings.QuitCommand == bindings.ToggleCompletedCommand)
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: keybindings.quit and keybindings.toggle_completed must be different.");
+        }
+    }
+
+    private static void ValidateGestureConflicts(BrowserKeyBindings bindings)
+    {
+        var actions = new (string Name, ImmutableArray<KeyGesture> Gestures)[]
+        {
+            ("move_up", bindings.MoveUp),
+            ("move_down", bindings.MoveDown),
+            ("focus_next", bindings.FocusNext),
+            ("focus_previous", bindings.FocusPrevious),
+            ("open", bindings.Open),
+            ("back", bindings.Back),
+            ("command_mode", bindings.CommandMode),
+            ("filter_mode", bindings.FilterMode)
+        };
+        var owners = new Dictionary<KeyGesture, string>();
+
+        foreach (var action in actions)
+        {
+            foreach (var gesture in action.Gestures)
+            {
+                if (owners.TryGetValue(gesture, out var owner))
+                {
+                    throw new InvalidDataException(
+                        $"Invalid configuration file: key gesture '{gesture.DisplayName}' is assigned to both " +
+                        $"keybindings.{owner} and keybindings.{action.Name}.");
+                }
+
+                owners.Add(gesture, action.Name);
+            }
+        }
     }
 }

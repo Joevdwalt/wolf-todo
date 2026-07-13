@@ -36,7 +36,7 @@ public sealed class TuiApplication(
         {
             var view = presenter.CreateView(catalog, state);
             state = view.State;
-            terminalUi.ShowBrowser(view);
+            terminalUi.ShowBrowser(view, configuration.KeyBindings);
 
             var transition = reducer.Reduce(state, terminalUi.ReadKey(), configuration, view);
 

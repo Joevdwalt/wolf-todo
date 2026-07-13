@@ -57,6 +57,21 @@ public sealed class TuiApplicationTests
         terminal.BrowserViews.Last().State.FilterText.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Run_passes_resolved_key_bindings_to_the_terminal()
+    {
+        var bindings = BrowserKeyBindings.CreateDefaults(":q") with
+        {
+            MoveDown = [KeyGesture.Parse("n")]
+        };
+        var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(bindings), terminal);
+
+        application.Run();
+
+        terminal.BrowserBindings.Should().OnlyContain(candidate => candidate == bindings);
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal)
@@ -76,9 +91,11 @@ public sealed class TuiApplicationTests
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
 
-    private sealed class FixedConfigurationLoader : IApplicationConfigurationLoader
+    private sealed class FixedConfigurationLoader(BrowserKeyBindings? bindings = null) : IApplicationConfigurationLoader
     {
-        public ApplicationConfiguration Load() => new(["/todos/project.md"], ":q");
+        public ApplicationConfiguration Load() => new(
+            ["/todos/project.md"],
+            bindings ?? BrowserKeyBindings.CreateDefaults(":q"));
     }
 
     private sealed class ThrowingConfigurationLoader : IApplicationConfigurationLoader
@@ -101,13 +118,19 @@ public sealed class TuiApplicationTests
 
         public List<BrowserView> BrowserViews { get; } = [];
 
+        public List<BrowserKeyBindings> BrowserBindings { get; } = [];
+
         public string? StartupError { get; private set; }
 
         public bool SplashShown { get; private set; }
 
         public ConsoleKeyInfo ReadKey() => keyQueue.Dequeue();
 
-        public void ShowBrowser(BrowserView view) => BrowserViews.Add(view);
+        public void ShowBrowser(BrowserView view, BrowserKeyBindings keyBindings)
+        {
+            BrowserViews.Add(view);
+            BrowserBindings.Add(keyBindings);
+        }
 
         public void ShowSplash(string logo) => SplashShown = true;
 
