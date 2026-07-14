@@ -25,6 +25,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.ToggleCompletedCommand.Should().Be(":completed");
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeTrue();
         result.KeyBindings.MatchesMoveUp(Key(ConsoleKey.UpArrow)).Should().BeTrue();
+        result.KeyBindings.MatchesTabNext(Key(ConsoleKey.Tab, control: true)).Should().BeTrue();
+        result.KeyBindings.MatchesTabPrevious(Key(ConsoleKey.Tab, shift: true, control: true)).Should().BeTrue();
     }
 
     [Fact]
@@ -39,6 +41,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
             quit = ":quit"
             toggle_completed = ":done"
             move_down = ["n", "Ctrl+J"]
+            tab_next = ["Alt+RightArrow"]
             """);
 
         var result = loader.Load();
@@ -48,6 +51,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeFalse();
         result.KeyBindings.MatchesMoveDown(Key(ConsoleKey.J, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesMoveUp(Key('k')).Should().BeTrue();
+        result.KeyBindings.MatchesTabNext(Key(ConsoleKey.RightArrow, alt: true)).Should().BeTrue();
+        result.KeyBindings.MatchesTabNext(Key(ConsoleKey.Tab, control: true)).Should().BeFalse();
     }
 
     [Theory]
@@ -55,6 +60,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
     [InlineData("move_up = [\"Meta+K\"]", "*move_up*Invalid modifier*")]
     [InlineData("move_up = [\"k\", \"k\"]", "*move_up*duplicate*")]
     [InlineData("move_up = [\"j\"]", "*both*move_up*move_down*")]
+    [InlineData("tab_next = [\"Tab\"]", "*both*focus_next*tab_next*")]
     [InlineData("toggle_completed = \":q\"", "*quit*toggle_completed*different*")]
     public void Load_rejects_invalid_or_conflicting_bindings(string binding, string expectedMessage)
     {

@@ -85,6 +85,12 @@ Keep classes small and focused on one responsibility. When an orchestration
 class begins to grow, split it into focused collaborators rather than extending
 a monolith.
 
+Within the TUI host, compose feature screens through a typed application shell.
+Keep reusable shell components, such as tab state and presentation, independent
+of the feature state hosted beneath them. Fixed application views remain wired
+explicitly at the composition root rather than discovered through a plugin
+registry.
+
 Do not use discard lambda parameters such as `_ =>`. Use descriptive parameter
 names so callbacks remain readable. Language-required discards, such as
 `out _`, remain allowed.
@@ -134,3 +140,4 @@ project is scaffolded, move the existing logo asset to that location.
 - [ADR0002: Use TOML for Command Bindings](ADR0002-use-toml-for-command-bindings.md)
 - [RDR0002: Run Repository Scripts Through Tasks](../rdr/RDR0002-run-repository-scripts-through-tasks.md)
 - [SPEC0001: Terminal Splash Screen](../spec/SPEC0001-terminal-splash-screen.md)
+- [ADR0006: Use a Typed Application Tab Shell](ADR0006-use-a-typed-application-tab-shell.md)

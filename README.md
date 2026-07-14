@@ -63,6 +63,8 @@ open = ["Enter", "l"]
 back = ["Escape", "h"]
 command_mode = [":"]
 filter_mode = ["/"]
+tab_next = ["Ctrl+Tab"]
+tab_previous = ["Ctrl+Shift+Tab"]
 ```
 
 Within `[keybindings]`, only `quit` is required. Omitted bindings use the

@@ -64,7 +64,7 @@ public sealed class TomlApplicationConfigurationLoader(
         return result.ToImmutable();
     }
 
-    private static BrowserKeyBindings ReadKeyBindings(TomlTable document)
+    private static TuiKeyBindings ReadKeyBindings(TomlTable document)
     {
         if (!document.TryGetValue("keybindings", out var bindingsValue) ||
             bindingsValue is not TomlTable keybindings)
@@ -81,7 +81,7 @@ public sealed class TomlApplicationConfigurationLoader(
                 "Invalid configuration file: keybindings.quit must be a non-empty string.");
         }
 
-        var defaults = BrowserKeyBindings.CreateDefaults(quitCommand);
+        var defaults = TuiKeyBindings.CreateDefaults(quitCommand);
         var completedCommand = ReadOptionalCommand(
             keybindings,
             "toggle_completed",
@@ -96,7 +96,9 @@ public sealed class TomlApplicationConfigurationLoader(
             Open = ReadGestures(keybindings, "open", defaults.Open),
             Back = ReadGestures(keybindings, "back", defaults.Back),
             CommandMode = ReadGestures(keybindings, "command_mode", defaults.CommandMode),
-            FilterMode = ReadGestures(keybindings, "filter_mode", defaults.FilterMode)
+            FilterMode = ReadGestures(keybindings, "filter_mode", defaults.FilterMode),
+            TabNext = ReadGestures(keybindings, "tab_next", defaults.TabNext),
+            TabPrevious = ReadGestures(keybindings, "tab_previous", defaults.TabPrevious)
         };
 
         ValidateCommands(result);
@@ -167,7 +169,7 @@ public sealed class TomlApplicationConfigurationLoader(
         return result.ToImmutable();
     }
 
-    private static void ValidateCommands(BrowserKeyBindings bindings)
+    private static void ValidateCommands(TuiKeyBindings bindings)
     {
         if (bindings.QuitCommand == bindings.ToggleCompletedCommand)
         {
@@ -176,7 +178,7 @@ public sealed class TomlApplicationConfigurationLoader(
         }
     }
 
-    private static void ValidateGestureConflicts(BrowserKeyBindings bindings)
+    private static void ValidateGestureConflicts(TuiKeyBindings bindings)
     {
         var actions = new (string Name, ImmutableArray<KeyGesture> Gestures)[]
         {
@@ -187,7 +189,9 @@ public sealed class TomlApplicationConfigurationLoader(
             ("open", bindings.Open),
             ("back", bindings.Back),
             ("command_mode", bindings.CommandMode),
-            ("filter_mode", bindings.FilterMode)
+            ("filter_mode", bindings.FilterMode),
+            ("tab_next", bindings.TabNext),
+            ("tab_previous", bindings.TabPrevious)
         };
         var owners = new Dictionary<KeyGesture, string>();
 

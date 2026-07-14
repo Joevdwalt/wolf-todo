@@ -1,10 +1,12 @@
 using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Splash;
+using WolfTodo.Tui.Features.Tabs;
 
-namespace WolfTodo.Tui.Tests.Features.ProjectBrowser;
+namespace WolfTodo.Tui.Tests.Features.ApplicationShell;
 
 public sealed class TuiApplicationTests
 {
@@ -22,7 +24,7 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
-    public void Run_shows_the_browser_then_exits_for_the_configured_command()
+    public void Run_shows_the_todos_tab_and_browser_then_exits_for_the_configured_command()
     {
         var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
         var application = CreateApplication(new FixedConfigurationLoader(), terminal);
@@ -32,6 +34,9 @@ public sealed class TuiApplicationTests
         result.Should().Be(0);
         terminal.SplashShown.Should().BeTrue();
         terminal.BrowserViews.Should().NotBeEmpty();
+        terminal.TabViews.Should().OnlyContain(view =>
+            view.Tabs.Length == 1 && view.Tabs[0].Title == "Todos" && view.Tabs[0].IsSelected);
+        terminal.CursorVisibility.Should().Equal(false, true);
     }
 
     [Fact]
@@ -60,7 +65,7 @@ public sealed class TuiApplicationTests
     [Fact]
     public void Run_passes_resolved_key_bindings_to_the_terminal()
     {
-        var bindings = BrowserKeyBindings.CreateDefaults(":q") with
+        var bindings = TuiKeyBindings.CreateDefaults(":q") with
         {
             MoveDown = [KeyGesture.Parse("n")]
         };
@@ -69,7 +74,7 @@ public sealed class TuiApplicationTests
 
         application.Run();
 
-        terminal.BrowserBindings.Should().OnlyContain(candidate => candidate == bindings);
+        terminal.KeyBindings.Should().OnlyContain(candidate => candidate == bindings);
     }
 
     private static TuiApplication CreateApplication(
@@ -82,6 +87,9 @@ public sealed class TuiApplicationTests
             configurationLoader,
             catalogLoader,
             terminal,
+            new ApplicationInputRouter(),
+            new TabHostPresenter(),
+            new TabHostReducer(),
             new ProjectBrowserPresenter(),
             new BrowserReducer(),
             "wolf");
@@ -91,11 +99,11 @@ public sealed class TuiApplicationTests
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
 
-    private sealed class FixedConfigurationLoader(BrowserKeyBindings? bindings = null) : IApplicationConfigurationLoader
+    private sealed class FixedConfigurationLoader(TuiKeyBindings? bindings = null) : IApplicationConfigurationLoader
     {
         public ApplicationConfiguration Load() => new(
             ["/todos/project.md"],
-            bindings ?? BrowserKeyBindings.CreateDefaults(":q"));
+            bindings ?? TuiKeyBindings.CreateDefaults(":q"));
     }
 
     private sealed class ThrowingConfigurationLoader : IApplicationConfigurationLoader
@@ -118,22 +126,29 @@ public sealed class TuiApplicationTests
 
         public List<BrowserView> BrowserViews { get; } = [];
 
-        public List<BrowserKeyBindings> BrowserBindings { get; } = [];
+        public List<TabStripView> TabViews { get; } = [];
+
+        public List<TuiKeyBindings> KeyBindings { get; } = [];
 
         public string? StartupError { get; private set; }
 
         public bool SplashShown { get; private set; }
 
+        public List<bool> CursorVisibility { get; } = [];
+
         public ConsoleKeyInfo ReadKey() => keyQueue.Dequeue();
 
-        public void ShowBrowser(BrowserView view, BrowserKeyBindings keyBindings)
+        public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings)
         {
+            TabViews.Add(tabs);
             BrowserViews.Add(view);
-            BrowserBindings.Add(keyBindings);
+            KeyBindings.Add(keyBindings);
         }
 
         public void ShowSplash(string logo) => SplashShown = true;
 
         public void ShowStartupError(string message) => StartupError = message;
+
+        public void SetCursorVisible(bool visible) => CursorVisibility.Add(visible);
     }
 }

@@ -4,12 +4,12 @@ using WolfTodo.Tui.Features.Configuration;
 
 namespace WolfTodo.Tui.Tests.Features.Configuration;
 
-public sealed class BrowserKeyBindingsTests
+public sealed class TuiKeyBindingsTests
 {
     [Fact]
-    public void CreateDefaults_supports_current_and_vim_navigation_keys()
+    public void CreateDefaults_supports_current_vim_and_tab_navigation_keys()
     {
-        var bindings = BrowserKeyBindings.CreateDefaults(":q");
+        var bindings = TuiKeyBindings.CreateDefaults(":q");
 
         bindings.MatchesMoveUp(Key(ConsoleKey.UpArrow)).Should().BeTrue();
         bindings.MatchesMoveUp(Key('k')).Should().BeTrue();
@@ -19,6 +19,8 @@ public sealed class BrowserKeyBindingsTests
         bindings.MatchesOpen(Key('l')).Should().BeTrue();
         bindings.MatchesBack(Key(ConsoleKey.Escape)).Should().BeTrue();
         bindings.MatchesBack(Key('h')).Should().BeTrue();
+        bindings.MatchesTabNext(Key(ConsoleKey.Tab, control: true)).Should().BeTrue();
+        bindings.MatchesTabPrevious(Key(ConsoleKey.Tab, shift: true, control: true)).Should().BeTrue();
     }
 
     [Fact]
@@ -26,12 +28,15 @@ public sealed class BrowserKeyBindingsTests
     {
         var gestures = new[] { "Ctrl+K", "k", "j" }.Select(KeyGesture.Parse).ToImmutableArray();
 
-        var result = BrowserKeyBindings.ShortestDisplayName(gestures);
+        var result = TuiKeyBindings.ShortestDisplayName(gestures);
 
         result.Should().Be("k");
     }
 
-    private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+    private static ConsoleKeyInfo Key(
+        ConsoleKey key,
+        bool shift = false,
+        bool control = false) => new('\0', key, shift, false, control);
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.NoName, false, false, false);
 }

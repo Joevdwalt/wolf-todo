@@ -136,7 +136,7 @@ public sealed class BrowserReducer
     private static BrowserTransition ReduceCommand(
         BrowserState state,
         ConsoleKeyInfo key,
-        BrowserKeyBindings bindings)
+        TuiKeyBindings bindings)
     {
         if (key.Key == ConsoleKey.Escape)
         {

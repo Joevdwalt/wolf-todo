@@ -118,7 +118,8 @@ version. Preserve them as ordinary title or note text.
 ## Project Browser Layout
 
 After the splash screen, focus the virtual `All` project and select its first
-active todo. The browser contains a project navigator, a todo list, a detail
+active todo. The application tab strip described by SPEC0005 appears above the
+browser. The browser contains a project navigator, a todo list, a detail
 preview, and a bottom command/status line.
 
 ### Wide Terminals
@@ -242,6 +243,7 @@ SPEC0004.
 - [SPEC0001: Terminal Splash Screen](SPEC0001-terminal-splash-screen.md)
 - [SPEC0003: Slash Todo Filter](SPEC0003-slash-todo-filter.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
+- [SPEC0005: Application View Tabs](SPEC0005-application-view-tabs.md)
 - [ADR0001: Use .NET and Spectre.Console](../adr/ADR0001-use-dotnet-and-spectre-console.md)
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)

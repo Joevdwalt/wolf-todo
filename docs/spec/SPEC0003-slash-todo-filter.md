@@ -28,10 +28,11 @@ The normal wide and compact status hints include `/ filter`. Outside filter
 mode, an active filter is displayed in the status area with a hint that `/`
 edits it and an empty submission clears it.
 
-The browser panes must occupy at least the terminal height remaining above the
-status panel in wide, medium, and narrow layouts. Filtering to fewer results
-must not move the status panel upward. Content taller than this minimum expands
-normally and is not cropped.
+The browser panes must occupy at least the terminal height remaining below the
+application tab strip and above the status panel in wide, medium, and narrow
+layouts. Filtering to fewer results must not move the status panel upward.
+When a pane has more rows than fit in the terminal, show a window containing
+the selected row instead of growing the application beyond the viewport.
 
 ## Matching and Presentation
 

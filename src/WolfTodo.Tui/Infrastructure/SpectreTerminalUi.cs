@@ -4,6 +4,7 @@ using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Splash;
+using WolfTodo.Tui.Features.Tabs;
 
 namespace WolfTodo.Tui.Infrastructure;
 
@@ -44,7 +45,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
     }
 
-    public void ShowBrowser(BrowserView view, BrowserKeyBindings keyBindings)
+    public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings)
     {
         var useSynchronizedUpdate = browserRendered && AnsiConsole.Profile.Out.IsTerminal;
 
@@ -60,6 +61,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         var width = widthProvider();
         var height = heightProvider();
+        WriteTabStrip(tabs, keyBindings, width);
 
         if (width >= 120 && height >= 24)
         {
@@ -81,6 +83,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
     public void ShowStartupError(string message)
     {
         AnsiConsole.MarkupLine($"[red]Startup error:[/] {Markup.Escape(message)}");
+    }
+
+    public void SetCursorVisible(bool visible)
+    {
+        if (!AnsiConsole.Profile.Out.IsTerminal)
+        {
+            return;
+        }
+
+        var writer = AnsiConsole.Profile.Out.Writer;
+        writer.Write(visible ? "\u001b[?25h" : "\u001b[?25l");
+        writer.Flush();
     }
 
     public ConsoleKeyInfo ReadKey() => Console.ReadKey(intercept: true);
@@ -127,9 +141,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var remainingWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
         var todoWidth = remainingWidth / 2;
         var detailWidth = remainingWidth - todoWidth;
-        var projectLines = ProjectLines(view);
-        var todoLines = TodoLines(view, todoWidth - 2);
-        var detailLines = DetailLines(view);
+        var contentHeight = AvailableContentHeight(terminalHeight);
+        var projectLines = FitLines(ProjectLines(view), contentHeight, SelectedProjectIndex(view));
+        var todoLines = FitLines(TodoLines(view, todoWidth - 2), contentHeight, SelectedTodoIndex(view));
+        var detailLines = FitLines(DetailLines(view), contentHeight, 0);
         var table = CreatePaneTable(
             ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
             ($"Todos: {view.SelectedProjectTitle}", todoWidth, view.State.Focus == BrowserFocus.Todos, true),
@@ -138,7 +153,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             CreateContent(projectLines),
             CreateContent(todoLines),
             CreateContent(detailLines));
-        PadToMinimumHeight(table, terminalHeight, projectLines.Count, todoLines.Count, detailLines.Count);
+        PadToContentHeight(table, contentHeight, projectLines.Count, todoLines.Count, detailLines.Count);
         AnsiConsole.Write(table);
     }
 
@@ -148,15 +163,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
         const int frameAndPaddingWidth = 7;
         var contentWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
         var showDetails = view.State.Focus == BrowserFocus.Details;
-        var projectLines = ProjectLines(view);
-        var contentLines = showDetails ? DetailLines(view) : TodoLines(view, contentWidth - 2);
+        var contentHeight = AvailableContentHeight(terminalHeight);
+        var projectLines = FitLines(ProjectLines(view), contentHeight, SelectedProjectIndex(view));
+        var contentLines = showDetails
+            ? FitLines(DetailLines(view), contentHeight, 0)
+            : FitLines(TodoLines(view, contentWidth - 2), contentHeight, SelectedTodoIndex(view));
         var table = CreatePaneTable(
             ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
             (showDetails ? "Details" : $"Todos: {view.SelectedProjectTitle}", contentWidth, true, !showDetails));
         table.AddRow(
             CreateContent(projectLines),
             CreateContent(contentLines));
-        PadToMinimumHeight(table, terminalHeight, projectLines.Count, contentLines.Count);
+        PadToContentHeight(table, contentHeight, projectLines.Count, contentLines.Count);
         AnsiConsole.Write(table);
     }
 
@@ -170,15 +188,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
             BrowserFocus.Todos => $"Todos: {view.SelectedProjectTitle}",
             _ => "Details"
         };
+        var contentHeight = AvailableContentHeight(terminalHeight);
         var lines = view.State.Focus switch
         {
-            BrowserFocus.Projects => ProjectLines(view),
-            BrowserFocus.Todos => TodoLines(view, contentWidth),
-            _ => DetailLines(view)
+            BrowserFocus.Projects => FitLines(ProjectLines(view), contentHeight, SelectedProjectIndex(view)),
+            BrowserFocus.Todos => FitLines(TodoLines(view, contentWidth), contentHeight, SelectedTodoIndex(view)),
+            _ => FitLines(DetailLines(view), contentHeight, 0)
         };
         var table = CreatePaneTable((title, null, true, view.State.Focus != BrowserFocus.Details));
         table.AddRow(CreateContent(lines));
-        PadToMinimumHeight(table, terminalHeight, lines.Count);
+        PadToContentHeight(table, contentHeight, lines.Count);
 
         AnsiConsole.Write(table);
     }
@@ -201,6 +220,57 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
 
         return table;
+    }
+
+    private static void WriteTabStrip(TabStripView view, TuiKeyBindings bindings, int terminalWidth)
+    {
+        var segments = new List<(string Text, string Style)>();
+        for (var index = 0; index < view.Tabs.Length; index++)
+        {
+            if (index > 0)
+            {
+                segments.Add(("  ", string.Empty));
+            }
+
+            var tab = view.Tabs[index];
+            var title = tab.IsSelected ? $"[ {tab.Title} ]" : $"  {tab.Title}  ";
+            var style = tab.IsSelected ? "cyan bold" : "dim";
+            segments.Add((title, style));
+        }
+
+        if (view.Tabs.Length > 1)
+        {
+            var hint = $"  {TuiKeyBindings.ShortestDisplayName(bindings.TabNext)} tabs";
+            segments.Add((hint, "dim"));
+        }
+
+        var totalLength = segments.Sum(segment => segment.Text.Length);
+        var width = Math.Max(1, terminalWidth);
+        var remaining = totalLength > width ? width - 1 : width;
+        var markup = new System.Text.StringBuilder();
+
+        foreach (var segment in segments)
+        {
+            var length = Math.Min(segment.Text.Length, remaining);
+            if (length == 0)
+            {
+                break;
+            }
+
+            var content = Markup.Escape(segment.Text[..length]);
+            markup.Append(string.IsNullOrEmpty(segment.Style)
+                ? content
+                : $"[{segment.Style}]{content}[/]");
+            remaining -= length;
+        }
+
+        if (totalLength > width)
+        {
+            markup.Append('…');
+        }
+
+        AnsiConsole.Markup(markup.ToString());
+        AnsiConsole.WriteLine();
     }
 
     private static IReadOnlyList<IRenderable> ProjectLines(BrowserView view)
@@ -294,13 +364,57 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return lines.Count == 0 ? new Text(string.Empty) : new Rows(lines);
     }
 
-    private static void PadToMinimumHeight(Table table, int terminalHeight, params int[] paneLineCounts)
+    private static int AvailableContentHeight(int terminalHeight)
     {
-        const int tableAndStatusHeight = 6;
-        var minimumContentHeight = Math.Max(1, terminalHeight - tableAndStatusHeight);
+        const int tabTableStatusAndCursorHeight = 9;
+        return Math.Max(1, terminalHeight - tabTableStatusAndCursorHeight);
+    }
+
+    private static IReadOnlyList<IRenderable> FitLines(
+        IReadOnlyList<IRenderable> lines,
+        int contentHeight,
+        int selectedIndex)
+    {
+        if (lines.Count <= contentHeight)
+        {
+            return lines;
+        }
+
+        var start = Math.Clamp(selectedIndex - contentHeight + 1, 0, lines.Count - contentHeight);
+        return lines.Skip(start).Take(contentHeight).ToArray();
+    }
+
+    private static int SelectedProjectIndex(BrowserView view)
+    {
+        for (var index = 0; index < view.Projects.Length; index++)
+        {
+            if (view.Projects[index].IsSelected)
+            {
+                return index;
+            }
+        }
+
+        return 0;
+    }
+
+    private static int SelectedTodoIndex(BrowserView view)
+    {
+        for (var index = 0; index < view.Todos.Length; index++)
+        {
+            if (view.Todos[index].IsSelected)
+            {
+                return index;
+            }
+        }
+
+        return 0;
+    }
+
+    private static void PadToContentHeight(Table table, int contentHeight, params int[] paneLineCounts)
+    {
         var renderedContentHeight = Math.Max(1, paneLineCounts.Max());
 
-        for (var row = renderedContentHeight; row < minimumContentHeight; row++)
+        for (var row = renderedContentHeight; row < contentHeight; row++)
         {
             table.AddEmptyRow();
         }
@@ -383,7 +497,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
     }
 
-    private static void WriteStatus(BrowserView view, BrowserKeyBindings keyBindings, bool compact)
+    private static void WriteStatus(BrowserView view, TuiKeyBindings keyBindings, bool compact)
     {
         var status = view.State switch
         {
@@ -403,19 +517,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
         });
     }
 
-    private static string NormalStatus(BrowserKeyBindings bindings) =>
+    private static string NormalStatus(TuiKeyBindings bindings) =>
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} navigate  " +
         $"{Shortest(bindings.FocusNext)} pane  {Shortest(bindings.Open)} open  {Shortest(bindings.Back)} back  " +
         $"{Shortest(bindings.FilterMode)} filter  {Shortest(bindings.CommandMode)} command  " +
         $"{bindings.ToggleCompletedCommand}  {bindings.QuitCommand}";
 
-    private static string CompactStatus(BrowserKeyBindings bindings) =>
+    private static string CompactStatus(TuiKeyBindings bindings) =>
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
         $"{Shortest(bindings.Back)}/{Shortest(bindings.Open)} back/open  " +
         $"{Shortest(bindings.FilterMode)} filter  {Shortest(bindings.CommandMode)} commands";
 
     private static string Shortest(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>
-        BrowserKeyBindings.ShortestDisplayName(gestures);
+        TuiKeyBindings.ShortestDisplayName(gestures);
 
     private static int SafeWindowWidth()
     {

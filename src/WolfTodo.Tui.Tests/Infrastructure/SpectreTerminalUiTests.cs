@@ -4,12 +4,15 @@ using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Features.Tabs;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 
 public sealed class SpectreTerminalUiTests
 {
-    private static readonly BrowserKeyBindings DefaultBindings = BrowserKeyBindings.CreateDefaults(":q");
+    private static readonly TuiKeyBindings DefaultBindings = TuiKeyBindings.CreateDefaults(":q");
+    private static readonly TabStripView DefaultTabs = new(
+        [new TabItemView(new TabId("todos"), "Todos", true)]);
 
     [Fact]
     public void ShowBrowser_renders_and_updates_the_selected_project_and_todo()
@@ -39,8 +42,8 @@ public sealed class SpectreTerminalUiTests
         var terminal = new SpectreTerminalUi(() => 140, () => 30);
         StartRecording();
 
-        terminal.ShowBrowser(view, DefaultBindings);
-        terminal.ShowBrowser(view with { SelectedProjectTitle = "Personal" }, DefaultBindings);
+        terminal.ShowBrowser(DefaultTabs, view, DefaultBindings);
+        terminal.ShowBrowser(DefaultTabs, view with { SelectedProjectTitle = "Personal" }, DefaultBindings);
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("All").And.Contain("Personal").And.Contain("Milas Contract Renewal");
@@ -89,7 +92,7 @@ public sealed class SpectreTerminalUiTests
             string.Empty);
 
         StartRecording();
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view, DefaultBindings);
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
         var output = AnsiConsole.ExportText();
         var todoLine = output.Split(Environment.NewLine)
             .Last(line => line.Contains("Prepare the unusually", StringComparison.Ordinal));
@@ -112,11 +115,11 @@ public sealed class SpectreTerminalUiTests
         var view = ViewWithTitle("Renew contract");
         StartRecording();
 
-        terminal.ShowBrowser(view with
+        terminal.ShowBrowser(DefaultTabs, view with
         {
             State = view.State with { IsFilterMode = true, FilterDraft = "renew" }
         }, DefaultBindings);
-        terminal.ShowBrowser(view with
+        terminal.ShowBrowser(DefaultTabs, view with
         {
             State = view.State with { FilterText = "renew" }
         }, DefaultBindings);
@@ -132,8 +135,8 @@ public sealed class SpectreTerminalUiTests
         var view = ViewWithTitle("Renew contract");
         StartRecording();
 
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view, DefaultBindings);
-        new SpectreTerminalUi(() => 70, () => 16).ShowBrowser(view, DefaultBindings);
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
+        new SpectreTerminalUi(() => 70, () => 16).ShowBrowser(DefaultTabs, view, DefaultBindings);
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("/ filter  : command");
@@ -144,7 +147,7 @@ public sealed class SpectreTerminalUiTests
     public void ShowBrowser_uses_the_shortest_configured_bindings_in_status_hints()
     {
         var view = ViewWithTitle("Renew contract");
-        var bindings = BrowserKeyBindings.CreateDefaults(":quit") with
+        var bindings = TuiKeyBindings.CreateDefaults(":quit") with
         {
             MoveDown = [KeyGesture.Parse("Ctrl+N"), KeyGesture.Parse("n")],
             MoveUp = [KeyGesture.Parse("Ctrl+P"), KeyGesture.Parse("p")],
@@ -154,7 +157,7 @@ public sealed class SpectreTerminalUiTests
         StartRecording();
         var existingOutputLength = AnsiConsole.ExportText().Length;
 
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view, bindings);
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, bindings);
         var output = AnsiConsole.ExportText()[existingOutputLength..];
 
         output.Should().Contain("n/p navigate")
@@ -162,6 +165,44 @@ public sealed class SpectreTerminalUiTests
             .And.Contain(":done")
             .And.Contain(":quit");
         output.Should().NotContain("Ctrl+N");
+    }
+
+    [Fact]
+    public void ShowBrowser_always_renders_the_selected_tab_strip()
+    {
+        var output = RenderBrowser(ViewWithTitle("Renew contract"), 140, 30);
+
+        output[0].Should().Contain("[ Todos ]");
+        output[0].Should().NotContain("tabs");
+    }
+
+    [Fact]
+    public void ShowBrowser_renders_multiple_tabs_and_the_switch_hint()
+    {
+        var tabs = new TabStripView(
+        [
+            new TabItemView(new TabId("todos"), "Todos", false),
+            new TabItemView(new TabId("planner"), "Day Planner", true)
+        ]);
+
+        var output = RenderBrowser(tabs, ViewWithTitle("Renew contract"), 140, 30);
+
+        output[0].Should().Contain("Todos").And.Contain("[ Day Planner ]");
+        output[0].Should().Contain("Ctrl+Tab tabs");
+    }
+
+    [Fact]
+    public void ShowBrowser_truncates_the_tab_strip_on_a_narrow_terminal()
+    {
+        var tabs = new TabStripView(
+        [
+            new TabItemView(new TabId("todos"), "Todos With An Extremely Long Name", true),
+            new TabItemView(new TabId("planner"), "Day Planner", false)
+        ]);
+
+        var output = RenderBrowser(tabs, ViewWithTitle("Renew contract"), 24, 16);
+
+        output[0].Should().Contain("…");
     }
 
     [Theory]
@@ -180,18 +221,35 @@ public sealed class SpectreTerminalUiTests
             width,
             height);
 
-        unfiltered.Length.Should().BeGreaterThanOrEqualTo(height);
-        filtered.Length.Should().BeGreaterThanOrEqualTo(height);
+        unfiltered.Length.Should().BeGreaterThanOrEqualTo(height - 1);
+        filtered.Length.Should().BeGreaterThanOrEqualTo(height - 1);
         StatusPanelTop(unfiltered).Should().Be(StatusPanelTop(filtered));
     }
 
     [Fact]
-    public void ShowBrowser_expands_beyond_the_minimum_height_without_cropping_content()
+    public void ShowBrowser_limits_long_lists_to_the_available_terminal_height()
     {
         var lines = RenderBrowser(ViewWithTodoCount(25, BrowserFocus.Todos), 140, 24);
 
-        lines.Length.Should().BeGreaterThan(24);
+        lines.Should().HaveCount(23);
+        lines.Should().NotContain(line => line.Contains("Todo 25", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ShowBrowser_keeps_the_selected_todo_in_the_visible_window()
+    {
+        var lines = RenderBrowser(ViewWithTodoCount(25, BrowserFocus.Todos, 24), 140, 24);
+
+        lines.Should().HaveCount(23);
         lines.Should().Contain(line => line.Contains("Todo 25", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ShowBrowser_leaves_the_final_terminal_row_free_to_avoid_scrolling_the_tabs()
+    {
+        var lines = RenderBrowser(ViewWithTodoCount(1, BrowserFocus.Todos), 140, 30);
+
+        lines.Should().HaveCount(29);
     }
 
     private static BrowserView ViewWithTitle(string title)
@@ -208,7 +266,7 @@ public sealed class SpectreTerminalUiTests
             string.Empty);
     }
 
-    private static BrowserView ViewWithTodoCount(int count, BrowserFocus focus)
+    private static BrowserView ViewWithTodoCount(int count, BrowserFocus focus, int selectedIndex = 0)
     {
         var todos = Enumerable.Range(1, count)
             .Select(index => new TodoItem(
@@ -224,13 +282,13 @@ public sealed class SpectreTerminalUiTests
                 [],
                 []))
             .ToArray();
-        var rows = todos.Select((todo, index) => new TodoRow(null, todo, 0, index == 0)).ToArray();
+        var rows = todos.Select((todo, index) => new TodoRow(null, todo, 0, index == selectedIndex)).ToArray();
 
         return new BrowserView(
             BrowserState.Initial with { Focus = focus },
             [new ProjectRow("All", count, null, null, true)],
             [.. rows],
-            todos[0],
+            todos[selectedIndex],
             "All",
             "/todos/project.md",
             null,
@@ -239,9 +297,18 @@ public sealed class SpectreTerminalUiTests
 
     private static string[] RenderBrowser(BrowserView view, int width, int height)
     {
+        return RenderBrowser(DefaultTabs, view, width, height);
+    }
+
+    private static string[] RenderBrowser(
+        TabStripView tabs,
+        BrowserView view,
+        int width,
+        int height)
+    {
         StartRecording(width, height);
         var existingOutputLength = AnsiConsole.ExportText().Length;
-        new SpectreTerminalUi(() => width, () => height).ShowBrowser(view, DefaultBindings);
+        new SpectreTerminalUi(() => width, () => height).ShowBrowser(tabs, view, DefaultBindings);
         return AnsiConsole.ExportText()[existingOutputLength..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
     }
@@ -252,7 +319,7 @@ public sealed class SpectreTerminalUiTests
     private static string RenderHeader(BrowserView view)
     {
         StartRecording();
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(view, DefaultBindings);
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
         return AnsiConsole.ExportText()
             .Split(Environment.NewLine)
             .First(line => line.Contains("Projects", StringComparison.Ordinal));

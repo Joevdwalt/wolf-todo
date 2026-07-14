@@ -4,10 +4,10 @@ namespace WolfTodo.Tui.Features.Configuration;
 
 public sealed record ApplicationConfiguration(
     ImmutableArray<string> ProjectFiles,
-    BrowserKeyBindings KeyBindings)
+    TuiKeyBindings KeyBindings)
 {
     public ApplicationConfiguration(ImmutableArray<string> projectFiles, string quitCommand)
-        : this(projectFiles, BrowserKeyBindings.CreateDefaults(quitCommand))
+        : this(projectFiles, TuiKeyBindings.CreateDefaults(quitCommand))
     {
     }
 

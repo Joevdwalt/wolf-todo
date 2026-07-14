@@ -28,6 +28,8 @@ open = ["Enter", "l"]
 back = ["Escape", "h"]
 command_mode = [":"]
 filter_mode = ["/"]
+tab_next = ["Ctrl+Tab"]
+tab_previous = ["Ctrl+Shift+Tab"]
 ```
 
 `quit` remains required. Every omitted field uses the value shown above; an
@@ -39,7 +41,7 @@ name with optional `Shift`, `Ctrl`/`Control`, or `Alt` modifiers joined by `+`.
 Character matching is case-sensitive and named-key modifier matching is exact.
 
 Reject empty or malformed bindings, duplicates, gestures assigned to more than
-one browser action, and identical quit and completed commands. Command-launcher
+one TUI action, and identical quit and completed commands. Command-launcher
 bindings do not change command syntax: command input continues to begin with
 `:`. Enter, Esc, and Backspace remain fixed editing controls inside command and
 filter modes.
@@ -57,3 +59,4 @@ filter modes.
 
 - [ADR0004: Use a Global TOML Configuration](ADR0004-use-a-global-toml-configuration.md)
 - [SPEC0004: Configurable Browser Key Bindings](../spec/SPEC0004-configurable-browser-key-bindings.md)
+- [SPEC0005: Application View Tabs](../spec/SPEC0005-application-view-tabs.md)
