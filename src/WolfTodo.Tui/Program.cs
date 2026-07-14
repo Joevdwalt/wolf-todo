@@ -16,6 +16,8 @@ builder.Services.AddSingleton<BrowserReducer>();
 builder.Services.AddSingleton<TabHostPresenter>();
 builder.Services.AddSingleton<TabHostReducer>();
 builder.Services.AddSingleton<ApplicationInputRouter>();
+builder.Services.AddSingleton<IApplicationStateStore>(
+    new JsonApplicationStateStore(GlobalApplicationStatePath.Resolve()));
 builder.Services.AddSingleton<IProjectFileSystem, PhysicalProjectFileSystem>();
 builder.Services.AddSingleton<ITerminalUi>(new SpectreTerminalUi());
 builder.Services.AddSingleton<IApplicationConfigurationLoader>(serviceProvider =>
@@ -28,6 +30,7 @@ builder.Services.AddSingleton(serviceProvider =>
         serviceProvider.GetRequiredService<IApplicationConfigurationLoader>(),
         serviceProvider.GetRequiredService<ProjectCatalogLoader>(),
         serviceProvider.GetRequiredService<ITerminalUi>(),
+        serviceProvider.GetRequiredService<IApplicationStateStore>(),
         serviceProvider.GetRequiredService<ApplicationInputRouter>(),
         serviceProvider.GetRequiredService<TabHostPresenter>(),
         serviceProvider.GetRequiredService<TabHostReducer>(),

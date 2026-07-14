@@ -56,6 +56,9 @@ This decision supersedes ADR0002. TOML and the configurable quit command are
 retained, but the executable-adjacent `keybindings.toml` file is replaced by
 the shared global configuration.
 
+Runtime session state is not user configuration and is stored separately as
+defined by ADR0007.
+
 ## Consequences
 
 ### Positive
@@ -83,3 +86,4 @@ the shared global configuration.
 - [SPEC0001: Terminal Splash Screen](../spec/SPEC0001-terminal-splash-screen.md)
 - [SPEC0002: Project Browser and Markdown Todo Format](../spec/SPEC0002-project-browser-and-markdown-todo-format.md)
 - [ADR0005: Use Configurable Browser Key Gestures](ADR0005-use-configurable-browser-key-gestures.md)
+- [ADR0007: Persist TUI Session State Separately](ADR0007-persist-tui-session-state-separately.md)

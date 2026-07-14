@@ -78,6 +78,10 @@ Each configured Markdown file is one project. Start the application with:
 task run-tui
 ```
 
+The TUI remembers the selected project between runs in a separate `state.json`
+file under the platform application-state directory. This session state does
+not modify project Markdown files or `config.toml`.
+
 
 ## AI Guidance
 

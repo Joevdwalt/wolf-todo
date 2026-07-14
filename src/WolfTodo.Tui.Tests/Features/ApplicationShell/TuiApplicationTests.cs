@@ -77,9 +77,52 @@ public sealed class TuiApplicationTests
         terminal.KeyBindings.Should().OnlyContain(candidate => candidate == bindings);
     }
 
+    [Fact]
+    public void Run_restores_the_project_matching_the_saved_path()
+    {
+        var stateStore = new FakeApplicationStateStore("/todos/project.md");
+        var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal, stateStore);
+
+        application.Run();
+
+        terminal.BrowserViews.First().SelectedProjectPath.Should().Be("/todos/project.md");
+    }
+
+    [Fact]
+    public void Run_falls_back_to_all_when_the_saved_project_is_not_configured()
+    {
+        var stateStore = new FakeApplicationStateStore("/todos/removed.md");
+        var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal, stateStore);
+
+        application.Run();
+
+        terminal.BrowserViews.First().SelectedProjectTitle.Should().Be("All");
+        terminal.BrowserViews.First().SelectedProjectPath.Should().BeNull();
+    }
+
+    [Fact]
+    public void Run_saves_the_selected_project_when_exiting()
+    {
+        var stateStore = new FakeApplicationStateStore(null);
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('j'),
+            Key(':'),
+            Key('q'),
+            Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal, stateStore);
+
+        application.Run();
+
+        stateStore.SavedProjectPath.Should().Be("/todos/project.md");
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
-        ITerminalUi terminal)
+        ITerminalUi terminal,
+        IApplicationStateStore? applicationStateStore = null)
     {
         var fileSystem = new EmptyProjectFileSystem();
         var catalogLoader = new ProjectCatalogLoader(fileSystem, new ProjectMarkdownParser());
@@ -87,6 +130,7 @@ public sealed class TuiApplicationTests
             configurationLoader,
             catalogLoader,
             terminal,
+            applicationStateStore ?? new FakeApplicationStateStore(null),
             new ApplicationInputRouter(),
             new TabHostPresenter(),
             new TabHostReducer(),
@@ -118,6 +162,15 @@ public sealed class TuiApplicationTests
         public string GetFullPath(string path) => path;
 
         public string ReadAllText(string path) => throw new FileNotFoundException();
+    }
+
+    private sealed class FakeApplicationStateStore(string? selectedProjectPath) : IApplicationStateStore
+    {
+        public string? SavedProjectPath { get; private set; }
+
+        public string? LoadSelectedProjectPath() => selectedProjectPath;
+
+        public void SaveSelectedProjectPath(string? projectPath) => SavedProjectPath = projectPath;
     }
 
     private sealed class FakeTerminal(params ConsoleKeyInfo[] keys) : ITerminalUi

@@ -117,10 +117,12 @@ version. Preserve them as ordinary title or note text.
 
 ## Project Browser Layout
 
-After the splash screen, focus the virtual `All` project and select its first
-active todo. The application tab strip described by SPEC0005 appears above the
-browser. The browser contains a project navigator, a todo list, a detail
-preview, and a bottom command/status line.
+After the splash screen, restore the most recently selected configured project
+and select its first active todo. Select the virtual `All` project when there is
+no saved selection or the saved project is no longer configured. The
+application tab strip described by SPEC0005 appears above the browser. The
+browser contains a project navigator, a todo list, a detail preview, and a
+bottom command/status line.
 
 ### Wide Terminals
 
@@ -237,6 +239,8 @@ SPEC0004.
 7. A malformed, missing, or inaccessible project file appears as an error entry
    while valid projects remain browsable.
 8. Browsing never modifies project Markdown files.
+9. Exiting and restarting restores the selected project by canonical path;
+   removed or unknown paths fall back to `All`.
 
 ## References
 
@@ -247,4 +251,5 @@ SPEC0004.
 - [ADR0001: Use .NET and Spectre.Console](../adr/ADR0001-use-dotnet-and-spectre-console.md)
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)
+- [ADR0007: Persist TUI Session State Separately](../adr/ADR0007-persist-tui-session-state-separately.md)
 - [Obsidian Tasks: Auto-Suggest](https://publish.obsidian.md/tasks/Editing/Auto-Suggest)

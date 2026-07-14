@@ -11,6 +11,7 @@ public sealed class TuiApplication(
     IApplicationConfigurationLoader configurationLoader,
     ProjectCatalogLoader catalogLoader,
     ITerminalUi terminalUi,
+    IApplicationStateStore applicationStateStore,
     ApplicationInputRouter inputRouter,
     TabHostPresenter tabPresenter,
     TabHostReducer tabReducer,
@@ -39,6 +40,10 @@ public sealed class TuiApplication(
         }
 
         var catalog = catalogLoader.Load(configuration.ProjectFiles);
+        var selectedProjectPath = applicationStateStore.LoadSelectedProjectPath();
+        var initialProjectIndex = FindProjectIndex(catalog, selectedProjectPath);
+        var browserState = BrowserState.Initial with { ProjectIndex = initialProjectIndex };
+        var state = new ApplicationState(TabHostState.CreateInitial(Tabs), browserState);
         terminalUi.SetCursorVisible(false);
 
         try
@@ -46,14 +51,13 @@ public sealed class TuiApplication(
             terminalUi.ShowSplash(logo);
             terminalUi.ReadKey();
 
-            var state = ApplicationState.CreateInitial(TabHostState.CreateInitial(Tabs));
-
             while (true)
             {
                 EnsureSupportedTab(state.Tabs.ActiveTab);
                 var tabView = tabPresenter.CreateView(Tabs, state.Tabs);
                 var browserView = browserPresenter.CreateView(catalog, state.Browser);
                 state = state with { Browser = browserView.State };
+                selectedProjectPath = browserView.SelectedProjectPath;
                 terminalUi.ShowBrowser(tabView, browserView, configuration.KeyBindings);
 
                 var key = terminalUi.ReadKey();
@@ -84,8 +88,39 @@ public sealed class TuiApplication(
         }
         finally
         {
+            applicationStateStore.SaveSelectedProjectPath(selectedProjectPath);
             terminalUi.SetCursorVisible(true);
         }
+    }
+
+    private static int FindProjectIndex(ProjectCatalog catalog, string? selectedProjectPath)
+    {
+        if (selectedProjectPath is null)
+        {
+            return 0;
+        }
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        for (var index = 0; index < catalog.Projects.Length; index++)
+        {
+            if (string.Equals(catalog.Projects[index].Path, selectedProjectPath, comparison))
+            {
+                return index + 1;
+            }
+        }
+
+        for (var index = 0; index < catalog.Errors.Length; index++)
+        {
+            if (string.Equals(catalog.Errors[index].Path, selectedProjectPath, comparison))
+            {
+                return catalog.Projects.Length + index + 1;
+            }
+        }
+
+        return 0;
     }
 
     private static void EnsureSupportedTab(TabId activeTab)
