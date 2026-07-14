@@ -164,6 +164,167 @@ public sealed class ProjectBrowserPresenterTests
         shown.Todos.Where(row => row.Todo is not null).Should().ContainSingle();
     }
 
+    [Theory]
+    [InlineData(TodoSortDirection.Ascending, "Task 2", "Task 10")]
+    [InlineData(TodoSortDirection.Descending, "Task 10", "Task 2")]
+    public void CreateView_sorts_names_naturally(
+        TodoSortDirection direction,
+        string first,
+        string second)
+    {
+        var catalog = new ProjectCatalog(
+            [Project("Alpha", Todo("Task 10") with { SourceLine = 1 }, Todo("Task 2") with { SourceLine = 2 })],
+            []);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 1,
+            Sort = new TodoSort(TodoSortProperty.Name, direction)
+        };
+
+        var result = presenter.CreateView(catalog, state);
+
+        result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal(first, second);
+    }
+
+    [Theory]
+    [InlineData(TodoSortDirection.Ascending, "Early", "Late")]
+    [InlineData(TodoSortDirection.Descending, "Late", "Early")]
+    public void CreateView_sorts_start_dates_and_keeps_missing_dates_last(
+        TodoSortDirection direction,
+        string first,
+        string second)
+    {
+        var catalog = new ProjectCatalog(
+            [Project(
+                "Alpha",
+                Todo("Missing") with { SourceLine = 1 },
+                Todo("Late") with { SourceLine = 2, StartDate = new DateOnly(2026, 8, 1) },
+                Todo("Early") with { SourceLine = 3, StartDate = new DateOnly(2026, 7, 1) })],
+            []);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 1,
+            Sort = new TodoSort(TodoSortProperty.StartDate, direction)
+        };
+
+        var result = presenter.CreateView(catalog, state);
+        var titles = result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title);
+
+        titles.Should().Equal(first, second, "Missing");
+    }
+
+    [Theory]
+    [InlineData(TodoSortDirection.Ascending, "Beta set", "Gamma set")]
+    [InlineData(TodoSortDirection.Descending, "Gamma set", "Beta set")]
+    public void CreateView_sorts_by_normalized_tag_sets_and_keeps_untagged_todos_last(
+        TodoSortDirection direction,
+        string first,
+        string second)
+    {
+        var catalog = new ProjectCatalog(
+            [Project(
+                "Alpha",
+                Todo("Beta set") with { SourceLine = 1, Tags = ["beta", "alpha", "ALPHA"] },
+                Todo("Gamma set") with { SourceLine = 2, Tags = ["gamma", "alpha"] },
+                Todo("None") with { SourceLine = 3 })],
+            []);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 1,
+            Sort = new TodoSort(TodoSortProperty.Tags, direction)
+        };
+
+        var result = presenter.CreateView(catalog, state);
+
+        result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal(first, second, "None");
+    }
+
+    [Theory]
+    [InlineData(TodoSortDirection.Ascending, "Two", "Ten")]
+    [InlineData(TodoSortDirection.Descending, "Ten", "Two")]
+    public void CreateView_sorts_all_project_groups_by_markdown_filename(
+        TodoSortDirection direction,
+        string first,
+        string second)
+    {
+        var catalog = new ProjectCatalog(
+            [
+                new TodoProject("Ten", "/projects/work10.md", [Todo("Ten task")]),
+                new TodoProject("Two", "/projects/work2.md", [Todo("Two task")])
+            ],
+            []);
+        var state = BrowserState.Initial with
+        {
+            Sort = new TodoSort(TodoSortProperty.File, direction)
+        };
+
+        var result = presenter.CreateView(catalog, state);
+
+        result.Todos.Where(row => row.Heading is not null).Select(row => row.Heading)
+            .Should().Equal(first, second);
+    }
+
+    [Fact]
+    public void CreateView_keeps_subtasks_attached_to_their_sorted_parent_block()
+    {
+        var child = Todo("A child") with { SourceLine = 2 };
+        var parent = Todo("Z parent") with { SourceLine = 1, Subtasks = [child] };
+        var sibling = Todo("M sibling") with { SourceLine = 3 };
+        var catalog = new ProjectCatalog([Project("Alpha", parent, sibling)], []);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 1,
+            Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending)
+        };
+
+        var result = presenter.CreateView(catalog, state);
+
+        result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("M sibling", "Z parent", "A child");
+    }
+
+    [Fact]
+    public void CreateView_keeps_open_todos_before_completed_todos_when_sorting()
+    {
+        var catalog = new ProjectCatalog(
+            [Project("Alpha", Todo("A completed", completed: true), Todo("Z open"))],
+            []);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 1,
+            ShowCompleted = true,
+            Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending)
+        };
+
+        var result = presenter.CreateView(catalog, state);
+
+        result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Z open", "A completed");
+    }
+
+    [Fact]
+    public void CreateView_restores_a_pending_todo_selection_after_sorting()
+    {
+        var catalog = new ProjectCatalog(
+            [Project("Alpha", Todo("Zulu") with { SourceLine = 1 }, Todo("Alpha") with { SourceLine = 2 })],
+            []);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 1,
+            TodoIndex = 0,
+            Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending),
+            PendingTodoSelection = new TodoIdentity("/Alpha.md", 1)
+        };
+
+        var result = presenter.CreateView(catalog, state);
+
+        result.SelectedTodo!.Title.Should().Be("Zulu");
+        result.State.TodoIndex.Should().Be(1);
+        result.State.PendingTodoSelection.Should().BeNull();
+    }
+
     private static TodoProject Project(string title, params TodoItem[] todos) => new(title, $"/{title}.md", [.. todos]);
 
     private static TodoItem Todo(string title, bool completed = false) => new(

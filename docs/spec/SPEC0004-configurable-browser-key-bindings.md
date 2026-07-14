@@ -19,7 +19,8 @@ the existing keyboard interaction and command syntax.
   first pane.
 - Tab and Shift+Tab cycle focus forward and backward through visible panes.
 - Ctrl+Tab and Ctrl+Shift+Tab select the next and previous application tabs.
-- `:` enters command mode and `/` enters filter mode.
+- `:` enters command mode, `/` enters filter mode, and `t` opens the sort
+  dialog.
 - `:completed` toggles completed todos and the required configured quit command
   exits the application.
 
@@ -30,13 +31,14 @@ gesture still opens a colon-prefixed command prompt.
 While command or filter mode is active, Enter submits, Esc cancels, and
 Backspace edits. Printable navigation bindings are entered as text instead of
 triggering browser navigation. Application-tab bindings are also ignored while
-either input mode is active.
+either input mode is active. The sort dialog also captures input and prevents
+application-tab switching until an option is chosen or Esc cancels it.
 
 ## Status Hints
 
 Status hints use the shortest configured gesture for each displayed action,
 preserving configuration order when lengths tie. Normal hints show movement,
-pane, open, back, filter, command, completed, and quit inputs. Compact hints
+pane, open, back, filter, command, sort, completed, and quit inputs. Compact hints
 show movement, back/open, filter, and command inputs. An active filter shows
 the configured filter gesture as its edit hint.
 
@@ -53,6 +55,8 @@ the configured filter gesture as its edit hint.
 6. Status hints reflect resolved bindings rather than hardcoded keys.
 7. Application-tab bindings wrap at the first and last tabs and do not switch
    views while command or filter input is active.
+8. A configured sort launcher replaces `t`, participates in conflict
+   validation, and is reflected in status hints.
 
 ## References
 
@@ -61,3 +65,4 @@ the configured filter gesture as its edit hint.
 - [SPEC0002: Project Browser and Markdown Todo Format](SPEC0002-project-browser-and-markdown-todo-format.md)
 - [SPEC0003: Slash Todo Filter](SPEC0003-slash-todo-filter.md)
 - [SPEC0005: Application View Tabs](SPEC0005-application-view-tabs.md)
+- [SPEC0006: Todo Sorting](SPEC0006-todo-sorting.md)

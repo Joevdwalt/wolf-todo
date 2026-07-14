@@ -14,4 +14,6 @@ public sealed record BrowserView(
     string EmptyMessage)
 {
     public int SelectableTodoCount => Todos.Count(row => row.Todo is not null);
+
+    public TodoIdentity? SelectedTodoIdentity => Todos.FirstOrDefault(row => row.IsSelected)?.Identity;
 }

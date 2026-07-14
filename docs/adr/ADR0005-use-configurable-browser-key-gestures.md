@@ -28,6 +28,7 @@ open = ["Enter", "l"]
 back = ["Escape", "h"]
 command_mode = [":"]
 filter_mode = ["/"]
+sort_mode = ["t"]
 tab_next = ["Ctrl+Tab"]
 tab_previous = ["Ctrl+Shift+Tab"]
 ```
@@ -44,7 +45,8 @@ Reject empty or malformed bindings, duplicates, gestures assigned to more than
 one TUI action, and identical quit and completed commands. Command-launcher
 bindings do not change command syntax: command input continues to begin with
 `:`. Enter, Esc, and Backspace remain fixed editing controls inside command and
-filter modes.
+filter modes. The sort launcher is configurable, while the option keys shown
+inside its modal dialog are fixed editing controls.
 
 ## Consequences
 
@@ -60,3 +62,4 @@ filter modes.
 - [ADR0004: Use a Global TOML Configuration](ADR0004-use-a-global-toml-configuration.md)
 - [SPEC0004: Configurable Browser Key Bindings](../spec/SPEC0004-configurable-browser-key-bindings.md)
 - [SPEC0005: Application View Tabs](../spec/SPEC0005-application-view-tabs.md)
+- [SPEC0006: Todo Sorting](../spec/SPEC0006-todo-sorting.md)

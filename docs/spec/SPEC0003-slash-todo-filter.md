@@ -50,6 +50,9 @@ Apply completed-todo visibility before filtering. Match every flattened todo
 and subtask independently; a matching subtask keeps its original indentation
 without requiring nonmatching ancestors to appear.
 
+Apply the active session sort after filtering. Changing or clearing a filter
+does not reset the selected sort property or direction.
+
 Only show project and section headings that contain matching rows. Project
 active-todo counts remain unfiltered. When no visible row matches, show
 `No todos match /<query>`.
@@ -75,4 +78,5 @@ active-todo counts remain unfiltered. When no visible row matches, show
 - [SPEC0001: Terminal Splash Screen](SPEC0001-terminal-splash-screen.md)
 - [SPEC0002: Project Browser and Markdown Todo Format](SPEC0002-project-browser-and-markdown-todo-format.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
+- [SPEC0006: Todo Sorting](SPEC0006-todo-sorting.md)
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)

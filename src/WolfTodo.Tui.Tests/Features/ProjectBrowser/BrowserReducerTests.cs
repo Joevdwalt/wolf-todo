@@ -227,6 +227,67 @@ public sealed class BrowserReducerTests
         result.State.ShowCompleted.Should().BeTrue();
     }
 
+    [Fact]
+    public void Reduce_opens_sort_mode_with_the_configured_launcher()
+    {
+        var result = reducer.Reduce(BrowserState.Initial, Key('t'), Configuration, EmptyView());
+
+        result.State.IsSortMode.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData('n', TodoSortProperty.Name, TodoSortDirection.Ascending)]
+    [InlineData('N', TodoSortProperty.Name, TodoSortDirection.Descending)]
+    [InlineData('d', TodoSortProperty.StartDate, TodoSortDirection.Ascending)]
+    [InlineData('D', TodoSortProperty.StartDate, TodoSortDirection.Descending)]
+    [InlineData('t', TodoSortProperty.Tags, TodoSortDirection.Ascending)]
+    [InlineData('T', TodoSortProperty.Tags, TodoSortDirection.Descending)]
+    [InlineData('f', TodoSortProperty.File, TodoSortDirection.Ascending)]
+    [InlineData('F', TodoSortProperty.File, TodoSortDirection.Descending)]
+    public void Reduce_applies_sort_dialog_choices(
+        char key,
+        TodoSortProperty property,
+        TodoSortDirection direction)
+    {
+        var identity = new TodoIdentity("/alpha.md", 4);
+        var state = BrowserState.Initial with { IsSortMode = true };
+
+        var result = reducer.Reduce(state, Key(key), Configuration, SelectedView(identity));
+
+        result.State.IsSortMode.Should().BeFalse();
+        result.State.Sort.Should().Be(new TodoSort(property, direction));
+        result.State.PendingTodoSelection.Should().Be(identity);
+    }
+
+    [Fact]
+    public void Reduce_restores_source_order_from_the_sort_dialog()
+    {
+        var state = BrowserState.Initial with
+        {
+            IsSortMode = true,
+            Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending)
+        };
+
+        var result = reducer.Reduce(state, Key('o'), Configuration, EmptyView());
+
+        result.State.Sort.Should().Be(TodoSort.Source);
+        result.State.IsSortMode.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Reduce_cancels_or_ignores_sort_dialog_input()
+    {
+        var state = BrowserState.Initial with { IsSortMode = true };
+
+        var ignored = reducer.Reduce(state, Key('x'), Configuration, EmptyView());
+        var cancelled = reducer.Reduce(state, Key(ConsoleKey.Escape), Configuration, EmptyView());
+
+        ignored.State.IsSortMode.Should().BeTrue();
+        ignored.State.Sort.Should().Be(TodoSort.Source);
+        cancelled.State.IsSortMode.Should().BeFalse();
+        cancelled.State.Sort.Should().Be(TodoSort.Source);
+    }
+
     private static BrowserView EmptyView() => new(
         BrowserState.Initial,
         [new ProjectRow("All", 0, null, null, true)],
@@ -249,6 +310,31 @@ public sealed class BrowserReducerTests
         null,
         null,
         "No todos");
+
+    private static BrowserView SelectedView(TodoIdentity identity)
+    {
+        var todo = new WolfTodo.Core.Features.ProjectBrowser.TodoItem(
+            identity.SourceLine,
+            false,
+            null,
+            "Selected",
+            null,
+            [],
+            null,
+            null,
+            string.Empty,
+            [],
+            []);
+        return new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("All", 1, null, null, true)],
+            [new TodoRow(null, todo, 0, true, identity)],
+            todo,
+            "All",
+            null,
+            null,
+            string.Empty);
+    }
 
     private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false) =>
         new('\0', key, false, false, control);

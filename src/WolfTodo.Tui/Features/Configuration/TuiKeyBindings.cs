@@ -13,6 +13,7 @@ public sealed record TuiKeyBindings(
     ImmutableArray<KeyGesture> Back,
     ImmutableArray<KeyGesture> CommandMode,
     ImmutableArray<KeyGesture> FilterMode,
+    ImmutableArray<KeyGesture> SortMode,
     ImmutableArray<KeyGesture> TabNext,
     ImmutableArray<KeyGesture> TabPrevious)
 {
@@ -27,6 +28,7 @@ public sealed record TuiKeyBindings(
         Gestures("Escape", "h"),
         Gestures(":"),
         Gestures("/"),
+        Gestures("t"),
         Gestures("Ctrl+Tab"),
         Gestures("Ctrl+Shift+Tab"));
 
@@ -45,6 +47,8 @@ public sealed record TuiKeyBindings(
     public bool MatchesCommandMode(ConsoleKeyInfo key) => Matches(CommandMode, key);
 
     public bool MatchesFilterMode(ConsoleKeyInfo key) => Matches(FilterMode, key);
+
+    public bool MatchesSortMode(ConsoleKeyInfo key) => Matches(SortMode, key);
 
     public bool MatchesTabNext(ConsoleKeyInfo key) => Matches(TabNext, key);
 

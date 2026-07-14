@@ -6,4 +6,5 @@ public sealed record TodoRow(
     string? Heading,
     TodoItem? Todo,
     int Depth,
-    bool IsSelected);
+    bool IsSelected,
+    TodoIdentity? Identity = null);

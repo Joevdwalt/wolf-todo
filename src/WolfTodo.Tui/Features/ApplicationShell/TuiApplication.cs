@@ -63,7 +63,7 @@ public sealed class TuiApplication(
                 var key = terminalUi.ReadKey();
 
                 var inputRoute = inputRouter.Route(
-                    state.Browser.IsCommandMode || state.Browser.IsFilterMode,
+                    state.Browser.IsCommandMode || state.Browser.IsFilterMode || state.Browser.IsSortMode,
                     key,
                     configuration.KeyBindings);
 

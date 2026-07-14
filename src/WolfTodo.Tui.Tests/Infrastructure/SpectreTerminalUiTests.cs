@@ -130,6 +130,44 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowBrowser_renders_the_sort_dialog_and_active_sort_hint()
+    {
+        var view = ViewWithTitle("Renew contract");
+        StartRecording();
+
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view with
+        {
+            State = view.State with { IsSortMode = true }
+        }, DefaultBindings);
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view with
+        {
+            State = view.State with
+            {
+                Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending)
+            }
+        }, DefaultBindings);
+        var output = AnsiConsole.ExportText();
+
+        output.Should().Contain("Sort: n/N name").And.Contain("t/T tags").And.Contain("o source");
+        output.Should().Contain("t name↓");
+    }
+
+    [Fact]
+    public void ShowBrowser_fits_the_multiline_sort_dialog_without_scrolling_the_tabs()
+    {
+        var view = ViewWithTitle("Renew contract");
+        var lines = RenderBrowser(
+            view with { State = view.State with { IsSortMode = true } },
+            40,
+            16);
+
+        lines[0].Should().Contain("[ Todos ]");
+        lines.Should().HaveCount(15);
+        lines.Should().Contain(line => line.Contains("n/N name", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("Esc cancel", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ShowBrowser_includes_the_filter_key_in_wide_and_compact_hints()
     {
         var view = ViewWithTitle("Renew contract");

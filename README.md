@@ -63,6 +63,7 @@ open = ["Enter", "l"]
 back = ["Escape", "h"]
 command_mode = [":"]
 filter_mode = ["/"]
+sort_mode = ["t"]
 tab_next = ["Ctrl+Tab"]
 tab_previous = ["Ctrl+Shift+Tab"]
 ```

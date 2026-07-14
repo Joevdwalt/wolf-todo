@@ -22,6 +22,11 @@ public sealed class BrowserReducer
             return ReduceFilter(state, key);
         }
 
+        if (state.IsSortMode)
+        {
+            return ReduceSort(state, key, view);
+        }
+
         if (bindings.MatchesCommandMode(key))
         {
             return Transition(state with
@@ -42,6 +47,15 @@ public sealed class BrowserReducer
             });
         }
 
+        if (bindings.MatchesSortMode(key))
+        {
+            return Transition(state with
+            {
+                IsSortMode = true,
+                Error = null
+            });
+        }
+
         if (bindings.MatchesFocusNext(key) || bindings.MatchesFocusPrevious(key))
         {
             var reverse = bindings.MatchesFocusPrevious(key);
@@ -57,11 +71,13 @@ public sealed class BrowserReducer
                 {
                     ProjectIndex = MoveIndex(state.ProjectIndex, offset, view.Projects.Length),
                     TodoIndex = 0,
+                    PendingTodoSelection = null,
                     Error = null
                 })
                 : Transition(state with
                 {
                     TodoIndex = MoveIndex(state.TodoIndex, offset, view.SelectableTodoCount),
+                    PendingTodoSelection = null,
                     Error = null
                 });
         }
@@ -92,6 +108,38 @@ public sealed class BrowserReducer
         return Transition(state);
     }
 
+    private static BrowserTransition ReduceSort(BrowserState state, ConsoleKeyInfo key, BrowserView view)
+    {
+        if (key.Key == ConsoleKey.Escape)
+        {
+            return Transition(state with { IsSortMode = false, Error = null });
+        }
+
+        var sort = key.KeyChar switch
+        {
+            'n' => new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending),
+            'N' => new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending),
+            'd' => new TodoSort(TodoSortProperty.StartDate, TodoSortDirection.Ascending),
+            'D' => new TodoSort(TodoSortProperty.StartDate, TodoSortDirection.Descending),
+            't' => new TodoSort(TodoSortProperty.Tags, TodoSortDirection.Ascending),
+            'T' => new TodoSort(TodoSortProperty.Tags, TodoSortDirection.Descending),
+            'f' => new TodoSort(TodoSortProperty.File, TodoSortDirection.Ascending),
+            'F' => new TodoSort(TodoSortProperty.File, TodoSortDirection.Descending),
+            'o' => TodoSort.Source,
+            _ => null
+        };
+
+        return sort is null
+            ? Transition(state)
+            : Transition(state with
+            {
+                IsSortMode = false,
+                Sort = sort,
+                PendingTodoSelection = view.SelectedTodoIdentity,
+                Error = null
+            });
+    }
+
     private static BrowserTransition ReduceFilter(BrowserState state, ConsoleKeyInfo key)
     {
         if (key.Key == ConsoleKey.Escape)
@@ -100,6 +148,7 @@ public sealed class BrowserReducer
             {
                 IsFilterMode = false,
                 FilterDraft = state.FilterText,
+                PendingTodoSelection = null,
                 Error = null
             });
         }
@@ -113,6 +162,7 @@ public sealed class BrowserReducer
                 FilterText = filter,
                 FilterDraft = filter,
                 TodoIndex = 0,
+                PendingTodoSelection = null,
                 Error = null
             });
         }
@@ -120,7 +170,13 @@ public sealed class BrowserReducer
         if (key.Key == ConsoleKey.Backspace)
         {
             var filter = state.FilterDraft.Length > 0 ? state.FilterDraft[..^1] : state.FilterDraft;
-            return Transition(state with { FilterDraft = filter, TodoIndex = 0, Error = null });
+            return Transition(state with
+            {
+                FilterDraft = filter,
+                TodoIndex = 0,
+                PendingTodoSelection = null,
+                Error = null
+            });
         }
 
         return char.IsControl(key.KeyChar)
@@ -129,6 +185,7 @@ public sealed class BrowserReducer
             {
                 FilterDraft = state.FilterDraft + key.KeyChar,
                 TodoIndex = 0,
+                PendingTodoSelection = null,
                 Error = null
             });
     }

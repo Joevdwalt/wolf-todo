@@ -10,6 +10,9 @@ public sealed record BrowserState(
     bool IsFilterMode,
     string FilterText,
     string FilterDraft,
+    bool IsSortMode,
+    TodoSort Sort,
+    TodoIdentity? PendingTodoSelection,
     string? Error)
 {
     public static BrowserState Initial { get; } = new(
@@ -22,5 +25,8 @@ public sealed record BrowserState(
         false,
         string.Empty,
         string.Empty,
+        false,
+        TodoSort.Source,
+        null,
         null);
 }

@@ -19,6 +19,7 @@ public sealed class TuiKeyBindingsTests
         bindings.MatchesOpen(Key('l')).Should().BeTrue();
         bindings.MatchesBack(Key(ConsoleKey.Escape)).Should().BeTrue();
         bindings.MatchesBack(Key('h')).Should().BeTrue();
+        bindings.MatchesSortMode(Key('t')).Should().BeTrue();
         bindings.MatchesTabNext(Key(ConsoleKey.Tab, control: true)).Should().BeTrue();
         bindings.MatchesTabPrevious(Key(ConsoleKey.Tab, shift: true, control: true)).Should().BeTrue();
     }

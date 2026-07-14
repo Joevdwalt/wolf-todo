@@ -212,6 +212,10 @@ The splash-dismissal key must still be consumed before browser interaction.
 Browser inputs and their Vim-compatible defaults are configurable as defined by
 SPEC0004.
 
+The configured sort gesture, `t` by default, opens the bottom-panel sort dialog
+defined by SPEC0006. Sorting changes presentation only and never modifies the
+Markdown source order.
+
 ## Empty States
 
 - No configured project files: configuration validation fails before rendering.
@@ -248,6 +252,7 @@ SPEC0004.
 - [SPEC0003: Slash Todo Filter](SPEC0003-slash-todo-filter.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
 - [SPEC0005: Application View Tabs](SPEC0005-application-view-tabs.md)
+- [SPEC0006: Todo Sorting](SPEC0006-todo-sorting.md)
 - [ADR0001: Use .NET and Spectre.Console](../adr/ADR0001-use-dotnet-and-spectre-console.md)
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)

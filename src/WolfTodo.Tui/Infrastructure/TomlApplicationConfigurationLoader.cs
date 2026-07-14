@@ -97,6 +97,7 @@ public sealed class TomlApplicationConfigurationLoader(
             Back = ReadGestures(keybindings, "back", defaults.Back),
             CommandMode = ReadGestures(keybindings, "command_mode", defaults.CommandMode),
             FilterMode = ReadGestures(keybindings, "filter_mode", defaults.FilterMode),
+            SortMode = ReadGestures(keybindings, "sort_mode", defaults.SortMode),
             TabNext = ReadGestures(keybindings, "tab_next", defaults.TabNext),
             TabPrevious = ReadGestures(keybindings, "tab_previous", defaults.TabPrevious)
         };
@@ -190,6 +191,7 @@ public sealed class TomlApplicationConfigurationLoader(
             ("back", bindings.Back),
             ("command_mode", bindings.CommandMode),
             ("filter_mode", bindings.FilterMode),
+            ("sort_mode", bindings.SortMode),
             ("tab_next", bindings.TabNext),
             ("tab_previous", bindings.TabPrevious)
         };

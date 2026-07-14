@@ -13,7 +13,12 @@ public sealed class ProjectBrowserPresenter
         var selectedProject = projectRows[selectedProjectIndex];
         var todoRows = BuildTodoRows(catalog, selectedProject, state);
         var selectableTodos = todoRows.Where(row => row.Todo is not null).ToArray();
-        var selectedTodoIndex = Math.Clamp(state.TodoIndex, 0, Math.Max(0, selectableTodos.Length - 1));
+        var pendingIndex = state.PendingTodoSelection is null
+            ? -1
+            : Array.FindIndex(selectableTodos, row => row.Identity == state.PendingTodoSelection);
+        var selectedTodoIndex = state.PendingTodoSelection is null
+            ? Math.Clamp(state.TodoIndex, 0, Math.Max(0, selectableTodos.Length - 1))
+            : Math.Max(0, pendingIndex);
         var selectedTodo = selectableTodos.Length == 0 ? null : selectableTodos[selectedTodoIndex].Todo;
         var markedRows = todoRows
             .Select(row => row.Todo is null
@@ -32,7 +37,12 @@ public sealed class ProjectBrowserPresenter
                     : "No active todos";
 
         return new BrowserView(
-            state with { ProjectIndex = selectedProjectIndex, TodoIndex = selectedTodoIndex },
+            state with
+            {
+                ProjectIndex = selectedProjectIndex,
+                TodoIndex = selectedTodoIndex,
+                PendingTodoSelection = null
+            },
             projectRows,
             markedRows,
             selectedTodo,
@@ -82,14 +92,19 @@ public sealed class ProjectBrowserPresenter
         }
 
         var projects = selectedProject.Project is null
-            ? catalog.Projects
+            ? OrderProjects(catalog.Projects, state.Sort)
             : [selectedProject.Project];
         var rows = ImmutableArray.CreateBuilder<TodoRow>();
         var filter = EffectiveFilter(state);
 
         foreach (var project in projects)
         {
-            var visibleTodos = Flatten(project.Todos)
+            var sourceTodos = Flatten(project.Todos, TodoSort.Source).ToArray();
+            var sectionPaths = sourceTodos
+                .Select(item => item.Todo.SectionPath)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var visibleTodos = Flatten(project.Todos, state.Sort)
                 .Where(item => state.ShowCompleted || !item.Todo.IsCompleted)
                 .Where(item => MatchesFilter(item.Todo, filter))
                 .ToArray();
@@ -104,19 +119,29 @@ public sealed class ProjectBrowserPresenter
                 rows.Add(new TodoRow(project.Title, null, 0, false));
             }
 
-            var flattened = visibleTodos
-                .GroupBy(item => item.Todo.SectionPath);
-
-            foreach (var section in flattened)
+            foreach (var sectionPath in sectionPaths)
             {
-                if (!string.IsNullOrEmpty(section.Key))
+                var section = visibleTodos
+                    .Where(item => item.Todo.SectionPath == sectionPath)
+                    .ToArray();
+                if (section.Length == 0)
                 {
-                    rows.Add(new TodoRow(section.Key, null, 0, false));
+                    continue;
                 }
 
-                foreach (var item in section.OrderBy(item => item.Todo.IsCompleted))
+                if (!string.IsNullOrEmpty(sectionPath))
                 {
-                    rows.Add(new TodoRow(null, item.Todo, item.Depth, false));
+                    rows.Add(new TodoRow(sectionPath, null, 0, false));
+                }
+
+                foreach (var item in section)
+                {
+                    rows.Add(new TodoRow(
+                        null,
+                        item.Todo,
+                        item.Depth,
+                        false,
+                        new TodoIdentity(project.Path, item.Todo.SourceLine)));
                 }
             }
         }
@@ -145,21 +170,105 @@ public sealed class ProjectBrowserPresenter
 
     private static IEnumerable<(TodoItem Todo, int Depth)> Flatten(
         IEnumerable<TodoItem> todos,
+        TodoSort sort,
         int depth = 0)
     {
-        foreach (var todo in todos)
+        foreach (var todo in OrderTodos(todos, sort))
         {
             yield return (todo, depth);
 
-            foreach (var subtask in Flatten(todo.Subtasks, depth + 1))
+            foreach (var subtask in Flatten(todo.Subtasks, sort, depth + 1))
             {
                 yield return subtask;
             }
         }
     }
 
+    private static IEnumerable<TodoProject> OrderProjects(
+        IEnumerable<TodoProject> projects,
+        TodoSort sort)
+    {
+        if (sort.Property != TodoSortProperty.File)
+        {
+            return projects;
+        }
+
+        var direction = sort.Direction == TodoSortDirection.Ascending ? 1 : -1;
+        return projects.OrderBy(
+            project => project,
+            Comparer<TodoProject>.Create((left, right) =>
+            {
+                var filename = NaturalStringComparer.Instance.Compare(
+                    Path.GetFileName(left.Path),
+                    Path.GetFileName(right.Path));
+                var result = filename != 0
+                    ? filename
+                    : StringComparer.OrdinalIgnoreCase.Compare(left.Path, right.Path);
+                return result * direction;
+            }));
+    }
+
+    private static IEnumerable<TodoItem> OrderTodos(IEnumerable<TodoItem> todos, TodoSort sort)
+    {
+        return todos.OrderBy(
+            todo => todo,
+            Comparer<TodoItem>.Create((left, right) => CompareTodos(left, right, sort)));
+    }
+
+    private static int CompareTodos(TodoItem left, TodoItem right, TodoSort sort)
+    {
+        var completion = left.IsCompleted.CompareTo(right.IsCompleted);
+        if (completion != 0)
+        {
+            return completion;
+        }
+
+        var direction = sort.Direction == TodoSortDirection.Ascending ? 1 : -1;
+        return sort.Property switch
+        {
+            TodoSortProperty.Name => NaturalStringComparer.Instance.Compare(left.Title, right.Title) * direction,
+            TodoSortProperty.StartDate => CompareOptionalDates(left.StartDate, right.StartDate, direction),
+            TodoSortProperty.Tags => CompareOptionalText(TagSortValue(left), TagSortValue(right), direction),
+            _ => 0
+        };
+    }
+
+    private static int CompareOptionalDates(DateOnly? left, DateOnly? right, int direction)
+    {
+        if (left is null || right is null)
+        {
+            return left is null == right is null ? 0 : left is null ? 1 : -1;
+        }
+
+        return left.Value.CompareTo(right.Value) * direction;
+    }
+
+    private static int CompareOptionalText(string? left, string? right, int direction)
+    {
+        if (left is null || right is null)
+        {
+            return left is null == right is null ? 0 : left is null ? 1 : -1;
+        }
+
+        return NaturalStringComparer.Instance.Compare(left, right) * direction;
+    }
+
+    private static string? TagSortValue(TodoItem todo)
+    {
+        if (todo.Tags.Length == 0)
+        {
+            return null;
+        }
+
+        return string.Join(
+            '\u001F',
+            todo.Tags
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(tag => tag, NaturalStringComparer.Instance));
+    }
+
     private static int CountActive(IEnumerable<TodoItem> todos) =>
-        Flatten(todos).Count(item => !item.Todo.IsCompleted);
+        Flatten(todos, TodoSort.Source).Count(item => !item.Todo.IsCompleted);
 
     private static bool HasCompletedTodos(ProjectRow selectedProject, ProjectCatalog catalog)
     {
@@ -167,6 +276,8 @@ public sealed class ProjectBrowserPresenter
             ? catalog.Projects
             : [selectedProject.Project];
 
-        return projects.SelectMany(project => Flatten(project.Todos)).Any(item => item.Todo.IsCompleted);
+        return projects
+            .SelectMany(project => Flatten(project.Todos, TodoSort.Source))
+            .Any(item => item.Todo.IsCompleted);
     }
 }
