@@ -277,6 +277,51 @@ public sealed class BrowserReducerTests
         saved.Update!.Title.Should().Be("New task");
     }
 
+    [Fact]
+    public void Reduce_edits_notes_and_subtasks_as_one_content_update()
+    {
+        var identity = new TodoIdentity("/alpha.md", 1);
+        var child = new TodoItem(3, false, null, "Child", null, [], null, null, string.Empty, [], []);
+        var todo = new TodoItem(
+            1, false, null, "Parent", null, [], null, null, string.Empty,
+            [new TodoNote(2, "Existing note")], [child]);
+        var view = SelectedView(identity, todo);
+
+        var opened = reducer.Reduce(BrowserState.Initial, Key('E'), Configuration, view);
+        var adding = reducer.Reduce(opened.State, Key('a'), Configuration, view);
+        var typed = reducer.Reduce(adding.State, Key('N'), Configuration, view);
+        var accepted = reducer.Reduce(typed.State, Key(ConsoleKey.Enter), Configuration, view);
+        var subtasks = reducer.Reduce(accepted.State, Key(ConsoleKey.Tab), Configuration, view);
+        var toggled = reducer.Reduce(subtasks.State, Key(ConsoleKey.Spacebar), Configuration, view);
+        var saved = reducer.Reduce(toggled.State, Key(ConsoleKey.S, control: true), Configuration, view);
+
+        opened.State.ContentEditor.Should().NotBeNull();
+        saved.Operation.Should().Be(BrowserOperation.UpdateContent);
+        saved.ContentUpdate!.Notes.Select(note => note.Text).Should().Equal("Existing note", "N");
+        saved.ContentUpdate.Subtasks.Should().ContainSingle().Which.IsCompleted.Should().BeTrue();
+        saved.State.ContentEditor.Should().BeNull();
+    }
+
+    [Fact]
+    public void Reduce_confirms_removing_a_subtask_with_descendants()
+    {
+        var identity = new TodoIdentity("/alpha.md", 1);
+        var grandchild = new TodoItem(4, false, null, "Grandchild", null, [], null, null, string.Empty, [], []);
+        var child = new TodoItem(
+            2, false, null, "Child", null, [], null, null, string.Empty,
+            [new TodoNote(3, "note")], [grandchild]);
+        var todo = new TodoItem(1, false, null, "Parent", null, [], null, null, string.Empty, [], [child]);
+        var view = SelectedView(identity, todo);
+        var opened = reducer.Reduce(BrowserState.Initial, Key('E'), Configuration, view);
+        var focused = reducer.Reduce(opened.State, Key(ConsoleKey.Tab), Configuration, view);
+
+        var requested = reducer.Reduce(focused.State, Key('d'), Configuration, view);
+        var confirmed = reducer.Reduce(requested.State, Key('l'), Configuration, view);
+
+        requested.State.ContentEditor!.Mode.Should().Be(ContentEditorMode.ConfirmRemoval);
+        confirmed.State.ContentEditor!.Subtasks.Should().BeEmpty();
+    }
+
     private static BrowserView EmptyView() => new(
         BrowserState.Initial,
         [new ProjectRow("All", 0, null, null, true)],
@@ -314,6 +359,11 @@ public sealed class BrowserReducerTests
             string.Empty,
             [],
             []);
+        return SelectedView(identity, todo);
+    }
+
+    private static BrowserView SelectedView(TodoIdentity identity, TodoItem todo)
+    {
         return new BrowserView(
             BrowserState.Initial,
             [new ProjectRow("All", 1, null, null, true)],

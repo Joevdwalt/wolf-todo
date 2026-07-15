@@ -18,6 +18,11 @@ Change only the target task line, preserve surrounding content and newline
 conventions, and replace the file atomically through a temporary sibling file.
 Preserve Unix file permissions during replacement.
 
+Notes carry source-line identities. Structured content saves validate the
+complete selected subtree, then apply note and direct-subtask edits as one
+bottom-up line mutation. Unchanged descendant lines retain their original
+formatting; removing a subtask removes its identified descendant subtree.
+
 New todos are appended beneath a case-insensitive `## Inbox` heading. Create
 the heading when absent and reject files containing multiple matching Inbox
 headings.
@@ -29,6 +34,7 @@ headings.
 - Source-line identities can become stale and must be revalidated for every
   write.
 - Task-line metadata is normalized when that todo is edited.
+- Note identities allow precise edits without normalizing unrelated content.
 
 ## References
 

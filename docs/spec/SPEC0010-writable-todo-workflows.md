@@ -24,9 +24,14 @@ Markdown todos.
 - Successful changes reload the catalog and restore selection to the resulting
   source identity. Validation, stale targets, and I/O failures remain visible
   without discarding external content.
+- Uppercase `E` opens a structured draft for the selected todo's direct notes
+  and subtasks. Add, edit, remove, and subtask completion changes are written
+  together with Ctrl+S; Escape discards them.
+- Removing a subtask includes its descendant subtree and requires confirmation
+  when nested content exists.
 
-Deletion, project/section movement, and note or subtask editing remain out of
-scope.
+Root-todo deletion, project/section movement, content reordering, and multiline
+notes remain out of scope.
 
 ## References
 

@@ -96,7 +96,7 @@ public sealed partial class ProjectMarkdownParser
 
                 if (taskStack.Count > 0)
                 {
-                    taskStack.Peek().Notes.Add(NormalizeNote(line.Trim()));
+                    taskStack.Peek().Notes.Add(new TodoNote(index + 1, NormalizeNote(line.Trim())));
                 }
             }
         }
@@ -335,7 +335,7 @@ public sealed partial class ProjectMarkdownParser
     {
         public int Indent { get; set; }
 
-        public List<string> Notes { get; } = [];
+        public List<TodoNote> Notes { get; } = [];
 
         public List<TodoBuilder> Subtasks { get; } = [];
 

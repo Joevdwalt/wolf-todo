@@ -21,10 +21,12 @@ the existing keyboard interaction and command syntax.
 - Uppercase `L` and `H` select the next and previous application tabs.
 - `:` enters command mode, `/` enters filter mode, and `t` opens the sort
   dialog.
+- `?` opens the global command palette.
 - `:completed` toggles completed todos and the required configured quit command
   exits the application.
 - `[`/`]` change planner dates, `g` selects today, and `u` unschedules.
-- `a`, `e`, Spacebar, and Ctrl+S create, edit, complete, and save todos.
+- `a`, `e`, uppercase `E`, Spacebar, `d`, and Ctrl+S create, edit fields, edit
+  content, complete, remove draft content, and save todos.
 
 These inputs are resolved from the global configuration described by ADR0005.
 Configured arrays replace the defaults for their action. A custom command-mode
@@ -36,6 +38,8 @@ triggering browser navigation. Application-tab bindings are also ignored while
 either input mode is active. The sort dialog also captures input and prevents
 application-tab switching until an option is chosen or Esc cancels it.
 Planner pickers, move mode, and todo forms capture input in the same way.
+The command palette captures input after it opens; its search mode treats
+printable navigation bindings as query text.
 
 ## Status Hints
 
@@ -61,6 +65,8 @@ the configured filter gesture as its edit hint.
 8. A configured sort launcher replaces `t`, participates in conflict
    validation, and is reflected in status hints.
 9. Planner and writable-todo hints and actions use their resolved bindings.
+10. Content-editor and command-palette launchers use defaults when omitted and
+    reject global gesture conflicts when overridden.
 
 ## References
 
@@ -72,3 +78,5 @@ the configured filter gesture as its edit hint.
 - [SPEC0006: Todo Sorting](SPEC0006-todo-sorting.md)
 - [SPEC0009: Day Planner](SPEC0009-day-planner.md)
 - [SPEC0010: Writable Todo Workflows](SPEC0010-writable-todo-workflows.md)
+- [SPEC0011: Structured Todo Content Editor](SPEC0011-structured-todo-content-editor.md)
+- [SPEC0012: Global Command Palette](SPEC0012-global-command-palette.md)

@@ -8,6 +8,57 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 {
     private readonly Func<DateOnly> todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
 
+    public PlannerTransition ReduceAction(PlannerState state, PlannerAction action, PlannerView view) =>
+        action switch
+        {
+            PlannerAction.PreviousDay => Transition(state with
+            {
+                SelectedDate = state.SelectedDate.AddDays(-1),
+                Error = null
+            }),
+            PlannerAction.NextDay => Transition(state with
+            {
+                SelectedDate = state.SelectedDate.AddDays(1),
+                Error = null
+            }),
+            PlannerAction.Today => Transition(state with { SelectedDate = todayProvider(), Error = null }),
+            PlannerAction.Create when view.Projects.Length > 0 => Transition(state with
+            {
+                Mode = PlannerMode.ChooseCreateProject,
+                CreateProjectIndex = 0,
+                Error = null
+            }),
+            PlannerAction.Create => Transition(state with { Error = "No valid projects are available." }),
+            PlannerAction.Unschedule when view.SelectedSlot.Assignments.Length == 1 =>
+                new PlannerTransition(
+                    state with { Error = null },
+                    PlannerOperation.Unschedule,
+                    view.SelectedSlot.Assignments[0].Identity),
+            PlannerAction.Unschedule => Transition(state with
+            {
+                Error = view.SelectedSlot.Assignments.Length > 1
+                    ? "Resolve this conflicting timeslot before unscheduling."
+                    : "No todo is assigned to this timeslot."
+            }),
+            PlannerAction.AssignOrMove when view.SelectedSlot.Assignments.Length > 1 => Transition(state with
+            {
+                Error = "This timeslot contains conflicting assignments."
+            }),
+            PlannerAction.AssignOrMove when view.SelectedSlot.Assignments.Length == 0 => Transition(state with
+            {
+                Mode = PlannerMode.ChooseTodo,
+                PickerIndex = 0,
+                Error = null
+            }),
+            PlannerAction.AssignOrMove => Transition(state with
+            {
+                Mode = PlannerMode.MoveTodo,
+                MovingTodo = view.SelectedSlot.Assignments[0].Identity,
+                Error = null
+            }),
+            _ => Transition(state)
+        };
+
     public PlannerTransition Reduce(
         PlannerState state,
         ConsoleKeyInfo key,

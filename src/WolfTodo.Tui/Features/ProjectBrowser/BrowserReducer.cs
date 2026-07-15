@@ -8,6 +8,49 @@ namespace WolfTodo.Tui.Features.ProjectBrowser;
 
 public sealed class BrowserReducer
 {
+    public BrowserTransition ReduceAction(
+        BrowserState state,
+        BrowserAction action,
+        BrowserView view) => action switch
+        {
+            BrowserAction.Filter => Transition(state with
+            {
+                IsFilterMode = true,
+                FilterDraft = state.FilterText,
+                Error = null
+            }),
+            BrowserAction.Sort => Transition(state with { IsSortMode = true, Error = null }),
+            BrowserAction.Create => Transition(state with
+            {
+                Form = NewForm(
+                    view.Projects.FirstOrDefault(project => project.IsSelected)?.Project?.Path,
+                    view),
+                Error = null
+            }),
+            BrowserAction.Edit when view.SelectedTodo is not null && view.SelectedTodoIdentity is not null =>
+                Transition(state with
+                {
+                    Form = EditForm(view.SelectedTodo, view.SelectedTodoIdentity),
+                    Error = null
+                }),
+            BrowserAction.EditContent
+                when view.SelectedTodo is not null && view.SelectedTodoIdentity is not null =>
+                Transition(state with
+                {
+                    ContentEditor = TodoContentEditorState.Create(
+                        view.SelectedTodoIdentity,
+                        view.SelectedTodo),
+                    Error = null
+                }),
+            BrowserAction.ToggleCompleted
+                when view.SelectedTodoIdentity is not null => new BrowserTransition(
+                    state with { Error = null },
+                    BrowserOperation.ToggleCompleted,
+                    view.SelectedTodoIdentity.ProjectPath,
+                    view.SelectedTodoIdentity),
+            _ => Transition(state with { Error = "The selected action is not available." })
+        };
+
     public BrowserTransition Reduce(
         BrowserState state,
         ConsoleKeyInfo key,
@@ -15,6 +58,11 @@ public sealed class BrowserReducer
         BrowserView view)
     {
         var bindings = configuration.KeyBindings;
+
+        if (state.ContentEditor is not null)
+        {
+            return ReduceContentEditor(state, key, bindings);
+        }
 
         if (state.Form is not null)
         {
@@ -71,6 +119,22 @@ public sealed class BrowserReducer
             return Transition(state with
             {
                 Form = EditForm(view.SelectedTodo, view.SelectedTodoIdentity),
+                Error = null
+            });
+        }
+
+        if (bindings.MatchesEditTodoContent(key))
+        {
+            if (view.SelectedTodo is null || view.SelectedTodoIdentity is null)
+            {
+                return Transition(state with { Error = "Select a todo to edit its content." });
+            }
+
+            return Transition(state with
+            {
+                ContentEditor = TodoContentEditorState.Create(
+                    view.SelectedTodoIdentity,
+                    view.SelectedTodo),
                 Error = null
             });
         }
@@ -314,6 +378,277 @@ public sealed class BrowserReducer
                 Error = error
             }
         });
+    }
+
+    private static BrowserTransition ReduceContentEditor(
+        BrowserState state,
+        ConsoleKeyInfo key,
+        TuiKeyBindings bindings)
+    {
+        var editor = state.ContentEditor!;
+        if (editor.Mode == ContentEditorMode.Edit)
+        {
+            if (key.Key == ConsoleKey.Escape)
+            {
+                return Transition(state with
+                {
+                    ContentEditor = editor with
+                    {
+                        Mode = ContentEditorMode.Browse,
+                        IsAdding = false,
+                        Draft = string.Empty,
+                        Error = null
+                    }
+                });
+            }
+
+            if (key.Key == ConsoleKey.Enter)
+            {
+                return CommitContentDraft(state, editor);
+            }
+
+            if (key.Key == ConsoleKey.Backspace)
+            {
+                return Transition(state with
+                {
+                    ContentEditor = editor with
+                    {
+                        Draft = editor.Draft.Length == 0 ? string.Empty : editor.Draft[..^1],
+                        Error = null
+                    }
+                });
+            }
+
+            return char.IsControl(key.KeyChar)
+                ? Transition(state)
+                : Transition(state with
+                {
+                    ContentEditor = editor with { Draft = editor.Draft + key.KeyChar, Error = null }
+                });
+        }
+
+        if (editor.Mode == ContentEditorMode.ConfirmRemoval)
+        {
+            if (bindings.MatchesOpen(key))
+            {
+                return Transition(state with
+                {
+                    ContentEditor = RemoveSelectedSubtask(editor) with
+                    {
+                        Mode = ContentEditorMode.Browse,
+                        Error = null
+                    }
+                });
+            }
+
+            return bindings.MatchesBack(key)
+                ? Transition(state with
+                {
+                    ContentEditor = editor with { Mode = ContentEditorMode.Browse, Error = null }
+                })
+                : Transition(state);
+        }
+
+        if (bindings.MatchesBack(key))
+        {
+            return Transition(state with { ContentEditor = null, Error = null });
+        }
+
+        if (bindings.MatchesFocusNext(key) || bindings.MatchesFocusPrevious(key))
+        {
+            var focus = editor.Focus == ContentEditorFocus.Notes
+                ? ContentEditorFocus.Subtasks
+                : ContentEditorFocus.Notes;
+            return Transition(state with { ContentEditor = editor with { Focus = focus, Error = null } });
+        }
+
+        if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
+        {
+            var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
+            var updated = editor.Focus == ContentEditorFocus.Notes
+                ? editor with
+                {
+                    NoteIndex = Math.Clamp(
+                        editor.NoteIndex + offset,
+                        0,
+                        Math.Max(0, editor.Notes.Length - 1)),
+                    Error = null
+                }
+                : editor with
+                {
+                    SubtaskIndex = Math.Clamp(
+                        editor.SubtaskIndex + offset,
+                        0,
+                        Math.Max(0, editor.Subtasks.Length - 1)),
+                    Error = null
+                };
+            return Transition(state with { ContentEditor = updated });
+        }
+
+        if (bindings.MatchesCreateTodo(key))
+        {
+            return Transition(state with
+            {
+                ContentEditor = editor with
+                {
+                    Mode = ContentEditorMode.Edit,
+                    IsAdding = true,
+                    Draft = string.Empty,
+                    Error = null
+                }
+            });
+        }
+
+        if (bindings.MatchesEditTodo(key) || bindings.MatchesOpen(key))
+        {
+            var value = editor.Focus == ContentEditorFocus.Notes
+                ? editor.Notes.ElementAtOrDefault(editor.NoteIndex)?.Text
+                : editor.Subtasks.ElementAtOrDefault(editor.SubtaskIndex)?.Title;
+            return value is null
+                ? Transition(state with
+                {
+                    ContentEditor = editor with { Error = "There is no content to edit." }
+                })
+                : Transition(state with
+                {
+                    ContentEditor = editor with
+                    {
+                        Mode = ContentEditorMode.Edit,
+                        IsAdding = false,
+                        Draft = value,
+                        Error = null
+                    }
+                });
+        }
+
+        if (bindings.MatchesRemoveContent(key))
+        {
+            if (editor.Focus == ContentEditorFocus.Notes)
+            {
+                if (editor.Notes.Length == 0)
+                {
+                    return Transition(state with
+                    {
+                        ContentEditor = editor with { Error = "There is no note to remove." }
+                    });
+                }
+
+                var notes = editor.Notes.RemoveAt(editor.NoteIndex);
+                return Transition(state with
+                {
+                    ContentEditor = editor with
+                    {
+                        Notes = notes,
+                        NoteIndex = Math.Clamp(editor.NoteIndex, 0, Math.Max(0, notes.Length - 1)),
+                        Error = null
+                    }
+                });
+            }
+
+            if (editor.Subtasks.Length == 0)
+            {
+                return Transition(state with
+                {
+                    ContentEditor = editor with { Error = "There is no subtask to remove." }
+                });
+            }
+
+            var selected = editor.Subtasks[editor.SubtaskIndex];
+            return selected.DescendantCount > 0
+                ? Transition(state with
+                {
+                    ContentEditor = editor with { Mode = ContentEditorMode.ConfirmRemoval, Error = null }
+                })
+                : Transition(state with { ContentEditor = RemoveSelectedSubtask(editor) });
+        }
+
+        if (editor.Focus == ContentEditorFocus.Subtasks && bindings.MatchesToggleTodo(key))
+        {
+            if (editor.Subtasks.Length == 0)
+            {
+                return Transition(state with
+                {
+                    ContentEditor = editor with { Error = "There is no subtask to toggle." }
+                });
+            }
+
+            var selected = editor.Subtasks[editor.SubtaskIndex];
+            return Transition(state with
+            {
+                ContentEditor = editor with
+                {
+                    Subtasks = editor.Subtasks.SetItem(
+                        editor.SubtaskIndex,
+                        selected with { IsCompleted = !selected.IsCompleted }),
+                    Error = null
+                }
+            });
+        }
+
+        if (bindings.MatchesSaveForm(key))
+        {
+            return new BrowserTransition(
+                state with { ContentEditor = null, Error = null },
+                BrowserOperation.UpdateContent,
+                editor.Target.ProjectPath,
+                editor.Target,
+                ContentUpdate: editor.ToUpdate());
+        }
+
+        return Transition(state);
+    }
+
+    private static BrowserTransition CommitContentDraft(
+        BrowserState state,
+        TodoContentEditorState editor)
+    {
+        var value = editor.Draft.Trim();
+        if (value.Length == 0)
+        {
+            return Transition(state with
+            {
+                ContentEditor = editor with { Error = "Content must not be empty." }
+            });
+        }
+
+        if (editor.Focus == ContentEditorFocus.Notes)
+        {
+            var notes = editor.IsAdding
+                ? editor.Notes.Add(new ContentNoteDraft(null, value))
+                : editor.Notes.SetItem(editor.NoteIndex, editor.Notes[editor.NoteIndex] with { Text = value });
+            editor = editor with { Notes = notes, NoteIndex = notes.Length - 1 };
+        }
+        else
+        {
+            var subtasks = editor.IsAdding
+                ? editor.Subtasks.Add(new ContentSubtaskDraft(null, value, false, 0))
+                : editor.Subtasks.SetItem(
+                    editor.SubtaskIndex,
+                    editor.Subtasks[editor.SubtaskIndex] with { Title = value });
+            editor = editor with { Subtasks = subtasks, SubtaskIndex = subtasks.Length - 1 };
+        }
+
+        return Transition(state with
+        {
+            ContentEditor = editor with
+            {
+                Mode = ContentEditorMode.Browse,
+                IsAdding = false,
+                Draft = string.Empty,
+                Error = null
+            }
+        });
+    }
+
+    private static TodoContentEditorState RemoveSelectedSubtask(TodoContentEditorState editor)
+    {
+        var subtasks = editor.Subtasks.RemoveAt(editor.SubtaskIndex);
+        return editor with
+        {
+            Subtasks = subtasks,
+            SubtaskIndex = Math.Clamp(editor.SubtaskIndex, 0, Math.Max(0, subtasks.Length - 1)),
+            Error = null
+        };
     }
 
     private static DateOnly? ParseDate(string value, out string? error)

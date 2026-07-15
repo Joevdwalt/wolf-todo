@@ -27,6 +27,149 @@ public sealed partial class ProjectTodoMutationService(
             DueDate = update.DueDate
         }));
 
+    public TodoMutationResult UpdateContent(
+        string path,
+        TodoItem expected,
+        TodoContentUpdate update)
+    {
+        if (update.Notes.Any(note => string.IsNullOrWhiteSpace(note.Text)))
+        {
+            return TodoMutationResult.Failure("Notes must not be empty.");
+        }
+
+        if (update.Subtasks.Any(subtask => string.IsNullOrWhiteSpace(subtask.Title)))
+        {
+            return TodoMutationResult.Failure("Subtask titles must not be empty.");
+        }
+
+        try
+        {
+            var contents = fileSystem.ReadAllText(path);
+            var parsed = parser.Parse(path, contents);
+            if (parsed.Project is null)
+            {
+                return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
+            }
+
+            var current = Flatten(parsed.Project.Todos)
+                .SingleOrDefault(todo => todo.SourceLine == expected.SourceLine);
+            if (current is null || !SameTree(current, expected))
+            {
+                return TodoMutationResult.Failure(
+                    "The todo content changed on disk. Reload it before saving your change.");
+            }
+
+            var existingNoteLines = current.Notes.Select(note => note.SourceLine).ToHashSet();
+            var updatedNoteLines = update.Notes
+                .Where(note => note.SourceLine is not null)
+                .Select(note => note.SourceLine!.Value)
+                .ToArray();
+            var existingSubtaskLines = current.Subtasks.Select(todo => todo.SourceLine).ToHashSet();
+            var updatedSubtaskLines = update.Subtasks
+                .Where(todo => todo.SourceLine is not null)
+                .Select(todo => todo.SourceLine!.Value)
+                .ToArray();
+            if (updatedNoteLines.Distinct().Count() != updatedNoteLines.Length ||
+                updatedNoteLines.Any(line => !existingNoteLines.Contains(line)) ||
+                updatedSubtaskLines.Distinct().Count() != updatedSubtaskLines.Length ||
+                updatedSubtaskLines.Any(line => !existingSubtaskLines.Contains(line)))
+            {
+                return TodoMutationResult.Failure("The todo content draft contains stale items.");
+            }
+
+            var newline = DetectNewline(contents);
+            var finalNewline = contents.EndsWith('\n');
+            var lines = SplitLines(contents);
+            var targetIndex = expected.SourceLine - 1;
+            var targetPrefix = TaskPrefixPattern().Match(lines[targetIndex]);
+            if (!targetPrefix.Success)
+            {
+                return TodoMutationResult.Failure("The todo source line is no longer a Markdown task.");
+            }
+
+            var targetIndent = LeadingWhitespace(lines[targetIndex]);
+            var childIndent = targetIndent + "  ";
+            var blockEnd = FindTodoBlockEnd(lines, targetIndex, targetIndent.Length);
+            var firstSubtaskIndex = current.Subtasks.Length == 0
+                ? blockEnd
+                : current.Subtasks.Min(todo => todo.SourceLine) - 1;
+            var replacements = new Dictionary<int, string>();
+            var removals = new HashSet<int>();
+
+            foreach (var note in current.Notes)
+            {
+                var replacement = update.Notes.FirstOrDefault(candidate => candidate.SourceLine == note.SourceLine);
+                if (replacement is null)
+                {
+                    removals.Add(note.SourceLine - 1);
+                    continue;
+                }
+
+                replacements[note.SourceLine - 1] = ReplaceNoteText(
+                    lines[note.SourceLine - 1],
+                    replacement.Text.Trim());
+            }
+
+            foreach (var subtask in current.Subtasks)
+            {
+                var replacement = update.Subtasks
+                    .FirstOrDefault(candidate => candidate.SourceLine == subtask.SourceLine);
+                if (replacement is null)
+                {
+                    foreach (var line in ContentSourceLines(subtask))
+                    {
+                        removals.Add(line - 1);
+                    }
+
+                    continue;
+                }
+
+                var lineIndex = subtask.SourceLine - 1;
+                var prefix = TaskPrefixPattern().Match(lines[lineIndex]);
+                replacements[lineIndex] = prefix.Groups[1].Value + Serialize(subtask with
+                {
+                    Title = replacement.Title.Trim(),
+                    IsCompleted = replacement.IsCompleted
+                });
+            }
+
+            var newNotes = update.Notes
+                .Where(note => note.SourceLine is null)
+                .Select(note => $"{childIndent}- {note.Text.Trim()}")
+                .ToArray();
+            var newSubtasks = update.Subtasks
+                .Where(todo => todo.SourceLine is null)
+                .Select(todo => $"{childIndent}- [{(todo.IsCompleted ? 'x' : ' ')}] {todo.Title.Trim()}")
+                .ToArray();
+            var output = new List<string>(lines.Count + newNotes.Length + newSubtasks.Length);
+            for (var index = 0; index <= lines.Count; index++)
+            {
+                if (index == firstSubtaskIndex)
+                {
+                    output.AddRange(newNotes);
+                }
+
+                if (index == blockEnd)
+                {
+                    output.AddRange(newSubtasks);
+                }
+
+                if (index < lines.Count && !removals.Contains(index))
+                {
+                    output.Add(replacements.GetValueOrDefault(index, lines[index]));
+                }
+            }
+
+            Write(path, output, newline, finalNewline);
+            return TodoMutationResult.Success(expected.SourceLine);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return TodoMutationResult.Failure($"Cannot update project: {exception.Message}");
+        }
+    }
+
     public TodoMutationResult Create(
         string path,
         TodoUpdate update,
@@ -224,6 +367,62 @@ public sealed partial class ProjectTodoMutationService(
         current.Schedule == expected.Schedule &&
         current.Tags.SequenceEqual(expected.Tags, StringComparer.OrdinalIgnoreCase);
 
+    private static bool SameTree(TodoItem current, TodoItem expected) =>
+        SameTarget(current, expected) &&
+        current.Notes.SequenceEqual(expected.Notes) &&
+        current.Subtasks.Length == expected.Subtasks.Length &&
+        current.Subtasks.Zip(expected.Subtasks).All(pair => SameTree(pair.First, pair.Second));
+
+    private static IEnumerable<int> ContentSourceLines(TodoItem todo)
+    {
+        yield return todo.SourceLine;
+        foreach (var note in todo.Notes)
+        {
+            yield return note.SourceLine;
+        }
+
+        foreach (var child in todo.Subtasks)
+        {
+            foreach (var line in ContentSourceLines(child))
+            {
+                yield return line;
+            }
+        }
+    }
+
+    private static int FindTodoBlockEnd(IReadOnlyList<string> lines, int targetIndex, int targetIndent)
+    {
+        for (var index = targetIndex + 1; index < lines.Count; index++)
+        {
+            if (HeadingPattern().IsMatch(lines[index]))
+            {
+                return index;
+            }
+
+            var task = TaskPrefixPattern().Match(lines[index]);
+            if (task.Success && LeadingWhitespace(lines[index]).Length <= targetIndent)
+            {
+                return index;
+            }
+
+            if (!string.IsNullOrWhiteSpace(lines[index]) &&
+                LeadingWhitespace(lines[index]).Length <= targetIndent)
+            {
+                return index;
+            }
+        }
+
+        return lines.Count;
+    }
+
+    private static string ReplaceNoteText(string line, string text)
+    {
+        var match = NoteLinePattern().Match(line);
+        return match.Success ? match.Groups[1].Value + match.Groups[2].Value + text : line;
+    }
+
+    private static string LeadingWhitespace(string line) => line[..(line.Length - line.TrimStart().Length)];
+
     private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
     {
         foreach (var todo in todos)
@@ -275,4 +474,7 @@ public sealed partial class ProjectTodoMutationService(
 
     [GeneratedRegex("^(#{1,6})\\s+")]
     private static partial Regex HeadingPattern();
+
+    [GeneratedRegex("^(\\s*)([-*+]\\s+)?(.*)$")]
+    private static partial Regex NoteLinePattern();
 }

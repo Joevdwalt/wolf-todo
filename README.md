@@ -55,6 +55,7 @@ files = [
 [keybindings]
 quit = ":q"
 toggle_completed = ":completed"
+help = ":help"
 move_up = ["UpArrow", "k"]
 move_down = ["DownArrow", "j"]
 focus_next = ["Tab"]
@@ -62,6 +63,7 @@ focus_previous = ["Shift+Tab"]
 open = ["Enter", "l"]
 back = ["Escape", "h"]
 command_mode = [":"]
+command_palette = ["?"]
 filter_mode = ["/"]
 sort_mode = ["t"]
 tab_next = ["L"]
@@ -72,7 +74,9 @@ planner_today = ["g"]
 planner_unschedule = ["u"]
 create_todo = ["a"]
 edit_todo = ["e"]
+edit_todo_content = ["E"]
 toggle_todo = ["Spacebar"]
+remove_content = ["d"]
 save_form = ["Ctrl+S"]
 
 [tui.theme]
@@ -117,9 +121,17 @@ Markdown checkbox. Ctrl+S saves the create/edit form. Writes re-read and
 validate the source before atomically replacing it so external changes are not
 silently overwritten.
 
+Uppercase `E` opens the structured notes and subtasks editor. It shows the
+selected todo's direct content; opening it on a subtask supports deeper nesting.
+Use `a` to add, `e` to edit, `d` to remove, Space to toggle a subtask, and
+Ctrl+S to atomically save the draft. Removing a subtask with descendants
+requires confirmation.
+
 Command mode belongs to the application shell: `:q`, `:completed`, and unknown
 command feedback work from either Todos or Day Planner. An active feature
 picker, filter, move, or edit form receives input before global commands.
+`?` or `:help` opens the global searchable command palette. Disabled actions
+remain visible with a reason; `/` searches and Enter runs the selected action.
 
 
 ## AI Guidance

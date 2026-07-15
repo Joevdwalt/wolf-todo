@@ -4,5 +4,6 @@ public enum ApplicationCommandOperation
 {
     None,
     Exit,
-    ToggleCompleted
+    ToggleCompleted,
+    OpenPalette
 }

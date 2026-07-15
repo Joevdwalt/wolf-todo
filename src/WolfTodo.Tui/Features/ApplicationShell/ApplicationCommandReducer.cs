@@ -38,6 +38,7 @@ public sealed class ApplicationCommandReducer
                 var command when command == bindings.QuitCommand => ApplicationCommandOperation.Exit,
                 var command when command == bindings.ToggleCompletedCommand =>
                     ApplicationCommandOperation.ToggleCompleted,
+                var command when command == bindings.HelpCommand => ApplicationCommandOperation.OpenPalette,
                 _ => ApplicationCommandOperation.None
             };
             return new ApplicationCommandTransition(state with

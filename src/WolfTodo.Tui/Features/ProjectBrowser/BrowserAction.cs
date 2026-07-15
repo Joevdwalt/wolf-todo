@@ -1,10 +1,11 @@
 namespace WolfTodo.Tui.Features.ProjectBrowser;
 
-public enum BrowserOperation
+public enum BrowserAction
 {
-    None,
+    Filter,
+    Sort,
     Create,
-    Update,
-    UpdateContent,
+    Edit,
+    EditContent,
     ToggleCompleted
 }

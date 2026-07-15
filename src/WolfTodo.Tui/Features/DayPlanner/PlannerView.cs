@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using WolfTodo.Tui.Features.ApplicationShell;
 
 namespace WolfTodo.Tui.Features.DayPlanner;
 
@@ -11,6 +12,8 @@ public sealed record PlannerView(
     public string? GlobalCommand { get; init; }
 
     public string? GlobalError { get; init; }
+
+    public CommandPaletteView? CommandPalette { get; init; }
 
     public PlannerSlotView SelectedSlot => Slots[State.SlotIndex];
 

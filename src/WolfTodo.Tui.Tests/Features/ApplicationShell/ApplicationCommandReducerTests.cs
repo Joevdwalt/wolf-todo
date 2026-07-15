@@ -39,6 +39,18 @@ public sealed class ApplicationCommandReducerTests
     }
 
     [Fact]
+    public void Reduce_opens_the_command_palette_with_the_help_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":help", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.OpenPalette);
+        result.State.Error.Should().BeNull();
+    }
+
+    [Fact]
     public void Reduce_cancels_and_keeps_the_colon_when_backspacing()
     {
         var backed = reducer.Reduce(

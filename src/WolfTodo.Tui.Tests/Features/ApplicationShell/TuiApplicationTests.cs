@@ -137,6 +137,21 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_opens_the_global_palette_and_executes_its_selected_action()
+    {
+        var terminal = new FakeTerminal(Key('x'), Key('?'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.BrowserViews.Should().Contain(view => view.CommandPalette != null);
+        terminal.BrowserViews
+            .First(view => view.CommandPalette is not null)
+            .CommandPalette!.SelectedItem!.Action.Should().Be(ApplicationActionId.Exit);
+    }
+
+    [Fact]
     public void Run_restores_the_project_matching_the_saved_path()
     {
         var stateStore = new FakeApplicationStateStore("/todos/project.md");

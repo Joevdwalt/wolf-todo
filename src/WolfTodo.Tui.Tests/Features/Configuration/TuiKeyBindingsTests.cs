@@ -28,8 +28,12 @@ public sealed class TuiKeyBindingsTests
         bindings.MatchesPlannerUnschedule(Key('u')).Should().BeTrue();
         bindings.MatchesCreateTodo(Key('a')).Should().BeTrue();
         bindings.MatchesEditTodo(Key('e')).Should().BeTrue();
+        bindings.MatchesEditTodoContent(Key('E')).Should().BeTrue();
         bindings.MatchesToggleTodo(Key(ConsoleKey.Spacebar)).Should().BeTrue();
+        bindings.MatchesRemoveContent(Key('d')).Should().BeTrue();
+        bindings.MatchesCommandPalette(Key('?')).Should().BeTrue();
         bindings.MatchesSaveForm(Key(ConsoleKey.S, control: true)).Should().BeTrue();
+        bindings.HelpCommand.Should().Be(":help");
     }
 
     [Fact]

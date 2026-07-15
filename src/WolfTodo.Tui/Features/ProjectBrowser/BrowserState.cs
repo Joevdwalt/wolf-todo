@@ -15,6 +15,8 @@ public sealed record BrowserState(
 {
     public TodoFormState? Form { get; init; }
 
+    public TodoContentEditorState? ContentEditor { get; init; }
+
     public static BrowserState Initial { get; } = new(
         BrowserFocus.Projects,
         0,

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.ApplicationShell;
 
 namespace WolfTodo.Tui.Features.ProjectBrowser;
 
@@ -16,6 +17,8 @@ public sealed record BrowserView(
     public string? GlobalCommand { get; init; }
 
     public string? GlobalError { get; init; }
+
+    public CommandPaletteView? CommandPalette { get; init; }
 
     public int SelectableTodoCount => Todos.Count(row => row.Todo is not null);
 

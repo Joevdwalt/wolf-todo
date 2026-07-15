@@ -207,9 +207,11 @@ public sealed class TomlApplicationConfigurationLoader(
             keybindings,
             "toggle_completed",
             defaults.ToggleCompletedCommand);
+        var helpCommand = ReadOptionalCommand(keybindings, "help", defaults.HelpCommand);
         var result = defaults with
         {
             ToggleCompletedCommand = completedCommand,
+            HelpCommand = helpCommand,
             MoveUp = ReadGestures(keybindings, "move_up", defaults.MoveUp),
             MoveDown = ReadGestures(keybindings, "move_down", defaults.MoveDown),
             FocusNext = ReadGestures(keybindings, "focus_next", defaults.FocusNext),
@@ -217,6 +219,8 @@ public sealed class TomlApplicationConfigurationLoader(
             Open = ReadGestures(keybindings, "open", defaults.Open),
             Back = ReadGestures(keybindings, "back", defaults.Back),
             CommandMode = ReadGestures(keybindings, "command_mode", defaults.CommandMode),
+            CommandPalette = ReadGestures(
+                keybindings, "command_palette", defaults.CommandPalette),
             FilterMode = ReadGestures(keybindings, "filter_mode", defaults.FilterMode),
             SortMode = ReadGestures(keybindings, "sort_mode", defaults.SortMode),
             TabNext = ReadGestures(keybindings, "tab_next", defaults.TabNext),
@@ -229,7 +233,11 @@ public sealed class TomlApplicationConfigurationLoader(
                 keybindings, "planner_unschedule", defaults.PlannerUnschedule),
             CreateTodo = ReadGestures(keybindings, "create_todo", defaults.CreateTodo),
             EditTodo = ReadGestures(keybindings, "edit_todo", defaults.EditTodo),
+            EditTodoContent = ReadGestures(
+                keybindings, "edit_todo_content", defaults.EditTodoContent),
             ToggleTodo = ReadGestures(keybindings, "toggle_todo", defaults.ToggleTodo),
+            RemoveContent = ReadGestures(
+                keybindings, "remove_content", defaults.RemoveContent),
             SaveForm = ReadGestures(keybindings, "save_form", defaults.SaveForm)
         };
 
@@ -303,10 +311,18 @@ public sealed class TomlApplicationConfigurationLoader(
 
     private static void ValidateCommands(TuiKeyBindings bindings)
     {
-        if (bindings.QuitCommand == bindings.ToggleCompletedCommand)
+        var commands = new[]
+        {
+            (Name: "quit", Value: bindings.QuitCommand),
+            (Name: "toggle_completed", Value: bindings.ToggleCompletedCommand),
+            (Name: "help", Value: bindings.HelpCommand)
+        };
+        var duplicate = commands.GroupBy(command => command.Value).FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
         {
             throw new InvalidDataException(
-                "Invalid configuration file: keybindings.quit and keybindings.toggle_completed must be different.");
+                "Invalid configuration file: keybindings.quit, keybindings.toggle_completed, " +
+                "and keybindings.help must be different.");
         }
     }
 
@@ -321,6 +337,7 @@ public sealed class TomlApplicationConfigurationLoader(
             ("open", bindings.Open),
             ("back", bindings.Back),
             ("command_mode", bindings.CommandMode),
+            ("command_palette", bindings.CommandPalette),
             ("filter_mode", bindings.FilterMode),
             ("sort_mode", bindings.SortMode),
             ("tab_next", bindings.TabNext),
@@ -331,7 +348,9 @@ public sealed class TomlApplicationConfigurationLoader(
             ("planner_unschedule", bindings.PlannerUnschedule),
             ("create_todo", bindings.CreateTodo),
             ("edit_todo", bindings.EditTodo),
-            ("toggle_todo", bindings.ToggleTodo)
+            ("edit_todo_content", bindings.EditTodoContent),
+            ("toggle_todo", bindings.ToggleTodo),
+            ("remove_content", bindings.RemoveContent)
         };
         var owners = new Dictionary<KeyGesture, string>();
 

@@ -24,6 +24,9 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.ProjectFiles.Should().Equal(path);
         result.QuitCommand.Should().Be(":quit");
         result.KeyBindings.ToggleCompletedCommand.Should().Be(":completed");
+        result.KeyBindings.HelpCommand.Should().Be(":help");
+        result.KeyBindings.MatchesCommandPalette(Key('?')).Should().BeTrue();
+        result.KeyBindings.MatchesEditTodoContent(Key('E')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeTrue();
         result.KeyBindings.MatchesMoveUp(Key(ConsoleKey.UpArrow)).Should().BeTrue();
         result.KeyBindings.MatchesSortMode(Key('t')).Should().BeTrue();
@@ -94,14 +97,20 @@ public sealed class TomlApplicationConfigurationLoaderTests
             [keybindings]
             quit = ":quit"
             toggle_completed = ":done"
+            help = ":commands"
             move_down = ["n", "Ctrl+J"]
             sort_mode = ["Ctrl+S"]
             tab_next = ["Alt+RightArrow"]
+            command_palette = ["Ctrl+P"]
+            edit_todo_content = ["Ctrl+E"]
             """);
 
         var result = loader.Load();
 
         result.KeyBindings.ToggleCompletedCommand.Should().Be(":done");
+        result.KeyBindings.HelpCommand.Should().Be(":commands");
+        result.KeyBindings.MatchesCommandPalette(Key(ConsoleKey.P, control: true)).Should().BeTrue();
+        result.KeyBindings.MatchesEditTodoContent(Key(ConsoleKey.E, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('n')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeFalse();
         result.KeyBindings.MatchesMoveDown(Key(ConsoleKey.J, control: true)).Should().BeTrue();

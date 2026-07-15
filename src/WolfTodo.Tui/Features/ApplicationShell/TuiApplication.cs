@@ -22,7 +22,10 @@ public sealed class TuiApplication(
     DayPlannerPresenter? plannerPresenter = null,
     DayPlannerReducer? plannerReducer = null,
     ProjectTodoMutationService? mutationService = null,
-    ApplicationCommandReducer? commandReducer = null)
+    ApplicationCommandReducer? commandReducer = null,
+    CommandPaletteReducer? paletteReducer = null,
+    CommandPalettePresenter? palettePresenter = null,
+    ApplicationActionCatalog? actionCatalog = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -35,6 +38,9 @@ public sealed class TuiApplication(
     private readonly DayPlannerPresenter plannerPresenter = plannerPresenter ?? new DayPlannerPresenter();
     private readonly DayPlannerReducer plannerReducer = plannerReducer ?? new DayPlannerReducer();
     private readonly ApplicationCommandReducer commandReducer = commandReducer ?? new ApplicationCommandReducer();
+    private readonly CommandPaletteReducer paletteReducer = paletteReducer ?? new CommandPaletteReducer();
+    private readonly CommandPalettePresenter palettePresenter = palettePresenter ?? new CommandPalettePresenter();
+    private readonly ApplicationActionCatalog actionCatalog = actionCatalog ?? new ApplicationActionCatalog();
 
     public int Run()
     {
@@ -71,15 +77,23 @@ public sealed class TuiApplication(
                 var tabView = tabPresenter.CreateView(Tabs, state.Tabs);
                 BrowserView? browserView = null;
                 PlannerView? plannerView = null;
+                CommandPaletteView? paletteView = null;
                 if (state.Tabs.ActiveTab == TodosTab)
                 {
                     browserView = browserPresenter.CreateView(catalog, state.Browser);
                     state = state with { Browser = browserView.State };
                     selectedProjectPath = browserView.SelectedProjectPath;
+                    if (state.Palette.IsOpen)
+                    {
+                        paletteView = palettePresenter.CreateView(
+                            state.Palette,
+                            actionCatalog.Create(true, browserView, null, configuration.KeyBindings));
+                    }
                     var renderedBrowserView = browserView with
                     {
                         GlobalCommand = state.Command.IsActive ? state.Command.Value : null,
-                        GlobalError = state.Command.Error
+                        GlobalError = state.Command.Error,
+                        CommandPalette = paletteView
                     };
                     terminalUi.ShowBrowser(
                         tabView,
@@ -91,10 +105,17 @@ public sealed class TuiApplication(
                 {
                     plannerView = plannerPresenter.CreateView(catalog, state.Planner);
                     state = state with { Planner = plannerView.State };
+                    if (state.Palette.IsOpen)
+                    {
+                        paletteView = palettePresenter.CreateView(
+                            state.Palette,
+                            actionCatalog.Create(false, null, plannerView, configuration.KeyBindings));
+                    }
                     var renderedPlannerView = plannerView with
                     {
                         GlobalCommand = state.Command.IsActive ? state.Command.Value : null,
-                        GlobalError = state.Command.Error
+                        GlobalError = state.Command.Error,
+                        CommandPalette = paletteView
                     };
                     terminalUi.ShowPlanner(
                         tabView,
@@ -105,7 +126,8 @@ public sealed class TuiApplication(
 
                 var key = terminalUi.ReadKey();
                 var featureCapturesInput = state.Tabs.ActiveTab == TodosTab
-                    ? state.Browser.IsFilterMode || state.Browser.IsSortMode || state.Browser.Form is not null
+                    ? state.Browser.IsFilterMode || state.Browser.IsSortMode ||
+                      state.Browser.Form is not null || state.Browser.ContentEditor is not null
                     : state.Planner.CapturesInput;
 
                 if (state.Command.IsActive ||
@@ -133,6 +155,137 @@ public sealed class TuiApplication(
                                 Error = null
                             }
                         };
+                    }
+
+                    if (commandTransition.Operation == ApplicationCommandOperation.OpenPalette)
+                    {
+                        state = state with
+                        {
+                            Palette = CommandPaletteState.Closed with { IsOpen = true }
+                        };
+                    }
+
+                    continue;
+                }
+
+                if (state.Palette.IsOpen ||
+                    (!featureCapturesInput && configuration.KeyBindings.MatchesCommandPalette(key)))
+                {
+                    paletteView ??= palettePresenter.CreateView(
+                        state.Palette,
+                        actionCatalog.Create(
+                            state.Tabs.ActiveTab == TodosTab,
+                            browserView,
+                            plannerView,
+                            configuration.KeyBindings));
+                    var paletteTransition = paletteReducer.Reduce(
+                        state.Palette,
+                        key,
+                        configuration.KeyBindings,
+                        paletteView);
+                    state = state with { Palette = paletteTransition.State };
+                    if (paletteTransition.Action is null)
+                    {
+                        continue;
+                    }
+
+                    var action = paletteTransition.Action.Value;
+                    if (action == ApplicationActionId.Exit)
+                    {
+                        return 0;
+                    }
+
+                    if (action == ApplicationActionId.ToggleCompleted)
+                    {
+                        state = state with
+                        {
+                            Browser = state.Browser with
+                            {
+                                ShowCompleted = !state.Browser.ShowCompleted,
+                                TodoIndex = 0,
+                                PendingTodoSelection = null,
+                                Error = null
+                            }
+                        };
+                        continue;
+                    }
+
+                    if (action is ApplicationActionId.NextTab or ApplicationActionId.PreviousTab)
+                    {
+                        var direction = action == ApplicationActionId.NextTab
+                            ? TabDirection.Next
+                            : TabDirection.Previous;
+                        state = state with { Tabs = tabReducer.Move(state.Tabs, Tabs, direction) };
+                        continue;
+                    }
+
+                    if (state.Tabs.ActiveTab == TodosTab)
+                    {
+                        var browserAction = action switch
+                        {
+                            ApplicationActionId.BrowserFilter => BrowserAction.Filter,
+                            ApplicationActionId.BrowserSort => BrowserAction.Sort,
+                            ApplicationActionId.BrowserCreate => BrowserAction.Create,
+                            ApplicationActionId.BrowserEdit => BrowserAction.Edit,
+                            ApplicationActionId.BrowserEditContent => BrowserAction.EditContent,
+                            ApplicationActionId.BrowserToggleCompleted => BrowserAction.ToggleCompleted,
+                            _ => (BrowserAction?)null
+                        };
+                        if (browserAction is not null)
+                        {
+                            var transition = browserReducer.ReduceAction(
+                                state.Browser,
+                                browserAction.Value,
+                                browserView!);
+                            state = ApplyBrowserTransition(
+                                state,
+                                transition,
+                                browserView!,
+                                ref catalog,
+                                configuration,
+                                mutationService);
+                        }
+
+                        continue;
+                    }
+
+                    var plannerAction = action switch
+                    {
+                        ApplicationActionId.PlannerPreviousDay => PlannerAction.PreviousDay,
+                        ApplicationActionId.PlannerNextDay => PlannerAction.NextDay,
+                        ApplicationActionId.PlannerToday => PlannerAction.Today,
+                        ApplicationActionId.PlannerAssignOrMove => PlannerAction.AssignOrMove,
+                        ApplicationActionId.PlannerUnschedule => PlannerAction.Unschedule,
+                        ApplicationActionId.PlannerCreate => PlannerAction.Create,
+                        _ => (PlannerAction?)null
+                    };
+                    if (plannerAction is not null)
+                    {
+                        var transition = plannerReducer.ReduceAction(
+                            state.Planner,
+                            plannerAction.Value,
+                            plannerView!);
+                        state = state with { Planner = transition.State };
+                        if (transition.Operation == PlannerOperation.Unschedule &&
+                            transition.TodoIdentity is not null && mutationService is not null)
+                        {
+                            var assignment = FindAssignment(plannerView!, transition.TodoIdentity);
+                            if (assignment is not null)
+                            {
+                                var result = mutationService.SetSchedule(
+                                    assignment.ProjectPath,
+                                    assignment.Todo,
+                                    null);
+                                state = state with
+                                {
+                                    Planner = state.Planner with { Error = result.Error }
+                                };
+                                if (result.Succeeded)
+                                {
+                                    catalog = catalogLoader.Load(configuration.ProjectFiles);
+                                }
+                            }
+                        }
                     }
 
                     continue;
@@ -285,31 +438,13 @@ public sealed class TuiApplication(
                 }
 
                 var browserTransition = browserReducer.Reduce(state.Browser, key, configuration, browserView!);
-
-                state = state with { Browser = browserTransition.State };
-                if (browserTransition.Operation != BrowserOperation.None)
-                {
-                    var result = ApplyBrowserOperation(
-                        browserTransition,
-                        browserView!,
-                        catalog,
-                        mutationService);
-                    state = state with
-                    {
-                        Browser = state.Browser with
-                        {
-                            Error = result.Error,
-                            PendingTodoSelection = result.Succeeded && result.SourceLine is not null &&
-                                                   browserTransition.ProjectPath is not null
-                                ? new TodoIdentity(browserTransition.ProjectPath, result.SourceLine.Value)
-                                : null
-                        }
-                    };
-                    if (result.Succeeded)
-                    {
-                        catalog = catalogLoader.Load(configuration.ProjectFiles);
-                    }
-                }
+                state = ApplyBrowserTransition(
+                    state,
+                    browserTransition,
+                    browserView!,
+                    ref catalog,
+                    configuration,
+                    mutationService);
             }
         }
         finally
@@ -323,6 +458,40 @@ public sealed class TuiApplication(
         view.Slots.SelectMany(slot => slot.Assignments)
             .Concat(view.PickerTodos)
             .FirstOrDefault(assignment => assignment.Identity == identity);
+
+    private ApplicationState ApplyBrowserTransition(
+        ApplicationState state,
+        BrowserTransition transition,
+        BrowserView view,
+        ref ProjectCatalog catalog,
+        ApplicationConfiguration configuration,
+        ProjectTodoMutationService? service)
+    {
+        state = state with { Browser = transition.State };
+        if (transition.Operation == BrowserOperation.None)
+        {
+            return state;
+        }
+
+        var result = ApplyBrowserOperation(transition, view, catalog, service);
+        state = state with
+        {
+            Browser = state.Browser with
+            {
+                Error = result.Error,
+                PendingTodoSelection = result.Succeeded && result.SourceLine is not null &&
+                                       transition.ProjectPath is not null
+                    ? new TodoIdentity(transition.ProjectPath, result.SourceLine.Value)
+                    : null
+            }
+        };
+        if (result.Succeeded)
+        {
+            catalog = catalogLoader.Load(configuration.ProjectFiles);
+        }
+
+        return state;
+    }
 
     private static TodoMutationResult ApplyBrowserOperation(
         BrowserTransition transition,
@@ -350,6 +519,8 @@ public sealed class TuiApplication(
         {
             BrowserOperation.Update when transition.Update is not null =>
                 service.Update(transition.ProjectPath, expected, transition.Update),
+            BrowserOperation.UpdateContent when transition.ContentUpdate is not null =>
+                service.UpdateContent(transition.ProjectPath, expected, transition.ContentUpdate),
             BrowserOperation.ToggleCompleted =>
                 service.SetCompleted(transition.ProjectPath, expected, !expected.IsCompleted),
             _ => TodoMutationResult.Failure("The requested todo change is invalid.")

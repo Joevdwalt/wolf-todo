@@ -73,6 +73,9 @@ updates browser visibility even when submitted from Day Planner. Feature
 filters, pickers, move modes, and edit forms capture input before the global
 command launcher.
 
+The configurable `:help` command opens the global command palette defined by
+SPEC0012. Its default direct launcher is `?`.
+
 ## Acceptance Scenarios
 
 1. With a valid global `config.toml`, the application displays the centered wolf
@@ -89,6 +92,7 @@ command launcher.
    rather than crashing.
 8. The configured quit, completed, and unknown commands behave identically
    from Todos and Day Planner.
+9. `:help` opens the command palette from either view.
 
 ## References
 
@@ -98,4 +102,5 @@ command launcher.
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)
 - [SPEC0002: Project Browser and Markdown Todo Format](SPEC0002-project-browser-and-markdown-todo-format.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
+- [SPEC0012: Global Command Palette](SPEC0012-global-command-palette.md)
 - [SPEC0007: Configurable TUI Themes](SPEC0007-configurable-tui-themes.md)

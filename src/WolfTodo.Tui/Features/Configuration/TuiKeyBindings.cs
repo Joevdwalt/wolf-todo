@@ -5,6 +5,7 @@ namespace WolfTodo.Tui.Features.Configuration;
 public sealed record TuiKeyBindings(
     string QuitCommand,
     string ToggleCompletedCommand,
+    string HelpCommand,
     ImmutableArray<KeyGesture> MoveUp,
     ImmutableArray<KeyGesture> MoveDown,
     ImmutableArray<KeyGesture> FocusNext,
@@ -12,6 +13,7 @@ public sealed record TuiKeyBindings(
     ImmutableArray<KeyGesture> Open,
     ImmutableArray<KeyGesture> Back,
     ImmutableArray<KeyGesture> CommandMode,
+    ImmutableArray<KeyGesture> CommandPalette,
     ImmutableArray<KeyGesture> FilterMode,
     ImmutableArray<KeyGesture> SortMode,
     ImmutableArray<KeyGesture> TabNext,
@@ -22,12 +24,15 @@ public sealed record TuiKeyBindings(
     ImmutableArray<KeyGesture> PlannerUnschedule,
     ImmutableArray<KeyGesture> CreateTodo,
     ImmutableArray<KeyGesture> EditTodo,
+    ImmutableArray<KeyGesture> EditTodoContent,
     ImmutableArray<KeyGesture> ToggleTodo,
+    ImmutableArray<KeyGesture> RemoveContent,
     ImmutableArray<KeyGesture> SaveForm)
 {
     public static TuiKeyBindings CreateDefaults(string quitCommand) => new(
         quitCommand,
         ":completed",
+        ":help",
         Gestures("UpArrow", "k"),
         Gestures("DownArrow", "j"),
         Gestures("Tab"),
@@ -35,6 +40,7 @@ public sealed record TuiKeyBindings(
         Gestures("Enter", "l"),
         Gestures("Escape", "h"),
         Gestures(":"),
+        Gestures("?"),
         Gestures("/"),
         Gestures("t"),
         Gestures("L"),
@@ -45,7 +51,9 @@ public sealed record TuiKeyBindings(
         Gestures("u"),
         Gestures("a"),
         Gestures("e"),
+        Gestures("E"),
         Gestures("Spacebar"),
+        Gestures("d"),
         Gestures("Ctrl+S"));
 
     public bool MatchesMoveUp(ConsoleKeyInfo key) => Matches(MoveUp, key);
@@ -61,6 +69,8 @@ public sealed record TuiKeyBindings(
     public bool MatchesBack(ConsoleKeyInfo key) => Matches(Back, key);
 
     public bool MatchesCommandMode(ConsoleKeyInfo key) => Matches(CommandMode, key);
+
+    public bool MatchesCommandPalette(ConsoleKeyInfo key) => Matches(CommandPalette, key);
 
     public bool MatchesFilterMode(ConsoleKeyInfo key) => Matches(FilterMode, key);
 
@@ -82,7 +92,11 @@ public sealed record TuiKeyBindings(
 
     public bool MatchesEditTodo(ConsoleKeyInfo key) => Matches(EditTodo, key);
 
+    public bool MatchesEditTodoContent(ConsoleKeyInfo key) => Matches(EditTodoContent, key);
+
     public bool MatchesToggleTodo(ConsoleKeyInfo key) => Matches(ToggleTodo, key);
+
+    public bool MatchesRemoveContent(ConsoleKeyInfo key) => Matches(RemoveContent, key);
 
     public bool MatchesSaveForm(ConsoleKeyInfo key) => Matches(SaveForm, key);
 

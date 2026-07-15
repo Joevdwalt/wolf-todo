@@ -35,7 +35,9 @@ public sealed class ProjectMarkdownParserTests
         todo.StartDate.Should().Be(new DateOnly(2026, 7, 8));
         todo.DueDate.Should().Be(new DateOnly(2026, 7, 31));
         todo.SectionPath.Should().Be("Renewals");
-        todo.Notes.Should().Equal("Review current contract", "Update proposal costing");
+        todo.Notes.Select(note => note.Text)
+            .Should().Equal("Review current contract", "Update proposal costing");
+        todo.Notes.Select(note => note.SourceLine).Should().Equal(8, 9);
         todo.Subtasks.Should().ContainSingle().Which.Title.Should().Be("Confirm outstanding issues");
     }
 

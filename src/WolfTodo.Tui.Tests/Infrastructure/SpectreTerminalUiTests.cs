@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Collections.Immutable;
 using Spectre.Console;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
@@ -6,6 +7,7 @@ using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Infrastructure;
 using WolfTodo.Tui.Features.Tabs;
 using WolfTodo.Tui.Features.DayPlanner;
+using WolfTodo.Tui.Features.ApplicationShell;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 
@@ -47,7 +49,7 @@ public sealed class SpectreTerminalUiTests
             new DateOnly(2026, 7, 8),
             null,
             "Renewals",
-            ["Review current contract"],
+            [new TodoNote(2, "Review current contract")],
             []);
         var state = BrowserState.Initial;
         var view = new BrowserView(
@@ -164,6 +166,45 @@ public sealed class SpectreTerminalUiTests
         output.Should().Contain(":q").And.Contain("Unknown command: :wat");
     }
 
+    [Fact]
+    public void ShowBrowser_renders_the_content_editor_and_command_palette()
+    {
+        var view = ViewWithTitle("Parent");
+        var identity = view.SelectedTodoIdentity!;
+        var editor = TodoContentEditorState.Create(identity, view.SelectedTodo!);
+        var paletteState = CommandPaletteState.Closed with { IsOpen = true };
+        var palette = new CommandPaletteView(
+            paletteState,
+            [new CommandPaletteItem(
+                ApplicationActionId.BrowserEditContent,
+                "Todos",
+                "Edit notes and subtasks",
+                "Open content editor",
+                "E",
+                true,
+                null)]);
+        StartRecording(100, 24);
+        var terminal = new SpectreTerminalUi(() => 100, () => 24);
+
+        terminal.ShowBrowser(
+            DefaultTabs,
+            view with { State = view.State with { ContentEditor = editor } },
+            DefaultBindings,
+            TuiThemes.Wolf);
+        terminal.ShowBrowser(
+            DefaultTabs,
+            view with { CommandPalette = palette },
+            DefaultBindings,
+            TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText();
+
+        output.Should().Contain("Content: Parent")
+            .And.Contain("Notes")
+            .And.Contain("Subtasks")
+            .And.Contain("Command palette")
+            .And.Contain("Edit notes and subtasks");
+    }
+
     [Theory]
     [InlineData(70, 16)]
     [InlineData(80, 18)]
@@ -175,6 +216,27 @@ public sealed class SpectreTerminalUiTests
         var lines = RenderPlanner(width, height);
 
         lines.Should().HaveCount(height - 1);
+        lines[0].Should().Contain("[ Day Planner ]");
+    }
+
+    [Fact]
+    public void ShowPlanner_keeps_tabs_visible_while_the_command_palette_is_open()
+    {
+        var paletteState = CommandPaletteState.Closed with { IsOpen = true };
+        var items = Enumerable.Range(1, 12)
+            .Select(index => new CommandPaletteItem(
+                ApplicationActionId.PlannerToday,
+                "Planner",
+                $"Action {index}",
+                "Planner action",
+                "g",
+                true,
+                null))
+            .ToImmutableArray();
+
+        var lines = RenderPlanner(70, 16, new CommandPaletteView(paletteState, items));
+
+        lines.Should().HaveCount(15);
         lines[0].Should().Contain("[ Day Planner ]");
     }
 
@@ -207,7 +269,7 @@ public sealed class SpectreTerminalUiTests
             new DateOnly(2026, 7, 8),
             new DateOnly(2026, 7, 12),
             "Renewals",
-            ["Review current contract"],
+            [new TodoNote(2, "Review current contract")],
             []);
         var view = new BrowserView(
             BrowserState.Initial,
@@ -479,7 +541,10 @@ public sealed class SpectreTerminalUiTests
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
     }
 
-    private static string[] RenderPlanner(int width, int height)
+    private static string[] RenderPlanner(
+        int width,
+        int height,
+        CommandPaletteView? palette = null)
     {
         var date = new DateOnly(2026, 7, 15);
         var tabs = new TabStripView(
@@ -489,7 +554,7 @@ public sealed class SpectreTerminalUiTests
         ]);
         var view = new DayPlannerPresenter().CreateView(
             new ProjectCatalog([], []),
-            PlannerState.CreateInitial(date));
+            PlannerState.CreateInitial(date)) with { CommandPalette = palette };
         StartRecording(width, height);
         var existingOutputLength = AnsiConsole.ExportText().Length;
         new SpectreTerminalUi(() => width, () => height)

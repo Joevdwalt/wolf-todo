@@ -1,6 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Splash;
@@ -72,7 +73,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var width = widthProvider();
         var height = heightProvider();
         var compact = width < 80 || height < 18;
-        var statusLines = CreateStatusLines(view, keyBindings, compact, width);
+        var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
         var contentHeight = AvailableContentHeight(height, statusLines.Count);
         WriteTabStrip(tabs, keyBindings, theme, width);
 
@@ -113,7 +114,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var width = widthProvider();
         var height = heightProvider();
         WriteTabStrip(tabs, keyBindings, theme, width);
-        var status = PlannerStatus(view, keyBindings, width);
+        var status = PlannerStatus(view, keyBindings, width, height);
         var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
         const int tabTableStatusBorderAndCursorHeight = 10;
         const int pickerHeight = 3;
@@ -194,9 +195,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static IReadOnlyList<string> PlannerStatus(
         PlannerView view,
         TuiKeyBindings bindings,
-        int terminalWidth)
+        int terminalWidth,
+        int terminalHeight)
     {
         IReadOnlyList<string> status;
+        if (view.CommandPalette is not null)
+        {
+            return CommandPaletteStatus(view.CommandPalette, bindings, terminalWidth, terminalHeight);
+        }
+
         if (view.GlobalCommand is not null)
         {
             status = [view.GlobalCommand];
@@ -279,9 +286,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
         PlannerView view,
         TuiTheme theme)
     {
-        var style = view.GlobalError is not null || view.State.Error is not null
+        var style = view.GlobalError is not null || view.State.Error is not null ||
+                    view.CommandPalette?.State.Error is not null
             ? ThemeStyle(theme.Error, Decoration.Bold)
-            : view.GlobalCommand is not null
+            : view.GlobalCommand is not null || view.CommandPalette is not null
                 ? ThemeStyle(theme.Accent)
             : view.State.Mode == PlannerMode.Browse
                 ? ThemeStyle(theme.Muted, Decoration.Dim)
@@ -592,7 +600,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 {
                     lines.Add(new Text(string.Empty));
                     lines.Add(new Text("Notes", ThemeStyle(theme.Heading, Decoration.Bold)));
-                    lines.AddRange(todo.Notes.Select(note => new Text($"• {note}", ThemeStyle(theme.Text))));
+                    lines.AddRange(todo.Notes.Select(note => new Text($"• {note.Text}", ThemeStyle(theme.Text))));
                 }
 
                 if (todo.Subtasks.Length > 0)
@@ -812,8 +820,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
         BrowserView view,
         TuiKeyBindings keyBindings,
         bool compact,
-        int terminalWidth)
+        int terminalWidth,
+        int terminalHeight)
     {
+        if (view.CommandPalette is not null)
+        {
+            return CommandPaletteStatus(
+                view.CommandPalette,
+                keyBindings,
+                terminalWidth,
+                terminalHeight);
+        }
+
         if (view.GlobalCommand is not null)
         {
             return [view.GlobalCommand];
@@ -827,6 +845,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
         if (view.State.Form is not null)
         {
             return TodoFormStatus(view, keyBindings, terminalWidth);
+        }
+
+        if (view.State.ContentEditor is not null)
+        {
+            return TodoContentEditorStatus(
+                view.State.ContentEditor,
+                keyBindings,
+                terminalWidth,
+                terminalHeight);
         }
 
         if (view.State.IsSortMode)
@@ -904,6 +931,114 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return lines;
     }
 
+    private static IReadOnlyList<string> TodoContentEditorStatus(
+        TodoContentEditorState editor,
+        TuiKeyBindings bindings,
+        int terminalWidth,
+        int terminalHeight)
+    {
+        var width = Math.Max(1, terminalWidth - 4);
+        if (editor.Mode == ContentEditorMode.Edit)
+        {
+            var kind = editor.Focus == ContentEditorFocus.Notes ? "note" : "subtask";
+            return WrapStatus(
+                $"{(editor.IsAdding ? "Add" : "Edit")} {kind}: {editor.Draft}_  Enter accept  Esc cancel",
+                width);
+        }
+
+        if (editor.Mode == ContentEditorMode.ConfirmRemoval)
+        {
+            var selected = editor.Subtasks[editor.SubtaskIndex];
+            return WrapStatus(
+                $"Remove '{selected.Title}' and {selected.DescendantCount} nested item(s)?  " +
+                $"{Shortest(bindings.Open)} confirm  {Shortest(bindings.Back)} cancel",
+                width);
+        }
+
+        var lines = new List<string> { $"Content: {editor.TodoTitle}" };
+        var rowsPerSection = Math.Max(1, Math.Min(3, (terminalHeight - 12) / 2));
+        AddContentRows(
+            lines,
+            "Notes",
+            editor.Notes.Select(note => note.Text).ToArray(),
+            editor.NoteIndex,
+            editor.Focus == ContentEditorFocus.Notes,
+            rowsPerSection);
+        AddContentRows(
+            lines,
+            "Subtasks",
+            editor.Subtasks.Select(todo => $"[{(todo.IsCompleted ? 'x' : ' ')}] {todo.Title}").ToArray(),
+            editor.SubtaskIndex,
+            editor.Focus == ContentEditorFocus.Subtasks,
+            rowsPerSection);
+        lines.Add(editor.Error ??
+            $"{Shortest(bindings.FocusNext)} section  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
+            $"{Shortest(bindings.CreateTodo)} add  {Shortest(bindings.EditTodo)} edit  " +
+            $"{Shortest(bindings.RemoveContent)} remove  {Shortest(bindings.SaveForm)} save  " +
+            $"{Shortest(bindings.Back)} cancel");
+        return lines.SelectMany(line => WrapStatus(line, width)).ToArray();
+    }
+
+    private static IReadOnlyList<string> CommandPaletteStatus(
+        CommandPaletteView palette,
+        TuiKeyBindings bindings,
+        int terminalWidth,
+        int terminalHeight)
+    {
+        var width = Math.Max(1, terminalWidth - 4);
+        var visibleRows = Math.Max(1, Math.Min(7, terminalHeight - 13));
+        var start = Math.Clamp(
+            palette.SelectedIndex - visibleRows + 1,
+            0,
+            Math.Max(0, palette.Items.Length - visibleRows));
+        var lines = new List<string>
+        {
+            palette.State.IsSearching ? $"Command palette  /{palette.State.Query}_" : "Command palette"
+        };
+        if (palette.Items.Length == 0)
+        {
+            lines.Add("  No matching actions");
+        }
+        else
+        {
+            for (var index = start; index < Math.Min(palette.Items.Length, start + visibleRows); index++)
+            {
+                var item = palette.Items[index];
+                var marker = index == palette.SelectedIndex ? ">" : " ";
+                var unavailable = item.IsEnabled ? string.Empty : $" — {item.DisabledReason}";
+                lines.Add($"{marker} {item.Group}: {item.Label}  [{item.Binding}]{unavailable}");
+            }
+        }
+
+        lines.Add(palette.State.Error ??
+            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
+            $"{Shortest(bindings.FilterMode)} search  {Shortest(bindings.Open)} run  " +
+            $"{Shortest(bindings.Back)} close");
+        return lines.SelectMany(line => WrapStatus(line, width)).ToArray();
+    }
+
+    private static void AddContentRows(
+        List<string> output,
+        string heading,
+        IReadOnlyList<string> values,
+        int selectedIndex,
+        bool focused,
+        int visibleRows)
+    {
+        output.Add($"{(focused ? ">" : " ")} {heading}");
+        if (values.Count == 0)
+        {
+            output.Add("    —");
+            return;
+        }
+
+        var start = Math.Clamp(selectedIndex - visibleRows + 1, 0, Math.Max(0, values.Count - visibleRows));
+        for (var index = start; index < Math.Min(values.Count, start + visibleRows); index++)
+        {
+            output.Add($"  {(focused && index == selectedIndex ? ">" : " ")} {values[index]}");
+        }
+    }
+
     private static IReadOnlyList<string> WrapStatus(string value, int width)
     {
         var lines = new List<string>();
@@ -929,12 +1064,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
     {
         var style = view.State switch
         {
-            _ when view.GlobalError is not null => ThemeStyle(theme.Error, Decoration.Bold),
-            _ when view.GlobalCommand is not null => ThemeStyle(theme.Accent),
+            _ when view.GlobalError is not null || view.CommandPalette?.State.Error is not null =>
+                ThemeStyle(theme.Error, Decoration.Bold),
+            _ when view.GlobalCommand is not null || view.CommandPalette is not null => ThemeStyle(theme.Accent),
             { Error: not null } => ThemeStyle(theme.Error, Decoration.Bold),
             { IsFilterMode: true } => ThemeStyle(theme.Accent),
             { IsSortMode: true } => ThemeStyle(theme.Accent),
             { Form: not null } => ThemeStyle(theme.Accent),
+            { ContentEditor: not null } => ThemeStyle(theme.Accent),
             _ => ThemeStyle(theme.Muted, Decoration.Dim)
         };
         AnsiConsole.Write(new Panel(new Rows(lines.Select(line => new Text(line, style))))
