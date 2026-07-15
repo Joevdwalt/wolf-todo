@@ -113,9 +113,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var width = widthProvider();
         var height = heightProvider();
         WriteTabStrip(tabs, keyBindings, theme, width);
-        var status = PlannerStatus(view, keyBindings);
+        var status = PlannerStatus(view, keyBindings, width);
         var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
-        var availableRows = Math.Max(1, height - status.Count - (pickerVisible ? 11 : 8));
+        const int tabTableStatusBorderAndCursorHeight = 10;
+        const int pickerHeight = 3;
+        var reservedHeight = tabTableStatusBorderAndCursorHeight + (pickerVisible ? pickerHeight : 0);
+        var availableRows = Math.Max(1, height - status.Count - reservedHeight);
         var visibleSlots = WindowPlannerSlots(view.Slots, view.State.SlotIndex, availableRows);
         var table = new Table().RoundedBorder().Expand();
         table.BorderStyle = ThemeStyle(theme.Border);
@@ -188,59 +191,66 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return slots.Skip(start).Take(availableRows).ToArray();
     }
 
-    private static IReadOnlyList<string> PlannerStatus(PlannerView view, TuiKeyBindings bindings)
+    private static IReadOnlyList<string> PlannerStatus(
+        PlannerView view,
+        TuiKeyBindings bindings,
+        int terminalWidth)
     {
+        IReadOnlyList<string> status;
         if (view.GlobalCommand is not null)
         {
-            return [view.GlobalCommand];
+            status = [view.GlobalCommand];
+        }
+        else if (view.GlobalError is not null)
+        {
+            status = [view.GlobalError];
+        }
+        else if (view.State.Error is not null)
+        {
+            status = [view.State.Error];
+        }
+        else
+        {
+            status = view.State.Mode switch
+            {
+                PlannerMode.EditFilter => [$"/{view.State.FilterDraft}"],
+                PlannerMode.ChooseTodo =>
+                [
+                    $"Choose todo  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
+                    $"{Shortest(bindings.Open)} assign  {Shortest(bindings.FilterMode)} filter  " +
+                    $"{Shortest(bindings.Back)} cancel"
+                ],
+                PlannerMode.MoveTodo =>
+                [
+                    $"Move todo  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} slot  " +
+                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} day  " +
+                    $"{Shortest(bindings.Open)} place  {Shortest(bindings.Back)} cancel"
+                ],
+                PlannerMode.ChooseCreateProject =>
+                [
+                    view.Projects.Length == 0
+                        ? "No valid projects"
+                        : $"Create in: {view.Projects[view.State.CreateProjectIndex].Title}  " +
+                          $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
+                          $"{Shortest(bindings.Open)} select  {Shortest(bindings.Back)} cancel"
+                ],
+                PlannerMode.EnterCreateTitle =>
+                [
+                    $"New todo title: {view.State.CreateTitleDraft}_  Enter save  Esc cancel"
+                ],
+                _ =>
+                [
+                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} slot  " +
+                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} day  " +
+                    $"{Shortest(bindings.PlannerToday)} today  {Shortest(bindings.Open)} assign/move  " +
+                    $"{Shortest(bindings.PlannerUnschedule)} unschedule  " +
+                    $"{Shortest(bindings.CreateTodo)} create"
+                ]
+            };
         }
 
-        if (view.GlobalError is not null)
-        {
-            return [view.GlobalError];
-        }
-
-        if (view.State.Error is not null)
-        {
-            return [view.State.Error];
-        }
-
-        return view.State.Mode switch
-        {
-            PlannerMode.EditFilter => [$"/{view.State.FilterDraft}"],
-            PlannerMode.ChooseTodo =>
-            [
-                $"Choose todo  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
-                $"{Shortest(bindings.Open)} assign  {Shortest(bindings.FilterMode)} filter  " +
-                $"{Shortest(bindings.Back)} cancel"
-            ],
-            PlannerMode.MoveTodo =>
-            [
-                $"Move todo  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} slot  " +
-                $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} day  " +
-                $"{Shortest(bindings.Open)} place  {Shortest(bindings.Back)} cancel"
-            ],
-            PlannerMode.ChooseCreateProject =>
-            [
-                view.Projects.Length == 0
-                    ? "No valid projects"
-                    : $"Create in: {view.Projects[view.State.CreateProjectIndex].Title}  " +
-                      $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
-                      $"{Shortest(bindings.Open)} select  {Shortest(bindings.Back)} cancel"
-            ],
-            PlannerMode.EnterCreateTitle =>
-            [
-                $"New todo title: {view.State.CreateTitleDraft}_  Enter save  Esc cancel"
-            ],
-            _ =>
-            [
-                $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} slot  " +
-                $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} day  " +
-                $"{Shortest(bindings.PlannerToday)} today  {Shortest(bindings.Open)} assign/move  " +
-                $"{Shortest(bindings.PlannerUnschedule)} unschedule  " +
-                $"{Shortest(bindings.CreateTodo)} create"
-            ]
-        };
+        var statusWidth = Math.Max(1, terminalWidth - 4);
+        return status.SelectMany(line => WrapStatus(line, statusWidth)).ToArray();
     }
 
     private static void WritePlannerPicker(PlannerView view, TuiTheme theme, int width)

@@ -38,6 +38,8 @@ feedback match the Todos view.
 3. Completed assignments remain visible but cannot be selected as unscheduled
    work.
 4. Wide, narrow, and short terminals retain access to slots and status hints.
+5. Wrapped status hints reduce the visible slot window instead of scrolling the
+   tab strip off the top of the terminal.
 
 ## References
 

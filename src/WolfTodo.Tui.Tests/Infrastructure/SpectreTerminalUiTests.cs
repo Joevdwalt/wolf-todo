@@ -164,6 +164,20 @@ public sealed class SpectreTerminalUiTests
         output.Should().Contain(":q").And.Contain("Unknown command: :wat");
     }
 
+    [Theory]
+    [InlineData(70, 16)]
+    [InlineData(80, 18)]
+    [InlineData(100, 24)]
+    public void ShowPlanner_leaves_the_final_terminal_row_free_and_keeps_tabs_visible(
+        int width,
+        int height)
+    {
+        var lines = RenderPlanner(width, height);
+
+        lines.Should().HaveCount(height - 1);
+        lines[0].Should().Contain("[ Day Planner ]");
+    }
+
     [Fact]
     public void ShowBrowser_keeps_wide_column_boundaries_when_details_wrap()
     {
@@ -461,6 +475,25 @@ public sealed class SpectreTerminalUiTests
         StartRecording(width, height);
         var existingOutputLength = AnsiConsole.ExportText().Length;
         new SpectreTerminalUi(() => width, () => height).ShowBrowser(tabs, view, DefaultBindings);
+        return AnsiConsole.ExportText()[existingOutputLength..]
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private static string[] RenderPlanner(int width, int height)
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var tabs = new TabStripView(
+        [
+            new TabItemView(new TabId("todos"), "Todos", false),
+            new TabItemView(new TabId("planner"), "Day Planner", true)
+        ]);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date));
+        StartRecording(width, height);
+        var existingOutputLength = AnsiConsole.ExportText().Length;
+        new SpectreTerminalUi(() => width, () => height)
+            .ShowPlanner(tabs, view, DefaultBindings, TuiThemes.Wolf);
         return AnsiConsole.ExportText()[existingOutputLength..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
     }
