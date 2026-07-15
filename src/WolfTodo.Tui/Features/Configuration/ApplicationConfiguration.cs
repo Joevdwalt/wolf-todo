@@ -6,6 +6,8 @@ public sealed record ApplicationConfiguration(
     ImmutableArray<string> ProjectFiles,
     TuiKeyBindings KeyBindings)
 {
+    public TuiTheme Theme { get; init; } = TuiThemes.Wolf;
+
     public ApplicationConfiguration(ImmutableArray<string> projectFiles, string quitCommand)
         : this(projectFiles, TuiKeyBindings.CreateDefaults(quitCommand))
     {

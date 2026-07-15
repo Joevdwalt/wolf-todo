@@ -178,6 +178,13 @@ public sealed partial class ProjectMarkdownParser
             return new TodoLineResult(null, dueResult.Error);
         }
 
+        var scheduleResult = ParseSchedule(text);
+
+        if (scheduleResult.Error is not null)
+        {
+            return new TodoLineResult(null, scheduleResult.Error);
+        }
+
         var tags = TagPattern().Matches(text)
             .Select(match => match.Groups[1].Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -186,6 +193,7 @@ public sealed partial class ProjectMarkdownParser
         text = TagPattern().Replace(text, string.Empty);
         text = RemoveRecognizedToken(text, startResult.Token);
         text = RemoveRecognizedToken(text, dueResult.Token);
+        text = RemoveRecognizedToken(text, scheduleResult.Token);
 
         foreach (var marker in Priorities.Keys)
         {
@@ -210,7 +218,8 @@ public sealed partial class ProjectMarkdownParser
             tags,
             startResult.Date,
             dueResult.Date,
-            sectionPath);
+            sectionPath,
+            scheduleResult.Schedule);
 
         return new TodoLineResult(builder, null);
     }
@@ -234,6 +243,45 @@ public sealed partial class ProjectMarkdownParser
         return DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
             ? new DateResult(date, matches[0].Value, null)
             : new DateResult(null, null, null);
+    }
+
+    private static ScheduleResult ParseSchedule(string text)
+    {
+        var matches = SchedulePattern().Matches(text);
+        if (matches.Count > 1)
+        {
+            return new ScheduleResult(null, null, "Todo contains more than one schedule.");
+        }
+
+        if (matches.Count == 0)
+        {
+            return new ScheduleResult(null, null, null);
+        }
+
+        var match = matches[0];
+        if (!DateOnly.TryParseExact(
+                match.Groups[1].Value,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var date) ||
+            !TimeOnly.TryParseExact(
+                match.Groups[2].Value,
+                "HH:mm",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var time) ||
+            time.Minute is not (0 or 30) ||
+            time < new TimeOnly(6, 0) ||
+            time >= new TimeOnly(22, 0))
+        {
+            return new ScheduleResult(
+                null,
+                null,
+                "Todo schedule must use a valid date and a half-hour time from 06:00 through 21:30.");
+        }
+
+        return new ScheduleResult(new TodoSchedule(date, time), match.Value, null);
     }
 
     private static string RemoveRecognizedToken(string text, string? token) =>
@@ -264,6 +312,9 @@ public sealed partial class ProjectMarkdownParser
     [GeneratedRegex("📅\\s+(\\d{4}-\\d{2}-\\d{2})")]
     private static partial Regex DueDatePattern();
 
+    [GeneratedRegex("⏳\\s+(\\d{4}-\\d{2}-\\d{2})\\s+⏰\\s+(\\d{2}:\\d{2})")]
+    private static partial Regex SchedulePattern();
+
     [GeneratedRegex("\\s+")]
     private static partial Regex WhitespacePattern();
 
@@ -279,7 +330,8 @@ public sealed partial class ProjectMarkdownParser
         ImmutableArray<string> tags,
         DateOnly? startDate,
         DateOnly? dueDate,
-        string sectionPath)
+        string sectionPath,
+        TodoSchedule? schedule)
     {
         public int Indent { get; set; }
 
@@ -287,7 +339,7 @@ public sealed partial class ProjectMarkdownParser
 
         public List<TodoBuilder> Subtasks { get; } = [];
 
-        public TodoItem Build() => new(
+        public TodoItem Build() => new TodoItem(
             sourceLine,
             isCompleted,
             externalReference,
@@ -298,7 +350,10 @@ public sealed partial class ProjectMarkdownParser
             dueDate,
             sectionPath,
             [.. Notes],
-            [.. Subtasks.Select(subtask => subtask.Build())]);
+            [.. Subtasks.Select(subtask => subtask.Build())])
+        {
+            Schedule = schedule
+        };
     }
 
     private sealed record TitleResult(string? Title, int ContentStart, string? Error);
@@ -306,4 +361,6 @@ public sealed partial class ProjectMarkdownParser
     private sealed record TodoLineResult(TodoBuilder? Builder, string? Error);
 
     private sealed record DateResult(DateOnly? Date, string? Token, string? Error);
+
+    private sealed record ScheduleResult(TodoSchedule? Schedule, string? Token, string? Error);
 }

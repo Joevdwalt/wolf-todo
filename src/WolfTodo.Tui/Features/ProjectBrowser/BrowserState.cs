@@ -15,6 +15,8 @@ public sealed record BrowserState(
     TodoIdentity? PendingTodoSelection,
     string? Error)
 {
+    public TodoFormState? Form { get; init; }
+
     public static BrowserState Initial { get; } = new(
         BrowserFocus.Projects,
         0,

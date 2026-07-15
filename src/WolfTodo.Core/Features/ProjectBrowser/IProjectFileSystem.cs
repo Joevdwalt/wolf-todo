@@ -7,4 +7,7 @@ public interface IProjectFileSystem
     string GetFullPath(string path);
 
     string ReadAllText(string path);
+
+    void WriteAllTextAtomically(string path, string contents) =>
+        throw new NotSupportedException("This project file system is read-only.");
 }

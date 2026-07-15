@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Spectre.Console;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Infrastructure;
 
@@ -26,8 +27,60 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeTrue();
         result.KeyBindings.MatchesMoveUp(Key(ConsoleKey.UpArrow)).Should().BeTrue();
         result.KeyBindings.MatchesSortMode(Key('t')).Should().BeTrue();
-        result.KeyBindings.MatchesTabNext(Key(ConsoleKey.Tab, control: true)).Should().BeTrue();
-        result.KeyBindings.MatchesTabPrevious(Key(ConsoleKey.Tab, shift: true, control: true)).Should().BeTrue();
+        result.KeyBindings.MatchesTabNext(Key('L')).Should().BeTrue();
+        result.KeyBindings.MatchesTabPrevious(Key('H')).Should().BeTrue();
+        result.Theme.Should().Be(TuiThemes.Wolf);
+    }
+
+    [Fact]
+    public void Load_resolves_a_theme_preset_and_individual_color_overrides()
+    {
+        var path = Path.GetFullPath("todo.md");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [tui.theme]
+            preset = "CLASSIC"
+            accent = "#123456"
+            tag = "aquamarine3"
+            text = "default"
+            """);
+
+        var result = loader.Load();
+
+        result.Theme.Accent.Should().Be(new Color(0x12, 0x34, 0x56));
+        result.Theme.Tag.Should().Be(Color.Aquamarine3);
+        result.Theme.Text.Should().Be(Color.Default);
+        result.Theme.Error.Should().Be(Color.Red);
+    }
+
+    [Theory]
+    [InlineData("preset = \"unknown\"", "*tui.theme.preset*wolf*classic*mono*")]
+    [InlineData("accent = \"#12345\"", "*tui.theme.accent*named color*#RRGGBB*")]
+    [InlineData("accent = \"not-a-color\"", "*tui.theme.accent*named color*#RRGGBB*")]
+    [InlineData("accent = 42", "*tui.theme.accent*named color*#RRGGBB*")]
+    [InlineData("unknown = \"red\"", "*tui.theme.unknown*not a supported*")]
+    public void Load_rejects_invalid_theme_configuration(string setting, string expectedMessage)
+    {
+        var path = Path.GetFullPath("todo.md");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [tui.theme]
+            {{setting}}
+            """);
+
+        var action = loader.Invoking(candidate => candidate.Load());
+
+        action.Should().Throw<InvalidDataException>().WithMessage(expectedMessage);
     }
 
     [Fact]

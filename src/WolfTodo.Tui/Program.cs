@@ -6,6 +6,7 @@ using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Splash;
 using WolfTodo.Tui.Features.Tabs;
+using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Infrastructure;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -13,6 +14,9 @@ builder.Services.AddSingleton<ProjectMarkdownParser>();
 builder.Services.AddSingleton<ProjectCatalogLoader>();
 builder.Services.AddSingleton<ProjectBrowserPresenter>();
 builder.Services.AddSingleton<BrowserReducer>();
+builder.Services.AddSingleton<DayPlannerPresenter>();
+builder.Services.AddSingleton<DayPlannerReducer>();
+builder.Services.AddSingleton<ProjectTodoMutationService>();
 builder.Services.AddSingleton<TabHostPresenter>();
 builder.Services.AddSingleton<TabHostReducer>();
 builder.Services.AddSingleton<ApplicationInputRouter>();
@@ -36,7 +40,10 @@ builder.Services.AddSingleton(serviceProvider =>
         serviceProvider.GetRequiredService<TabHostReducer>(),
         serviceProvider.GetRequiredService<ProjectBrowserPresenter>(),
         serviceProvider.GetRequiredService<BrowserReducer>(),
-        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Assets", "wolf.txt"))));
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Assets", "wolf.txt")),
+        serviceProvider.GetRequiredService<DayPlannerPresenter>(),
+        serviceProvider.GetRequiredService<DayPlannerReducer>(),
+        serviceProvider.GetRequiredService<ProjectTodoMutationService>()));
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();

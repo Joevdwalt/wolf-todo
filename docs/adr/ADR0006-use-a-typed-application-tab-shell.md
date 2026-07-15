@@ -31,9 +31,10 @@ planner will be a separate feature and storage decision; this ADR does not
 define planner behavior or change Markdown persistence.
 
 Use TUI-wide configurable bindings for next and previous tab selection. Their
-defaults are Ctrl+Tab and Ctrl+Shift+Tab. Rename the resolved binding model from
-a browser-specific name so the shell and browser consume the same validated
-configuration.
+defaults are uppercase `L` and `H`, avoiding combinations commonly consumed by
+terminal emulators before a TUI receives them. Rename the resolved binding
+model from a browser-specific name so the shell and browser consume the same
+validated configuration.
 
 ## Consequences
 

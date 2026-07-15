@@ -11,8 +11,9 @@ feature is a read-only browser: each Markdown file is one project, projects
 contain task-list todos, and a virtual `All` project aggregates active todos
 from every valid project.
 
-Creating, editing, completing, filtering, searching, recurrence, dependencies,
-and writing changes to Markdown are outside this specification.
+Creating, editing, completing, and writing changes were outside the original
+browser scope. SPEC0010 extends the browser with those writable workflows.
+Recurrence and dependencies remain outside this specification.
 
 ## Project Discovery
 
@@ -212,6 +213,9 @@ The splash-dismissal key must still be consumed before browser interaction.
 Browser inputs and their Vim-compatible defaults are configurable as defined by
 SPEC0004.
 
+Browser colors use the semantic TUI theme defined by SPEC0007. Bold and dim
+emphasis remain fixed presentation cues and are not theme settings.
+
 The configured sort gesture, `t` by default, opens the bottom-panel sort dialog
 defined by SPEC0006. Sorting changes presentation only and never modifies the
 Markdown source order.
@@ -253,8 +257,12 @@ Markdown source order.
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
 - [SPEC0005: Application View Tabs](SPEC0005-application-view-tabs.md)
 - [SPEC0006: Todo Sorting](SPEC0006-todo-sorting.md)
+- [SPEC0007: Configurable TUI Themes](SPEC0007-configurable-tui-themes.md)
+- [SPEC0008: Todo Scheduling Metadata](SPEC0008-todo-scheduling-metadata.md)
+- [SPEC0010: Writable Todo Workflows](SPEC0010-writable-todo-workflows.md)
 - [ADR0001: Use .NET and Spectre.Console](../adr/ADR0001-use-dotnet-and-spectre-console.md)
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)
 - [ADR0007: Persist TUI Session State Separately](../adr/ADR0007-persist-tui-session-state-separately.md)
+- [ADR0008: Use Semantic TUI Themes](../adr/ADR0008-use-semantic-tui-themes.md)
 - [Obsidian Tasks: Auto-Suggest](https://publish.obsidian.md/tasks/Editing/Auto-Suggest)

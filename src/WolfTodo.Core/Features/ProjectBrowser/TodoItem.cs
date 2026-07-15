@@ -13,4 +13,7 @@ public sealed record TodoItem(
     DateOnly? DueDate,
     string SectionPath,
     ImmutableArray<string> Notes,
-    ImmutableArray<TodoItem> Subtasks);
+    ImmutableArray<TodoItem> Subtasks)
+{
+    public TodoSchedule? Schedule { get; init; }
+}

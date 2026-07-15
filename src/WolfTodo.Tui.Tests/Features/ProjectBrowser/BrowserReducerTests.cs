@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using FluentAssertions;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Core.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Tests.Features.ProjectBrowser;
 
@@ -286,6 +287,54 @@ public sealed class BrowserReducerTests
         ignored.State.Sort.Should().Be(TodoSort.Source);
         cancelled.State.IsSortMode.Should().BeFalse();
         cancelled.State.Sort.Should().Be(TodoSort.Source);
+    }
+
+    [Fact]
+    public void Reduce_requests_completion_for_the_selected_todo()
+    {
+        var identity = new TodoIdentity("/alpha.md", 4);
+
+        var result = reducer.Reduce(
+            BrowserState.Initial,
+            Key(ConsoleKey.Spacebar),
+            Configuration,
+            SelectedView(identity));
+
+        result.Operation.Should().Be(BrowserOperation.ToggleCompleted);
+        result.TodoIdentity.Should().Be(identity);
+    }
+
+    [Fact]
+    public void Reduce_opens_and_saves_a_create_form_for_an_individual_project()
+    {
+        var project = new TodoProject("Alpha", "/alpha.md", []);
+        var view = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("Alpha", 0, project, null, true)],
+            [],
+            null,
+            "Alpha",
+            project.Path,
+            null,
+            string.Empty);
+        var opened = reducer.Reduce(BrowserState.Initial, Key('a'), Configuration, view);
+        var withTitle = opened.State with
+        {
+            Form = opened.State.Form! with
+            {
+                Values = new TodoUpdate("New task", null, null, [], null, null)
+            }
+        };
+
+        var saved = reducer.Reduce(
+            withTitle,
+            Key(ConsoleKey.S, control: true),
+            Configuration,
+            view);
+
+        saved.Operation.Should().Be(BrowserOperation.Create);
+        saved.ProjectPath.Should().Be(project.Path);
+        saved.Update!.Title.Should().Be("New task");
     }
 
     private static BrowserView EmptyView() => new(

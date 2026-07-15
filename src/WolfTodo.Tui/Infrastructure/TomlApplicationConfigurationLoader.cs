@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Reflection;
+using Spectre.Console;
 using Tomlyn;
 using Tomlyn.Model;
 using WolfTodo.Tui.Features.Configuration;
@@ -10,6 +12,29 @@ public sealed class TomlApplicationConfigurationLoader(
     Func<string, bool> fileExists,
     Func<string, string> readAllText) : IApplicationConfigurationLoader
 {
+    private static readonly HashSet<string> ThemeKeys =
+    [
+        "preset",
+        "text",
+        "accent",
+        "heading",
+        "border",
+        "muted",
+        "success",
+        "warning",
+        "error",
+        "tag",
+        "date"
+    ];
+
+    private static readonly IReadOnlyDictionary<string, Color> NamedColors = typeof(Color)
+        .GetProperties(BindingFlags.Public | BindingFlags.Static)
+        .Where(property => property.PropertyType == typeof(Color))
+        .ToDictionary(
+            property => property.Name,
+            property => (Color)property.GetValue(null)!,
+            StringComparer.OrdinalIgnoreCase);
+
     public ApplicationConfiguration Load()
     {
         if (!fileExists(path))
@@ -30,7 +55,103 @@ public sealed class TomlApplicationConfigurationLoader(
 
         var files = ReadProjectFiles(document);
         var bindings = ReadKeyBindings(document);
-        return new ApplicationConfiguration(files, bindings);
+        var theme = ReadTheme(document);
+        return new ApplicationConfiguration(files, bindings) { Theme = theme };
+    }
+
+    private static TuiTheme ReadTheme(TomlTable document)
+    {
+        if (!document.TryGetValue("tui", out var tuiValue))
+        {
+            return TuiThemes.Wolf;
+        }
+
+        if (tuiValue is not TomlTable tui)
+        {
+            throw new InvalidDataException("Invalid configuration file: tui must be a TOML table.");
+        }
+
+        if (!tui.TryGetValue("theme", out var themeValue))
+        {
+            return TuiThemes.Wolf;
+        }
+
+        if (themeValue is not TomlTable theme)
+        {
+            throw new InvalidDataException("Invalid configuration file: tui.theme must be a TOML table.");
+        }
+
+        var unknownKey = theme.Keys.FirstOrDefault(key => !ThemeKeys.Contains(key));
+        if (unknownKey is not null)
+        {
+            throw new InvalidDataException(
+                $"Invalid configuration file: tui.theme.{unknownKey} is not a supported theme setting.");
+        }
+
+        var preset = ReadPreset(theme);
+        return preset with
+        {
+            Text = ReadThemeColor(theme, "text", preset.Text),
+            Accent = ReadThemeColor(theme, "accent", preset.Accent),
+            Heading = ReadThemeColor(theme, "heading", preset.Heading),
+            Border = ReadThemeColor(theme, "border", preset.Border),
+            Muted = ReadThemeColor(theme, "muted", preset.Muted),
+            Success = ReadThemeColor(theme, "success", preset.Success),
+            Warning = ReadThemeColor(theme, "warning", preset.Warning),
+            Error = ReadThemeColor(theme, "error", preset.Error),
+            Tag = ReadThemeColor(theme, "tag", preset.Tag),
+            Date = ReadThemeColor(theme, "date", preset.Date)
+        };
+    }
+
+    private static TuiTheme ReadPreset(TomlTable theme)
+    {
+        if (!theme.TryGetValue("preset", out var presetValue))
+        {
+            return TuiThemes.Wolf;
+        }
+
+        if (presetValue is not string presetName ||
+            string.IsNullOrWhiteSpace(presetName) ||
+            !TuiThemes.TryGet(presetName, out var preset))
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: tui.theme.preset must be one of wolf, classic, or mono.");
+        }
+
+        return preset;
+    }
+
+    private static Color ReadThemeColor(TomlTable theme, string name, Color defaultValue)
+    {
+        if (!theme.TryGetValue(name, out var value))
+        {
+            return defaultValue;
+        }
+
+        if (value is not string colorName || !TryParseColor(colorName, out var color))
+        {
+            throw new InvalidDataException(
+                $"Invalid configuration file: tui.theme.{name} must be a named color, #RRGGBB, or default.");
+        }
+
+        return color;
+    }
+
+    private static bool TryParseColor(string value, out Color color)
+    {
+        if (string.Equals(value, "default", StringComparison.OrdinalIgnoreCase))
+        {
+            color = Color.Default;
+            return true;
+        }
+
+        if (value.Length == 7 && value[0] == '#' && Color.TryFromHex(value, out color))
+        {
+            return true;
+        }
+
+        return NamedColors.TryGetValue(value, out color);
     }
 
     private static ImmutableArray<string> ReadProjectFiles(TomlTable document)
@@ -99,7 +220,17 @@ public sealed class TomlApplicationConfigurationLoader(
             FilterMode = ReadGestures(keybindings, "filter_mode", defaults.FilterMode),
             SortMode = ReadGestures(keybindings, "sort_mode", defaults.SortMode),
             TabNext = ReadGestures(keybindings, "tab_next", defaults.TabNext),
-            TabPrevious = ReadGestures(keybindings, "tab_previous", defaults.TabPrevious)
+            TabPrevious = ReadGestures(keybindings, "tab_previous", defaults.TabPrevious),
+            PlannerPreviousDay = ReadGestures(
+                keybindings, "planner_previous_day", defaults.PlannerPreviousDay),
+            PlannerNextDay = ReadGestures(keybindings, "planner_next_day", defaults.PlannerNextDay),
+            PlannerToday = ReadGestures(keybindings, "planner_today", defaults.PlannerToday),
+            PlannerUnschedule = ReadGestures(
+                keybindings, "planner_unschedule", defaults.PlannerUnschedule),
+            CreateTodo = ReadGestures(keybindings, "create_todo", defaults.CreateTodo),
+            EditTodo = ReadGestures(keybindings, "edit_todo", defaults.EditTodo),
+            ToggleTodo = ReadGestures(keybindings, "toggle_todo", defaults.ToggleTodo),
+            SaveForm = ReadGestures(keybindings, "save_form", defaults.SaveForm)
         };
 
         ValidateCommands(result);
@@ -193,7 +324,14 @@ public sealed class TomlApplicationConfigurationLoader(
             ("filter_mode", bindings.FilterMode),
             ("sort_mode", bindings.SortMode),
             ("tab_next", bindings.TabNext),
-            ("tab_previous", bindings.TabPrevious)
+            ("tab_previous", bindings.TabPrevious),
+            ("planner_previous_day", bindings.PlannerPreviousDay),
+            ("planner_next_day", bindings.PlannerNextDay),
+            ("planner_today", bindings.PlannerToday),
+            ("planner_unschedule", bindings.PlannerUnschedule),
+            ("create_todo", bindings.CreateTodo),
+            ("edit_todo", bindings.EditTodo),
+            ("toggle_todo", bindings.ToggleTodo)
         };
         var owners = new Dictionary<KeyGesture, string>();
 

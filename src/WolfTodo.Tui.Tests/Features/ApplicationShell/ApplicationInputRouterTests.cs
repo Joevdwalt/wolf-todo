@@ -12,8 +12,8 @@ public sealed class ApplicationInputRouterTests
     [Fact]
     public void Route_returns_tab_directions_for_configured_switch_bindings()
     {
-        var next = router.Route(false, Key(shift: false), bindings);
-        var previous = router.Route(false, Key(shift: true), bindings);
+        var next = router.Route(false, Key('L'), bindings);
+        var previous = router.Route(false, Key('H'), bindings);
 
         next.Should().Be(ApplicationInputRoute.NextTab);
         previous.Should().Be(ApplicationInputRoute.PreviousTab);
@@ -22,11 +22,11 @@ public sealed class ApplicationInputRouterTests
     [Fact]
     public void Route_sends_tab_bindings_to_the_feature_while_it_captures_input()
     {
-        var result = router.Route(true, Key(shift: false), bindings);
+        var result = router.Route(true, Key('L'), bindings);
 
         result.Should().Be(ApplicationInputRoute.ActiveFeature);
     }
 
-    private static ConsoleKeyInfo Key(bool shift) =>
-        new('\0', ConsoleKey.Tab, shift, false, true);
+    private static ConsoleKeyInfo Key(char character) =>
+        new(character, ConsoleKey.NoName, char.IsUpper(character), false, false);
 }

@@ -18,11 +18,13 @@ the existing keyboard interaction and command syntax.
 - Esc or `h` returns from details to todos to projects without wrapping at the
   first pane.
 - Tab and Shift+Tab cycle focus forward and backward through visible panes.
-- Ctrl+Tab and Ctrl+Shift+Tab select the next and previous application tabs.
+- Uppercase `L` and `H` select the next and previous application tabs.
 - `:` enters command mode, `/` enters filter mode, and `t` opens the sort
   dialog.
 - `:completed` toggles completed todos and the required configured quit command
   exits the application.
+- `[`/`]` change planner dates, `g` selects today, and `u` unschedules.
+- `a`, `e`, Spacebar, and Ctrl+S create, edit, complete, and save todos.
 
 These inputs are resolved from the global configuration described by ADR0005.
 Configured arrays replace the defaults for their action. A custom command-mode
@@ -33,6 +35,7 @@ Backspace edits. Printable navigation bindings are entered as text instead of
 triggering browser navigation. Application-tab bindings are also ignored while
 either input mode is active. The sort dialog also captures input and prevents
 application-tab switching until an option is chosen or Esc cancels it.
+Planner pickers, move mode, and todo forms capture input in the same way.
 
 ## Status Hints
 
@@ -57,6 +60,7 @@ the configured filter gesture as its edit hint.
    views while command or filter input is active.
 8. A configured sort launcher replaces `t`, participates in conflict
    validation, and is reflected in status hints.
+9. Planner and writable-todo hints and actions use their resolved bindings.
 
 ## References
 
@@ -66,3 +70,5 @@ the configured filter gesture as its edit hint.
 - [SPEC0003: Slash Todo Filter](SPEC0003-slash-todo-filter.md)
 - [SPEC0005: Application View Tabs](SPEC0005-application-view-tabs.md)
 - [SPEC0006: Todo Sorting](SPEC0006-todo-sorting.md)
+- [SPEC0009: Day Planner](SPEC0009-day-planner.md)
+- [SPEC0010: Writable Todo Workflows](SPEC0010-writable-todo-workflows.md)

@@ -64,14 +64,37 @@ back = ["Escape", "h"]
 command_mode = [":"]
 filter_mode = ["/"]
 sort_mode = ["t"]
-tab_next = ["Ctrl+Tab"]
-tab_previous = ["Ctrl+Shift+Tab"]
+tab_next = ["L"]
+tab_previous = ["H"]
+planner_previous_day = ["["]
+planner_next_day = ["]"]
+planner_today = ["g"]
+planner_unschedule = ["u"]
+create_todo = ["a"]
+edit_todo = ["e"]
+toggle_todo = ["Spacebar"]
+save_form = ["Ctrl+S"]
+
+[tui.theme]
+preset = "wolf"
+# Any preset color can be overridden with a Spectre.Console color name,
+# a #RRGGBB value, or "default".
+accent = "#5FD7FF"
+heading = "#AF87FF"
 ```
 
 Within `[keybindings]`, only `quit` is required. Omitted bindings use the
 defaults shown above. A configured binding array replaces that action's
 defaults. Bindings accept printable characters, named console keys, and
 `Shift`, `Ctrl`, or `Alt` modifiers such as `Ctrl+K`.
+
+The optional `[tui.theme]` table selects the startup theme. Available presets
+are `wolf` (the default), `classic`, and `mono`. The configurable semantic
+colors are `text`, `accent`, `heading`, `border`, `muted`, `success`,
+`warning`, `error`, `tag`, and `date`. Color values accept Spectre.Console
+named colors such as `Cyan`, six-digit hexadecimal colors such as `#5FD7FF`,
+or `default` to use the terminal foreground. Unknown presets, keys, or color
+values are configuration errors.
 
 Each configured Markdown file is one project. Start the application with:
 
@@ -82,6 +105,17 @@ task run-tui
 The TUI remembers the selected project between runs in a separate `state.json`
 file under the platform application-state directory. This session state does
 not modify project Markdown files or `config.toml`.
+
+The `Day Planner` tab uses 30-minute slots from 06:00 through 21:30. Scheduling
+a todo adds `⏳ YYYY-MM-DD ⏰ HH:mm` to its original Markdown task line. Enter
+assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
+and `[`/`]` change days. The planner refuses occupied destination slots.
+
+In the Todos tab, `a` creates a todo under the chosen project's `## Inbox`
+heading, `e` edits the selected todo's parsed fields, and Space changes its
+Markdown checkbox. Ctrl+S saves the create/edit form. Writes re-read and
+validate the source before atomically replacing it so external changes are not
+silently overwritten.
 
 
 ## AI Guidance

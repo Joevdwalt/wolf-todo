@@ -5,6 +5,7 @@ using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Splash;
 using WolfTodo.Tui.Features.Tabs;
+using WolfTodo.Tui.Features.DayPlanner;
 
 namespace WolfTodo.Tui.Tests.Features.ApplicationShell;
 
@@ -35,7 +36,8 @@ public sealed class TuiApplicationTests
         terminal.SplashShown.Should().BeTrue();
         terminal.BrowserViews.Should().NotBeEmpty();
         terminal.TabViews.Should().OnlyContain(view =>
-            view.Tabs.Length == 1 && view.Tabs[0].Title == "Todos" && view.Tabs[0].IsSelected);
+            view.Tabs.Length == 2 && view.Tabs[0].Title == "Todos" && view.Tabs[0].IsSelected &&
+            view.Tabs[1].Title == "Day Planner");
         terminal.CursorVisibility.Should().Equal(false, true);
     }
 
@@ -75,6 +77,27 @@ public sealed class TuiApplicationTests
         application.Run();
 
         terminal.KeyBindings.Should().OnlyContain(candidate => candidate == bindings);
+        terminal.Themes.Should().OnlyContain(candidate => candidate == TuiThemes.Wolf);
+    }
+
+    [Fact]
+    public void Run_switches_to_the_day_planner_and_back_without_resetting_the_shell()
+    {
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('L'),
+            Key('L'),
+            Key(':'),
+            Key('q'),
+            Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.PlannerViews.Should().ContainSingle();
+        terminal.PlannerViews.Single().State.SelectedDate.Should().Be(DateOnly.FromDateTime(DateTime.Today));
+        terminal.BrowserViews.Should().HaveCountGreaterThan(1);
     }
 
     [Fact]
@@ -141,7 +164,8 @@ public sealed class TuiApplicationTests
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem1, false, false, false);
 
-    private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+    private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false) =>
+        new('\0', key, false, false, control);
 
     private sealed class FixedConfigurationLoader(TuiKeyBindings? bindings = null) : IApplicationConfigurationLoader
     {
@@ -179,9 +203,13 @@ public sealed class TuiApplicationTests
 
         public List<BrowserView> BrowserViews { get; } = [];
 
+        public List<PlannerView> PlannerViews { get; } = [];
+
         public List<TabStripView> TabViews { get; } = [];
 
         public List<TuiKeyBindings> KeyBindings { get; } = [];
+
+        public List<TuiTheme> Themes { get; } = [];
 
         public string? StartupError { get; private set; }
 
@@ -191,14 +219,35 @@ public sealed class TuiApplicationTests
 
         public ConsoleKeyInfo ReadKey() => keyQueue.Dequeue();
 
-        public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings)
+        public void ShowBrowser(
+            TabStripView tabs,
+            BrowserView view,
+            TuiKeyBindings keyBindings,
+            TuiTheme theme)
         {
             TabViews.Add(tabs);
             BrowserViews.Add(view);
             KeyBindings.Add(keyBindings);
+            Themes.Add(theme);
         }
 
-        public void ShowSplash(string logo) => SplashShown = true;
+        public void ShowPlanner(
+            TabStripView tabs,
+            PlannerView view,
+            TuiKeyBindings keyBindings,
+            TuiTheme theme)
+        {
+            TabViews.Add(tabs);
+            PlannerViews.Add(view);
+            KeyBindings.Add(keyBindings);
+            Themes.Add(theme);
+        }
+
+        public void ShowSplash(string logo, TuiTheme theme)
+        {
+            SplashShown = true;
+            Themes.Add(theme);
+        }
 
         public void ShowStartupError(string message) => StartupError = message;
 

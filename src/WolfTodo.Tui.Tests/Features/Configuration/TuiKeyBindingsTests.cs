@@ -20,8 +20,16 @@ public sealed class TuiKeyBindingsTests
         bindings.MatchesBack(Key(ConsoleKey.Escape)).Should().BeTrue();
         bindings.MatchesBack(Key('h')).Should().BeTrue();
         bindings.MatchesSortMode(Key('t')).Should().BeTrue();
-        bindings.MatchesTabNext(Key(ConsoleKey.Tab, control: true)).Should().BeTrue();
-        bindings.MatchesTabPrevious(Key(ConsoleKey.Tab, shift: true, control: true)).Should().BeTrue();
+        bindings.MatchesTabNext(Key('L')).Should().BeTrue();
+        bindings.MatchesTabPrevious(Key('H')).Should().BeTrue();
+        bindings.MatchesPlannerPreviousDay(Key('[')).Should().BeTrue();
+        bindings.MatchesPlannerNextDay(Key(']')).Should().BeTrue();
+        bindings.MatchesPlannerToday(Key('g')).Should().BeTrue();
+        bindings.MatchesPlannerUnschedule(Key('u')).Should().BeTrue();
+        bindings.MatchesCreateTodo(Key('a')).Should().BeTrue();
+        bindings.MatchesEditTodo(Key('e')).Should().BeTrue();
+        bindings.MatchesToggleTodo(Key(ConsoleKey.Spacebar)).Should().BeTrue();
+        bindings.MatchesSaveForm(Key(ConsoleKey.S, control: true)).Should().BeTrue();
     }
 
     [Fact]

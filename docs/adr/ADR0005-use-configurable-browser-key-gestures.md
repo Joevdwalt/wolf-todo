@@ -29,8 +29,16 @@ back = ["Escape", "h"]
 command_mode = [":"]
 filter_mode = ["/"]
 sort_mode = ["t"]
-tab_next = ["Ctrl+Tab"]
-tab_previous = ["Ctrl+Shift+Tab"]
+tab_next = ["L"]
+tab_previous = ["H"]
+planner_previous_day = ["["]
+planner_next_day = ["]"]
+planner_today = ["g"]
+planner_unschedule = ["u"]
+create_todo = ["a"]
+edit_todo = ["e"]
+toggle_todo = ["Spacebar"]
+save_form = ["Ctrl+S"]
 ```
 
 `quit` remains required. Every omitted field uses the value shown above; an
@@ -47,6 +55,10 @@ bindings do not change command syntax: command input continues to begin with
 `:`. Enter, Esc, and Backspace remain fixed editing controls inside command and
 filter modes. The sort launcher is configurable, while the option keys shown
 inside its modal dialog are fixed editing controls.
+
+Planner and writable-todo gestures use the same resolution model. `save_form`
+is modal-only and may overlap a non-form gesture because form input always has
+precedence while active.
 
 ## Consequences
 

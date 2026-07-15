@@ -5,6 +5,7 @@ using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Infrastructure;
 using WolfTodo.Tui.Features.Tabs;
+using WolfTodo.Tui.Features.DayPlanner;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 
@@ -13,6 +14,25 @@ public sealed class SpectreTerminalUiTests
     private static readonly TuiKeyBindings DefaultBindings = TuiKeyBindings.CreateDefaults(":q");
     private static readonly TabStripView DefaultTabs = new(
         [new TabItemView(new TabId("todos"), "Todos", true)]);
+
+    [Fact]
+    public void ShowSplash_applies_the_configured_semantic_colors()
+    {
+        var theme = TuiThemes.Wolf with
+        {
+            Accent = new Color(1, 2, 3),
+            Heading = new Color(4, 5, 6),
+            Muted = new Color(7, 8, 9)
+        };
+        StartRecording();
+
+        new SpectreTerminalUi(() => 140, () => 30).ShowSplash("WOLF", theme);
+        var html = AnsiConsole.ExportHtml().ToLowerInvariant();
+
+        html.Should().Contain("#010203")
+            .And.Contain("#040506")
+            .And.Contain("#070809");
+    }
 
     [Fact]
     public void ShowBrowser_renders_and_updates_the_selected_project_and_todo()
@@ -48,6 +68,60 @@ public sealed class SpectreTerminalUiTests
 
         output.Should().Contain("All").And.Contain("Personal").And.Contain("Milas Contract Renewal");
         output.Should().Contain("Projects").And.Contain("Todos: All").And.Contain("Details");
+    }
+
+    [Fact]
+    public void ShowBrowser_applies_the_configured_semantic_colors()
+    {
+        var view = ViewWithTitle("Renew contract");
+        var theme = TuiThemes.Wolf with
+        {
+            Accent = new Color(1, 2, 3),
+            Heading = new Color(4, 5, 6),
+            Border = new Color(7, 8, 9),
+            Muted = new Color(10, 11, 12)
+        };
+        StartRecording();
+
+        new SpectreTerminalUi(() => 140, () => 30)
+            .ShowBrowser(DefaultTabs, view, DefaultBindings, theme);
+        var html = AnsiConsole.ExportHtml().ToLowerInvariant();
+
+        html.Should().Contain("#010203")
+            .And.Contain("#040506")
+            .And.Contain("#070809")
+            .And.Contain("#0a0b0c");
+    }
+
+    [Fact]
+    public void ShowPlanner_renders_the_day_grid_and_configured_hints()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var todo = new TodoItem(
+            1, false, null, "Prepare proposal", null, [], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(6, 0))
+        };
+        var catalog = new ProjectCatalog(
+            [new TodoProject("Work", "/todos/work.md", [todo])],
+            []);
+        var view = new DayPlannerPresenter().CreateView(catalog, PlannerState.CreateInitial(date));
+        var tabs = new TabStripView(
+        [
+            new TabItemView(new TabId("todos"), "Todos", false),
+            new TabItemView(new TabId("planner"), "Day Planner", true)
+        ]);
+        StartRecording(100, 24);
+
+        new SpectreTerminalUi(() => 100, () => 24)
+            .ShowPlanner(tabs, view, DefaultBindings, TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText();
+
+        output.Should().Contain("[ Day Planner ]")
+            .And.Contain("06:00")
+            .And.Contain("Prepare proposal")
+            .And.Contain("[/] day")
+            .And.Contain("g today");
     }
 
     [Fact]
@@ -226,7 +300,7 @@ public sealed class SpectreTerminalUiTests
         var output = RenderBrowser(tabs, ViewWithTitle("Renew contract"), 140, 30);
 
         output[0].Should().Contain("Todos").And.Contain("[ Day Planner ]");
-        output[0].Should().Contain("Ctrl+Tab tabs");
+        output[0].Should().Contain("L tabs");
     }
 
     [Fact]

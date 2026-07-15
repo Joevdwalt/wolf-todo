@@ -15,7 +15,15 @@ public sealed record TuiKeyBindings(
     ImmutableArray<KeyGesture> FilterMode,
     ImmutableArray<KeyGesture> SortMode,
     ImmutableArray<KeyGesture> TabNext,
-    ImmutableArray<KeyGesture> TabPrevious)
+    ImmutableArray<KeyGesture> TabPrevious,
+    ImmutableArray<KeyGesture> PlannerPreviousDay,
+    ImmutableArray<KeyGesture> PlannerNextDay,
+    ImmutableArray<KeyGesture> PlannerToday,
+    ImmutableArray<KeyGesture> PlannerUnschedule,
+    ImmutableArray<KeyGesture> CreateTodo,
+    ImmutableArray<KeyGesture> EditTodo,
+    ImmutableArray<KeyGesture> ToggleTodo,
+    ImmutableArray<KeyGesture> SaveForm)
 {
     public static TuiKeyBindings CreateDefaults(string quitCommand) => new(
         quitCommand,
@@ -29,8 +37,16 @@ public sealed record TuiKeyBindings(
         Gestures(":"),
         Gestures("/"),
         Gestures("t"),
-        Gestures("Ctrl+Tab"),
-        Gestures("Ctrl+Shift+Tab"));
+        Gestures("L"),
+        Gestures("H"),
+        Gestures("["),
+        Gestures("]"),
+        Gestures("g"),
+        Gestures("u"),
+        Gestures("a"),
+        Gestures("e"),
+        Gestures("Spacebar"),
+        Gestures("Ctrl+S"));
 
     public bool MatchesMoveUp(ConsoleKeyInfo key) => Matches(MoveUp, key);
 
@@ -53,6 +69,22 @@ public sealed record TuiKeyBindings(
     public bool MatchesTabNext(ConsoleKeyInfo key) => Matches(TabNext, key);
 
     public bool MatchesTabPrevious(ConsoleKeyInfo key) => Matches(TabPrevious, key);
+
+    public bool MatchesPlannerPreviousDay(ConsoleKeyInfo key) => Matches(PlannerPreviousDay, key);
+
+    public bool MatchesPlannerNextDay(ConsoleKeyInfo key) => Matches(PlannerNextDay, key);
+
+    public bool MatchesPlannerToday(ConsoleKeyInfo key) => Matches(PlannerToday, key);
+
+    public bool MatchesPlannerUnschedule(ConsoleKeyInfo key) => Matches(PlannerUnschedule, key);
+
+    public bool MatchesCreateTodo(ConsoleKeyInfo key) => Matches(CreateTodo, key);
+
+    public bool MatchesEditTodo(ConsoleKeyInfo key) => Matches(EditTodo, key);
+
+    public bool MatchesToggleTodo(ConsoleKeyInfo key) => Matches(ToggleTodo, key);
+
+    public bool MatchesSaveForm(ConsoleKeyInfo key) => Matches(SaveForm, key);
 
     public static string ShortestDisplayName(ImmutableArray<KeyGesture> gestures) => gestures
         .Select((gesture, index) => (gesture.DisplayName, Index: index))

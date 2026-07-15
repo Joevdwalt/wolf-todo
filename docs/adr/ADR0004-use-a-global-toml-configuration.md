@@ -59,6 +59,9 @@ the shared global configuration.
 Runtime session state is not user configuration and is stored separately as
 defined by ADR0007.
 
+TUI theme preferences are stored under `[tui.theme]` in this same global file,
+as defined by ADR0008.
+
 ## Consequences
 
 ### Positive
@@ -87,3 +90,4 @@ defined by ADR0007.
 - [SPEC0002: Project Browser and Markdown Todo Format](../spec/SPEC0002-project-browser-and-markdown-todo-format.md)
 - [ADR0005: Use Configurable Browser Key Gestures](ADR0005-use-configurable-browser-key-gestures.md)
 - [ADR0007: Persist TUI Session State Separately](ADR0007-persist-tui-session-state-separately.md)
+- [ADR0008: Use Semantic TUI Themes](ADR0008-use-semantic-tui-themes.md)

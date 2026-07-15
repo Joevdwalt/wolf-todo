@@ -37,6 +37,10 @@ and horizontally centered splash screen containing the ASCII art from
 - The title `Wolf Todo`.
 - The prompt `Press any key to continue`.
 
+Render the logo, title, and prompt with the configured semantic theme defined
+by SPEC0007. Use the accent color for the logo, heading color and bold emphasis
+for the title, and muted color with dim emphasis for the prompt.
+
 `src/WolfTodo.Tui/Assets/wolf.txt` is the editable, project-owned source of truth
 for the logo and may be updated without changing application code. The
 application project must bundle the file as an application asset and must not
@@ -86,3 +90,4 @@ command interaction.
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)
 - [SPEC0002: Project Browser and Markdown Todo Format](SPEC0002-project-browser-and-markdown-todo-format.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
+- [SPEC0007: Configurable TUI Themes](SPEC0007-configurable-tui-themes.md)

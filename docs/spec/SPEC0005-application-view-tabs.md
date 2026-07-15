@@ -8,8 +8,8 @@ Accepted
 
 Define the reusable TUI tab component and application shell that allow Wolf
 Todo to host multiple fixed views while keeping Markdown-file storage central.
-The first release contains only the existing `Todos` browser; a day planner is
-a future consumer rather than part of this specification.
+The application contains the existing `Todos` browser and the `Day Planner`
+defined by SPEC0009.
 
 ## Tab Model and State
 
@@ -24,7 +24,8 @@ a future consumer rather than part of this specification.
 ## Presentation
 
 Render the tab strip on one line above the active feature, even when only one
-tab exists. Style the active title in cyan and bold and inactive titles dimly.
+tab exists. Style the active title with the configured accent and bold and
+inactive titles with the configured muted color and dim decoration.
 Escape tab titles before rendering and truncate the strip with an ellipsis when
 it exceeds the terminal width.
 
@@ -33,8 +34,8 @@ and the label `tabs`. Do not show a switching hint for a single tab.
 
 ## Interaction
 
-- Ctrl+Tab selects the next tab by default.
-- Ctrl+Shift+Tab selects the previous tab by default.
+- Uppercase `L` selects the next tab by default.
+- Uppercase `H` selects the previous tab by default.
 - Movement wraps from the final tab to the first and from the first to the
   final tab.
 - Movement is a no-op when only one tab exists.
@@ -46,12 +47,12 @@ and the label `tabs`. Do not show a switching hint for a single tab.
 - Otherwise, application-tab input is handled by the shell and remaining input
   is routed to the active feature.
 
-## Future Views
+## Hosted Views
 
-A future `Day Planner` tab may maintain its own selected date, timeslot, and
-draft state. Its scheduling semantics and Markdown representation require a
-separate specification and architecture decision. The tab component must not
-introduce a second persistence model.
+The `Day Planner` tab maintains its own selected date, timeslot, picker, and
+draft state. Switching tabs preserves that state for the current process. Its
+scheduling semantics and Markdown representation are defined by SPEC0008 and
+SPEC0009 and do not introduce a second persistence model.
 
 ## Acceptance Scenarios
 
@@ -73,3 +74,4 @@ introduce a second persistence model.
 - [ADR0006: Use a Typed Application Tab Shell](../adr/ADR0006-use-a-typed-application-tab-shell.md)
 - [SPEC0002: Project Browser and Markdown Todo Format](SPEC0002-project-browser-and-markdown-todo-format.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
+- [SPEC0009: Day Planner](SPEC0009-day-planner.md)

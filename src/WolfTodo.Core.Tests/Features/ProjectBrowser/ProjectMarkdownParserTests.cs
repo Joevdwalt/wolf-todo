@@ -68,6 +68,40 @@ public sealed class ProjectMarkdownParserTests
     }
 
     [Fact]
+    public void Parse_reads_a_half_hour_schedule_and_removes_it_from_the_title()
+    {
+        var result = parser.Parse(
+            "/todos/home.md",
+            "- [ ] Prepare proposal ⏳ 2026-07-15 ⏰ 09:30 #work");
+
+        var todo = result.Project!.Todos.Single();
+        todo.Title.Should().Be("Prepare proposal");
+        todo.Schedule.Should().Be(new TodoSchedule(new DateOnly(2026, 7, 15), new TimeOnly(9, 30)));
+        todo.Tags.Should().Equal("work");
+    }
+
+    [Theory]
+    [InlineData("⏳ 2026-07-15 ⏰ 09:15")]
+    [InlineData("⏳ 2026-07-15 ⏰ 05:30")]
+    [InlineData("⏳ 2026-02-30 ⏰ 09:30")]
+    public void Parse_rejects_complete_but_invalid_schedule_metadata(string schedule)
+    {
+        var result = parser.Parse("/todos/home.md", $"- [ ] Prepare proposal {schedule}");
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("schedule must use a valid date");
+    }
+
+    [Fact]
+    public void Parse_preserves_standalone_schedule_tokens_as_title_text()
+    {
+        var result = parser.Parse("/todos/home.md", "- [ ] Prepare proposal ⏳ 2026-07-15");
+
+        result.Project!.Todos.Single().Title.Should().Be("Prepare proposal ⏳ 2026-07-15");
+        result.Project.Todos.Single().Schedule.Should().BeNull();
+    }
+
+    [Fact]
     public void Parse_reports_invalid_yaml_title()
     {
         const string markdown = """
