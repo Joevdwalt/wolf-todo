@@ -190,6 +190,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static IReadOnlyList<string> PlannerStatus(PlannerView view, TuiKeyBindings bindings)
     {
+        if (view.GlobalCommand is not null)
+        {
+            return [view.GlobalCommand];
+        }
+
+        if (view.GlobalError is not null)
+        {
+            return [view.GlobalError];
+        }
+
         if (view.State.Error is not null)
         {
             return [view.State.Error];
@@ -259,8 +269,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
         PlannerView view,
         TuiTheme theme)
     {
-        var style = view.State.Error is not null
+        var style = view.GlobalError is not null || view.State.Error is not null
             ? ThemeStyle(theme.Error, Decoration.Bold)
+            : view.GlobalCommand is not null
+                ? ThemeStyle(theme.Accent)
             : view.State.Mode == PlannerMode.Browse
                 ? ThemeStyle(theme.Muted, Decoration.Dim)
                 : ThemeStyle(theme.Accent);
@@ -792,6 +804,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
         bool compact,
         int terminalWidth)
     {
+        if (view.GlobalCommand is not null)
+        {
+            return [view.GlobalCommand];
+        }
+
+        if (view.GlobalError is not null)
+        {
+            return WrapStatus(view.GlobalError, Math.Max(1, terminalWidth - 4));
+        }
+
         if (view.State.Form is not null)
         {
             return TodoFormStatus(view, keyBindings, terminalWidth);
@@ -823,7 +845,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         var status = view.State switch
         {
-            { IsCommandMode: true } => view.State.Command,
             { IsFilterMode: true } => $"/{view.State.FilterDraft}",
             { Error: not null } => view.State.Error,
             { FilterText.Length: > 0 } =>
@@ -898,8 +919,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
     {
         var style = view.State switch
         {
+            _ when view.GlobalError is not null => ThemeStyle(theme.Error, Decoration.Bold),
+            _ when view.GlobalCommand is not null => ThemeStyle(theme.Accent),
             { Error: not null } => ThemeStyle(theme.Error, Decoration.Bold),
-            { IsCommandMode: true } => ThemeStyle(theme.Accent),
             { IsFilterMode: true } => ThemeStyle(theme.Accent),
             { IsSortMode: true } => ThemeStyle(theme.Accent),
             { Form: not null } => ThemeStyle(theme.Accent),

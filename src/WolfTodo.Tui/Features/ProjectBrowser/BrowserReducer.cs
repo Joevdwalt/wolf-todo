@@ -21,11 +21,6 @@ public sealed class BrowserReducer
             return ReduceForm(state, key, bindings, view);
         }
 
-        if (state.IsCommandMode)
-        {
-            return ReduceCommand(state, key, bindings);
-        }
-
         if (state.IsFilterMode)
         {
             return ReduceFilter(state, key);
@@ -34,16 +29,6 @@ public sealed class BrowserReducer
         if (state.IsSortMode)
         {
             return ReduceSort(state, key, view);
-        }
-
-        if (bindings.MatchesCommandMode(key))
-        {
-            return Transition(state with
-            {
-                IsCommandMode = true,
-                Command = ":",
-                Error = null
-            });
         }
 
         if (bindings.MatchesFilterMode(key))
@@ -99,7 +84,6 @@ public sealed class BrowserReducer
 
             return new BrowserTransition(
                 state with { Error = null },
-                false,
                 BrowserOperation.ToggleCompleted,
                 view.SelectedTodoIdentity.ProjectPath,
                 view.SelectedTodoIdentity);
@@ -264,7 +248,6 @@ public sealed class BrowserReducer
 
             return new BrowserTransition(
                 state with { Form = null, Error = null },
-                false,
                 form.IsCreate ? BrowserOperation.Create : BrowserOperation.Update,
                 form.ProjectPath,
                 form.Target,
@@ -479,59 +462,6 @@ public sealed class BrowserReducer
             });
     }
 
-    private static BrowserTransition ReduceCommand(
-        BrowserState state,
-        ConsoleKeyInfo key,
-        TuiKeyBindings bindings)
-    {
-        if (key.Key == ConsoleKey.Escape)
-        {
-            return Transition(state with
-            {
-                IsCommandMode = false,
-                Command = string.Empty,
-                Error = null
-            });
-        }
-
-        if (key.Key == ConsoleKey.Enter)
-        {
-            if (state.Command == bindings.QuitCommand)
-            {
-                return new BrowserTransition(state, true);
-            }
-
-            if (state.Command == bindings.ToggleCompletedCommand)
-            {
-                return Transition(state with
-                {
-                    ShowCompleted = !state.ShowCompleted,
-                    IsCommandMode = false,
-                    Command = string.Empty,
-                    TodoIndex = 0,
-                    Error = null
-                });
-            }
-
-            return Transition(state with
-            {
-                IsCommandMode = false,
-                Command = string.Empty,
-                Error = $"Unknown command: {state.Command}"
-            });
-        }
-
-        if (key.Key == ConsoleKey.Backspace)
-        {
-            var command = state.Command.Length > 1 ? state.Command[..^1] : state.Command;
-            return Transition(state with { Command = command, Error = null });
-        }
-
-        return char.IsControl(key.KeyChar)
-            ? Transition(state)
-            : Transition(state with { Command = state.Command + key.KeyChar, Error = null });
-    }
-
     private static BrowserFocus MoveFocus(BrowserFocus focus, bool reverse) => (focus, reverse) switch
     {
         (BrowserFocus.Projects, false) => BrowserFocus.Todos,
@@ -545,5 +475,5 @@ public sealed class BrowserReducer
     private static int MoveIndex(int current, int offset, int count) =>
         count == 0 ? 0 : Math.Clamp(current + offset, 0, count - 1);
 
-    private static BrowserTransition Transition(BrowserState state) => new(state, false);
+    private static BrowserTransition Transition(BrowserState state) => new(state);
 }

@@ -25,6 +25,10 @@ All actions use configured bindings. Picker, move, and create input capture
 keystrokes before application-tab switching. Conflicting assignments are
 rendered as diagnostics and block further assignment to that slot.
 
+When no planner modal is active, the configured command launcher opens global
+command mode. Quit, completed visibility, cancellation, and unknown-command
+feedback match the Todos view.
+
 ## Acceptance Scenarios
 
 1. The tab shell switches between Todos and Day Planner without losing either

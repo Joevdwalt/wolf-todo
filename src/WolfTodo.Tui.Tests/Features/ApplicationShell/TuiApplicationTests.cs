@@ -101,6 +101,42 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_exits_for_the_global_quit_command_from_the_day_planner()
+    {
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('L'),
+            Key(':'),
+            Key('q'),
+            Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.PlannerViews.Should().NotBeEmpty();
+        terminal.PlannerViews.Should().Contain(view => view.GlobalCommand == ":q");
+    }
+
+    [Fact]
+    public void Run_applies_the_global_completed_command_from_the_day_planner()
+    {
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('L'),
+            Key(':'),
+            Key('c'), Key('o'), Key('m'), Key('p'), Key('l'), Key('e'), Key('t'), Key('e'), Key('d'),
+            Key(ConsoleKey.Enter),
+            Key('H'),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal);
+
+        application.Run();
+
+        terminal.BrowserViews.Last().State.ShowCompleted.Should().BeTrue();
+    }
+
+    [Fact]
     public void Run_restores_the_project_matching_the_saved_path()
     {
         var stateStore = new FakeApplicationStateStore("/todos/project.md");

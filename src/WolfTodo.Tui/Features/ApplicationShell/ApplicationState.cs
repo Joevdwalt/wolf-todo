@@ -6,6 +6,8 @@ namespace WolfTodo.Tui.Features.ApplicationShell;
 
 public sealed record ApplicationState(TabHostState Tabs, BrowserState Browser)
 {
+    public ApplicationCommandState Command { get; init; } = ApplicationCommandState.Initial;
+
     public PlannerState Planner { get; init; } = PlannerState.CreateInitial(
         DateOnly.FromDateTime(DateTime.Today));
 

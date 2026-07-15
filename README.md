@@ -117,6 +117,10 @@ Markdown checkbox. Ctrl+S saves the create/edit form. Writes re-read and
 validate the source before atomically replacing it so external changes are not
 silently overwritten.
 
+Command mode belongs to the application shell: `:q`, `:completed`, and unknown
+command feedback work from either Todos or Day Planner. An active feature
+picker, filter, move, or edit form receives input before global commands.
+
 
 ## AI Guidance
 

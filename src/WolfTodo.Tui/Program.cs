@@ -20,6 +20,7 @@ builder.Services.AddSingleton<ProjectTodoMutationService>();
 builder.Services.AddSingleton<TabHostPresenter>();
 builder.Services.AddSingleton<TabHostReducer>();
 builder.Services.AddSingleton<ApplicationInputRouter>();
+builder.Services.AddSingleton<ApplicationCommandReducer>();
 builder.Services.AddSingleton<IApplicationStateStore>(
     new JsonApplicationStateStore(GlobalApplicationStatePath.Resolve()));
 builder.Services.AddSingleton<IProjectFileSystem, PhysicalProjectFileSystem>();
@@ -43,7 +44,8 @@ builder.Services.AddSingleton(serviceProvider =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Assets", "wolf.txt")),
         serviceProvider.GetRequiredService<DayPlannerPresenter>(),
         serviceProvider.GetRequiredService<DayPlannerReducer>(),
-        serviceProvider.GetRequiredService<ProjectTodoMutationService>()));
+        serviceProvider.GetRequiredService<ProjectTodoMutationService>(),
+        serviceProvider.GetRequiredService<ApplicationCommandReducer>()));
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();

@@ -20,37 +20,6 @@ public sealed class BrowserReducerTests
     }
 
     [Fact]
-    public void Reduce_toggles_completed_todos_from_command_mode()
-    {
-        var state = BrowserState.Initial with { IsCommandMode = true, Command = ":completed" };
-
-        var result = reducer.Reduce(state, Key(ConsoleKey.Enter), Configuration, EmptyView());
-
-        result.State.ShowCompleted.Should().BeTrue();
-        result.State.IsCommandMode.Should().BeFalse();
-    }
-
-    [Fact]
-    public void Reduce_exits_for_the_configured_quit_command()
-    {
-        var state = BrowserState.Initial with { IsCommandMode = true, Command = ":q" };
-
-        var result = reducer.Reduce(state, Key(ConsoleKey.Enter), Configuration, EmptyView());
-
-        result.ShouldExit.Should().BeTrue();
-    }
-
-    [Fact]
-    public void Reduce_reports_an_unknown_command()
-    {
-        var state = BrowserState.Initial with { IsCommandMode = true, Command = ":wat" };
-
-        var result = reducer.Reduce(state, Key(ConsoleKey.Enter), Configuration, EmptyView());
-
-        result.State.Error.Should().Be("Unknown command: :wat");
-    }
-
-    [Fact]
     public void Reduce_opens_filter_mode_with_the_committed_filter()
     {
         var state = BrowserState.Initial with { FilterText = "renewal" };
@@ -122,17 +91,6 @@ public sealed class BrowserReducerTests
     }
 
     [Fact]
-    public void Reduce_treats_slash_as_command_text_while_in_command_mode()
-    {
-        var state = BrowserState.Initial with { IsCommandMode = true, Command = ":" };
-
-        var result = reducer.Reduce(state, Key('/'), Configuration, EmptyView());
-
-        result.State.Command.Should().Be(":/");
-        result.State.IsFilterMode.Should().BeFalse();
-    }
-
-    [Fact]
     public void Reduce_moves_with_default_vim_navigation_keys()
     {
         var movedDown = reducer.Reduce(BrowserState.Initial, Key('j'), Configuration, NavigationView());
@@ -197,35 +155,17 @@ public sealed class BrowserReducerTests
     }
 
     [Fact]
-    public void Reduce_uses_configured_command_and_filter_mode_launchers()
+    public void Reduce_uses_the_configured_filter_mode_launcher()
     {
         var bindings = Configuration.KeyBindings with
         {
-            CommandMode = [KeyGesture.Parse("Ctrl+P")],
             FilterMode = [KeyGesture.Parse("Ctrl+F")]
         };
         var configuration = new ApplicationConfiguration([], bindings);
 
-        var command = reducer.Reduce(BrowserState.Initial, Key(ConsoleKey.P, control: true), configuration, EmptyView());
         var filter = reducer.Reduce(BrowserState.Initial, Key(ConsoleKey.F, control: true), configuration, EmptyView());
-        var oldCommand = reducer.Reduce(BrowserState.Initial, Key(':'), configuration, EmptyView());
 
-        command.State.IsCommandMode.Should().BeTrue();
-        command.State.Command.Should().Be(":");
         filter.State.IsFilterMode.Should().BeTrue();
-        oldCommand.State.IsCommandMode.Should().BeFalse();
-    }
-
-    [Fact]
-    public void Reduce_uses_the_configured_completed_command()
-    {
-        var bindings = Configuration.KeyBindings with { ToggleCompletedCommand = ":done" };
-        var configuration = new ApplicationConfiguration([], bindings);
-        var state = BrowserState.Initial with { IsCommandMode = true, Command = ":done" };
-
-        var result = reducer.Reduce(state, Key(ConsoleKey.Enter), configuration, EmptyView());
-
-        result.State.ShowCompleted.Should().BeTrue();
     }
 
     [Fact]

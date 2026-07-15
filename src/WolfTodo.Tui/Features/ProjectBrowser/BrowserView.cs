@@ -13,6 +13,10 @@ public sealed record BrowserView(
     string? Diagnostic,
     string EmptyMessage)
 {
+    public string? GlobalCommand { get; init; }
+
+    public string? GlobalError { get; init; }
+
     public int SelectableTodoCount => Todos.Count(row => row.Todo is not null);
 
     public TodoIdentity? SelectedTodoIdentity => Todos.FirstOrDefault(row => row.IsSelected)?.Identity;

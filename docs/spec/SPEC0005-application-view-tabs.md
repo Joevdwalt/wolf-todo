@@ -46,6 +46,8 @@ and the label `tabs`. Do not show a switching hint for a single tab.
   routed to that feature and tab selection is disabled.
 - Otherwise, application-tab input is handled by the shell and remaining input
   is routed to the active feature.
+- Global command input is handled by the shell from either tab and takes
+  precedence over tab switching once active.
 
 ## Hosted Views
 

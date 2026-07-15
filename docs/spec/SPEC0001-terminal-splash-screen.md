@@ -53,7 +53,8 @@ fallback containing the title and continuation prompt instead of failing.
 
 ## Command Mode
 
-The project browser must provide a visible command/status area.
+Every application view must provide a visible command/status area. Command
+mode is owned by the application shell rather than an individual view.
 
 Pressing the configured command-mode gesture, `:` by default, starts command
 mode and displays the command line beginning with `:`. Subsequent typed
@@ -63,9 +64,14 @@ cancels command mode and clears its input.
 The submitted command is compared case-sensitively with
 `keybindings.quit`. A matching command exits the application with code `0`.
 
-For an unrecognized command, remain in the project browser and display
+For an unrecognized command, remain in the active view and display
 `Unknown command: <command>`. Clear this message when the user starts the next
 command interaction.
+
+The same command interaction applies from Todos and Day Planner. `:completed`
+updates browser visibility even when submitted from Day Planner. Feature
+filters, pickers, move modes, and edit forms capture input before the global
+command launcher.
 
 ## Acceptance Scenarios
 
@@ -81,6 +87,8 @@ command interaction.
    standard error and exits with code `1` before the TUI is rendered.
 7. A terminal too small for the centered layout renders the readable fallback
    rather than crashing.
+8. The configured quit, completed, and unknown commands behave identically
+   from Todos and Day Planner.
 
 ## References
 

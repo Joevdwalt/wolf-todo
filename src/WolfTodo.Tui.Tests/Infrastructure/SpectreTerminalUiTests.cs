@@ -94,6 +94,28 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowBrowser_renders_global_command_input_and_errors()
+    {
+        var baseView = ViewWithTitle("Renew contract");
+        StartRecording();
+        var terminal = new SpectreTerminalUi(() => 140, () => 30);
+
+        terminal.ShowBrowser(
+            DefaultTabs,
+            baseView with { GlobalCommand = ":q" },
+            DefaultBindings,
+            TuiThemes.Wolf);
+        terminal.ShowBrowser(
+            DefaultTabs,
+            baseView with { GlobalError = "Unknown command: :wat" },
+            DefaultBindings,
+            TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText();
+
+        output.Should().Contain(":q").And.Contain("Unknown command: :wat");
+    }
+
+    [Fact]
     public void ShowPlanner_renders_the_day_grid_and_configured_hints()
     {
         var date = new DateOnly(2026, 7, 15);
@@ -122,6 +144,24 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("Prepare proposal")
             .And.Contain("[/] day")
             .And.Contain("g today");
+    }
+
+    [Fact]
+    public void ShowPlanner_renders_global_command_input_and_errors()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var catalog = new ProjectCatalog([], []);
+        var baseView = new DayPlannerPresenter().CreateView(catalog, PlannerState.CreateInitial(date));
+        var commandView = baseView with { GlobalCommand = ":q" };
+        var errorView = baseView with { GlobalError = "Unknown command: :wat" };
+        StartRecording(100, 24);
+
+        var terminal = new SpectreTerminalUi(() => 100, () => 24);
+        terminal.ShowPlanner(DefaultTabs, commandView, DefaultBindings, TuiThemes.Wolf);
+        terminal.ShowPlanner(DefaultTabs, errorView, DefaultBindings, TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText();
+
+        output.Should().Contain(":q").And.Contain("Unknown command: :wat");
     }
 
     [Fact]

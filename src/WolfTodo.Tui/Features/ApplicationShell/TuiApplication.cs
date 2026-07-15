@@ -21,7 +21,8 @@ public sealed class TuiApplication(
     string logo,
     DayPlannerPresenter? plannerPresenter = null,
     DayPlannerReducer? plannerReducer = null,
-    ProjectTodoMutationService? mutationService = null)
+    ProjectTodoMutationService? mutationService = null,
+    ApplicationCommandReducer? commandReducer = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -33,6 +34,7 @@ public sealed class TuiApplication(
 
     private readonly DayPlannerPresenter plannerPresenter = plannerPresenter ?? new DayPlannerPresenter();
     private readonly DayPlannerReducer plannerReducer = plannerReducer ?? new DayPlannerReducer();
+    private readonly ApplicationCommandReducer commandReducer = commandReducer ?? new ApplicationCommandReducer();
 
     public int Run()
     {
@@ -74,22 +76,75 @@ public sealed class TuiApplication(
                     browserView = browserPresenter.CreateView(catalog, state.Browser);
                     state = state with { Browser = browserView.State };
                     selectedProjectPath = browserView.SelectedProjectPath;
-                    terminalUi.ShowBrowser(tabView, browserView, configuration.KeyBindings, configuration.Theme);
+                    var renderedBrowserView = browserView with
+                    {
+                        GlobalCommand = state.Command.IsActive ? state.Command.Value : null,
+                        GlobalError = state.Command.Error
+                    };
+                    terminalUi.ShowBrowser(
+                        tabView,
+                        renderedBrowserView,
+                        configuration.KeyBindings,
+                        configuration.Theme);
                 }
                 else
                 {
                     plannerView = plannerPresenter.CreateView(catalog, state.Planner);
                     state = state with { Planner = plannerView.State };
-                    terminalUi.ShowPlanner(tabView, plannerView, configuration.KeyBindings, configuration.Theme);
+                    var renderedPlannerView = plannerView with
+                    {
+                        GlobalCommand = state.Command.IsActive ? state.Command.Value : null,
+                        GlobalError = state.Command.Error
+                    };
+                    terminalUi.ShowPlanner(
+                        tabView,
+                        renderedPlannerView,
+                        configuration.KeyBindings,
+                        configuration.Theme);
                 }
 
                 var key = terminalUi.ReadKey();
+                var featureCapturesInput = state.Tabs.ActiveTab == TodosTab
+                    ? state.Browser.IsFilterMode || state.Browser.IsSortMode || state.Browser.Form is not null
+                    : state.Planner.CapturesInput;
+
+                if (state.Command.IsActive ||
+                    (!featureCapturesInput && configuration.KeyBindings.MatchesCommandMode(key)))
+                {
+                    var commandTransition = commandReducer.Reduce(
+                        state.Command,
+                        key,
+                        configuration.KeyBindings);
+                    state = state with { Command = commandTransition.State };
+                    if (commandTransition.Operation == ApplicationCommandOperation.Exit)
+                    {
+                        return 0;
+                    }
+
+                    if (commandTransition.Operation == ApplicationCommandOperation.ToggleCompleted)
+                    {
+                        state = state with
+                        {
+                            Browser = state.Browser with
+                            {
+                                ShowCompleted = !state.Browser.ShowCompleted,
+                                TodoIndex = 0,
+                                PendingTodoSelection = null,
+                                Error = null
+                            }
+                        };
+                    }
+
+                    continue;
+                }
+
+                if (state.Command.Error is not null)
+                {
+                    state = state with { Command = state.Command with { Error = null } };
+                }
 
                 var inputRoute = inputRouter.Route(
-                    state.Tabs.ActiveTab == TodosTab
-                        ? state.Browser.IsCommandMode || state.Browser.IsFilterMode || state.Browser.IsSortMode ||
-                          state.Browser.Form is not null
-                        : state.Planner.CapturesInput,
+                    featureCapturesInput,
                     key,
                     configuration.KeyBindings);
 
@@ -230,11 +285,6 @@ public sealed class TuiApplication(
                 }
 
                 var browserTransition = browserReducer.Reduce(state.Browser, key, configuration, browserView!);
-
-                if (browserTransition.ShouldExit)
-                {
-                    return 0;
-                }
 
                 state = state with { Browser = browserTransition.State };
                 if (browserTransition.Operation != BrowserOperation.None)

@@ -15,15 +15,20 @@ dynamic.
 ## Decision
 
 Place a typed application shell above TUI features. The shell owns an ordered,
-non-empty set of tab definitions, the active tab identifier, and the state of
-each hosted feature. Tabs are fixed application views declared in code and are
-not closable or user-reorderable.
+non-empty set of tab definitions, the active tab identifier, the state of each
+hosted feature, and application-wide command state. Tabs are fixed application
+views declared in code and are not closable or user-reorderable.
 
 Implement tab state, wraparound movement, and presentation as a reusable
 component that does not depend on browser state. The application shell routes
 input to the active feature and preserves every feature's state while another
 tab is selected. A feature that is capturing command or filter input takes
 precedence over application-tab shortcuts.
+
+Feature-specific filters, pickers, moves, and edit forms take precedence over
+the global command launcher. Otherwise the shell captures configured command
+input before tab or feature routing. `:q`, `:completed`, and unknown-command
+feedback therefore behave consistently in every hosted view.
 
 Always render a one-line tab strip, including when only one view exists. The
 initial application registers only the existing `Todos` browser. Adding a day

@@ -8,6 +8,10 @@ public sealed record PlannerView(
     ImmutableArray<PlannerAssignment> PickerTodos,
     ImmutableArray<PlannerProjectOption> Projects)
 {
+    public string? GlobalCommand { get; init; }
+
+    public string? GlobalError { get; init; }
+
     public PlannerSlotView SelectedSlot => Slots[State.SlotIndex];
 
     public PlannerAssignment? SelectedPickerTodo =>
