@@ -20,7 +20,33 @@ Markdown todos.
 - Spacebar toggles the selected Markdown checkbox. `:completed` continues to
   control completed-todo visibility only.
 - The bottom form uses configured movement and open/back gestures. Ctrl+S
-  saves; cancellation performs no write.
+  saves; cancellation performs no write. On terminals at least 24 rows tall,
+  show each field as a stacked label and value:
+
+  ```text
+  Title
+  > Renew contract_
+  External reference
+    EXT-42
+  Priority
+    —
+  ```
+
+  On shorter terminals, show only the active field with its position:
+
+  ```text
+  Title (1/6)
+  > Renew contract_
+  j/k field  l edit  Ctrl+S save  h cancel
+  ```
+
+  Use `—` for empty committed values and `_` as the text-entry cursor. Keep
+  labels and values on one physical line, truncating long values with an
+  ellipsis. Explicitly wrap hints and validation errors so the status panel
+  remains within the terminal viewport. Use the configured theme hierarchy:
+  bold headings for labels, ordinary text for inactive values, bold accent for
+  the selected value, dim muted styling for placeholders and hints, and bold
+  error styling for validation failures.
 - Successful changes reload the catalog and restore selection to the resulting
   source identity. Validation, stale targets, and I/O failures remain visible
   without discarding external content.

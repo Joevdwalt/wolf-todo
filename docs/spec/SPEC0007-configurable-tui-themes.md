@@ -76,6 +76,9 @@ foreground for every role.
 - Configure foregrounds only; do not set terminal background colors.
 - Keep bold and dim decorations fixed so hierarchy and state do not depend on
   a user's color choices.
+- In the todo field form, render labels with bold `heading`, inactive values
+  with `text`, the selected value with bold `accent`, empty placeholders and
+  navigation hints with dim `muted`, and validation errors with bold `error`.
 - Escape user-controlled text before composing styled markup.
 - Let Spectre.Console degrade colors to the terminal's supported capability.
 - A startup configuration error may use the renderer's fixed error styling
@@ -90,6 +93,8 @@ foreground for every role.
 4. Invalid presets, keys, or color values fail before interactive rendering.
 5. The configured semantic colors appear in both the splash and browser.
 6. `mono` retains bold and dim hierarchy without setting colored foregrounds.
+7. The full and compact todo field forms use the same semantic roles while
+   other bottom-panel modes retain their established theme styling.
 
 ## References
 

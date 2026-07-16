@@ -921,7 +921,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
     }
 
-    private static IReadOnlyList<string> CreateStatusLines(
+    private static IReadOnlyList<BrowserStatusLine> CreateStatusLines(
         BrowserView view,
         TuiKeyBindings keyBindings,
         bool compact,
@@ -930,35 +930,35 @@ public sealed class SpectreTerminalUi : ITerminalUi
     {
         if (view.CommandPalette is not null)
         {
-            return CommandPaletteStatus(
+            return DefaultStatusLines(CommandPaletteStatus(
                 view.CommandPalette,
                 keyBindings,
                 terminalWidth,
-                terminalHeight);
+                terminalHeight));
         }
 
         if (view.GlobalCommand is not null)
         {
-            return [view.GlobalCommand];
+            return [new BrowserStatusLine(view.GlobalCommand)];
         }
 
         if (view.GlobalError is not null)
         {
-            return WrapStatus(view.GlobalError, Math.Max(1, terminalWidth - 4));
+            return DefaultStatusLines(WrapStatus(view.GlobalError, Math.Max(1, terminalWidth - 4)));
         }
 
         if (view.State.Form is not null)
         {
-            return TodoFormStatus(view, keyBindings, terminalWidth);
+            return TodoFormStatus(view, keyBindings, terminalWidth, terminalHeight);
         }
 
         if (view.State.ContentEditor is not null)
         {
-            return TodoContentEditorStatus(
+            return DefaultStatusLines(TodoContentEditorStatus(
                 view.State.ContentEditor,
                 keyBindings,
                 terminalWidth,
-                terminalHeight);
+                terminalHeight));
         }
 
         if (view.State.IsSortMode)
@@ -981,9 +981,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 ]
             };
 
-            return menuLines
+            return DefaultStatusLines(menuLines
                 .SelectMany(line => WrapStatus(line, Math.Max(1, terminalWidth - 4)))
-                .ToArray();
+                .ToArray());
         }
 
         var status = view.State switch
@@ -997,13 +997,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
             _ => NormalStatus(keyBindings, view.State)
         };
 
-        return WrapStatus(status, Math.Max(1, terminalWidth - 4));
+        return DefaultStatusLines(WrapStatus(status, Math.Max(1, terminalWidth - 4)));
     }
 
-    private static IReadOnlyList<string> TodoFormStatus(
+    private static IReadOnlyList<BrowserStatusLine> TodoFormStatus(
         BrowserView view,
         TuiKeyBindings bindings,
-        int terminalWidth)
+        int terminalWidth,
+        int terminalHeight)
     {
         var form = view.State.Form!;
         if (form.IsChoosingProject)
@@ -1012,29 +1013,77 @@ public sealed class SpectreTerminalUi : ITerminalUi
             var title = projects.Length == 0
                 ? "No valid projects"
                 : projects[Math.Clamp(form.ProjectPickerIndex, 0, projects.Length - 1)].Title;
-            return WrapStatus(
+            return DefaultStatusLines(WrapStatus(
                 $"Choose project: {title}  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
                 $"{Shortest(bindings.Open)} select  {Shortest(bindings.Back)} cancel",
-                Math.Max(1, terminalWidth - 4));
+                Math.Max(1, terminalWidth - 4)));
         }
 
         var fields = new[]
         {
             (TodoFormField.Title, "Title", form.Values.Title),
-            (TodoFormField.Reference, "Reference", form.Values.ExternalReference ?? string.Empty),
+            (TodoFormField.Reference, "External reference", form.Values.ExternalReference ?? string.Empty),
             (TodoFormField.Priority, "Priority", form.Values.Priority?.ToString() ?? string.Empty),
             (TodoFormField.Tags, "Tags", string.Join(' ', form.Values.Tags.Select(tag => $"#{tag}"))),
-            (TodoFormField.StartDate, "Start", form.Values.StartDate?.ToString("yyyy-MM-dd") ?? string.Empty),
-            (TodoFormField.DueDate, "Due", form.Values.DueDate?.ToString("yyyy-MM-dd") ?? string.Empty)
+            (TodoFormField.StartDate, "Start date", form.Values.StartDate?.ToString("yyyy-MM-dd") ?? string.Empty),
+            (TodoFormField.DueDate, "Due date", form.Values.DueDate?.ToString("yyyy-MM-dd") ?? string.Empty)
         };
-        var lines = fields.Select(field =>
-            $"{(field.Item1 == form.Field ? ">" : " ")} {field.Item2}: " +
-            (form.IsEditing && field.Item1 == form.Field ? form.Draft + "_" : field.Item3)).ToList();
-        lines.Add(form.Error ??
+        var contentWidth = Math.Max(1, terminalWidth - 4);
+        var selectedIndex = Array.FindIndex(fields, field => field.Item1 == form.Field);
+        var lines = new List<BrowserStatusLine>();
+        if (terminalHeight >= 24)
+        {
+            foreach (var field in fields)
+            {
+                lines.Add(new BrowserStatusLine(field.Item2, BrowserStatusRole.FormLabel));
+                lines.Add(FormValueLine(form, field.Item1, field.Item3, contentWidth));
+            }
+        }
+        else
+        {
+            var field = fields[Math.Max(0, selectedIndex)];
+            lines.Add(new BrowserStatusLine(
+                $"{field.Item2} ({Math.Max(0, selectedIndex) + 1}/{fields.Length})",
+                BrowserStatusRole.FormLabel));
+            lines.Add(FormValueLine(form, field.Item1, field.Item3, contentWidth));
+        }
+
+        var message = form.Error ??
             $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} field  " +
             $"{Shortest(bindings.Open)} edit  {Shortest(bindings.SaveForm)} save  " +
-            $"{Shortest(bindings.Back)} cancel");
+            $"{Shortest(bindings.Back)} cancel";
+        var messageRole = form.Error is null
+            ? BrowserStatusRole.FormHint
+            : BrowserStatusRole.FormError;
+        lines.AddRange(WrapStatus(message, contentWidth)
+            .Select(line => new BrowserStatusLine(line, messageRole)));
         return lines;
+    }
+
+    private static BrowserStatusLine FormValueLine(
+        TodoFormState form,
+        TodoFormField field,
+        string value,
+        int contentWidth)
+    {
+        var selected = field == form.Field;
+        var prefix = selected ? "> " : "  ";
+        var availableWidth = Math.Max(1, contentWidth - prefix.Length);
+        if (form.IsEditing && selected)
+        {
+            var display = availableWidth == 1
+                ? "_"
+                : Truncate(form.Draft, availableWidth - 1) + "_";
+            return new BrowserStatusLine(prefix + display, BrowserStatusRole.FormActiveValue);
+        }
+
+        var valueOrPlaceholder = string.IsNullOrEmpty(value) ? "—" : value;
+        var role = selected
+            ? BrowserStatusRole.FormActiveValue
+            : string.IsNullOrEmpty(value)
+                ? BrowserStatusRole.FormPlaceholder
+                : BrowserStatusRole.FormValue;
+        return new BrowserStatusLine(prefix + Truncate(valueOrPlaceholder, availableWidth), role);
     }
 
     private static IReadOnlyList<string> TodoContentEditorStatus(
@@ -1166,9 +1215,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return lines;
     }
 
-    private static void WriteStatus(IReadOnlyList<string> lines, BrowserView view, TuiTheme theme)
+    private static IReadOnlyList<BrowserStatusLine> DefaultStatusLines(IEnumerable<string> lines) =>
+        lines.Select(line => new BrowserStatusLine(line)).ToArray();
+
+    private static void WriteStatus(IReadOnlyList<BrowserStatusLine> lines, BrowserView view, TuiTheme theme)
     {
-        var style = view.State switch
+        var defaultStyle = view.State switch
         {
             _ when view.GlobalError is not null || view.CommandPalette?.State.Error is not null =>
                 ThemeStyle(theme.Error, Decoration.Bold),
@@ -1180,7 +1232,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
             { ContentEditor: not null } => ThemeStyle(theme.Accent),
             _ => ThemeStyle(theme.Muted, Decoration.Dim)
         };
-        AnsiConsole.Write(new Panel(new Rows(lines.Select(line => new Text(line, style))))
+        var content = lines.Select(line => new Text(
+            line.Text,
+            line.Role switch
+            {
+                BrowserStatusRole.FormLabel => ThemeStyle(theme.Heading, Decoration.Bold),
+                BrowserStatusRole.FormValue => ThemeStyle(theme.Text),
+                BrowserStatusRole.FormActiveValue => ThemeStyle(theme.Accent, Decoration.Bold),
+                BrowserStatusRole.FormPlaceholder => ThemeStyle(theme.Muted, Decoration.Dim),
+                BrowserStatusRole.FormHint => ThemeStyle(theme.Muted, Decoration.Dim),
+                BrowserStatusRole.FormError => ThemeStyle(theme.Error, Decoration.Bold),
+                _ => defaultStyle
+            }));
+        AnsiConsole.Write(new Panel(new Rows(content))
         {
             Border = BoxBorder.Rounded,
             BorderStyle = ThemeStyle(theme.Border),
@@ -1299,4 +1363,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
         .Max(line => line.Length);
 
     private sealed record TodoLineGroup(IReadOnlyList<IRenderable> Lines, bool IsSelected);
+
+    private sealed record BrowserStatusLine(
+        string Text,
+        BrowserStatusRole Role = BrowserStatusRole.Default);
+
+    private enum BrowserStatusRole
+    {
+        Default,
+        FormLabel,
+        FormValue,
+        FormActiveValue,
+        FormPlaceholder,
+        FormHint,
+        FormError
+    }
 }
