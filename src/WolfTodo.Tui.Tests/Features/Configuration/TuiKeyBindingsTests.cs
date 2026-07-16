@@ -31,6 +31,7 @@ public sealed class TuiKeyBindingsTests
         bindings.MatchesCreateTodo(Key('a')).Should().BeTrue();
         bindings.MatchesEditTodo(Key('e')).Should().BeTrue();
         bindings.MatchesEditTodoContent(Key('E')).Should().BeTrue();
+        bindings.MatchesEditTodoExternal(Key(ConsoleKey.E, control: true)).Should().BeTrue();
         bindings.MatchesToggleTodo(Key(ConsoleKey.Spacebar)).Should().BeTrue();
         bindings.MatchesToggleDetails(Key('v')).Should().BeTrue();
         bindings.MatchesRemoveContent(Key('d')).Should().BeTrue();

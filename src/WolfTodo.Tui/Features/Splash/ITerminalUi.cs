@@ -17,5 +17,9 @@ public interface ITerminalUi
 
     void SetCursorVisible(bool visible);
 
+    void SuspendForExternalProcess();
+
+    void ResumeAfterExternalProcess();
+
     ConsoleKeyInfo ReadKey();
 }

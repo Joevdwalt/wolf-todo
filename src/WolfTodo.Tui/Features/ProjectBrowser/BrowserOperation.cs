@@ -6,5 +6,6 @@ public enum BrowserOperation
     Create,
     Update,
     UpdateContent,
+    EditExternal,
     ToggleCompleted
 }

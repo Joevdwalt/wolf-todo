@@ -15,7 +15,7 @@ Press the configured sort-mode gesture, `t` by default, outside another modal
 input to replace the bottom status panel with a sort dialog:
 
 ```text
-Sort: n/N name  d/D start  t/T tags  f/F file  o source  Esc cancel
+Sort: n/N name  d/D start  p/P priority  t/T tags  f/F file  o source  Esc cancel
 ```
 
 Lowercase selects ascending order and uppercase selects descending order. A
@@ -45,6 +45,9 @@ next launch. A missing or invalid saved sort uses source order.
   precedes `Task 10`.
 - Compare start dates chronologically. Todos without a start date appear last
   in both directions.
+- Compare priorities by severity. Ascending orders Lowest through Highest;
+  descending orders Highest through Lowest. Todos without priority appear last
+  in both directions.
 - For tags, case-insensitively deduplicate and naturally order each todo's tags,
   then compare the normalized tag sets. Untagged todos appear last in both
   directions.
@@ -62,14 +65,16 @@ available.
 1. Pressing `t`, then `n` orders `Task 2` before `Task 10`; `N` reverses them.
 2. `d` and `D` order dated todos in the requested direction and keep undated
    todos last.
-3. `t` and `T` inside the dialog order normalized tag sets and keep untagged
+3. `p` orders Lowest through Highest and `P` reverses that order; both keep
+   unprioritized todos last.
+4. `t` and `T` inside the dialog order normalized tag sets and keep untagged
    todos last.
-4. `f` and `F` order `All` project groups by Markdown filename.
-5. `o` restores existing source-order presentation without changing Markdown.
-6. Sorting preserves the selected todo, structural groups, and nested blocks.
-7. Filter, completed visibility, responsive height, and tab navigation continue
+5. `f` and `F` order `All` project groups by Markdown filename.
+6. `o` restores existing source-order presentation without changing Markdown.
+7. Sorting preserves the selected todo, structural groups, and nested blocks.
+8. Filter, completed visibility, responsive height, and tab navigation continue
    to follow their existing specifications.
-8. Restarting restores the last selected property and direction; legacy state
+9. Restarting restores the last selected property and direction; legacy state
    without a sort and invalid sort values use source order.
 
 ## References

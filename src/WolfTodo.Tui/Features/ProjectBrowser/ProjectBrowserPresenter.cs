@@ -229,8 +229,22 @@ public sealed class ProjectBrowserPresenter
             TodoSortProperty.Name => NaturalStringComparer.Instance.Compare(left.Title, right.Title) * direction,
             TodoSortProperty.StartDate => CompareOptionalDates(left.StartDate, right.StartDate, direction),
             TodoSortProperty.Tags => CompareOptionalText(TagSortValue(left), TagSortValue(right), direction),
+            TodoSortProperty.Priority => CompareOptionalPriorities(left.Priority, right.Priority, direction),
             _ => 0
         };
+    }
+
+    private static int CompareOptionalPriorities(
+        TodoPriority? left,
+        TodoPriority? right,
+        int direction)
+    {
+        if (left is null || right is null)
+        {
+            return left is null == right is null ? 0 : left is null ? 1 : -1;
+        }
+
+        return left.Value.CompareTo(right.Value) * direction;
     }
 
     private static int CompareOptionalDates(DateOnly? left, DateOnly? right, int direction)

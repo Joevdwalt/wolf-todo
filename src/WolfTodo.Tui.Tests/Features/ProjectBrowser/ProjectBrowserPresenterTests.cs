@@ -242,6 +242,39 @@ public sealed class ProjectBrowserPresenterTests
     }
 
     [Theory]
+    [InlineData(
+        TodoSortDirection.Ascending,
+        "Lowest,Low,Medium,High,Highest,None")]
+    [InlineData(
+        TodoSortDirection.Descending,
+        "Highest,High,Medium,Low,Lowest,None")]
+    public void CreateView_sorts_priorities_and_keeps_unprioritized_todos_last(
+        TodoSortDirection direction,
+        string expectedOrder)
+    {
+        var catalog = new ProjectCatalog(
+            [Project(
+                "Alpha",
+                Todo("None") with { SourceLine = 1 },
+                Todo("High") with { SourceLine = 2, Priority = TodoPriority.High },
+                Todo("Lowest") with { SourceLine = 3, Priority = TodoPriority.Lowest },
+                Todo("Highest") with { SourceLine = 4, Priority = TodoPriority.Highest },
+                Todo("Medium") with { SourceLine = 5, Priority = TodoPriority.Medium },
+                Todo("Low") with { SourceLine = 6, Priority = TodoPriority.Low })],
+            []);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 1,
+            Sort = new TodoSort(TodoSortProperty.Priority, direction)
+        };
+
+        var result = presenter.CreateView(catalog, state);
+
+        result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal(expectedOrder.Split(','));
+    }
+
+    [Theory]
     [InlineData(TodoSortDirection.Ascending, "Two", "Ten")]
     [InlineData(TodoSortDirection.Descending, "Ten", "Two")]
     public void CreateView_sorts_all_project_groups_by_markdown_filename(

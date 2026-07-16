@@ -42,6 +42,8 @@ public sealed class BrowserReducer
                         view.SelectedTodo),
                     Error = null
                 }),
+            BrowserAction.EditExternal when view.SelectedTodoIdentity is not null =>
+                ExternalEdit(state, view.SelectedTodoIdentity),
             BrowserAction.ToggleCompleted
                 when view.SelectedTodoIdentity is not null => new BrowserTransition(
                     state with { Error = null },
@@ -140,6 +142,16 @@ public sealed class BrowserReducer
                     view.SelectedTodo),
                 Error = null
             });
+        }
+
+        if (bindings.MatchesEditTodoExternal(key))
+        {
+            if (view.SelectedTodoIdentity is null)
+            {
+                return Transition(state with { Error = "Select a todo to edit externally." });
+            }
+
+            return ExternalEdit(state, view.SelectedTodoIdentity);
         }
 
         if (bindings.MatchesToggleTodo(key))
@@ -749,6 +761,8 @@ public sealed class BrowserReducer
             'T' => new TodoSort(TodoSortProperty.Tags, TodoSortDirection.Descending),
             'f' => new TodoSort(TodoSortProperty.File, TodoSortDirection.Ascending),
             'F' => new TodoSort(TodoSortProperty.File, TodoSortDirection.Descending),
+            'p' => new TodoSort(TodoSortProperty.Priority, TodoSortDirection.Ascending),
+            'P' => new TodoSort(TodoSortProperty.Priority, TodoSortDirection.Descending),
             'o' => TodoSort.Source,
             _ => null
         };
@@ -862,4 +876,10 @@ public sealed class BrowserReducer
         count == 0 ? 0 : Math.Clamp(current + offset, 0, count - 1);
 
     private static BrowserTransition Transition(BrowserState state) => new(state);
+
+    private static BrowserTransition ExternalEdit(BrowserState state, TodoIdentity identity) => new(
+        state with { Error = null },
+        BrowserOperation.EditExternal,
+        identity.ProjectPath,
+        identity);
 }

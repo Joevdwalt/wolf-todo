@@ -107,6 +107,9 @@ public sealed class CommandPaletteReducerTests
         catalog.Create(true, visible, null, Bindings)
             .Single(item => item.Action == ApplicationActionId.BrowserJumpBottom)
             .Binding.Should().Be("G");
+        catalog.Create(true, visible, null, Bindings)
+            .Single(item => item.Action == ApplicationActionId.BrowserEditExternal)
+            .Binding.Should().Be("Ctrl+E");
     }
 
     private static BrowserView BrowserView(BrowserState state) => new(

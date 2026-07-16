@@ -202,6 +202,8 @@ public sealed class BrowserReducerTests
     [InlineData('T', TodoSortProperty.Tags, TodoSortDirection.Descending)]
     [InlineData('f', TodoSortProperty.File, TodoSortDirection.Ascending)]
     [InlineData('F', TodoSortProperty.File, TodoSortDirection.Descending)]
+    [InlineData('p', TodoSortProperty.Priority, TodoSortDirection.Ascending)]
+    [InlineData('P', TodoSortProperty.Priority, TodoSortDirection.Descending)]
     public void Reduce_applies_sort_dialog_choices(
         char key,
         TodoSortProperty property,
@@ -317,6 +319,38 @@ public sealed class BrowserReducerTests
         saved.ContentUpdate!.Notes.Select(note => note.Text).Should().Equal("Existing note", "N");
         saved.ContentUpdate.Subtasks.Should().ContainSingle().Which.IsCompleted.Should().BeTrue();
         saved.State.ContentEditor.Should().BeNull();
+    }
+
+    [Fact]
+    public void Reduce_opens_the_selected_todo_in_the_external_editor()
+    {
+        var identity = new TodoIdentity("/alpha.md", 7);
+        var view = SelectedView(identity);
+
+        var direct = reducer.Reduce(
+            BrowserState.Initial,
+            Key(ConsoleKey.E, control: true),
+            Configuration,
+            view);
+        var palette = reducer.ReduceAction(BrowserState.Initial, BrowserAction.EditExternal, view);
+
+        direct.Operation.Should().Be(BrowserOperation.EditExternal);
+        direct.ProjectPath.Should().Be(identity.ProjectPath);
+        direct.TodoIdentity.Should().Be(identity);
+        palette.Operation.Should().Be(BrowserOperation.EditExternal);
+    }
+
+    [Fact]
+    public void Reduce_requires_a_selected_todo_for_external_editing()
+    {
+        var result = reducer.Reduce(
+            BrowserState.Initial,
+            Key(ConsoleKey.E, control: true),
+            Configuration,
+            EmptyView());
+
+        result.Operation.Should().Be(BrowserOperation.None);
+        result.State.Error.Should().Be("Select a todo to edit externally.");
     }
 
     [Fact]

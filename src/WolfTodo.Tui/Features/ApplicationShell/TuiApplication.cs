@@ -25,7 +25,8 @@ public sealed class TuiApplication(
     ApplicationCommandReducer? commandReducer = null,
     CommandPaletteReducer? paletteReducer = null,
     CommandPalettePresenter? palettePresenter = null,
-    ApplicationActionCatalog? actionCatalog = null)
+    ApplicationActionCatalog? actionCatalog = null,
+    IExternalEditorLauncher? externalEditorLauncher = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -41,6 +42,7 @@ public sealed class TuiApplication(
     private readonly CommandPaletteReducer paletteReducer = paletteReducer ?? new CommandPaletteReducer();
     private readonly CommandPalettePresenter palettePresenter = palettePresenter ?? new CommandPalettePresenter();
     private readonly ApplicationActionCatalog actionCatalog = actionCatalog ?? new ApplicationActionCatalog();
+    private readonly IExternalEditorLauncher? externalEditorLauncher = externalEditorLauncher;
 
     public int Run()
     {
@@ -234,6 +236,7 @@ public sealed class TuiApplication(
                             ApplicationActionId.BrowserCreate => BrowserAction.Create,
                             ApplicationActionId.BrowserEdit => BrowserAction.Edit,
                             ApplicationActionId.BrowserEditContent => BrowserAction.EditContent,
+                            ApplicationActionId.BrowserEditExternal => BrowserAction.EditExternal,
                             ApplicationActionId.BrowserToggleCompleted => BrowserAction.ToggleCompleted,
                             ApplicationActionId.BrowserToggleDetails => BrowserAction.ToggleDetails,
                             ApplicationActionId.BrowserJumpTop => BrowserAction.JumpTop,
@@ -484,6 +487,11 @@ public sealed class TuiApplication(
             return state;
         }
 
+        if (transition.Operation == BrowserOperation.EditExternal)
+        {
+            return ApplyExternalEdit(state, transition, ref catalog, configuration);
+        }
+
         var result = ApplyBrowserOperation(transition, view, catalog, service);
         state = state with
         {
@@ -502,6 +510,50 @@ public sealed class TuiApplication(
         }
 
         return state;
+    }
+
+    private ApplicationState ApplyExternalEdit(
+        ApplicationState state,
+        BrowserTransition transition,
+        ref ProjectCatalog catalog,
+        ApplicationConfiguration configuration)
+    {
+        if (externalEditorLauncher is null ||
+            transition.ProjectPath is null ||
+            transition.TodoIdentity is null)
+        {
+            return state with
+            {
+                Browser = state.Browser with { Error = "External editing is unavailable." }
+            };
+        }
+
+        ExternalEditorResult result;
+        terminalUi.SuspendForExternalProcess();
+        try
+        {
+            result = externalEditorLauncher.Open(
+                transition.ProjectPath,
+                transition.TodoIdentity.SourceLine);
+        }
+        finally
+        {
+            terminalUi.ResumeAfterExternalProcess();
+        }
+
+        if (result.Started)
+        {
+            catalog = catalogLoader.Load(configuration.ProjectFiles);
+        }
+
+        return state with
+        {
+            Browser = state.Browser with
+            {
+                PendingTodoSelection = null,
+                Error = result.Error
+            }
+        };
     }
 
     private static TodoMutationResult ApplyBrowserOperation(

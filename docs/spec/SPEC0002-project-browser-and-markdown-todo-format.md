@@ -134,6 +134,7 @@ At 120 or more columns and at least 24 rows, show all three panes:
 ┌ Projects ──────────┬ Todos: All ──────────────────────┬ Details ────────────────┐
 │ > All           12 │ Client Contracts                 │ Milas Contract Renewal  │
 │   Client Work    7 │ > [ ] ⏫ 134416 - Milas... #now  │ Project: Client Work    │
+│                    │          ⏳ 2026-07-15 09:30       │                         │
 │   Home           5 │   [ ] 🔼 Prepare proposal       │ Section: Renewals       │
 │ ! Missing source   │                                  │ Reference: 134416       │
 │                    │ Home                             │ Priority: High          │
@@ -166,6 +167,7 @@ a todo restores them.
 ┌ Projects ──────────┬ Todos: All ────────────────────────────────────────────────┐
 │ > All           12 │ Client Contracts                                           │
 │   Client Work    7 │ > [ ] ⏫ 134416 - Milas Contract Renewal #now               │
+│                    │          ⏳ 2026-07-15 09:30                                 │
 │   Home           5 │   [ ] 🔼 Prepare proposal                                  │
 │ ! Missing source   │                                                             │
 ├────────────────────┴─────────────────────────────────────────────────────────────┤
@@ -198,11 +200,13 @@ Completed todos are hidden by default. The `:completed` command toggles them
 for the current browser session. When visible, show completed todos after open
 todos within their original project and heading groups.
 
-Todo rows display status, optional priority, then title as one inline sequence.
-Nested subtasks use the same order. Keep each row on one line and truncate
-overflowing titles with an ellipsis. The detail preview displays the complete
-title, external reference, project, heading path, priority, tags, dates, notes,
-and nested subtasks.
+Todo title lines display status, optional priority, then title as one inline
+sequence. Nested subtasks use the same order. Keep each title on one line and
+truncate overflowing text with an ellipsis. A scheduled todo adds a dim,
+date-colored `⏳ YYYY-MM-DD HH:mm` line beneath and aligned with its title. Keep
+the two lines together while scrolling whenever at least two content lines are
+available. The detail preview displays the complete title, external reference,
+project, heading path, priority, tags, dates, notes, and nested subtasks.
 
 Selecting an error entry replaces the todo/detail content with its diagnostic,
 including the source path and actionable reason. Duplicate project titles are

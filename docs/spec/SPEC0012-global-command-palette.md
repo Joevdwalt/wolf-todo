@@ -19,7 +19,8 @@ visible with a reason and cannot execute.
 The Todos details action is labeled `Hide details` or `Show details` from the
 current browser state and executes the same semantic toggle as its binding.
 The palette also exposes typed `Jump to top` and `Jump to bottom` Todos actions
-with their resolved bindings.
+with their resolved bindings. `Edit in $EDITOR` is enabled only when the Todos
+tab has a selected todo.
 
 Configured movement changes selection. `/` starts search across group, label,
 description, and binding. Enter/open executes an enabled typed action. Escape

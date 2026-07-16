@@ -319,6 +319,20 @@ public sealed class SpectreTerminalUi : ITerminalUi
         writer.Flush();
     }
 
+    public void SuspendForExternalProcess()
+    {
+        SetCursorVisible(true);
+        browserRendered = false;
+        AnsiConsole.Clear();
+    }
+
+    public void ResumeAfterExternalProcess()
+    {
+        browserRendered = false;
+        AnsiConsole.Clear();
+        SetCursorVisible(false);
+    }
+
     public ConsoleKeyInfo ReadKey() => Console.ReadKey(intercept: true);
 
     private static void BeginUpdate(bool synchronized)
@@ -365,8 +379,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             var expandedTodoWidth = terminalWidth - projectWidth - twoPaneFrameAndPaddingWidth;
             var hiddenDetailProjectLines = FitLines(
                 ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
-            var expandedTodoLines = FitLines(
-                TodoLines(view, expandedTodoWidth - 2, theme), contentHeight, SelectedTodoIndex(view));
+            var expandedTodoLines = FitTodoLines(view, expandedTodoWidth - 2, contentHeight, theme);
             var twoPaneTable = CreatePaneTable(theme,
                 ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
                 ($"Todos: {view.SelectedProjectTitle}", expandedTodoWidth,
@@ -383,7 +396,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var todoWidth = remainingWidth / 2;
         var detailWidth = remainingWidth - todoWidth;
         var projectLines = FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
-        var todoLines = FitLines(TodoLines(view, todoWidth - 2, theme), contentHeight, SelectedTodoIndex(view));
+        var todoLines = FitTodoLines(view, todoWidth - 2, contentHeight, theme);
         var detailLines = FitLines(DetailLines(view, theme), contentHeight, 0);
         var table = CreatePaneTable(theme,
             ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
@@ -406,7 +419,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var projectLines = FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
         var contentLines = showDetails
             ? FitLines(DetailLines(view, theme), contentHeight, 0)
-            : FitLines(TodoLines(view, contentWidth - 2, theme), contentHeight, SelectedTodoIndex(view));
+            : FitTodoLines(view, contentWidth - 2, contentHeight, theme);
         var table = CreatePaneTable(theme,
             ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
             (showDetails ? "Details" : $"Todos: {view.SelectedProjectTitle}", contentWidth, true, !showDetails));
@@ -433,7 +446,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var lines = focus switch
         {
             BrowserFocus.Projects => FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view)),
-            BrowserFocus.Todos => FitLines(TodoLines(view, contentWidth, theme), contentHeight, SelectedTodoIndex(view)),
+            BrowserFocus.Todos => FitTodoLines(view, contentWidth, contentHeight, theme),
             _ => FitLines(DetailLines(view, theme), contentHeight, 0)
         };
         var table = CreatePaneTable(theme, (title, null, true, focus != BrowserFocus.Details));
@@ -544,21 +557,43 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }).ToArray();
     }
 
-    private static IReadOnlyList<IRenderable> TodoLines(BrowserView view, int contentWidth, TuiTheme theme)
+    private static IReadOnlyList<TodoLineGroup> TodoLineGroups(
+        BrowserView view,
+        int contentWidth,
+        TuiTheme theme)
     {
         if (view.Diagnostic is not null)
         {
-            return [new Text("Select the error entry for details.", ThemeStyle(theme.Error))];
+            return
+            [
+                new TodoLineGroup(
+                    [new Text("Select the error entry for details.", ThemeStyle(theme.Error))],
+                    true)
+            ];
         }
 
         if (view.Todos.Length == 0)
         {
-            return [new Text(view.EmptyMessage, ThemeStyle(theme.Muted))];
+            return [new TodoLineGroup([new Text(view.EmptyMessage, ThemeStyle(theme.Muted))], true)];
         }
 
-        return view.Todos.Select(row => row.Heading is not null
-            ? (IRenderable)new Text(row.Heading, ThemeStyle(theme.Heading, Decoration.Bold)).Ellipsis()
-            : TodoListRow(row, contentWidth, theme)).ToArray();
+        return view.Todos.Select(row =>
+        {
+            if (row.Heading is not null)
+            {
+                return new TodoLineGroup(
+                    [new Text(row.Heading, ThemeStyle(theme.Heading, Decoration.Bold)).Ellipsis()],
+                    false);
+            }
+
+            var lines = new List<IRenderable> { TodoListRow(row, contentWidth, theme) };
+            if (row.Todo!.Schedule is not null)
+            {
+                lines.Add(TodoScheduleLine(row, contentWidth, theme));
+            }
+
+            return new TodoLineGroup(lines, row.IsSelected);
+        }).ToArray();
     }
 
     private static IReadOnlyList<IRenderable> DetailLines(BrowserView view, TuiTheme theme)
@@ -662,24 +697,57 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return lines.Skip(start).Take(contentHeight).ToArray();
     }
 
+    private static IReadOnlyList<IRenderable> FitTodoLines(
+        BrowserView view,
+        int contentWidth,
+        int contentHeight,
+        TuiTheme theme)
+    {
+        var groups = TodoLineGroups(view, contentWidth, theme);
+        if (groups.Sum(group => group.Lines.Count) <= contentHeight)
+        {
+            return groups.SelectMany(group => group.Lines).ToArray();
+        }
+
+        var selectedIndex = 0;
+        for (var index = 0; index < groups.Count; index++)
+        {
+            if (groups[index].IsSelected)
+            {
+                selectedIndex = index;
+                break;
+            }
+        }
+
+        var selected = groups[selectedIndex];
+        if (selected.Lines.Count > contentHeight)
+        {
+            return selected.Lines.Take(contentHeight).ToArray();
+        }
+
+        var start = selectedIndex;
+        var end = selectedIndex;
+        var usedHeight = selected.Lines.Count;
+        while (start > 0 && usedHeight + groups[start - 1].Lines.Count <= contentHeight)
+        {
+            start--;
+            usedHeight += groups[start].Lines.Count;
+        }
+
+        while (end + 1 < groups.Count && usedHeight + groups[end + 1].Lines.Count <= contentHeight)
+        {
+            end++;
+            usedHeight += groups[end].Lines.Count;
+        }
+
+        return groups.Skip(start).Take(end - start + 1).SelectMany(group => group.Lines).ToArray();
+    }
+
     private static int SelectedProjectIndex(BrowserView view)
     {
         for (var index = 0; index < view.Projects.Length; index++)
         {
             if (view.Projects[index].IsSelected)
-            {
-                return index;
-            }
-        }
-
-        return 0;
-    }
-
-    private static int SelectedTodoIndex(BrowserView view)
-    {
-        for (var index = 0; index < view.Todos.Length; index++)
-        {
-            if (view.Todos[index].IsSelected)
             {
                 return index;
             }
@@ -731,6 +799,25 @@ public sealed class SpectreTerminalUi : ITerminalUi
             todo.IsCompleted ? theme.Success : theme.Text,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
         return new Markup(line.ToString());
+    }
+
+    private static IRenderable TodoScheduleLine(TodoRow row, int contentWidth, TuiTheme theme)
+    {
+        var schedule = row.Todo!.Schedule!;
+        var titleIndentWidth = Math.Min(TodoTitleStartWidth(row), Math.Max(0, contentWidth - 1));
+        var availableWidth = Math.Max(1, contentWidth - titleIndentWidth);
+        var value = Truncate($"⏳ {schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}", availableWidth);
+        var line = new System.Text.StringBuilder();
+        AppendStyled(line, new string(' ', titleIndentWidth), theme.Text);
+        AppendStyled(line, value, theme.Date, Decoration.Dim);
+        return new Markup(line.ToString());
+    }
+
+    private static int TodoTitleStartWidth(TodoRow row)
+    {
+        var indent = new string(' ', row.Depth * 2);
+        var status = row.Todo!.IsCompleted ? "[x]" : "[ ]";
+        return DisplayWidth($"  {indent}{status}{PriorityMarker(row.Todo.Priority)} ");
     }
 
     private static string Truncate(string value, int width)
@@ -878,18 +965,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             string[] menuLines = terminalWidth switch
             {
-                >= 80 => ["Sort: n/N name  d/D start  t/T tags  f/F file  o source  Esc cancel"],
-                >= 50 =>
+                >= 100 =>
+                    ["Sort: n/N name  d/D start  p/P priority  t/T tags  f/F file  o source  Esc cancel"],
+                >= 60 =>
                 [
-                    "Sort: n/N name  d/D start  t/T tags",
-                    "f/F file  o source  Esc cancel"
+                    "Sort: n/N name  d/D start  p/P priority",
+                    "t/T tags  f/F file  o source  Esc cancel"
                 ],
                 _ =>
                 [
-                    "Sort",
-                    "n/N name  d/D start",
-                    "t/T tags  f/F file",
-                    "o source  Esc cancel"
+                    "Sort: n/N name  d/D start",
+                    "p/P priority  t/T tags",
+                    "f/F file  o source",
+                    "Esc cancel"
                 ]
             };
 
@@ -1128,6 +1216,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             TodoSortProperty.StartDate => "start",
             TodoSortProperty.Tags => "tags",
             TodoSortProperty.File => "file",
+            TodoSortProperty.Priority => "priority",
             _ => "source"
         };
         var direction = state.Sort.Direction == TodoSortDirection.Ascending ? "↑" : "↓";
@@ -1208,4 +1297,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static int LongestLine(string content) => content
         .Split(Environment.NewLine, StringSplitOptions.None)
         .Max(line => line.Length);
+
+    private sealed record TodoLineGroup(IReadOnlyList<IRenderable> Lines, bool IsSelected);
 }

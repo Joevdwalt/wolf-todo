@@ -237,6 +237,8 @@ public sealed class TomlApplicationConfigurationLoader(
             EditTodo = ReadGestures(keybindings, "edit_todo", defaults.EditTodo),
             EditTodoContent = ReadGestures(
                 keybindings, "edit_todo_content", defaults.EditTodoContent),
+            EditTodoExternal = ReadGestures(
+                keybindings, "edit_todo_external", defaults.EditTodoExternal),
             ToggleTodo = ReadGestures(keybindings, "toggle_todo", defaults.ToggleTodo),
             ToggleDetails = ReadGestures(
                 keybindings, "toggle_details", defaults.ToggleDetails),
@@ -353,6 +355,7 @@ public sealed class TomlApplicationConfigurationLoader(
             ("create_todo", bindings.CreateTodo),
             ("edit_todo", bindings.EditTodo),
             ("edit_todo_content", bindings.EditTodoContent),
+            ("edit_todo_external", bindings.EditTodoExternal),
             ("toggle_todo", bindings.ToggleTodo),
             ("toggle_details", bindings.ToggleDetails),
             ("remove_content", bindings.RemoveContent),

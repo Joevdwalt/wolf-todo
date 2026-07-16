@@ -77,6 +77,7 @@ planner_unschedule = ["u"]
 create_todo = ["a"]
 edit_todo = ["e"]
 edit_todo_content = ["E"]
+edit_todo_external = ["Ctrl+E"]
 toggle_todo = ["Spacebar"]
 toggle_details = ["v"]
 remove_content = ["d"]
@@ -118,6 +119,8 @@ The `Day Planner` tab uses 30-minute slots from 06:00 through 21:30. Scheduling
 a todo adds `⏳ YYYY-MM-DD ⏰ HH:mm` to its original Markdown task line. Enter
 assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
 and `[`/`]` change days. The planner refuses occupied destination slots.
+Scheduled todos show `⏳ YYYY-MM-DD HH:mm` beneath their title in the Todos
+pane.
 
 In the Todos tab, `a` creates a todo under the chosen project's `## Inbox`
 heading, `e` edits the selected todo's parsed fields, and Space changes its
@@ -130,6 +133,12 @@ selected todo's direct content; opening it on a subtask supports deeper nesting.
 Use `a` to add, `e` to edit, `d` to remove, Space to toggle a subtask, and
 Ctrl+S to atomically save the draft. Removing a subtask with descendants
 requires confirmation.
+
+Ctrl+E opens the selected todo's Markdown project at its source line in the
+terminal editor named by `$EDITOR`. Wolf Todo waits for the editor, then reloads
+the project. Helix, Vim-family editors, and Nano receive their supported line
+argument; other editors open the file without a line position. `$EDITOR` must
+contain an executable name or path without additional arguments.
 
 Command mode belongs to the application shell: `:q`, `:completed`, and unknown
 command feedback work from either Todos or Day Planner. An active feature

@@ -27,8 +27,9 @@ the existing keyboard interaction and command syntax.
 - `:completed` toggles completed todos and the required configured quit command
   exits the application.
 - `[`/`]` change planner dates, `g` selects today, and `u` unschedules.
-- `a`, `e`, uppercase `E`, Spacebar, `d`, and Ctrl+S create, edit fields, edit
-  content, complete, remove draft content, and save todos.
+- `a`, `e`, uppercase `E`, Ctrl+E, Spacebar, `d`, and Ctrl+S create, edit
+  fields, edit structured content, open `$EDITOR`, complete, remove draft
+  content, and save todos.
 
 These inputs are resolved from the global configuration described by ADR0005.
 Configured arrays replace the defaults for their action. A custom command-mode
@@ -73,6 +74,8 @@ the configured filter gesture as its edit hint.
     status hints, and its command-palette action.
 12. Browser `g` and Planner `g` may coexist because they are handled in
     disjoint views; conflicting browser actions still fail startup.
+13. The configured external-editor gesture replaces Ctrl+E, appears in the
+    command palette, and participates in browser gesture conflict validation.
 
 ## References
 

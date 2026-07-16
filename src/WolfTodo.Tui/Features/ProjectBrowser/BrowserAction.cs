@@ -7,6 +7,7 @@ public enum BrowserAction
     Create,
     Edit,
     EditContent,
+    EditExternal,
     ToggleCompleted,
     ToggleDetails,
     JumpTop,

@@ -356,6 +356,63 @@ public sealed class SpectreTerminalUiTests
         output.Should().Contain("[x] 🔼 Nested task");
     }
 
+    [Theory]
+    [InlineData(140, 30)]
+    [InlineData(100, 20)]
+    [InlineData(70, 16)]
+    public void ShowBrowser_renders_schedules_beneath_and_aligned_with_todo_titles(
+        int width,
+        int height)
+    {
+        var scheduled = new TodoItem(
+            1, false, null, "Prepare proposal", TodoPriority.High, [], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(new DateOnly(2026, 7, 15), new TimeOnly(9, 30))
+        };
+        var nested = new TodoItem(
+            2, true, null, "Nested follow-up", null, [], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(new DateOnly(2026, 7, 16), new TimeOnly(10, 0))
+        };
+        var view = new BrowserView(
+            BrowserState.Initial with { Focus = BrowserFocus.Todos },
+            [new ProjectRow("All", 2, null, null, true)],
+            [new TodoRow(null, scheduled, 0, true), new TodoRow(null, nested, 1, false)],
+            scheduled,
+            "All",
+            "/todos/project.md",
+            null,
+            string.Empty);
+
+        var lines = RenderBrowser(view, width, height);
+        var scheduledTitle = Array.FindIndex(lines, line => line.Contains("Prepare proposal", StringComparison.Ordinal));
+        var nestedTitle = Array.FindIndex(lines, line => line.Contains("Nested follow-up", StringComparison.Ordinal));
+
+        scheduledTitle.Should().BeGreaterThanOrEqualTo(0);
+        lines[scheduledTitle + 1].Should().Contain("⏳ 2026-07-15 09:30");
+        lines[scheduledTitle][..lines[scheduledTitle].IndexOf("Prepare proposal", StringComparison.Ordinal)]
+            .GetCellWidth()
+            .Should().Be(lines[scheduledTitle + 1]
+                [..lines[scheduledTitle + 1].IndexOf("⏳", StringComparison.Ordinal)]
+                .GetCellWidth());
+        nestedTitle.Should().BeGreaterThanOrEqualTo(0);
+        lines[nestedTitle].Should().Contain("[x] Nested follow-up");
+        lines[nestedTitle + 1].Should().Contain("⏳ 2026-07-16 10:00");
+        lines[nestedTitle][..lines[nestedTitle].IndexOf("Nested follow-up", StringComparison.Ordinal)]
+            .GetCellWidth()
+            .Should().Be(lines[nestedTitle + 1]
+                [..lines[nestedTitle + 1].IndexOf("⏳", StringComparison.Ordinal)]
+                .GetCellWidth());
+    }
+
+    [Fact]
+    public void ShowBrowser_does_not_add_a_schedule_line_to_an_unscheduled_todo()
+    {
+        var lines = RenderBrowser(ViewWithTitle("Unscheduled task"), 140, 30);
+
+        lines.Should().NotContain(line => line.Contains("⏳", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void ShowBrowser_renders_filter_editing_and_committed_filter_statuses()
     {
@@ -394,16 +451,24 @@ public sealed class SpectreTerminalUiTests
                 Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending)
             }
         }, DefaultBindings);
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view with
+        {
+            State = view.State with
+            {
+                Sort = new TodoSort(TodoSortProperty.Priority, TodoSortDirection.Ascending)
+            }
+        }, DefaultBindings);
         var output = AnsiConsole.ExportText();
 
-        output.Should().Contain("Sort: n/N name").And.Contain("t/T tags").And.Contain("o source");
-        output.Should().Contain("t name↓");
+        output.Should().Contain("Sort: n/N name").And.Contain("p/P priority")
+            .And.Contain("t/T tags").And.Contain("o source");
+        output.Should().Contain("t name↓").And.Contain("t priority↑");
     }
 
     [Fact]
     public void ShowBrowser_fits_the_multiline_sort_dialog_without_scrolling_the_tabs()
     {
-        var view = ViewWithTitle("Renew contract");
+        var view = ViewWithTodoCount(1, BrowserFocus.Todos, scheduled: true);
         var lines = RenderBrowser(
             view with { State = view.State with { IsSortMode = true } },
             40,
@@ -412,6 +477,7 @@ public sealed class SpectreTerminalUiTests
         lines[0].Should().Contain("[ Todos ]");
         lines.Should().HaveCount(15);
         lines.Should().Contain(line => line.Contains("n/N name", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("p/P priority", StringComparison.Ordinal));
         lines.Should().Contain(line => line.Contains("Esc cancel", StringComparison.Ordinal));
     }
 
@@ -526,8 +592,8 @@ public sealed class SpectreTerminalUiTests
         int height,
         BrowserFocus focus)
     {
-        var unfiltered = RenderBrowser(ViewWithTodoCount(8, focus), width, height);
-        var filteredView = ViewWithTodoCount(1, focus);
+        var unfiltered = RenderBrowser(ViewWithTodoCount(8, focus, scheduled: true), width, height);
+        var filteredView = ViewWithTodoCount(1, focus, scheduled: true);
         var filtered = RenderBrowser(
             filteredView with { State = filteredView.State with { FilterText = "Todo 1" } },
             width,
@@ -557,6 +623,23 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowBrowser_keeps_a_selected_todo_and_its_schedule_together_in_the_visible_window()
+    {
+        var lines = RenderBrowser(
+            ViewWithTodoCount(25, BrowserFocus.Todos, selectedIndex: 24, scheduled: true),
+            140,
+            24);
+        var selectedLine = Array.FindIndex(lines, line => line.Contains("Todo 25", StringComparison.Ordinal));
+        var firstTodoContent = Array.FindIndex(lines, line =>
+            line.Contains("Todo ", StringComparison.Ordinal) || line.Contains("⏳", StringComparison.Ordinal));
+
+        lines.Should().HaveCount(23);
+        selectedLine.Should().BeGreaterThanOrEqualTo(0);
+        lines[selectedLine + 1].Should().Contain("⏳ 2026-07-15 09:30");
+        lines[firstTodoContent].Should().Contain("Todo ");
+    }
+
+    [Fact]
     public void ShowBrowser_leaves_the_final_terminal_row_free_to_avoid_scrolling_the_tabs()
     {
         var lines = RenderBrowser(ViewWithTodoCount(1, BrowserFocus.Todos), 140, 30);
@@ -578,7 +661,11 @@ public sealed class SpectreTerminalUiTests
             string.Empty);
     }
 
-    private static BrowserView ViewWithTodoCount(int count, BrowserFocus focus, int selectedIndex = 0)
+    private static BrowserView ViewWithTodoCount(
+        int count,
+        BrowserFocus focus,
+        int selectedIndex = 0,
+        bool scheduled = false)
     {
         var todos = Enumerable.Range(1, count)
             .Select(index => new TodoItem(
@@ -592,7 +679,12 @@ public sealed class SpectreTerminalUiTests
                 null,
                 string.Empty,
                 [],
-                []))
+                [])
+            {
+                Schedule = scheduled
+                    ? new TodoSchedule(new DateOnly(2026, 7, 15), new TimeOnly(9, 30))
+                    : null
+            })
             .ToArray();
         var rows = todos.Select((todo, index) => new TodoRow(null, todo, 0, index == selectedIndex)).ToArray();
 

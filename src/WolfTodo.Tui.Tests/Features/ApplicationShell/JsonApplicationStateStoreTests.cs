@@ -17,7 +17,7 @@ public sealed class JsonApplicationStateStoreTests : IDisposable
 
         var state = new ApplicationSessionState(
             "/projects/work.md",
-            new TodoSort(TodoSortProperty.StartDate, TodoSortDirection.Descending));
+            new TodoSort(TodoSortProperty.Priority, TodoSortDirection.Descending));
         store.Save(state);
 
         store.Load().Should().Be(state);
@@ -58,6 +58,20 @@ public sealed class JsonApplicationStateStoreTests : IDisposable
 
         result.SelectedProjectPath.Should().Be("/projects/work.md");
         result.Sort.Should().Be(TodoSort.Source);
+    }
+
+    [Fact]
+    public void Load_preserves_existing_numeric_sort_property_values()
+    {
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(
+            Path.Combine(directory, "state.json"),
+            "{\"SelectedProjectPath\":\"/projects/work.md\"," +
+            "\"Sort\":{\"Property\":4,\"Direction\":1}}");
+
+        var result = CreateStore().Load();
+
+        result.Sort.Should().Be(new TodoSort(TodoSortProperty.File, TodoSortDirection.Descending));
     }
 
     [Fact]

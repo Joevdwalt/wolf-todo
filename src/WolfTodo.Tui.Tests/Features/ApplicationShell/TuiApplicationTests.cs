@@ -219,12 +219,75 @@ public sealed class TuiApplicationTests
             new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending));
     }
 
+    [Fact]
+    public void Run_suspends_for_external_editing_and_reloads_the_selected_project()
+    {
+        var fileSystem = new CountingProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] First\n- [ ] Selected\n");
+        var launcher = new FakeExternalEditorLauncher(ExternalEditorResult.Success);
+        var stateStore = new FakeApplicationStateStore(
+            "/todos/project.md",
+            new TodoSort(TodoSortProperty.Priority, TodoSortDirection.Descending));
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('j'),
+            Key(ConsoleKey.E, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            stateStore,
+            launcher,
+            fileSystem);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        launcher.Calls.Should().ContainSingle().Which.Should().Be(("/todos/project.md", 4));
+        terminal.ExternalSuspensions.Should().Be(1);
+        terminal.ExternalResumptions.Should().Be(1);
+        fileSystem.ReadCount.Should().BeGreaterThan(1);
+        terminal.BrowserViews.Last().SelectedTodo!.Title.Should().Be("Selected");
+        terminal.BrowserViews.Last().State.Sort.Should().Be(
+            new TodoSort(TodoSortProperty.Priority, TodoSortDirection.Descending));
+    }
+
+    [Fact]
+    public void Run_shows_external_editor_failures_without_exiting()
+    {
+        var fileSystem = new CountingProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Selected\n");
+        var launcher = new FakeExternalEditorLauncher(
+            ExternalEditorResult.Failure(false, "$EDITOR is not configured."));
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(ConsoleKey.E, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            new FakeApplicationStateStore("/todos/project.md"),
+            launcher,
+            fileSystem);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.BrowserViews.Should().Contain(view =>
+            view.State.Error == "$EDITOR is not configured.");
+        fileSystem.ReadCount.Should().Be(1);
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal,
-        IApplicationStateStore? applicationStateStore = null)
+        IApplicationStateStore? applicationStateStore = null,
+        IExternalEditorLauncher? externalEditorLauncher = null,
+        IProjectFileSystem? projectFileSystem = null)
     {
-        var fileSystem = new EmptyProjectFileSystem();
+        var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
         var catalogLoader = new ProjectCatalogLoader(fileSystem, new ProjectMarkdownParser());
         return new TuiApplication(
             configurationLoader,
@@ -236,7 +299,8 @@ public sealed class TuiApplicationTests
             new TabHostReducer(),
             new ProjectBrowserPresenter(),
             new BrowserReducer(),
-            "wolf");
+            "wolf",
+            externalEditorLauncher: externalEditorLauncher);
     }
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem1, false, false, false);
@@ -263,6 +327,32 @@ public sealed class TuiApplicationTests
         public string GetFullPath(string path) => path;
 
         public string ReadAllText(string path) => throw new FileNotFoundException();
+    }
+
+    private sealed class CountingProjectFileSystem(string path, string contents) : IProjectFileSystem
+    {
+        public int ReadCount { get; private set; }
+
+        public bool FileExists(string candidate) => candidate == path;
+
+        public string GetFullPath(string candidate) => candidate;
+
+        public string ReadAllText(string candidate)
+        {
+            ReadCount++;
+            return contents;
+        }
+    }
+
+    private sealed class FakeExternalEditorLauncher(ExternalEditorResult result) : IExternalEditorLauncher
+    {
+        public List<(string ProjectPath, int SourceLine)> Calls { get; } = [];
+
+        public ExternalEditorResult Open(string projectPath, int sourceLine)
+        {
+            Calls.Add((projectPath, sourceLine));
+            return result;
+        }
     }
 
     private sealed class FakeApplicationStateStore(
@@ -297,6 +387,10 @@ public sealed class TuiApplicationTests
         public bool SplashShown { get; private set; }
 
         public List<bool> CursorVisibility { get; } = [];
+
+        public int ExternalSuspensions { get; private set; }
+
+        public int ExternalResumptions { get; private set; }
 
         public ConsoleKeyInfo ReadKey() => keyQueue.Dequeue();
 
@@ -333,5 +427,9 @@ public sealed class TuiApplicationTests
         public void ShowStartupError(string message) => StartupError = message;
 
         public void SetCursorVisible(bool visible) => CursorVisibility.Add(visible);
+
+        public void SuspendForExternalProcess() => ExternalSuspensions++;
+
+        public void ResumeAfterExternalProcess() => ExternalResumptions++;
     }
 }

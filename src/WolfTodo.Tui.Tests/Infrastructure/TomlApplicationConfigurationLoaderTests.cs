@@ -27,6 +27,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.HelpCommand.Should().Be(":help");
         result.KeyBindings.MatchesCommandPalette(Key('?')).Should().BeTrue();
         result.KeyBindings.MatchesEditTodoContent(Key('E')).Should().BeTrue();
+        result.KeyBindings.MatchesEditTodoExternal(Key(ConsoleKey.E, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesToggleDetails(Key('v')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeTrue();
         result.KeyBindings.MatchesMoveUp(Key(ConsoleKey.UpArrow)).Should().BeTrue();
@@ -108,6 +109,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
             tab_next = ["Alt+RightArrow"]
             command_palette = ["Ctrl+P"]
             edit_todo_content = ["Ctrl+E"]
+            edit_todo_external = ["Ctrl+X"]
             toggle_details = ["Ctrl+V"]
             """);
 
@@ -117,6 +119,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.HelpCommand.Should().Be(":commands");
         result.KeyBindings.MatchesCommandPalette(Key(ConsoleKey.P, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesEditTodoContent(Key(ConsoleKey.E, control: true)).Should().BeTrue();
+        result.KeyBindings.MatchesEditTodoExternal(Key(ConsoleKey.X, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesToggleDetails(Key(ConsoleKey.V, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('n')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeFalse();
@@ -138,6 +141,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
     [InlineData("tab_next = [\"Tab\"]", "*both*focus_next*tab_next*")]
     [InlineData("sort_mode = [\"j\"]", "*both*move_down*sort_mode*")]
     [InlineData("jump_top = [\"j\"]", "*both*move_down*jump_top*")]
+    [InlineData("edit_todo_external = [\"e\"]", "*both*edit_todo*edit_todo_external*")]
     [InlineData("toggle_completed = \":q\"", "*quit*toggle_completed*different*")]
     public void Load_rejects_invalid_or_conflicting_bindings(string binding, string expectedMessage)
     {

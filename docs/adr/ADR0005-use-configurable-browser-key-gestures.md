@@ -37,6 +37,7 @@ planner_today = ["g"]
 planner_unschedule = ["u"]
 create_todo = ["a"]
 edit_todo = ["e"]
+edit_todo_external = ["Ctrl+E"]
 toggle_todo = ["Spacebar"]
 save_form = ["Ctrl+S"]
 ```

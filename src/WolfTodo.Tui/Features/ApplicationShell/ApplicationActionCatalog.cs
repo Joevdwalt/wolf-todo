@@ -52,6 +52,8 @@ public sealed class ApplicationActionCatalog
                 "Edit title, tags, dates, priority, and reference", Shortest(bindings.EditTodo), selectedReason),
             Item(ApplicationActionId.BrowserEditContent, "Todos", "Edit notes and subtasks",
                 "Open the structured content editor", Shortest(bindings.EditTodoContent), selectedReason),
+            Item(ApplicationActionId.BrowserEditExternal, "Todos", "Edit in $EDITOR",
+                "Open the Markdown source at the selected todo", Shortest(bindings.EditTodoExternal), selectedReason),
             Item(ApplicationActionId.BrowserToggleCompleted, "Todos", "Toggle selected todo",
                 "Change the selected checkbox", Shortest(bindings.ToggleTodo), selectedReason),
             Item(ApplicationActionId.BrowserToggleDetails, "Todos",

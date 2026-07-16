@@ -21,6 +21,7 @@ builder.Services.AddSingleton<TabHostPresenter>();
 builder.Services.AddSingleton<TabHostReducer>();
 builder.Services.AddSingleton<ApplicationInputRouter>();
 builder.Services.AddSingleton<ApplicationCommandReducer>();
+builder.Services.AddSingleton<IExternalEditorLauncher>(new ProcessExternalEditorLauncher());
 builder.Services.AddSingleton<IApplicationStateStore>(
     new JsonApplicationStateStore(GlobalApplicationStatePath.Resolve()));
 builder.Services.AddSingleton<IProjectFileSystem, PhysicalProjectFileSystem>();
@@ -45,7 +46,8 @@ builder.Services.AddSingleton(serviceProvider =>
         serviceProvider.GetRequiredService<DayPlannerPresenter>(),
         serviceProvider.GetRequiredService<DayPlannerReducer>(),
         serviceProvider.GetRequiredService<ProjectTodoMutationService>(),
-        serviceProvider.GetRequiredService<ApplicationCommandReducer>()));
+        serviceProvider.GetRequiredService<ApplicationCommandReducer>(),
+        externalEditorLauncher: serviceProvider.GetRequiredService<IExternalEditorLauncher>()));
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();

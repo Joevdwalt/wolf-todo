@@ -6,5 +6,6 @@ public enum TodoSortProperty
     Name,
     StartDate,
     Tags,
-    File
+    File,
+    Priority
 }
