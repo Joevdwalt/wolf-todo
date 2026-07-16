@@ -700,18 +700,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static IRenderable TodoListRow(TodoRow row, int contentWidth, TuiTheme theme)
     {
-        const int priorityWidth = 3;
         var todo = row.Todo!;
         var cursor = row.IsSelected ? ">" : " ";
         var indent = new string(' ', row.Depth * 2);
         var status = todo.IsCompleted ? "[x]" : "[ ]";
-        var prefix = $"{cursor} {indent}{status} ";
-        var leftWidth = Math.Max(1, contentWidth - priorityWidth);
-        var titleWidth = Math.Max(1, leftWidth - DisplayWidth(prefix));
+        var priority = PriorityMarker(todo.Priority);
+        var prefix = $"{cursor} {indent}{status}{priority} ";
+        var titleWidth = Math.Max(1, contentWidth - DisplayWidth(prefix));
         var title = Truncate(todo.Title, titleWidth);
-        var left = prefix + title;
-        var padding = new string(' ', Math.Max(0, leftWidth - DisplayWidth(left)));
-        var priority = PriorityMarker(todo.Priority).Trim();
         var line = new System.Text.StringBuilder();
         AppendStyled(
             line,
@@ -728,12 +724,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
             status,
             todo.IsCompleted ? theme.Success : theme.Accent,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        AppendStyled(line, priority, PriorityColor(todo.Priority, theme));
         AppendStyled(
             line,
-            $" {title}{padding}",
+            $" {title}",
             todo.IsCompleted ? theme.Success : theme.Text,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(line, $"{priority,3}", PriorityColor(todo.Priority, theme));
         return new Markup(line.ToString());
     }
 
@@ -791,12 +787,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
             status,
             todo.IsCompleted ? theme.Success : theme.Accent,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        AppendStyled(line, priority, PriorityColor(todo.Priority, theme));
         AppendStyled(
             line,
             $" {reference}{todo.Title}",
             todo.IsCompleted ? theme.Success : theme.Text,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(line, priority, PriorityColor(todo.Priority, theme));
         AppendStyled(line, tags, theme.Tag);
         AppendStyled(line, start + due, theme.Date);
         return new Markup(line.ToString());

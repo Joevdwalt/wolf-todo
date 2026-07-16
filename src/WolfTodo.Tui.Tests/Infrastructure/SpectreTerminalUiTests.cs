@@ -288,7 +288,7 @@ public sealed class SpectreTerminalUiTests
             .Last(line => line.Contains("Prepare the unusually", StringComparison.Ordinal));
         var todoPane = todoLine.Split('│')[2];
 
-        todoPane.Should().Contain("Prepare the unusually").And.Contain("…").And.Contain("⏫");
+        todoPane.Should().Contain("[ ] ⏫ Prepare the unusually").And.Contain("…");
         todoPane.Should().NotContain("134416").And.NotContain("#now").And.NotContain("2026-07-08");
         output.Should().Contain("quarterly review")
             .And.Contain("meeting")
@@ -296,6 +296,64 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("Tags: #now")
             .And.Contain("Start: 2026-07-08")
             .And.Contain("Due: 2026-07-12");
+    }
+
+    [Fact]
+    public void ShowBrowser_renders_priority_between_status_and_title_for_todos_and_subtasks()
+    {
+        var priorities = new[]
+        {
+            (TodoPriority.Highest, "🔺"),
+            (TodoPriority.High, "⏫"),
+            (TodoPriority.Medium, "🔼"),
+            (TodoPriority.Low, "🔽"),
+            (TodoPriority.Lowest, "⏬")
+        };
+        var todos = priorities.Select((priority, index) => new TodoItem(
+            index + 1,
+            false,
+            null,
+            $"Priority {priority.Item1}",
+            priority.Item1,
+            [],
+            null,
+            null,
+            string.Empty,
+            [],
+            [])).ToArray();
+        var subtask = new TodoItem(
+            20,
+            true,
+            null,
+            "Nested task",
+            TodoPriority.Medium,
+            [],
+            null,
+            null,
+            string.Empty,
+            [],
+            []);
+        var selectedTodo = todos[0] with { Subtasks = [subtask] };
+        var view = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("All", todos.Length, null, null, true)],
+            [.. todos.Select((todo, index) => new TodoRow(null, todo, 0, index == 0))],
+            selectedTodo,
+            "All",
+            "/todos/project.md",
+            null,
+            string.Empty);
+
+        StartRecording();
+        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
+        var output = AnsiConsole.ExportText();
+
+        foreach (var (priority, marker) in priorities)
+        {
+            output.Should().Contain($"[ ] {marker} Priority {priority}");
+        }
+
+        output.Should().Contain("[x] 🔼 Nested task");
     }
 
     [Fact]
