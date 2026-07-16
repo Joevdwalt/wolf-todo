@@ -1,29 +1,40 @@
 using System.Text.Json;
+using WolfTodo.Tui.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Features.ApplicationShell;
 
 public sealed class JsonApplicationStateStore(string path) : IApplicationStateStore
 {
-    public string? LoadSelectedProjectPath()
+    public ApplicationSessionState Load()
     {
         try
         {
             if (!File.Exists(path))
             {
-                return null;
+                return ApplicationSessionState.Initial;
             }
 
             var state = JsonSerializer.Deserialize<PersistedApplicationState>(File.ReadAllText(path));
-            return state?.SelectedProjectPath;
+            if (state is null)
+            {
+                return ApplicationSessionState.Initial;
+            }
+
+            var sort = state.Sort is not null &&
+                       Enum.IsDefined(state.Sort.Property) &&
+                       Enum.IsDefined(state.Sort.Direction)
+                ? state.Sort
+                : TodoSort.Source;
+            return new ApplicationSessionState(state.SelectedProjectPath, sort);
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or JsonException)
         {
-            return null;
+            return ApplicationSessionState.Initial;
         }
     }
 
-    public void SaveSelectedProjectPath(string? selectedProjectPath)
+    public void Save(ApplicationSessionState state)
     {
         try
         {
@@ -33,8 +44,8 @@ public sealed class JsonApplicationStateStore(string path) : IApplicationStateSt
                 Directory.CreateDirectory(directory);
             }
 
-            var state = new PersistedApplicationState(selectedProjectPath);
-            File.WriteAllText(path, JsonSerializer.Serialize(state));
+            var persisted = new PersistedApplicationState(state.SelectedProjectPath, state.Sort);
+            File.WriteAllText(path, JsonSerializer.Serialize(persisted));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -42,5 +53,7 @@ public sealed class JsonApplicationStateStore(string path) : IApplicationStateSt
         }
     }
 
-    private sealed record PersistedApplicationState(string? SelectedProjectPath);
+    private sealed record PersistedApplicationState(
+        string? SelectedProjectPath,
+        TodoSort? Sort = null);
 }

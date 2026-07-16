@@ -57,9 +57,15 @@ public sealed class TuiApplication(
         }
 
         var catalog = catalogLoader.Load(configuration.ProjectFiles);
-        var selectedProjectPath = applicationStateStore.LoadSelectedProjectPath();
+        var session = applicationStateStore.Load();
+        var selectedProjectPath = session.SelectedProjectPath;
         var initialProjectIndex = FindProjectIndex(catalog, selectedProjectPath);
-        var browserState = BrowserState.Initial with { ProjectIndex = initialProjectIndex };
+        var browserState = BrowserState.Initial with
+        {
+            ProjectIndex = initialProjectIndex,
+            Focus = BrowserFocus.Todos,
+            Sort = session.Sort
+        };
         var state = new ApplicationState(TabHostState.CreateInitial(Tabs), browserState)
         {
             Planner = PlannerState.CreateInitial(DateOnly.FromDateTime(DateTime.Today))
@@ -230,6 +236,8 @@ public sealed class TuiApplication(
                             ApplicationActionId.BrowserEditContent => BrowserAction.EditContent,
                             ApplicationActionId.BrowserToggleCompleted => BrowserAction.ToggleCompleted,
                             ApplicationActionId.BrowserToggleDetails => BrowserAction.ToggleDetails,
+                            ApplicationActionId.BrowserJumpTop => BrowserAction.JumpTop,
+                            ApplicationActionId.BrowserJumpBottom => BrowserAction.JumpBottom,
                             _ => (BrowserAction?)null
                         };
                         if (browserAction is not null)
@@ -450,7 +458,9 @@ public sealed class TuiApplication(
         }
         finally
         {
-            applicationStateStore.SaveSelectedProjectPath(selectedProjectPath);
+            applicationStateStore.Save(new ApplicationSessionState(
+                selectedProjectPath,
+                state.Browser.Sort));
             terminalUi.SetCursorVisible(true);
         }
     }

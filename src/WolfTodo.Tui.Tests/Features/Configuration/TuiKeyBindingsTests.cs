@@ -15,6 +15,8 @@ public sealed class TuiKeyBindingsTests
         bindings.MatchesMoveUp(Key('k')).Should().BeTrue();
         bindings.MatchesMoveDown(Key(ConsoleKey.DownArrow)).Should().BeTrue();
         bindings.MatchesMoveDown(Key('j')).Should().BeTrue();
+        bindings.MatchesJumpTop(Key('g')).Should().BeTrue();
+        bindings.MatchesJumpBottom(Key('G')).Should().BeTrue();
         bindings.MatchesOpen(Key(ConsoleKey.Enter)).Should().BeTrue();
         bindings.MatchesOpen(Key('l')).Should().BeTrue();
         bindings.MatchesBack(Key(ConsoleKey.Escape)).Should().BeTrue();

@@ -13,6 +13,7 @@ the existing keyboard interaction and command syntax.
 
 - Down Arrow or `j` moves to the next project or todo.
 - Up Arrow or `k` moves to the previous project or todo.
+- `g` and `G` jump to the first and last item in the focused browser list.
 - Enter or `l` opens or advances from projects to todos to details without
   wrapping at the final pane.
 - Esc or `h` returns from details to todos to projects without wrapping at the
@@ -70,6 +71,8 @@ the configured filter gesture as its edit hint.
     reject global gesture conflicts when overridden.
 11. The configured details toggle updates responsive layouts, focus traversal,
     status hints, and its command-palette action.
+12. Browser `g` and Planner `g` may coexist because they are handled in
+    disjoint views; conflicting browser actions still fail startup.
 
 ## References
 

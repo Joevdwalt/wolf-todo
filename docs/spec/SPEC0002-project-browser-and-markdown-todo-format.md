@@ -118,12 +118,13 @@ version. Preserve them as ordinary title or note text.
 
 ## Project Browser Layout
 
-After the splash screen, restore the most recently selected configured project
-and select its first active todo. Select the virtual `All` project when there is
-no saved selection or the saved project is no longer configured. The
-application tab strip described by SPEC0005 appears above the browser. The
-browser contains a project navigator, a todo list, a detail preview, and a
-bottom command/status line.
+After the splash screen, open the Todos tab, restore the most recently selected
+configured project and sort, focus the Todos pane, and select its first active
+todo. Select the virtual `All` project when there is no saved selection or the
+saved project is no longer configured. Use source order when the saved sort is
+missing or invalid. The application tab strip described by SPEC0005 appears
+above the browser. The browser contains a project navigator, a todo list, a
+detail preview, and a bottom command/status line.
 
 ### Wide Terminals
 
@@ -209,6 +210,8 @@ disambiguated with their source directory in the detail preview.
 ## Interaction
 
 - Up and Down, or `k` and `j`, move the selection within the focused pane.
+- `g` and `G` jump to the first and last item in the focused project or todo
+  list.
 - Tab moves focus to the next visible pane; Shift+Tab moves to the previous.
 - Enter or `l` selects a project, opens details, or drills into the next narrow
   pane.
@@ -256,8 +259,11 @@ Markdown source order.
 7. A malformed, missing, or inaccessible project file appears as an error entry
    while valid projects remain browsable.
 8. Browsing never modifies project Markdown files.
-9. Exiting and restarting restores the selected project by canonical path;
-   removed or unknown paths fall back to `All`.
+9. Exiting and restarting restores the selected project by canonical path and
+   the last sort; removed or unknown paths fall back to `All`, while a missing
+   or invalid sort independently falls back to source order.
+10. Every launch opens the Todos tab with the Todos pane focused, even when the
+    previous session exited from Day Planner.
 
 ## References
 

@@ -161,12 +161,14 @@ public sealed class TuiApplicationTests
         application.Run();
 
         terminal.BrowserViews.First().SelectedProjectPath.Should().Be("/todos/project.md");
+        terminal.BrowserViews.First().State.Focus.Should().Be(BrowserFocus.Todos);
     }
 
     [Fact]
     public void Run_falls_back_to_all_when_the_saved_project_is_not_configured()
     {
-        var stateStore = new FakeApplicationStateStore("/todos/removed.md");
+        var savedSort = new TodoSort(TodoSortProperty.StartDate, TodoSortDirection.Descending);
+        var stateStore = new FakeApplicationStateStore("/todos/removed.md", savedSort);
         var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
         var application = CreateApplication(new FixedConfigurationLoader(), terminal, stateStore);
 
@@ -174,6 +176,7 @@ public sealed class TuiApplicationTests
 
         terminal.BrowserViews.First().SelectedProjectTitle.Should().Be("All");
         terminal.BrowserViews.First().SelectedProjectPath.Should().BeNull();
+        terminal.BrowserViews.First().State.Sort.Should().Be(savedSort);
     }
 
     [Fact]
@@ -182,6 +185,7 @@ public sealed class TuiApplicationTests
         var stateStore = new FakeApplicationStateStore(null);
         var terminal = new FakeTerminal(
             Key('x'),
+            new ConsoleKeyInfo('\0', ConsoleKey.Tab, shift: true, alt: false, control: false),
             Key('j'),
             Key(':'),
             Key('q'),
@@ -191,6 +195,28 @@ public sealed class TuiApplicationTests
         application.Run();
 
         stateStore.SavedProjectPath.Should().Be("/todos/project.md");
+    }
+
+    [Fact]
+    public void Run_restores_sorting_and_saves_it_when_exiting_from_planner()
+    {
+        var savedSort = new TodoSort(TodoSortProperty.Tags, TodoSortDirection.Ascending);
+        var stateStore = new FakeApplicationStateStore("/todos/project.md", savedSort);
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('t'),
+            Key('N'),
+            Key('L'),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal, stateStore);
+
+        application.Run();
+
+        terminal.BrowserViews.First().State.Sort.Should().Be(savedSort);
+        terminal.PlannerViews.Should().NotBeEmpty();
+        stateStore.SavedState!.SelectedProjectPath.Should().Be("/todos/project.md");
+        stateStore.SavedState.Sort.Should().Be(
+            new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending));
     }
 
     private static TuiApplication CreateApplication(
@@ -239,13 +265,17 @@ public sealed class TuiApplicationTests
         public string ReadAllText(string path) => throw new FileNotFoundException();
     }
 
-    private sealed class FakeApplicationStateStore(string? selectedProjectPath) : IApplicationStateStore
+    private sealed class FakeApplicationStateStore(
+        string? selectedProjectPath,
+        TodoSort? sort = null) : IApplicationStateStore
     {
-        public string? SavedProjectPath { get; private set; }
+        public ApplicationSessionState? SavedState { get; private set; }
 
-        public string? LoadSelectedProjectPath() => selectedProjectPath;
+        public string? SavedProjectPath => SavedState?.SelectedProjectPath;
 
-        public void SaveSelectedProjectPath(string? projectPath) => SavedProjectPath = projectPath;
+        public ApplicationSessionState Load() => new(selectedProjectPath, sort ?? TodoSort.Source);
+
+        public void Save(ApplicationSessionState state) => SavedState = state;
     }
 
     private sealed class FakeTerminal(params ConsoleKeyInfo[] keys) : ITerminalUi

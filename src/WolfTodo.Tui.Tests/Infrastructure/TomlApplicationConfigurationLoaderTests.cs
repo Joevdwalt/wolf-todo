@@ -30,6 +30,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesToggleDetails(Key('v')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeTrue();
         result.KeyBindings.MatchesMoveUp(Key(ConsoleKey.UpArrow)).Should().BeTrue();
+        result.KeyBindings.MatchesJumpTop(Key('g')).Should().BeTrue();
+        result.KeyBindings.MatchesJumpBottom(Key('G')).Should().BeTrue();
         result.KeyBindings.MatchesSortMode(Key('t')).Should().BeTrue();
         result.KeyBindings.MatchesTabNext(Key('L')).Should().BeTrue();
         result.KeyBindings.MatchesTabPrevious(Key('H')).Should().BeTrue();
@@ -100,6 +102,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
             toggle_completed = ":done"
             help = ":commands"
             move_down = ["n", "Ctrl+J"]
+            jump_top = ["Home"]
+            jump_bottom = ["End"]
             sort_mode = ["Ctrl+S"]
             tab_next = ["Alt+RightArrow"]
             command_palette = ["Ctrl+P"]
@@ -118,6 +122,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeFalse();
         result.KeyBindings.MatchesMoveDown(Key(ConsoleKey.J, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesMoveUp(Key('k')).Should().BeTrue();
+        result.KeyBindings.MatchesJumpTop(Key(ConsoleKey.Home)).Should().BeTrue();
+        result.KeyBindings.MatchesJumpBottom(Key(ConsoleKey.End)).Should().BeTrue();
         result.KeyBindings.MatchesSortMode(Key(ConsoleKey.S, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesSortMode(Key('t')).Should().BeFalse();
         result.KeyBindings.MatchesTabNext(Key(ConsoleKey.RightArrow, alt: true)).Should().BeTrue();
@@ -131,6 +137,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
     [InlineData("move_up = [\"j\"]", "*both*move_up*move_down*")]
     [InlineData("tab_next = [\"Tab\"]", "*both*focus_next*tab_next*")]
     [InlineData("sort_mode = [\"j\"]", "*both*move_down*sort_mode*")]
+    [InlineData("jump_top = [\"j\"]", "*both*move_down*jump_top*")]
     [InlineData("toggle_completed = \":q\"", "*quit*toggle_completed*different*")]
     public void Load_rejects_invalid_or_conflicting_bindings(string binding, string expectedMessage)
     {

@@ -8,5 +8,7 @@ public enum BrowserAction
     Edit,
     EditContent,
     ToggleCompleted,
-    ToggleDetails
+    ToggleDetails,
+    JumpTop,
+    JumpBottom
 }

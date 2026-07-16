@@ -8,6 +8,8 @@ public sealed record TuiKeyBindings(
     string HelpCommand,
     ImmutableArray<KeyGesture> MoveUp,
     ImmutableArray<KeyGesture> MoveDown,
+    ImmutableArray<KeyGesture> JumpTop,
+    ImmutableArray<KeyGesture> JumpBottom,
     ImmutableArray<KeyGesture> FocusNext,
     ImmutableArray<KeyGesture> FocusPrevious,
     ImmutableArray<KeyGesture> Open,
@@ -36,6 +38,8 @@ public sealed record TuiKeyBindings(
         ":help",
         Gestures("UpArrow", "k"),
         Gestures("DownArrow", "j"),
+        Gestures("g"),
+        Gestures("G"),
         Gestures("Tab"),
         Gestures("Shift+Tab"),
         Gestures("Enter", "l"),
@@ -61,6 +65,10 @@ public sealed record TuiKeyBindings(
     public bool MatchesMoveUp(ConsoleKeyInfo key) => Matches(MoveUp, key);
 
     public bool MatchesMoveDown(ConsoleKeyInfo key) => Matches(MoveDown, key);
+
+    public bool MatchesJumpTop(ConsoleKeyInfo key) => Matches(JumpTop, key);
+
+    public bool MatchesJumpBottom(ConsoleKeyInfo key) => Matches(JumpBottom, key);
 
     public bool MatchesFocusNext(ConsoleKeyInfo key) => Matches(FocusNext, key);
 

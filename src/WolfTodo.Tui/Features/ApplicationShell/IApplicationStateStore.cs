@@ -2,7 +2,7 @@ namespace WolfTodo.Tui.Features.ApplicationShell;
 
 public interface IApplicationStateStore
 {
-    string? LoadSelectedProjectPath();
+    ApplicationSessionState Load();
 
-    void SaveSelectedProjectPath(string? selectedProjectPath);
+    void Save(ApplicationSessionState state);
 }

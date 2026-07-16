@@ -6,8 +6,8 @@ Accepted
 
 ## Purpose
 
-Define session-only property sorting for visible todos without modifying the
-project Markdown files or their source order.
+Define property sorting for visible todos without modifying the project
+Markdown files or their source order.
 
 ## Interaction
 
@@ -31,7 +31,8 @@ footer remain visible.
 
 Show the selected property and direction in the normal status line. The sort
 remains active while navigating projects, filtering, and toggling completed
-todos, but resets to source order when the application restarts.
+todos. Save it as best-effort application session state and restore it on the
+next launch. A missing or invalid saved sort uses source order.
 
 ## Ordering
 
@@ -68,6 +69,8 @@ available.
 6. Sorting preserves the selected todo, structural groups, and nested blocks.
 7. Filter, completed visibility, responsive height, and tab navigation continue
    to follow their existing specifications.
+8. Restarting restores the last selected property and direction; legacy state
+   without a sort and invalid sort values use source order.
 
 ## References
 
@@ -75,3 +78,4 @@ available.
 - [SPEC0003: Slash Todo Filter](SPEC0003-slash-todo-filter.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
 - [ADR0005: Use Configurable Browser Key Gestures](../adr/ADR0005-use-configurable-browser-key-gestures.md)
+- [ADR0007: Persist TUI Session State Separately](../adr/ADR0007-persist-tui-session-state-separately.md)

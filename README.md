@@ -58,6 +58,8 @@ toggle_completed = ":completed"
 help = ":help"
 move_up = ["UpArrow", "k"]
 move_down = ["DownArrow", "j"]
+jump_top = ["g"]
+jump_bottom = ["G"]
 focus_next = ["Tab"]
 focus_previous = ["Shift+Tab"]
 open = ["Enter", "l"]
@@ -107,9 +109,10 @@ Each configured Markdown file is one project. Start the application with:
 task run-tui
 ```
 
-The TUI remembers the selected project between runs in a separate `state.json`
-file under the platform application-state directory. This session state does
-not modify project Markdown files or `config.toml`.
+The TUI remembers the selected project and todo sort between runs in a separate
+`state.json` file under the platform application-state directory. Every launch
+still opens the Todos tab with keyboard focus in its todo list. This session
+state does not modify project Markdown files or `config.toml`.
 
 The `Day Planner` tab uses 30-minute slots from 06:00 through 21:30. Scheduling
 a todo adds `⏳ YYYY-MM-DD ⏰ HH:mm` to its original Markdown task line. Enter
@@ -135,6 +138,9 @@ picker, filter, move, or edit form receives input before global commands.
 remain visible with a reason; `/` searches and Enter runs the selected action.
 In the Todos tab, `v` hides or restores the detail preview for the current
 session. Opening a todo restores hidden details automatically.
+The Vim-style `g` and `G` bindings jump to the first or last item in the
+focused Projects or Todos list. Planner keeps its contextual `g` binding for
+returning to today.
 
 
 ## AI Guidance

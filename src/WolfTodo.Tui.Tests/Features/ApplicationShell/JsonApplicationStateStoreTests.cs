@@ -1,5 +1,6 @@
 using FluentAssertions;
 using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Tests.Features.ApplicationShell;
 
@@ -10,13 +11,16 @@ public sealed class JsonApplicationStateStoreTests : IDisposable
         $"wolf-todo-state-tests-{Guid.NewGuid():N}");
 
     [Fact]
-    public void Save_and_load_round_trip_the_selected_project_path()
+    public void Save_and_load_round_trip_the_selected_project_and_sort()
     {
         var store = CreateStore();
 
-        store.SaveSelectedProjectPath("/projects/work.md");
+        var state = new ApplicationSessionState(
+            "/projects/work.md",
+            new TodoSort(TodoSortProperty.StartDate, TodoSortDirection.Descending));
+        store.Save(state);
 
-        store.LoadSelectedProjectPath().Should().Be("/projects/work.md");
+        store.Load().Should().Be(state);
     }
 
     [Fact]
@@ -24,9 +28,9 @@ public sealed class JsonApplicationStateStoreTests : IDisposable
     {
         var store = CreateStore();
 
-        store.SaveSelectedProjectPath(null);
+        store.Save(ApplicationSessionState.Initial);
 
-        store.LoadSelectedProjectPath().Should().BeNull();
+        store.Load().Should().Be(ApplicationSessionState.Initial);
     }
 
     [Fact]
@@ -34,12 +38,41 @@ public sealed class JsonApplicationStateStoreTests : IDisposable
     {
         var store = CreateStore();
 
-        store.LoadSelectedProjectPath().Should().BeNull();
+        store.Load().Should().Be(ApplicationSessionState.Initial);
 
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, "state.json"), "not json");
 
-        store.LoadSelectedProjectPath().Should().BeNull();
+        store.Load().Should().Be(ApplicationSessionState.Initial);
+    }
+
+    [Fact]
+    public void Load_reads_legacy_path_only_state_with_source_sorting()
+    {
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(
+            Path.Combine(directory, "state.json"),
+            "{\"SelectedProjectPath\":\"/projects/work.md\"}");
+
+        var result = CreateStore().Load();
+
+        result.SelectedProjectPath.Should().Be("/projects/work.md");
+        result.Sort.Should().Be(TodoSort.Source);
+    }
+
+    [Fact]
+    public void Load_keeps_the_project_and_defaults_an_unknown_sort()
+    {
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(
+            Path.Combine(directory, "state.json"),
+            "{\"SelectedProjectPath\":\"/projects/work.md\"," +
+            "\"Sort\":{\"Property\":999,\"Direction\":0}}");
+
+        var result = CreateStore().Load();
+
+        result.SelectedProjectPath.Should().Be("/projects/work.md");
+        result.Sort.Should().Be(TodoSort.Source);
     }
 
     public void Dispose()

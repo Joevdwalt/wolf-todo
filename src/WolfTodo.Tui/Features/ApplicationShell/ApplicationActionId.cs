@@ -13,6 +13,8 @@ public enum ApplicationActionId
     BrowserEditContent,
     BrowserToggleCompleted,
     BrowserToggleDetails,
+    BrowserJumpTop,
+    BrowserJumpBottom,
     PlannerPreviousDay,
     PlannerNextDay,
     PlannerToday,

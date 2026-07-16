@@ -101,6 +101,12 @@ public sealed class CommandPaletteReducerTests
         hide.Label.Should().Be("Hide details");
         show.Label.Should().Be("Show details");
         hide.Binding.Should().Be("v");
+        catalog.Create(true, visible, null, Bindings)
+            .Single(item => item.Action == ApplicationActionId.BrowserJumpTop)
+            .Binding.Should().Be("g");
+        catalog.Create(true, visible, null, Bindings)
+            .Single(item => item.Action == ApplicationActionId.BrowserJumpBottom)
+            .Binding.Should().Be("G");
     }
 
     private static BrowserView BrowserView(BrowserState state) => new(

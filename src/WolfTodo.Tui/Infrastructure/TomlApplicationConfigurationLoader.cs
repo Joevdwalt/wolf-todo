@@ -214,6 +214,8 @@ public sealed class TomlApplicationConfigurationLoader(
             HelpCommand = helpCommand,
             MoveUp = ReadGestures(keybindings, "move_up", defaults.MoveUp),
             MoveDown = ReadGestures(keybindings, "move_down", defaults.MoveDown),
+            JumpTop = ReadGestures(keybindings, "jump_top", defaults.JumpTop),
+            JumpBottom = ReadGestures(keybindings, "jump_bottom", defaults.JumpBottom),
             FocusNext = ReadGestures(keybindings, "focus_next", defaults.FocusNext),
             FocusPrevious = ReadGestures(keybindings, "focus_previous", defaults.FocusPrevious),
             Open = ReadGestures(keybindings, "open", defaults.Open),
@@ -353,7 +355,9 @@ public sealed class TomlApplicationConfigurationLoader(
             ("edit_todo_content", bindings.EditTodoContent),
             ("toggle_todo", bindings.ToggleTodo),
             ("toggle_details", bindings.ToggleDetails),
-            ("remove_content", bindings.RemoveContent)
+            ("remove_content", bindings.RemoveContent),
+            ("jump_top", bindings.JumpTop),
+            ("jump_bottom", bindings.JumpBottom)
         };
         var owners = new Dictionary<KeyGesture, string>();
 
@@ -363,6 +367,11 @@ public sealed class TomlApplicationConfigurationLoader(
             {
                 if (owners.TryGetValue(gesture, out var owner))
                 {
+                    if (CanShareGesture(owner, action.Name))
+                    {
+                        continue;
+                    }
+
                     throw new InvalidDataException(
                         $"Invalid configuration file: key gesture '{gesture.DisplayName}' is assigned to both " +
                         $"keybindings.{owner} and keybindings.{action.Name}.");
@@ -372,4 +381,8 @@ public sealed class TomlApplicationConfigurationLoader(
             }
         }
     }
+
+    private static bool CanShareGesture(string first, string second) =>
+        (first == "planner_today" && second == "jump_top") ||
+        (first == "jump_top" && second == "planner_today");
 }

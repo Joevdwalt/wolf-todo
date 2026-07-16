@@ -101,6 +101,23 @@ public sealed class BrowserReducerTests
     }
 
     [Fact]
+    public void Reduce_jumps_to_the_top_and_bottom_of_the_focused_list()
+    {
+        var projects = NavigationView();
+        var bottomProject = reducer.Reduce(BrowserState.Initial, Key('G'), Configuration, projects);
+        var topProject = reducer.Reduce(bottomProject.State, Key('g'), Configuration, projects);
+        var todos = TodoNavigationView(3);
+        var todoState = BrowserState.Initial with { Focus = BrowserFocus.Todos, TodoIndex = 1 };
+        var bottomTodo = reducer.Reduce(todoState, Key('G'), Configuration, todos);
+        var topTodo = reducer.Reduce(bottomTodo.State, Key('g'), Configuration, todos);
+
+        bottomProject.State.ProjectIndex.Should().Be(1);
+        topProject.State.ProjectIndex.Should().Be(0);
+        bottomTodo.State.TodoIndex.Should().Be(2);
+        topTodo.State.TodoIndex.Should().Be(0);
+    }
+
+    [Fact]
     public void Reduce_opens_and_goes_back_with_default_vim_navigation_keys()
     {
         var opened = reducer.Reduce(BrowserState.Initial, Key('l'), Configuration, EmptyView());
@@ -389,6 +406,23 @@ public sealed class BrowserReducerTests
         null,
         null,
         "No todos");
+
+    private static BrowserView TodoNavigationView(int count)
+    {
+        var todos = Enumerable.Range(1, count)
+            .Select(index => new TodoItem(
+                index, false, null, $"Todo {index}", null, [], null, null, string.Empty, [], []))
+            .ToArray();
+        return new BrowserView(
+            BrowserState.Initial with { Focus = BrowserFocus.Todos },
+            [new ProjectRow("All", count, null, null, true)],
+            [.. todos.Select((todo, index) => new TodoRow(null, todo, 0, index == 0))],
+            todos[0],
+            "All",
+            null,
+            null,
+            string.Empty);
+    }
 
     private static BrowserView SelectedView(TodoIdentity identity)
     {

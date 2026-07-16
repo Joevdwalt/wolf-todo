@@ -49,6 +49,8 @@ public sealed class BrowserReducer
                     view.SelectedTodoIdentity.ProjectPath,
                     view.SelectedTodoIdentity),
             BrowserAction.ToggleDetails => ToggleDetails(state),
+            BrowserAction.JumpTop => Jump(state, view, false),
+            BrowserAction.JumpBottom => Jump(state, view, true),
             _ => Transition(state with { Error = "The selected action is not available." })
         };
 
@@ -157,6 +159,11 @@ public sealed class BrowserReducer
         if (bindings.MatchesToggleDetails(key))
         {
             return ToggleDetails(state);
+        }
+
+        if (bindings.MatchesJumpTop(key) || bindings.MatchesJumpBottom(key))
+        {
+            return Jump(state, view, bindings.MatchesJumpBottom(key));
         }
 
         if (bindings.MatchesFocusNext(key) || bindings.MatchesFocusPrevious(key))
@@ -815,6 +822,22 @@ public sealed class BrowserReducer
             : BrowserFocus.Details,
         Error = null
     });
+
+    private static BrowserTransition Jump(BrowserState state, BrowserView view, bool bottom) =>
+        state.Focus == BrowserFocus.Projects
+            ? Transition(state with
+            {
+                ProjectIndex = bottom ? Math.Max(0, view.Projects.Length - 1) : 0,
+                TodoIndex = 0,
+                PendingTodoSelection = null,
+                Error = null
+            })
+            : Transition(state with
+            {
+                TodoIndex = bottom ? Math.Max(0, view.SelectableTodoCount - 1) : 0,
+                PendingTodoSelection = null,
+                Error = null
+            });
 
     private static BrowserFocus MoveFocus(BrowserFocus focus, bool reverse, bool showDetails) =>
         !showDetails
