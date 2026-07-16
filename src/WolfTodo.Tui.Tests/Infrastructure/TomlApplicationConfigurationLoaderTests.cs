@@ -27,6 +27,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.HelpCommand.Should().Be(":help");
         result.KeyBindings.MatchesCommandPalette(Key('?')).Should().BeTrue();
         result.KeyBindings.MatchesEditTodoContent(Key('E')).Should().BeTrue();
+        result.KeyBindings.MatchesToggleDetails(Key('v')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeTrue();
         result.KeyBindings.MatchesMoveUp(Key(ConsoleKey.UpArrow)).Should().BeTrue();
         result.KeyBindings.MatchesSortMode(Key('t')).Should().BeTrue();
@@ -103,6 +104,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
             tab_next = ["Alt+RightArrow"]
             command_palette = ["Ctrl+P"]
             edit_todo_content = ["Ctrl+E"]
+            toggle_details = ["Ctrl+V"]
             """);
 
         var result = loader.Load();
@@ -111,6 +113,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.HelpCommand.Should().Be(":commands");
         result.KeyBindings.MatchesCommandPalette(Key(ConsoleKey.P, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesEditTodoContent(Key(ConsoleKey.E, control: true)).Should().BeTrue();
+        result.KeyBindings.MatchesToggleDetails(Key(ConsoleKey.V, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('n')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeFalse();
         result.KeyBindings.MatchesMoveDown(Key(ConsoleKey.J, control: true)).Should().BeTrue();

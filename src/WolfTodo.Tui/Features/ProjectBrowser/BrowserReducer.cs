@@ -48,6 +48,7 @@ public sealed class BrowserReducer
                     BrowserOperation.ToggleCompleted,
                     view.SelectedTodoIdentity.ProjectPath,
                     view.SelectedTodoIdentity),
+            BrowserAction.ToggleDetails => ToggleDetails(state),
             _ => Transition(state with { Error = "The selected action is not available." })
         };
 
@@ -153,10 +154,18 @@ public sealed class BrowserReducer
                 view.SelectedTodoIdentity);
         }
 
+        if (bindings.MatchesToggleDetails(key))
+        {
+            return ToggleDetails(state);
+        }
+
         if (bindings.MatchesFocusNext(key) || bindings.MatchesFocusPrevious(key))
         {
             var reverse = bindings.MatchesFocusPrevious(key);
-            return Transition(state with { Focus = MoveFocus(state.Focus, reverse) });
+            return Transition(state with
+            {
+                Focus = MoveFocus(state.Focus, reverse, state.ShowDetails)
+            });
         }
 
         if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
@@ -189,6 +198,7 @@ public sealed class BrowserReducer
                     BrowserFocus.Todos => BrowserFocus.Details,
                     _ => BrowserFocus.Details
                 },
+                ShowDetails = state.Focus == BrowserFocus.Todos || state.ShowDetails,
                 Error = null
             });
         }
@@ -797,7 +807,25 @@ public sealed class BrowserReducer
             });
     }
 
-    private static BrowserFocus MoveFocus(BrowserFocus focus, bool reverse) => (focus, reverse) switch
+    private static BrowserTransition ToggleDetails(BrowserState state) => Transition(state with
+    {
+        ShowDetails = !state.ShowDetails,
+        Focus = state.ShowDetails
+            ? state.Focus == BrowserFocus.Details ? BrowserFocus.Todos : state.Focus
+            : BrowserFocus.Details,
+        Error = null
+    });
+
+    private static BrowserFocus MoveFocus(BrowserFocus focus, bool reverse, bool showDetails) =>
+        !showDetails
+            ? (focus, reverse) switch
+            {
+                (BrowserFocus.Projects, false) => BrowserFocus.Todos,
+                (BrowserFocus.Todos, false) => BrowserFocus.Projects,
+                (BrowserFocus.Projects, true) => BrowserFocus.Todos,
+                _ => BrowserFocus.Projects
+            }
+            : (focus, reverse) switch
     {
         (BrowserFocus.Projects, false) => BrowserFocus.Todos,
         (BrowserFocus.Todos, false) => BrowserFocus.Details,

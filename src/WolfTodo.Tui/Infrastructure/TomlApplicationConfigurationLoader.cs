@@ -236,6 +236,8 @@ public sealed class TomlApplicationConfigurationLoader(
             EditTodoContent = ReadGestures(
                 keybindings, "edit_todo_content", defaults.EditTodoContent),
             ToggleTodo = ReadGestures(keybindings, "toggle_todo", defaults.ToggleTodo),
+            ToggleDetails = ReadGestures(
+                keybindings, "toggle_details", defaults.ToggleDetails),
             RemoveContent = ReadGestures(
                 keybindings, "remove_content", defaults.RemoveContent),
             SaveForm = ReadGestures(keybindings, "save_form", defaults.SaveForm)
@@ -350,6 +352,7 @@ public sealed class TomlApplicationConfigurationLoader(
             ("edit_todo", bindings.EditTodo),
             ("edit_todo_content", bindings.EditTodoContent),
             ("toggle_todo", bindings.ToggleTodo),
+            ("toggle_details", bindings.ToggleDetails),
             ("remove_content", bindings.RemoveContent)
         };
         var owners = new Dictionary<KeyGesture, string>();

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Tests.Features.ApplicationShell;
 
@@ -84,6 +85,33 @@ public sealed class CommandPaletteReducerTests
         result.State.Query.Should().Be("k");
         result.State.SelectedIndex.Should().Be(0);
     }
+
+    [Fact]
+    public void ActionCatalog_describes_the_next_details_visibility_action()
+    {
+        var visible = BrowserView(BrowserState.Initial);
+        var hidden = BrowserView(BrowserState.Initial with { ShowDetails = false });
+        var catalog = new ApplicationActionCatalog();
+
+        var hide = catalog.Create(true, visible, null, Bindings)
+            .Single(item => item.Action == ApplicationActionId.BrowserToggleDetails);
+        var show = catalog.Create(true, hidden, null, Bindings)
+            .Single(item => item.Action == ApplicationActionId.BrowserToggleDetails);
+
+        hide.Label.Should().Be("Hide details");
+        show.Label.Should().Be("Show details");
+        hide.Binding.Should().Be("v");
+    }
+
+    private static BrowserView BrowserView(BrowserState state) => new(
+        state,
+        [new ProjectRow("All", 0, null, null, true)],
+        [],
+        null,
+        "All",
+        null,
+        null,
+        "No todos");
 
     private static System.Collections.Immutable.ImmutableArray<CommandPaletteItem> Items(
         params CommandPaletteItem[] items) => [.. items];

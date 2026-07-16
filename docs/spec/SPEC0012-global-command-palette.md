@@ -16,6 +16,9 @@ panel. The palette lists Application, Todos, and Planner actions with their
 resolved command or shortest configured gesture. Unavailable actions remain
 visible with a reason and cannot execute.
 
+The Todos details action is labeled `Hide details` or `Show details` from the
+current browser state and executes the same semantic toggle as its binding.
+
 Configured movement changes selection. `/` starts search across group, label,
 description, and binding. Enter/open executes an enabled typed action. Escape
 clears an active query before closing the palette. Once open, the palette
@@ -37,4 +40,3 @@ the application tab strip remains visible on supported short terminals.
 - [SPEC0001: Terminal Splash Screen](SPEC0001-terminal-splash-screen.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
 - [SPEC0005: Application View Tabs](SPEC0005-application-view-tabs.md)
-

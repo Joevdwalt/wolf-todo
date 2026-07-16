@@ -22,6 +22,7 @@ the existing keyboard interaction and command syntax.
 - `:` enters command mode, `/` enters filter mode, and `t` opens the sort
   dialog.
 - `?` opens the global command palette.
+- `v` hides or shows the Todos detail preview.
 - `:completed` toggles completed todos and the required configured quit command
   exits the application.
 - `[`/`]` change planner dates, `g` selects today, and `u` unschedules.
@@ -67,6 +68,8 @@ the configured filter gesture as its edit hint.
 9. Planner and writable-todo hints and actions use their resolved bindings.
 10. Content-editor and command-palette launchers use defaults when omitted and
     reject global gesture conflicts when overridden.
+11. The configured details toggle updates responsive layouts, focus traversal,
+    status hints, and its command-palette action.
 
 ## References
 

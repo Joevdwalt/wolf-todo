@@ -150,10 +150,16 @@ Allocate at least 20 columns to projects and 36 columns each to todos and
 details. Give remaining width to the todo and detail panes. Truncate rows with
 an ellipsis rather than wrapping them; allow detail content to wrap.
 
+The configured details toggle, `v` by default, removes the Details column and
+gives its width to Todos. Showing it again focuses Details. Visibility begins
+enabled each launch and is not persisted.
+
 ### Medium Terminals
 
 At 80 through 119 columns and at least 18 rows, show projects and todos. Enter
 on a todo opens its details over the todo pane; Esc closes the details.
+When details are hidden, they cannot replace Todos until the toggle or opening
+a todo restores them.
 
 ```text
 ┌ Projects ──────────┬ Todos: All ────────────────────────────────────────────────┐
@@ -173,6 +179,9 @@ todos, then details. Enter drills into the next pane and Esc returns to the
 previous pane. The command/status line remains visible when space permits; at
 smaller sizes show the concise configured movement, back/open, filter, and
 command bindings.
+
+Tab and Shift+Tab skip Details while hidden. Opening a todo restores and
+focuses Details in every responsive layout.
 
 ## Project and Todo Presentation
 

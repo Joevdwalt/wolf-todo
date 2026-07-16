@@ -76,6 +76,7 @@ create_todo = ["a"]
 edit_todo = ["e"]
 edit_todo_content = ["E"]
 toggle_todo = ["Spacebar"]
+toggle_details = ["v"]
 remove_content = ["d"]
 save_form = ["Ctrl+S"]
 
@@ -132,6 +133,8 @@ command feedback work from either Todos or Day Planner. An active feature
 picker, filter, move, or edit form receives input before global commands.
 `?` or `:help` opens the global searchable command palette. Disabled actions
 remain visible with a reason; `/` searches and Enter runs the selected action.
+In the Todos tab, `v` hides or restores the detail preview for the current
+session. Opening a todo restores hidden details automatically.
 
 
 ## AI Guidance

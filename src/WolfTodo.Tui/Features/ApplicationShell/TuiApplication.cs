@@ -229,6 +229,7 @@ public sealed class TuiApplication(
                             ApplicationActionId.BrowserEdit => BrowserAction.Edit,
                             ApplicationActionId.BrowserEditContent => BrowserAction.EditContent,
                             ApplicationActionId.BrowserToggleCompleted => BrowserAction.ToggleCompleted,
+                            ApplicationActionId.BrowserToggleDetails => BrowserAction.ToggleDetails,
                             _ => (BrowserAction?)null
                         };
                         if (browserAction is not null)

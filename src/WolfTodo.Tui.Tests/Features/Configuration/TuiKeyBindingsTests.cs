@@ -30,6 +30,7 @@ public sealed class TuiKeyBindingsTests
         bindings.MatchesEditTodo(Key('e')).Should().BeTrue();
         bindings.MatchesEditTodoContent(Key('E')).Should().BeTrue();
         bindings.MatchesToggleTodo(Key(ConsoleKey.Spacebar)).Should().BeTrue();
+        bindings.MatchesToggleDetails(Key('v')).Should().BeTrue();
         bindings.MatchesRemoveContent(Key('d')).Should().BeTrue();
         bindings.MatchesCommandPalette(Key('?')).Should().BeTrue();
         bindings.MatchesSaveForm(Key(ConsoleKey.S, control: true)).Should().BeTrue();

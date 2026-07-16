@@ -322,6 +322,51 @@ public sealed class BrowserReducerTests
         confirmed.State.ContentEditor!.Subtasks.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Reduce_hides_and_restores_details_with_focus_changes()
+    {
+        var hidden = reducer.Reduce(
+            BrowserState.Initial with { Focus = BrowserFocus.Details },
+            Key('v'),
+            Configuration,
+            EmptyView());
+        var shown = reducer.Reduce(hidden.State, Key('v'), Configuration, EmptyView());
+
+        hidden.State.ShowDetails.Should().BeFalse();
+        hidden.State.Focus.Should().Be(BrowserFocus.Todos);
+        shown.State.ShowDetails.Should().BeTrue();
+        shown.State.Focus.Should().Be(BrowserFocus.Details);
+    }
+
+    [Fact]
+    public void Reduce_skips_hidden_details_but_opening_a_todo_restores_them()
+    {
+        var state = BrowserState.Initial with
+        {
+            Focus = BrowserFocus.Todos,
+            ShowDetails = false
+        };
+
+        var cycled = reducer.Reduce(state, Key(ConsoleKey.Tab), Configuration, EmptyView());
+        var opened = reducer.Reduce(state, Key('l'), Configuration, EmptyView());
+
+        cycled.State.Focus.Should().Be(BrowserFocus.Projects);
+        cycled.State.ShowDetails.Should().BeFalse();
+        opened.State.Focus.Should().Be(BrowserFocus.Details);
+        opened.State.ShowDetails.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ReduceAction_toggles_details_for_command_palette_execution()
+    {
+        var result = reducer.ReduceAction(
+            BrowserState.Initial,
+            BrowserAction.ToggleDetails,
+            EmptyView());
+
+        result.State.ShowDetails.Should().BeFalse();
+    }
+
     private static BrowserView EmptyView() => new(
         BrowserState.Initial,
         [new ProjectRow("All", 0, null, null, true)],

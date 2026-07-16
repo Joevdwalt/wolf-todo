@@ -26,6 +26,7 @@ public sealed record TuiKeyBindings(
     ImmutableArray<KeyGesture> EditTodo,
     ImmutableArray<KeyGesture> EditTodoContent,
     ImmutableArray<KeyGesture> ToggleTodo,
+    ImmutableArray<KeyGesture> ToggleDetails,
     ImmutableArray<KeyGesture> RemoveContent,
     ImmutableArray<KeyGesture> SaveForm)
 {
@@ -53,6 +54,7 @@ public sealed record TuiKeyBindings(
         Gestures("e"),
         Gestures("E"),
         Gestures("Spacebar"),
+        Gestures("v"),
         Gestures("d"),
         Gestures("Ctrl+S"));
 
@@ -95,6 +97,8 @@ public sealed record TuiKeyBindings(
     public bool MatchesEditTodoContent(ConsoleKeyInfo key) => Matches(EditTodoContent, key);
 
     public bool MatchesToggleTodo(ConsoleKeyInfo key) => Matches(ToggleTodo, key);
+
+    public bool MatchesToggleDetails(ConsoleKeyInfo key) => Matches(ToggleDetails, key);
 
     public bool MatchesRemoveContent(ConsoleKeyInfo key) => Matches(RemoveContent, key);
 

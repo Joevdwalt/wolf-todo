@@ -419,6 +419,32 @@ public sealed class SpectreTerminalUiTests
         output[0].Should().Contain("L tabs");
     }
 
+    [Theory]
+    [InlineData(140, 30)]
+    [InlineData(100, 20)]
+    [InlineData(70, 16)]
+    public void ShowBrowser_hides_details_and_gives_the_todo_view_the_available_space(
+        int width,
+        int height)
+    {
+        var view = ViewWithTitle("Renew contract");
+        var output = RenderBrowser(
+            view with
+            {
+                State = view.State with
+                {
+                    ShowDetails = false,
+                    Focus = BrowserFocus.Details
+                }
+            },
+            width,
+            height);
+
+        output.Should().NotContain(line => line.Contains("Details", StringComparison.Ordinal));
+        output.Should().Contain(line => line.Contains("Todos: All", StringComparison.Ordinal));
+        output.Should().HaveCountGreaterThanOrEqualTo(height - 1);
+    }
+
     [Fact]
     public void ShowBrowser_truncates_the_tab_strip_on_a_narrow_terminal()
     {

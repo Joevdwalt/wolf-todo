@@ -359,6 +359,25 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static void WriteWide(BrowserView view, int terminalWidth, int contentHeight, TuiTheme theme)
     {
         const int projectWidth = 22;
+        if (!view.State.ShowDetails)
+        {
+            const int twoPaneFrameAndPaddingWidth = 7;
+            var expandedTodoWidth = terminalWidth - projectWidth - twoPaneFrameAndPaddingWidth;
+            var hiddenDetailProjectLines = FitLines(
+                ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
+            var expandedTodoLines = FitLines(
+                TodoLines(view, expandedTodoWidth - 2, theme), contentHeight, SelectedTodoIndex(view));
+            var twoPaneTable = CreatePaneTable(theme,
+                ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
+                ($"Todos: {view.SelectedProjectTitle}", expandedTodoWidth,
+                    view.State.Focus == BrowserFocus.Todos, true));
+            twoPaneTable.AddRow(CreateContent(hiddenDetailProjectLines), CreateContent(expandedTodoLines));
+            PadToContentHeight(
+                twoPaneTable, contentHeight, hiddenDetailProjectLines.Count, expandedTodoLines.Count);
+            AnsiConsole.Write(twoPaneTable);
+            return;
+        }
+
         const int frameAndPaddingWidth = 10;
         var remainingWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
         var todoWidth = remainingWidth / 2;
@@ -383,7 +402,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         const int projectWidth = 22;
         const int frameAndPaddingWidth = 7;
         var contentWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
-        var showDetails = view.State.Focus == BrowserFocus.Details;
+        var showDetails = view.State.ShowDetails && view.State.Focus == BrowserFocus.Details;
         var projectLines = FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
         var contentLines = showDetails
             ? FitLines(DetailLines(view, theme), contentHeight, 0)
@@ -402,19 +421,22 @@ public sealed class SpectreTerminalUi : ITerminalUi
     {
         const int frameAndPaddingWidth = 4;
         var contentWidth = terminalWidth - frameAndPaddingWidth;
-        var title = view.State.Focus switch
+        var focus = !view.State.ShowDetails && view.State.Focus == BrowserFocus.Details
+            ? BrowserFocus.Todos
+            : view.State.Focus;
+        var title = focus switch
         {
             BrowserFocus.Projects => "Projects",
             BrowserFocus.Todos => $"Todos: {view.SelectedProjectTitle}",
             _ => "Details"
         };
-        var lines = view.State.Focus switch
+        var lines = focus switch
         {
             BrowserFocus.Projects => FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view)),
             BrowserFocus.Todos => FitLines(TodoLines(view, contentWidth, theme), contentHeight, SelectedTodoIndex(view)),
             _ => FitLines(DetailLines(view, theme), contentHeight, 0)
         };
-        var table = CreatePaneTable(theme, (title, null, true, view.State.Focus != BrowserFocus.Details));
+        var table = CreatePaneTable(theme, (title, null, true, focus != BrowserFocus.Details));
         table.AddRow(CreateContent(lines));
         PadToContentHeight(table, contentHeight, lines.Count);
 
@@ -1086,12 +1108,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} navigate  " +
         $"{Shortest(bindings.FocusNext)} pane  {Shortest(bindings.Open)} open  {Shortest(bindings.Back)} back  " +
         $"{Shortest(bindings.FilterMode)} filter  {Shortest(bindings.CommandMode)} command  " +
+        $"{Shortest(bindings.ToggleDetails)} details  " +
         $"{bindings.ToggleCompletedCommand}  {bindings.QuitCommand}  {SortHint(state, bindings)}";
 
     private static string CompactStatus(TuiKeyBindings bindings, BrowserState state) =>
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
         $"{Shortest(bindings.Back)}/{Shortest(bindings.Open)} back/open  " +
-        $"{Shortest(bindings.FilterMode)} filter  {Shortest(bindings.CommandMode)} commands  " +
+        $"{Shortest(bindings.FilterMode)} filter  {Shortest(bindings.ToggleDetails)} details  " +
+        $"{Shortest(bindings.CommandMode)} commands  " +
         SortHint(state, bindings);
 
     private static string SortHint(BrowserState state, TuiKeyBindings bindings)

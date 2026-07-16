@@ -7,5 +7,6 @@ public enum BrowserAction
     Create,
     Edit,
     EditContent,
-    ToggleCompleted
+    ToggleCompleted,
+    ToggleDetails
 }
