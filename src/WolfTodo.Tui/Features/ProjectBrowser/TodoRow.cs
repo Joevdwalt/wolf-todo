@@ -7,4 +7,7 @@ public sealed record TodoRow(
     TodoItem? Todo,
     int Depth,
     bool IsSelected,
-    TodoIdentity? Identity = null);
+    TodoIdentity? Identity = null)
+{
+    public string? ProjectTitle { get; init; }
+}

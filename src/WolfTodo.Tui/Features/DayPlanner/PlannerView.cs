@@ -15,8 +15,15 @@ public sealed record PlannerView(
 
     public CommandPaletteView? CommandPalette { get; init; }
 
+    public int OpenTodoCount { get; init; }
+
+    public int ProjectErrorCount { get; init; }
+
     public PlannerSlotView SelectedSlot => Slots[State.SlotIndex];
 
     public PlannerAssignment? SelectedPickerTodo =>
         PickerTodos.Length == 0 ? null : PickerTodos[Math.Clamp(State.PickerIndex, 0, PickerTodos.Length - 1)];
+
+    public PlannerAssignment? SelectedAssignment =>
+        SelectedSlot.Assignments.Length == 1 ? SelectedSlot.Assignments[0] : null;
 }

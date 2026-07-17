@@ -14,16 +14,21 @@ public sealed class SpectreTerminalUi : ITerminalUi
 {
     private readonly Func<int> widthProvider;
     private readonly Func<int> heightProvider;
+    private readonly Func<DateOnly> todayProvider;
     private bool browserRendered;
 
-    public SpectreTerminalUi() : this(SafeWindowWidth, SafeWindowHeight)
+    public SpectreTerminalUi() : this(SafeWindowWidth, SafeWindowHeight, null)
     {
     }
 
-    public SpectreTerminalUi(Func<int> widthProvider, Func<int> heightProvider)
+    public SpectreTerminalUi(
+        Func<int> widthProvider,
+        Func<int> heightProvider,
+        Func<DateOnly>? todayProvider = null)
     {
         this.widthProvider = widthProvider;
         this.heightProvider = heightProvider;
+        this.todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
     }
 
     public void ShowSplash(string logo) => ShowSplash(logo, TuiThemes.Wolf);
@@ -73,21 +78,30 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var width = widthProvider();
         var height = heightProvider();
         var compact = width < 80 || height < 18;
+        var today = todayProvider();
         var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
         var contentHeight = AvailableContentHeight(height, statusLines.Count);
-        WriteTabStrip(tabs, keyBindings, theme, width);
+        WriteOperationalHeader(
+            tabs,
+            keyBindings,
+            theme,
+            width,
+            BrowserMode(view),
+            today,
+            view.Projects.FirstOrDefault()?.ActiveCount ?? 0,
+            view.Projects.Count(project => project.Error is not null));
 
         if (width >= 120 && height >= 24)
         {
-            WriteWide(view, width, contentHeight, theme);
+            WriteWide(view, width, contentHeight, theme, today);
         }
         else if (width >= 80 && height >= 18)
         {
-            WriteMedium(view, width, contentHeight, theme);
+            WriteMedium(view, width, contentHeight, theme, today);
         }
         else
         {
-            WriteNarrow(view, width, contentHeight, theme);
+            WriteNarrow(view, width, contentHeight, theme, today);
         }
 
         WriteStatus(statusLines, view, theme);
@@ -113,24 +127,42 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         var width = widthProvider();
         var height = heightProvider();
-        WriteTabStrip(tabs, keyBindings, theme, width);
+        WriteOperationalHeader(
+            tabs,
+            keyBindings,
+            theme,
+            width,
+            PlannerModeLabel(view),
+            view.State.SelectedDate,
+            view.OpenTodoCount,
+            view.ProjectErrorCount);
         var status = PlannerStatus(view, keyBindings, width, height);
         var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
-        const int tabTableStatusBorderAndCursorHeight = 10;
-        const int pickerHeight = 3;
-        var reservedHeight = tabTableStatusBorderAndCursorHeight + (pickerVisible ? pickerHeight : 0);
+        var pickerRows = pickerVisible ? Math.Clamp(height / 5, 3, 7) : 0;
+        var wideDetails = view.State.ShowDetails && width >= 120;
+        var compactDetails = view.State.ShowDetails && !wideDetails &&
+                             view.State.Mode == PlannerMode.Browse &&
+                             view.State.Form is null &&
+                             view.State.ContentEditor is null &&
+                             view.CommandPalette is null &&
+                             view.GlobalCommand is null;
+        const int tabTableStatusBorderAndCursorHeight = 8;
+        var pickerHeight = pickerVisible ? pickerRows + 2 : 0;
+        const int compactDetailsHeight = 3;
+        var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
+                             (compactDetails ? compactDetailsHeight : 0);
         var availableRows = Math.Max(1, height - status.Count - reservedHeight);
         var visibleSlots = WindowPlannerSlots(view.Slots, view.State.SlotIndex, availableRows);
-        var table = new Table().RoundedBorder().Expand();
+        var table = new Table().SquareBorder().Expand();
         table.BorderStyle = ThemeStyle(theme.Border);
         table.AddColumn(new TableColumn(new Text(
             view.State.SelectedDate.ToString("ddd yyyy-MM-dd"),
             ThemeStyle(theme.Heading, Decoration.Bold)))
         {
-            Width = 8,
+            Width = 14,
             NoWrap = true
         });
-        table.AddColumn(new TableColumn(new Text("Plan", ThemeStyle(theme.Accent, Decoration.Bold))));
+        table.AddColumn(new TableColumn(new Text("PLAN", ThemeStyle(theme.Accent, Decoration.Bold))));
         foreach (var slot in visibleSlots)
         {
             var selectedColor = slot.IsSelected ? theme.Accent : theme.Date;
@@ -147,11 +179,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
             else if (slot.Assignments.Length == 1)
             {
                 var assignment = slot.Assignments[0];
-                var prefix = slot.IsSelected ? "> " : "  ";
+                var prefix = slot.IsSelected ? ">" : " ";
+                var state = assignment.Todo.IsCompleted ? "✓" : "○";
+                var priority = PriorityCode(assignment.Todo.Priority);
                 content = new Text(
-                    $"{prefix}{assignment.Todo.Title}  [{assignment.ProjectTitle}]",
+                    $"{prefix} {state} {priority} {assignment.Todo.Title}  [{assignment.ProjectTitle}]",
                     ThemeStyle(
-                        assignment.Todo.IsCompleted ? theme.Success : slot.IsSelected ? theme.Accent : theme.Text,
+                        assignment.Todo.IsCompleted ? theme.Muted : slot.IsSelected ? theme.Accent : theme.Text,
                         assignment.Todo.IsCompleted ? Decoration.Dim : slot.IsSelected ? Decoration.Bold : Decoration.None))
                     .Ellipsis();
             }
@@ -168,10 +202,44 @@ public sealed class SpectreTerminalUi : ITerminalUi
             table.AddEmptyRow();
         }
 
-        AnsiConsole.Write(table);
+        if (wideDetails)
+        {
+            var timelineWidth = Math.Max(40, (width * 2 / 3) - 2);
+            var shell = new Table().NoBorder().Collapse();
+            shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
+            shell.AddColumn(new TableColumn(string.Empty).NoWrap());
+            shell.AddRow(
+                table,
+                new Panel(CreateContent(FitLines(
+                    PlannerDetailLines(view, theme),
+                    Math.Max(1, availableRows + 1),
+                    0)))
+                {
+                    Header = new PanelHeader("INSPECTOR"),
+                    Border = BoxBorder.Square,
+                    BorderStyle = ThemeStyle(theme.Border),
+                    Expand = true
+                });
+            AnsiConsole.Write(shell);
+        }
+        else
+        {
+            AnsiConsole.Write(table);
+            if (compactDetails)
+            {
+                AnsiConsole.Write(new Panel(PlannerCompactDetail(view, theme))
+                {
+                    Header = new PanelHeader("SELECTED"),
+                    Border = BoxBorder.Square,
+                    BorderStyle = ThemeStyle(theme.Border),
+                    Expand = true
+                });
+            }
+        }
+
         if (view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter)
         {
-            WritePlannerPicker(view, theme, width);
+            WritePlannerPicker(view, theme, width, pickerRows);
         }
 
         WritePlannerStatus(status, view, theme);
@@ -192,7 +260,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return slots.Skip(start).Take(availableRows).ToArray();
     }
 
-    private static IReadOnlyList<string> PlannerStatus(
+    private static IReadOnlyList<BrowserStatusLine> PlannerStatus(
         PlannerView view,
         TuiKeyBindings bindings,
         int terminalWidth,
@@ -201,7 +269,29 @@ public sealed class SpectreTerminalUi : ITerminalUi
         IReadOnlyList<string> status;
         if (view.CommandPalette is not null)
         {
-            return CommandPaletteStatus(view.CommandPalette, bindings, terminalWidth, terminalHeight);
+            return DefaultStatusLines(
+                CommandPaletteStatus(view.CommandPalette, bindings, terminalWidth, terminalHeight));
+        }
+
+        if (view.State.Form is not null)
+        {
+            return TodoFormStatus(
+                view.State.Form,
+                view.Projects
+                    .Select(project => new TodoEditorProjectOption(project.Title, project.Path))
+                    .ToArray(),
+                bindings,
+                terminalWidth,
+                terminalHeight);
+        }
+
+        if (view.State.ContentEditor is not null)
+        {
+            return DefaultStatusLines(TodoContentEditorStatus(
+                view.State.ContentEditor,
+                bindings,
+                terminalWidth,
+                terminalHeight));
         }
 
         if (view.GlobalCommand is not null)
@@ -223,70 +313,79 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 PlannerMode.EditFilter => [$"/{view.State.FilterDraft}"],
                 PlannerMode.ChooseTodo =>
                 [
-                    $"Choose todo  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
-                    $"{Shortest(bindings.Open)} assign  {Shortest(bindings.FilterMode)} filter  " +
-                    $"{Shortest(bindings.Back)} cancel"
+                    $"CHOOSE TODO  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+                    $"{Shortest(bindings.Open)} ASSIGN  {Shortest(bindings.FilterMode)} FILTER  " +
+                    $"{Shortest(bindings.Back)} CANCEL"
                 ],
                 PlannerMode.MoveTodo =>
                 [
-                    $"Move todo  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} slot  " +
-                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} day  " +
-                    $"{Shortest(bindings.Open)} place  {Shortest(bindings.Back)} cancel"
-                ],
-                PlannerMode.ChooseCreateProject =>
-                [
-                    view.Projects.Length == 0
-                        ? "No valid projects"
-                        : $"Create in: {view.Projects[view.State.CreateProjectIndex].Title}  " +
-                          $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
-                          $"{Shortest(bindings.Open)} select  {Shortest(bindings.Back)} cancel"
-                ],
-                PlannerMode.EnterCreateTitle =>
-                [
-                    $"New todo title: {view.State.CreateTitleDraft}_  Enter save  Esc cancel"
+                    $"MOVE TODO  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} SLOT  " +
+                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
+                    $"{Shortest(bindings.Open)} PLACE  {Shortest(bindings.Back)} CANCEL"
                 ],
                 _ =>
                 [
-                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} slot  " +
-                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} day  " +
-                    $"{Shortest(bindings.PlannerToday)} today  {Shortest(bindings.Open)} assign/move  " +
-                    $"{Shortest(bindings.PlannerUnschedule)} unschedule  " +
-                    $"{Shortest(bindings.CreateTodo)} create"
+                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} SLOT  " +
+                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
+                    $"{Shortest(bindings.PlannerToday)} TODAY  {Shortest(bindings.Open)} ASSIGN/MOVE  " +
+                    $"{Shortest(bindings.PlannerUnschedule)} UNSCHEDULE  " +
+                    $"{Shortest(bindings.CreateTodo)} CREATE  {Shortest(bindings.EditTodo)} EDIT  " +
+                    $"{Shortest(bindings.ToggleTodo)} COMPLETE  {Shortest(bindings.ToggleDetails)} DETAILS"
                 ]
             };
         }
 
         var statusWidth = Math.Max(1, terminalWidth - 4);
-        return status.SelectMany(line => WrapStatus(line, statusWidth)).ToArray();
+        return DefaultStatusLines(status.SelectMany(line => WrapStatus(line, statusWidth)));
     }
 
-    private static void WritePlannerPicker(PlannerView view, TuiTheme theme, int width)
+    private static void WritePlannerPicker(PlannerView view, TuiTheme theme, int width, int visibleRows)
     {
-        var text = view.SelectedPickerTodo is null
-            ? "No open unscheduled todos"
-            : $"> {view.SelectedPickerTodo.Todo.Title}  [{view.SelectedPickerTodo.ProjectTitle}]";
-        if (text.GetCellWidth() > Math.Max(1, width - 4))
+        var lines = new List<IRenderable>();
+        if (view.PickerTodos.Length == 0)
         {
-            text = Truncate(text, Math.Max(1, width - 4));
+            lines.Add(new Text("No open unscheduled todos", ThemeStyle(theme.Muted, Decoration.Dim)));
+        }
+        else
+        {
+            var start = Math.Clamp(
+                view.State.PickerIndex - visibleRows + 1,
+                0,
+                Math.Max(0, view.PickerTodos.Length - visibleRows));
+            foreach (var (todo, index) in view.PickerTodos
+                         .Skip(start)
+                         .Take(visibleRows)
+                         .Select((todo, index) => (todo, index + start)))
+            {
+                var selected = index == view.State.PickerIndex;
+                lines.Add(new Text(
+                    $"{(selected ? ">" : " ")} {todo.Todo.Title}  [{todo.ProjectTitle}]",
+                    ThemeStyle(
+                        selected ? theme.Accent : theme.Text,
+                        selected ? Decoration.Bold : Decoration.None)).Ellipsis());
+            }
         }
 
-        AnsiConsole.Write(new Panel(new Text(
-            text,
-            ThemeStyle(view.SelectedPickerTodo is null ? theme.Muted : theme.Accent)))
+        while (lines.Count < visibleRows)
         {
-            Header = new PanelHeader("Unscheduled todos"),
-            Border = BoxBorder.Rounded,
+            lines.Add(new Text(string.Empty));
+        }
+
+        AnsiConsole.Write(new Panel(new Rows(lines))
+        {
+            Header = new PanelHeader("UNSCHEDULED TODOS"),
+            Border = BoxBorder.Square,
             BorderStyle = ThemeStyle(theme.Border),
             Expand = true
         });
     }
 
     private static void WritePlannerStatus(
-        IReadOnlyList<string> lines,
+        IReadOnlyList<BrowserStatusLine> lines,
         PlannerView view,
         TuiTheme theme)
     {
-        var style = view.GlobalError is not null || view.State.Error is not null ||
+        var defaultStyle = view.GlobalError is not null || view.State.Error is not null ||
                     view.CommandPalette?.State.Error is not null
             ? ThemeStyle(theme.Error, Decoration.Bold)
             : view.GlobalCommand is not null || view.CommandPalette is not null
@@ -294,9 +393,21 @@ public sealed class SpectreTerminalUi : ITerminalUi
             : view.State.Mode == PlannerMode.Browse
                 ? ThemeStyle(theme.Muted, Decoration.Dim)
                 : ThemeStyle(theme.Accent);
-        AnsiConsole.Write(new Panel(new Rows(lines.Select(line => new Text(line, style))))
+        var content = lines.Select(line => new Text(
+            line.Text,
+            line.Role switch
+            {
+                BrowserStatusRole.FormLabel => ThemeStyle(theme.Heading, Decoration.Bold),
+                BrowserStatusRole.FormValue => ThemeStyle(theme.Text),
+                BrowserStatusRole.FormActiveValue => ThemeStyle(theme.Accent, Decoration.Bold),
+                BrowserStatusRole.FormPlaceholder => ThemeStyle(theme.Muted, Decoration.Dim),
+                BrowserStatusRole.FormHint => ThemeStyle(theme.Muted, Decoration.Dim),
+                BrowserStatusRole.FormError => ThemeStyle(theme.Error, Decoration.Bold),
+                _ => defaultStyle
+            }));
+        AnsiConsole.Write(new Panel(new Rows(content))
         {
-            Border = BoxBorder.Rounded,
+            Border = BoxBorder.Square,
             BorderStyle = ThemeStyle(theme.Border),
             Expand = true
         });
@@ -370,7 +481,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         writer.Flush();
     }
 
-    private static void WriteWide(BrowserView view, int terminalWidth, int contentHeight, TuiTheme theme)
+    private static void WriteWide(
+        BrowserView view,
+        int terminalWidth,
+        int contentHeight,
+        TuiTheme theme,
+        DateOnly today)
     {
         const int projectWidth = 22;
         if (!view.State.ShowDetails)
@@ -379,7 +495,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             var expandedTodoWidth = terminalWidth - projectWidth - twoPaneFrameAndPaddingWidth;
             var hiddenDetailProjectLines = FitLines(
                 ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
-            var expandedTodoLines = FitTodoLines(view, expandedTodoWidth - 2, contentHeight, theme);
+            var expandedTodoLines = FitTodoLines(view, expandedTodoWidth - 2, contentHeight, theme, today);
             var twoPaneTable = CreatePaneTable(theme,
                 ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
                 ($"Todos: {view.SelectedProjectTitle}", expandedTodoWidth,
@@ -396,7 +512,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var todoWidth = remainingWidth / 2;
         var detailWidth = remainingWidth - todoWidth;
         var projectLines = FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
-        var todoLines = FitTodoLines(view, todoWidth - 2, contentHeight, theme);
+        var todoLines = FitTodoLines(view, todoWidth - 2, contentHeight, theme, today);
         var detailLines = FitLines(DetailLines(view, theme), contentHeight, 0);
         var table = CreatePaneTable(theme,
             ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
@@ -410,27 +526,59 @@ public sealed class SpectreTerminalUi : ITerminalUi
         AnsiConsole.Write(table);
     }
 
-    private static void WriteMedium(BrowserView view, int terminalWidth, int contentHeight, TuiTheme theme)
+    private static void WriteMedium(
+        BrowserView view,
+        int terminalWidth,
+        int contentHeight,
+        TuiTheme theme,
+        DateOnly today)
     {
-        const int projectWidth = 22;
+        if (view.State.Focus == BrowserFocus.Projects)
+        {
+            var projectLines = FitLines(
+                ProjectLines(view, theme),
+                contentHeight,
+                SelectedProjectIndex(view));
+            var navigation = CreatePaneTable(theme, ("Navigation", null, true, true));
+            navigation.AddRow(CreateContent(projectLines));
+            PadToContentHeight(navigation, contentHeight, projectLines.Count);
+            AnsiConsole.Write(navigation);
+            return;
+        }
+
+        if (!view.State.ShowDetails)
+        {
+            var taskLines = FitTodoLines(view, terminalWidth - 4, contentHeight, theme, today);
+            var tasks = CreatePaneTable(
+                theme,
+                ($"Tasks // {view.SelectedProjectTitle}", null, true, true));
+            tasks.AddRow(CreateContent(taskLines));
+            PadToContentHeight(tasks, contentHeight, taskLines.Count);
+            AnsiConsole.Write(tasks);
+            return;
+        }
+
         const int frameAndPaddingWidth = 7;
-        var contentWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
-        var showDetails = view.State.ShowDetails && view.State.Focus == BrowserFocus.Details;
-        var projectLines = FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
-        var contentLines = showDetails
-            ? FitLines(DetailLines(view, theme), contentHeight, 0)
-            : FitTodoLines(view, contentWidth - 2, contentHeight, theme);
-        var table = CreatePaneTable(theme,
-            ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
-            (showDetails ? "Details" : $"Todos: {view.SelectedProjectTitle}", contentWidth, true, !showDetails));
-        table.AddRow(
-            CreateContent(projectLines),
-            CreateContent(contentLines));
-        PadToContentHeight(table, contentHeight, projectLines.Count, contentLines.Count);
+        var remainingWidth = terminalWidth - frameAndPaddingWidth;
+        var detailWidth = Math.Max(28, remainingWidth * 2 / 5);
+        var taskWidth = remainingWidth - detailWidth;
+        var todos = FitTodoLines(view, taskWidth - 2, contentHeight, theme, today);
+        var details = FitLines(DetailLines(view, theme), contentHeight, 0);
+        var table = CreatePaneTable(
+            theme,
+            ($"Tasks // {view.SelectedProjectTitle}", taskWidth, view.State.Focus == BrowserFocus.Todos, true),
+            ("Inspector", detailWidth, view.State.Focus == BrowserFocus.Details, false));
+        table.AddRow(CreateContent(todos), CreateContent(details));
+        PadToContentHeight(table, contentHeight, todos.Count, details.Count);
         AnsiConsole.Write(table);
     }
 
-    private static void WriteNarrow(BrowserView view, int terminalWidth, int contentHeight, TuiTheme theme)
+    private static void WriteNarrow(
+        BrowserView view,
+        int terminalWidth,
+        int contentHeight,
+        TuiTheme theme,
+        DateOnly today)
     {
         const int frameAndPaddingWidth = 4;
         var contentWidth = terminalWidth - frameAndPaddingWidth;
@@ -446,7 +594,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var lines = focus switch
         {
             BrowserFocus.Projects => FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view)),
-            BrowserFocus.Todos => FitTodoLines(view, contentWidth, contentHeight, theme),
+            BrowserFocus.Todos => FitTodoLines(view, contentWidth, contentHeight, theme, today),
             _ => FitLines(DetailLines(view, theme), contentHeight, 0)
         };
         var table = CreatePaneTable(theme, (title, null, true, focus != BrowserFocus.Details));
@@ -460,13 +608,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
         TuiTheme theme,
         params (string Title, int? Width, bool Focused, bool NoWrap)[] panes)
     {
-        var table = new Table().RoundedBorder().Expand();
+        var table = new Table().SquareBorder().Expand();
         table.BorderStyle = ThemeStyle(theme.Border);
 
         foreach (var pane in panes)
         {
             var header = new Text(
-                pane.Title,
+                pane.Title.ToUpperInvariant(),
                 ThemeStyle(pane.Focused ? theme.Accent : theme.Heading, Decoration.Bold));
             table.AddColumn(new TableColumn(header)
             {
@@ -479,30 +627,61 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return table;
     }
 
-    private static void WriteTabStrip(
+    private static void WriteOperationalHeader(
         TabStripView view,
         TuiKeyBindings bindings,
         TuiTheme theme,
-        int terminalWidth)
+        int terminalWidth,
+        string mode,
+        DateOnly date,
+        int openCount,
+        int errorCount)
     {
         var segments = new List<(string Text, Color Color, Decoration Decoration)>();
-        for (var index = 0; index < view.Tabs.Length; index++)
+        if (terminalWidth >= 60)
         {
-            if (index > 0)
+            segments.Add(("WOLF TODO // ", theme.Heading, Decoration.Bold));
+            for (var index = 0; index < view.Tabs.Length; index++)
             {
-                segments.Add(("  ", theme.Text, Decoration.None));
-            }
+                if (index > 0)
+                {
+                    segments.Add(("  ", theme.Text, Decoration.None));
+                }
 
-            var tab = view.Tabs[index];
-            var title = tab.IsSelected ? $"[ {tab.Title} ]" : $"  {tab.Title}  ";
-            var color = tab.IsSelected ? theme.Accent : theme.Muted;
-            var decoration = tab.IsSelected ? Decoration.Bold : Decoration.Dim;
-            segments.Add((title, color, decoration));
+                var tab = view.Tabs[index];
+                var title = tab.IsSelected
+                    ? $"[{tab.Title.ToUpperInvariant()}]"
+                    : tab.Title.ToUpperInvariant();
+                var color = tab.IsSelected ? theme.Accent : theme.Muted;
+                var decoration = tab.IsSelected ? Decoration.Bold : Decoration.Dim;
+                segments.Add((title, color, decoration));
+            }
+        }
+        else
+        {
+            var active = view.Tabs.First(tab => tab.IsSelected);
+            segments.Add(($"[{active.Title.ToUpperInvariant()}]", theme.Accent, Decoration.Bold));
         }
 
-        if (view.Tabs.Length > 1)
+        segments.Add(($"  MODE:{mode}", theme.Text, Decoration.None));
+        if (terminalWidth >= 80)
         {
-            var hint = $"  {TuiKeyBindings.ShortestDisplayName(bindings.TabNext)} tabs";
+            segments.Add(($"  {date.ToString("ddd dd MMM").ToUpperInvariant()}", theme.Date, Decoration.None));
+        }
+
+        if (terminalWidth >= 100)
+        {
+            segments.Add(($"  OPEN:{openCount}", theme.Text, Decoration.None));
+            segments.Add((
+                errorCount == 0 ? "  FILES:CLEAN" : $"  FILES:{errorCount} ERRORS",
+                errorCount == 0 ? theme.Muted : theme.Error,
+                errorCount == 0 ? Decoration.Dim : Decoration.Bold));
+        }
+
+        if (terminalWidth >= 120 && view.Tabs.Length > 1)
+        {
+            var hint = $"  {TuiKeyBindings.ShortestDisplayName(bindings.TabPrevious)}/" +
+                       $"{TuiKeyBindings.ShortestDisplayName(bindings.TabNext)} TABS";
             segments.Add((hint, theme.Muted, Decoration.Dim));
         }
 
@@ -532,6 +711,35 @@ public sealed class SpectreTerminalUi : ITerminalUi
         AnsiConsole.WriteLine();
     }
 
+    private static string BrowserMode(BrowserView view) => view switch
+    {
+        { CommandPalette: not null } => "HELP",
+        { GlobalCommand: not null } => "COMMAND",
+        { GlobalError: not null } => "ERROR",
+        { State.ContentEditor: not null } => "CONTENT",
+        { State.Form.IsCreate: true } => "CREATE",
+        { State.Form: not null } => "EDIT",
+        { State.IsFilterMode: true } => "FILTER",
+        { State.IsSortMode: true } => "SORT",
+        { State.Error: not null } => "ERROR",
+        _ => "BROWSE"
+    };
+
+    private static string PlannerModeLabel(PlannerView view) => view switch
+    {
+        { CommandPalette: not null } => "HELP",
+        { GlobalCommand: not null } => "COMMAND",
+        { GlobalError: not null } => "ERROR",
+        { State.ContentEditor: not null } => "CONTENT",
+        { State.Form.IsCreate: true } => "CREATE",
+        { State.Form: not null } => "EDIT",
+        { State.Mode: PlannerMode.EditFilter } => "FILTER",
+        { State.Mode: PlannerMode.ChooseTodo } => "PICK",
+        { State.Mode: PlannerMode.MoveTodo } => "MOVE",
+        { State.Error: not null } => "ERROR",
+        _ => "BROWSE"
+    };
+
     private static IReadOnlyList<IRenderable> ProjectLines(BrowserView view, TuiTheme theme)
     {
         return view.Projects.Select(row =>
@@ -560,7 +768,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static IReadOnlyList<TodoLineGroup> TodoLineGroups(
         BrowserView view,
         int contentWidth,
-        TuiTheme theme)
+        TuiTheme theme,
+        DateOnly today)
     {
         if (view.Diagnostic is not null)
         {
@@ -577,7 +786,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
             return [new TodoLineGroup([new Text(view.EmptyMessage, ThemeStyle(theme.Muted))], true)];
         }
 
-        return view.Todos.Select(row =>
+        var layout = TodoColumns(contentWidth, view.SelectedProjectPath is null);
+        var groups = new List<TodoLineGroup>
+        {
+            new([TodoColumnHeader(layout, theme)], false)
+        };
+        groups.AddRange(view.Todos.Select(row =>
         {
             if (row.Heading is not null)
             {
@@ -586,14 +800,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
                     false);
             }
 
-            var lines = new List<IRenderable> { TodoListRow(row, contentWidth, theme) };
+            var lines = new List<IRenderable> { TodoListRow(
+                row,
+                layout,
+                theme,
+                today) };
             if (row.Todo!.Schedule is not null)
             {
                 lines.Add(TodoScheduleLine(row, contentWidth, theme));
             }
 
             return new TodoLineGroup(lines, row.IsSelected);
-        }).ToArray();
+        }));
+        return groups;
     }
 
     private static IReadOnlyList<IRenderable> DetailLines(BrowserView view, TuiTheme theme)
@@ -602,7 +821,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         if (view.Diagnostic is not null)
         {
-            lines.Add(new Text("Project error", ThemeStyle(theme.Error, Decoration.Bold)));
+            lines.Add(new Text("PROJECT ERROR", ThemeStyle(theme.Error, Decoration.Bold)));
             lines.Add(new Text(view.SelectedProjectPath ?? string.Empty, ThemeStyle(theme.Muted)));
             lines.Add(new Text(string.Empty));
             lines.Add(new Text(view.Diagnostic, ThemeStyle(theme.Error)));
@@ -649,27 +868,123 @@ public sealed class SpectreTerminalUi : ITerminalUi
             if (todo.Notes.Length == 0 && todo.Subtasks.Length == 0)
             {
                 lines.Add(new Text(string.Empty));
-                lines.Add(new Text("No additional details", ThemeStyle(theme.Muted)));
+                lines.Add(new Text("NO ADDITIONAL DETAILS", ThemeStyle(theme.Muted)));
             }
             else
             {
                 if (todo.Notes.Length > 0)
                 {
                     lines.Add(new Text(string.Empty));
-                    lines.Add(new Text("Notes", ThemeStyle(theme.Heading, Decoration.Bold)));
+                    lines.Add(new Text("NOTES", ThemeStyle(theme.Heading, Decoration.Bold)));
                     lines.AddRange(todo.Notes.Select(note => new Text($"• {note.Text}", ThemeStyle(theme.Text))));
                 }
 
                 if (todo.Subtasks.Length > 0)
                 {
                     lines.Add(new Text(string.Empty));
-                    lines.Add(new Text("Subtasks", ThemeStyle(theme.Heading, Decoration.Bold)));
+                    lines.Add(new Text("SUBTASKS", ThemeStyle(theme.Heading, Decoration.Bold)));
                     lines.AddRange(todo.Subtasks.Select(subtask => DetailedTodoLine(subtask, 0, false, theme)));
                 }
             }
         }
 
         return lines;
+    }
+
+    private static IReadOnlyList<IRenderable> PlannerDetailLines(PlannerView view, TuiTheme theme)
+    {
+        if (view.SelectedSlot.Assignments.Length > 1)
+        {
+            return
+            [
+                new Text("CONFLICTING ASSIGNMENTS", ThemeStyle(theme.Error, Decoration.Bold)),
+                new Text("Resolve the duplicate schedule metadata before editing this slot.",
+                    ThemeStyle(theme.Error))
+            ];
+        }
+
+        if (view.SelectedAssignment is null)
+        {
+            return [new Text("EMPTY TIMESLOT", ThemeStyle(theme.Muted, Decoration.Dim))];
+        }
+
+        var assignment = view.SelectedAssignment;
+        var todo = assignment.Todo;
+        var lines = new List<IRenderable>
+        {
+            new Text(todo.Title, ThemeStyle(theme.Heading, Decoration.Bold))
+        };
+        AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
+        if (!string.IsNullOrEmpty(todo.SectionPath))
+        {
+            AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
+        }
+
+        AddField(lines, "Reference", todo.ExternalReference, theme, theme.Text);
+        AddField(lines, "Priority", todo.Priority?.ToString(), theme, PriorityColor(todo.Priority, theme));
+        AddField(
+            lines,
+            "Tags",
+            todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
+            theme,
+            theme.Tag);
+        AddField(lines, "Start", todo.StartDate?.ToString("yyyy-MM-dd"), theme, theme.Date);
+        AddField(lines, "Due", todo.DueDate?.ToString("yyyy-MM-dd"), theme, theme.Date);
+
+        if (todo.Notes.Length > 0)
+        {
+            lines.Add(new Text(string.Empty));
+            lines.Add(new Text("NOTES", ThemeStyle(theme.Heading, Decoration.Bold)));
+            lines.AddRange(todo.Notes.Select(note => new Text($"• {note.Text}", ThemeStyle(theme.Text))));
+        }
+
+        if (todo.Subtasks.Length > 0)
+        {
+            lines.Add(new Text(string.Empty));
+            lines.Add(new Text("SUBTASKS", ThemeStyle(theme.Heading, Decoration.Bold)));
+            lines.AddRange(todo.Subtasks.Select(subtask => DetailedTodoLine(subtask, 0, false, theme)));
+        }
+
+        if (todo.Notes.Length == 0 && todo.Subtasks.Length == 0)
+        {
+            lines.Add(new Text(string.Empty));
+            lines.Add(new Text("NO ADDITIONAL DETAILS", ThemeStyle(theme.Muted, Decoration.Dim)));
+        }
+
+        return lines;
+    }
+
+    private static IRenderable PlannerCompactDetail(PlannerView view, TuiTheme theme)
+    {
+        if (view.SelectedSlot.Assignments.Length > 1)
+        {
+            return new Text(
+                $"{view.SelectedSlot.Assignments.Length} conflicting assignments",
+                ThemeStyle(theme.Error, Decoration.Bold)).Ellipsis();
+        }
+
+        if (view.SelectedAssignment is null)
+        {
+            return new Text("Empty timeslot", ThemeStyle(theme.Muted, Decoration.Dim));
+        }
+
+        var assignment = view.SelectedAssignment;
+        var todo = assignment.Todo;
+        var metadata = new[]
+        {
+            assignment.ProjectTitle,
+            todo.Priority?.ToString(),
+            todo.Tags.Length == 0 ? null : string.Join(' ', todo.Tags.Select(tag => $"#{tag}")),
+            todo.DueDate is null ? null : $"due {todo.DueDate:yyyy-MM-dd}"
+        };
+        var line = new System.Text.StringBuilder();
+        AppendStyled(line, todo.Title, theme.Heading, Decoration.Bold);
+        AppendStyled(
+            line,
+            $"  {string.Join(" · ", metadata.Where(value => !string.IsNullOrEmpty(value)))}",
+            theme.Muted,
+            Decoration.Dim);
+        return new Markup(line.ToString()).Ellipsis();
     }
 
     private static IRenderable CreateContent(IReadOnlyList<IRenderable> lines)
@@ -701,16 +1016,26 @@ public sealed class SpectreTerminalUi : ITerminalUi
         BrowserView view,
         int contentWidth,
         int contentHeight,
-        TuiTheme theme)
+        TuiTheme theme,
+        DateOnly today)
     {
-        var groups = TodoLineGroups(view, contentWidth, theme);
-        if (groups.Sum(group => group.Lines.Count) <= contentHeight)
+        var allGroups = TodoLineGroups(view, contentWidth, theme, today);
+        var hasColumnHeader = view.Diagnostic is null && view.Todos.Length > 0;
+        var header = hasColumnHeader ? allGroups[0].Lines : [];
+        var groups = hasColumnHeader ? allGroups.Skip(1).ToArray() : allGroups.ToArray();
+        var availableHeight = Math.Max(0, contentHeight - header.Count);
+        if (availableHeight == 0)
         {
-            return groups.SelectMany(group => group.Lines).ToArray();
+            return header;
+        }
+
+        if (groups.Sum(group => group.Lines.Count) <= availableHeight)
+        {
+            return header.Concat(groups.SelectMany(group => group.Lines)).ToArray();
         }
 
         var selectedIndex = 0;
-        for (var index = 0; index < groups.Count; index++)
+        for (var index = 0; index < groups.Length; index++)
         {
             if (groups[index].IsSelected)
             {
@@ -720,27 +1045,27 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
 
         var selected = groups[selectedIndex];
-        if (selected.Lines.Count > contentHeight)
+        if (selected.Lines.Count > availableHeight)
         {
-            return selected.Lines.Take(contentHeight).ToArray();
+            return header.Concat(selected.Lines.Take(availableHeight)).ToArray();
         }
 
         var start = selectedIndex;
         var end = selectedIndex;
         var usedHeight = selected.Lines.Count;
-        while (start > 0 && usedHeight + groups[start - 1].Lines.Count <= contentHeight)
+        while (start > 0 && usedHeight + groups[start - 1].Lines.Count <= availableHeight)
         {
             start--;
             usedHeight += groups[start].Lines.Count;
         }
 
-        while (end + 1 < groups.Count && usedHeight + groups[end + 1].Lines.Count <= contentHeight)
+        while (end + 1 < groups.Length && usedHeight + groups[end + 1].Lines.Count <= availableHeight)
         {
             end++;
             usedHeight += groups[end].Lines.Count;
         }
 
-        return groups.Skip(start).Take(end - start + 1).SelectMany(group => group.Lines).ToArray();
+        return header.Concat(groups.Skip(start).Take(end - start + 1).SelectMany(group => group.Lines)).ToArray();
     }
 
     private static int SelectedProjectIndex(BrowserView view)
@@ -766,59 +1091,120 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
     }
 
-    private static IRenderable TodoListRow(TodoRow row, int contentWidth, TuiTheme theme)
+    private static TodoColumnLayout TodoColumns(int contentWidth, bool includeProject)
+    {
+        var showProject = includeProject && contentWidth >= 52;
+        var showDue = contentWidth >= 38;
+        const int projectWidth = 10;
+        const int dueWidth = 10;
+        var fixedWidth = 6 + (showProject ? projectWidth + 2 : 0) + (showDue ? dueWidth + 2 : 0);
+        return new TodoColumnLayout(
+            contentWidth,
+            Math.Max(1, contentWidth - fixedWidth),
+            showProject,
+            projectWidth,
+            showDue,
+            dueWidth);
+    }
+
+    private static IRenderable TodoColumnHeader(TodoColumnLayout layout, TuiTheme theme)
+    {
+        var text = $"  S P {FitColumn("TASK", layout.TaskWidth)}";
+        if (layout.ShowProject)
+        {
+            text += $"  {FitColumn("PROJECT", layout.ProjectWidth)}";
+        }
+
+        if (layout.ShowDue)
+        {
+            text += $"  {FitColumn("DUE", layout.DueWidth)}";
+        }
+
+        return new Text(Truncate(text, layout.ContentWidth), ThemeStyle(theme.Heading, Decoration.Bold));
+    }
+
+    private static IRenderable TodoListRow(
+        TodoRow row,
+        TodoColumnLayout layout,
+        TuiTheme theme,
+        DateOnly today)
     {
         var todo = row.Todo!;
         var cursor = row.IsSelected ? ">" : " ";
         var indent = new string(' ', row.Depth * 2);
-        var status = todo.IsCompleted ? "[x]" : "[ ]";
-        var priority = PriorityMarker(todo.Priority);
-        var prefix = $"{cursor} {indent}{status}{priority} ";
-        var titleWidth = Math.Max(1, contentWidth - DisplayWidth(prefix));
-        var title = Truncate(todo.Title, titleWidth);
+        var status = todo.IsCompleted ? "✓" : "○";
+        var priority = PriorityCode(todo.Priority);
+        var taskWidth = Math.Max(1, layout.TaskWidth - DisplayWidth(indent));
+        var title = indent + FitColumn(todo.Title, taskWidth);
+        var selectedColor = row.IsSelected ? theme.Accent : theme.Text;
+        var baseColor = todo.IsCompleted ? theme.Muted : selectedColor;
+        var decoration = row.IsSelected
+            ? Decoration.Bold
+            : todo.IsCompleted ? Decoration.Dim : Decoration.None;
         var line = new System.Text.StringBuilder();
+        AppendStyled(line, $"{cursor} ", baseColor, decoration);
+        AppendStyled(line, status, baseColor, decoration);
+        AppendStyled(line, " ", baseColor, decoration);
         AppendStyled(
             line,
-            cursor,
-            row.IsSelected ? theme.Accent : todo.IsCompleted ? theme.Success : theme.Text,
-            row.IsSelected ? Decoration.Bold : todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(
-            line,
-            $" {indent}",
-            todo.IsCompleted ? theme.Success : theme.Text,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(
-            line,
-            status,
-            todo.IsCompleted ? theme.Success : theme.Accent,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(line, priority, PriorityColor(todo.Priority, theme));
-        AppendStyled(
-            line,
-            $" {title}",
-            todo.IsCompleted ? theme.Success : theme.Text,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
+            priority,
+            row.IsSelected || todo.IsCompleted ? baseColor : PriorityColor(todo.Priority, theme),
+            decoration);
+        AppendStyled(line, $" {title}", baseColor, decoration);
+        if (layout.ShowProject)
+        {
+            AppendStyled(
+                line,
+                $"  {FitColumn(row.ProjectTitle ?? "-", layout.ProjectWidth)}",
+                baseColor,
+                decoration);
+        }
+
+        if (layout.ShowDue)
+        {
+            var due = todo.DueDate is null
+                ? "-"
+                : todo.DueDate == today ? "TODAY" : todo.DueDate.Value.ToString("yyyy-MM-dd");
+            var dueColor = row.IsSelected || todo.IsCompleted
+                ? baseColor
+                : todo.DueDate.GetValueOrDefault() < today ? theme.Error : theme.Date;
+            AppendStyled(line, $"  {FitColumn(due, layout.DueWidth)}", dueColor, decoration);
+        }
+
         return new Markup(line.ToString());
     }
 
     private static IRenderable TodoScheduleLine(TodoRow row, int contentWidth, TuiTheme theme)
     {
         var schedule = row.Todo!.Schedule!;
-        var titleIndentWidth = Math.Min(TodoTitleStartWidth(row), Math.Max(0, contentWidth - 1));
+        var titleIndentWidth = Math.Min(6 + (row.Depth * 2), Math.Max(0, contentWidth - 1));
         var availableWidth = Math.Max(1, contentWidth - titleIndentWidth);
         var value = Truncate($"⏳ {schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}", availableWidth);
         var line = new System.Text.StringBuilder();
         AppendStyled(line, new string(' ', titleIndentWidth), theme.Text);
-        AppendStyled(line, value, theme.Date, Decoration.Dim);
+        AppendStyled(
+            line,
+            value,
+            row.Todo.IsCompleted ? theme.Muted : theme.Date,
+            Decoration.Dim);
         return new Markup(line.ToString());
     }
 
-    private static int TodoTitleStartWidth(TodoRow row)
+    private static string FitColumn(string value, int width)
     {
-        var indent = new string(' ', row.Depth * 2);
-        var status = row.Todo!.IsCompleted ? "[x]" : "[ ]";
-        return DisplayWidth($"  {indent}{status}{PriorityMarker(row.Todo.Priority)} ");
+        var result = Truncate(value, width);
+        return result + new string(' ', Math.Max(0, width - DisplayWidth(result)));
     }
+
+    private static string PriorityCode(TodoPriority? priority) => priority switch
+    {
+        TodoPriority.Highest => "!",
+        TodoPriority.High => "H",
+        TodoPriority.Medium => "M",
+        TodoPriority.Low => "L",
+        TodoPriority.Lowest => ".",
+        _ => "-"
+    };
 
     private static string Truncate(string value, int width)
     {
@@ -851,9 +1237,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
     {
         var cursor = selected ? ">" : " ";
         var indent = new string(' ', depth * 2);
-        var status = todo.IsCompleted ? "[x]" : "[ ]";
+        var status = todo.IsCompleted ? "✓" : "○";
         var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
-        var priority = PriorityMarker(todo.Priority);
+        var priority = PriorityCode(todo.Priority);
         var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
         var start = todo.StartDate is null ? string.Empty : $" 🛫 {todo.StartDate:yyyy-MM-dd}";
         var due = todo.DueDate is null ? string.Empty : $" 📅 {todo.DueDate:yyyy-MM-dd}";
@@ -862,38 +1248,30 @@ public sealed class SpectreTerminalUi : ITerminalUi
         AppendStyled(
             line,
             cursor,
-            selected ? theme.Accent : todo.IsCompleted ? theme.Success : theme.Text,
+            selected ? theme.Accent : todo.IsCompleted ? theme.Muted : theme.Text,
             selected ? Decoration.Bold : todo.IsCompleted ? Decoration.Dim : Decoration.None);
         AppendStyled(
             line,
             $" {indent}",
-            todo.IsCompleted ? theme.Success : theme.Text,
+            todo.IsCompleted ? theme.Muted : theme.Text,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
         AppendStyled(
             line,
             status,
-            todo.IsCompleted ? theme.Success : theme.Accent,
+            todo.IsCompleted ? theme.Muted : theme.Accent,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(line, priority, PriorityColor(todo.Priority, theme));
+        AppendStyled(line, $" {priority}", todo.IsCompleted ? theme.Muted : PriorityColor(todo.Priority, theme));
         AppendStyled(
             line,
             $" {reference}{todo.Title}",
-            todo.IsCompleted ? theme.Success : theme.Text,
+            todo.IsCompleted ? theme.Muted : theme.Text,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(line, tags, theme.Tag);
-        AppendStyled(line, start + due, theme.Date);
+        AppendStyled(line, tags, todo.IsCompleted ? theme.Muted : theme.Tag,
+            todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        AppendStyled(line, start + due, todo.IsCompleted ? theme.Muted : theme.Date,
+            todo.IsCompleted ? Decoration.Dim : Decoration.None);
         return new Markup(line.ToString());
     }
-
-    private static string PriorityMarker(TodoPriority? priority) => priority switch
-    {
-        TodoPriority.Highest => " 🔺",
-        TodoPriority.High => " ⏫",
-        TodoPriority.Medium => " 🔼",
-        TodoPriority.Low => " 🔽",
-        TodoPriority.Lowest => " ⏬",
-        _ => string.Empty
-    };
 
     private static Color PriorityColor(TodoPriority? priority, TuiTheme theme) => priority switch
     {
@@ -915,7 +1293,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         if (!string.IsNullOrEmpty(value))
         {
             var line = new System.Text.StringBuilder();
-            AppendStyled(line, $"{name}: ", theme.Heading, Decoration.Bold);
+            AppendStyled(line, $"{name.ToUpperInvariant()}: ", theme.Heading, Decoration.Bold);
             AppendStyled(line, value, valueColor);
             lines.Add(new Markup(line.ToString()));
         }
@@ -949,7 +1327,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         if (view.State.Form is not null)
         {
-            return TodoFormStatus(view, keyBindings, terminalWidth, terminalHeight);
+            return TodoFormStatus(
+                view.State.Form,
+                view.Projects
+                    .Where(project => project.Project is not null)
+                    .Select(project => new TodoEditorProjectOption(project.Title, project.Project!.Path))
+                    .ToArray(),
+                keyBindings,
+                terminalWidth,
+                terminalHeight);
         }
 
         if (view.State.ContentEditor is not null)
@@ -966,18 +1352,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
             string[] menuLines = terminalWidth switch
             {
                 >= 100 =>
-                    ["Sort: n/N name  d/D start  p/P priority  t/T tags  f/F file  o source  Esc cancel"],
+                    ["SORT // n/N NAME  d/D START  p/P PRIORITY  t/T TAGS  f/F FILE  o SOURCE  Esc CANCEL"],
                 >= 60 =>
                 [
-                    "Sort: n/N name  d/D start  p/P priority",
-                    "t/T tags  f/F file  o source  Esc cancel"
+                    "SORT // n/N NAME  d/D START  p/P PRIORITY",
+                    "t/T TAGS  f/F FILE  o SOURCE  Esc CANCEL"
                 ],
                 _ =>
                 [
-                    "Sort: n/N name  d/D start",
-                    "p/P priority  t/T tags",
-                    "f/F file  o source",
-                    "Esc cancel"
+                    "SORT // n/N NAME  d/D START",
+                    "p/P PRIORITY  t/T TAGS",
+                    "f/F FILE  o SOURCE",
+                    "Esc CANCEL"
                 ]
             };
 
@@ -991,8 +1377,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
             { IsFilterMode: true } => $"/{view.State.FilterDraft}",
             { Error: not null } => view.State.Error,
             { FilterText.Length: > 0 } =>
-                $"Filter: /{view.State.FilterText}  {Shortest(keyBindings.FilterMode)} edit  " +
-                $"empty Enter clears  {SortHint(view.State, keyBindings)}",
+                $"FILTER: /{view.State.FilterText}  {Shortest(keyBindings.FilterMode)} EDIT  " +
+                $"EMPTY Enter CLEARS  {SortHint(view.State, keyBindings)}",
             _ when compact => CompactStatus(keyBindings, view.State),
             _ => NormalStatus(keyBindings, view.State)
         };
@@ -1001,21 +1387,20 @@ public sealed class SpectreTerminalUi : ITerminalUi
     }
 
     private static IReadOnlyList<BrowserStatusLine> TodoFormStatus(
-        BrowserView view,
+        TodoFormState form,
+        IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings,
         int terminalWidth,
         int terminalHeight)
     {
-        var form = view.State.Form!;
         if (form.IsChoosingProject)
         {
-            var projects = view.Projects.Where(project => project.Project is not null).ToArray();
-            var title = projects.Length == 0
+            var title = projects.Count == 0
                 ? "No valid projects"
-                : projects[Math.Clamp(form.ProjectPickerIndex, 0, projects.Length - 1)].Title;
+                : projects[Math.Clamp(form.ProjectPickerIndex, 0, projects.Count - 1)].Title;
             return DefaultStatusLines(WrapStatus(
-                $"Choose project: {title}  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
-                $"{Shortest(bindings.Open)} select  {Shortest(bindings.Back)} cancel",
+                $"CHOOSE PROJECT: {title}  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+                $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
                 Math.Max(1, terminalWidth - 4)));
         }
 
@@ -1035,7 +1420,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             foreach (var field in fields)
             {
-                lines.Add(new BrowserStatusLine(field.Item2, BrowserStatusRole.FormLabel));
+                lines.Add(new BrowserStatusLine(field.Item2.ToUpperInvariant(), BrowserStatusRole.FormLabel));
                 lines.Add(FormValueLine(form, field.Item1, field.Item3, contentWidth));
             }
         }
@@ -1043,15 +1428,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             var field = fields[Math.Max(0, selectedIndex)];
             lines.Add(new BrowserStatusLine(
-                $"{field.Item2} ({Math.Max(0, selectedIndex) + 1}/{fields.Length})",
+                $"{field.Item2.ToUpperInvariant()} ({Math.Max(0, selectedIndex) + 1}/{fields.Length})",
                 BrowserStatusRole.FormLabel));
             lines.Add(FormValueLine(form, field.Item1, field.Item3, contentWidth));
         }
 
         var message = form.Error ??
-            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} field  " +
-            $"{Shortest(bindings.Open)} edit  {Shortest(bindings.SaveForm)} save  " +
-            $"{Shortest(bindings.Back)} cancel";
+            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} FIELD  " +
+            $"{Shortest(bindings.Open)} EDIT  {Shortest(bindings.SaveForm)} SAVE  " +
+            $"{Shortest(bindings.Back)} CANCEL";
         var messageRole = form.Error is null
             ? BrowserStatusRole.FormHint
             : BrowserStatusRole.FormError;
@@ -1097,7 +1482,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             var kind = editor.Focus == ContentEditorFocus.Notes ? "note" : "subtask";
             return WrapStatus(
-                $"{(editor.IsAdding ? "Add" : "Edit")} {kind}: {editor.Draft}_  Enter accept  Esc cancel",
+                $"{(editor.IsAdding ? "ADD" : "EDIT")} {kind.ToUpperInvariant()}: {editor.Draft}_  Enter ACCEPT  Esc CANCEL",
                 width);
         }
 
@@ -1105,12 +1490,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             var selected = editor.Subtasks[editor.SubtaskIndex];
             return WrapStatus(
-                $"Remove '{selected.Title}' and {selected.DescendantCount} nested item(s)?  " +
-                $"{Shortest(bindings.Open)} confirm  {Shortest(bindings.Back)} cancel",
+                $"REMOVE '{selected.Title}' AND {selected.DescendantCount} NESTED ITEM(S)?  " +
+                $"{Shortest(bindings.Open)} CONFIRM  {Shortest(bindings.Back)} CANCEL",
                 width);
         }
 
-        var lines = new List<string> { $"Content: {editor.TodoTitle}" };
+        var lines = new List<string> { $"CONTENT // {editor.TodoTitle}" };
         var rowsPerSection = Math.Max(1, Math.Min(3, (terminalHeight - 12) / 2));
         AddContentRows(
             lines,
@@ -1127,10 +1512,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
             editor.Focus == ContentEditorFocus.Subtasks,
             rowsPerSection);
         lines.Add(editor.Error ??
-            $"{Shortest(bindings.FocusNext)} section  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
-            $"{Shortest(bindings.CreateTodo)} add  {Shortest(bindings.EditTodo)} edit  " +
-            $"{Shortest(bindings.RemoveContent)} remove  {Shortest(bindings.SaveForm)} save  " +
-            $"{Shortest(bindings.Back)} cancel");
+            $"{Shortest(bindings.FocusNext)} SECTION  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+            $"{Shortest(bindings.CreateTodo)} ADD  {Shortest(bindings.EditTodo)} EDIT  " +
+            $"{Shortest(bindings.RemoveContent)} REMOVE  {Shortest(bindings.SaveForm)} SAVE  " +
+            $"{Shortest(bindings.Back)} CANCEL");
         return lines.SelectMany(line => WrapStatus(line, width)).ToArray();
     }
 
@@ -1148,11 +1533,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
             Math.Max(0, palette.Items.Length - visibleRows));
         var lines = new List<string>
         {
-            palette.State.IsSearching ? $"Command palette  /{palette.State.Query}_" : "Command palette"
+            palette.State.IsSearching ? $"COMMAND PALETTE // /{palette.State.Query}_" : "COMMAND PALETTE"
         };
         if (palette.Items.Length == 0)
         {
-            lines.Add("  No matching actions");
+            lines.Add("  NO MATCHING ACTIONS");
         }
         else
         {
@@ -1166,9 +1551,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
 
         lines.Add(palette.State.Error ??
-            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
-            $"{Shortest(bindings.FilterMode)} search  {Shortest(bindings.Open)} run  " +
-            $"{Shortest(bindings.Back)} close");
+            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+            $"{Shortest(bindings.FilterMode)} SEARCH  {Shortest(bindings.Open)} RUN  " +
+            $"{Shortest(bindings.Back)} CLOSE");
         return lines.SelectMany(line => WrapStatus(line, width)).ToArray();
     }
 
@@ -1180,7 +1565,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         bool focused,
         int visibleRows)
     {
-        output.Add($"{(focused ? ">" : " ")} {heading}");
+        output.Add($"{(focused ? ">" : " ")} {heading.ToUpperInvariant()}");
         if (values.Count == 0)
         {
             output.Add("    —");
@@ -1246,24 +1631,24 @@ public sealed class SpectreTerminalUi : ITerminalUi
             }));
         AnsiConsole.Write(new Panel(new Rows(content))
         {
-            Border = BoxBorder.Rounded,
+            Border = BoxBorder.Square,
             BorderStyle = ThemeStyle(theme.Border),
             Expand = true
         });
     }
 
     private static string NormalStatus(TuiKeyBindings bindings, BrowserState state) =>
-        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} navigate  " +
-        $"{Shortest(bindings.FocusNext)} pane  {Shortest(bindings.Open)} open  {Shortest(bindings.Back)} back  " +
-        $"{Shortest(bindings.FilterMode)} filter  {Shortest(bindings.CommandMode)} command  " +
-        $"{Shortest(bindings.ToggleDetails)} details  " +
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} NAVIGATE  " +
+        $"{Shortest(bindings.FocusNext)} PANE  {Shortest(bindings.Open)} OPEN  {Shortest(bindings.Back)} BACK  " +
+        $"{Shortest(bindings.FilterMode)} FILTER  {Shortest(bindings.CommandMode)} COMMAND  " +
+        $"{Shortest(bindings.ToggleDetails)} DETAILS  " +
         $"{bindings.ToggleCompletedCommand}  {bindings.QuitCommand}  {SortHint(state, bindings)}";
 
     private static string CompactStatus(TuiKeyBindings bindings, BrowserState state) =>
-        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} move  " +
-        $"{Shortest(bindings.Back)}/{Shortest(bindings.Open)} back/open  " +
-        $"{Shortest(bindings.FilterMode)} filter  {Shortest(bindings.ToggleDetails)} details  " +
-        $"{Shortest(bindings.CommandMode)} commands  " +
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+        $"{Shortest(bindings.Back)}/{Shortest(bindings.Open)} BACK/OPEN  " +
+        $"{Shortest(bindings.FilterMode)} FILTER  {Shortest(bindings.ToggleDetails)} DETAILS  " +
+        $"{Shortest(bindings.CommandMode)} COMMANDS  " +
         SortHint(state, bindings);
 
     private static string SortHint(BrowserState state, TuiKeyBindings bindings)
@@ -1271,7 +1656,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var launcher = Shortest(bindings.SortMode);
         if (state.Sort.Property == TodoSortProperty.Source)
         {
-            return $"{launcher} sort";
+            return $"{launcher} SORT";
         }
 
         var property = state.Sort.Property switch
@@ -1284,7 +1669,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             _ => "source"
         };
         var direction = state.Sort.Direction == TodoSortDirection.Ascending ? "↑" : "↓";
-        return $"{launcher} {property}{direction}";
+        return $"{launcher} {property.ToUpperInvariant()}{direction}";
     }
 
     private static string Shortest(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>
@@ -1363,6 +1748,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
         .Max(line => line.Length);
 
     private sealed record TodoLineGroup(IReadOnlyList<IRenderable> Lines, bool IsSelected);
+
+    private sealed record TodoColumnLayout(
+        int ContentWidth,
+        int TaskWidth,
+        bool ShowProject,
+        int ProjectWidth,
+        bool ShowDue,
+        int DueWidth);
 
     private sealed record BrowserStatusLine(
         string Text,

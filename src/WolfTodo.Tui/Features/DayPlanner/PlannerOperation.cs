@@ -5,5 +5,9 @@ public enum PlannerOperation
     None,
     Schedule,
     Unschedule,
-    Create
+    Create,
+    Update,
+    UpdateContent,
+    EditExternal,
+    ToggleCompleted
 }

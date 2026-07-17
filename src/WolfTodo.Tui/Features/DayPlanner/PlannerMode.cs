@@ -5,7 +5,5 @@ public enum PlannerMode
     Browse,
     ChooseTodo,
     EditFilter,
-    MoveTodo,
-    ChooseCreateProject,
-    EnterCreateTitle
+    MoveTodo
 }

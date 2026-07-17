@@ -20,8 +20,18 @@ public sealed class ApplicationActionCatalog
             (browser!.Projects.Any(project => project.Project is not null)
                 ? null
                 : "No valid projects are available.");
-        var plannerCreateReason = plannerReason ??
-            (planner!.Projects.Length == 0 ? "No valid projects are available." : null);
+        var plannerCreateReason = plannerReason ?? planner!.SelectedSlot.Assignments.Length switch
+        {
+            > 0 => "Select an empty timeslot first.",
+            _ when planner.Projects.Length == 0 => "No valid projects are available.",
+            _ => null
+        };
+        var plannerSelectedReason = plannerReason ?? planner!.SelectedSlot.Assignments.Length switch
+        {
+            0 => "No todo is assigned to this timeslot.",
+            > 1 => "Resolve the conflicting timeslot first.",
+            _ => null
+        };
         var plannerAssignReason = plannerReason ??
             (planner!.SelectedSlot.Assignments.Length > 1
                 ? "Resolve the conflicting timeslot first."
@@ -74,7 +84,19 @@ public sealed class ApplicationActionCatalog
             Item(ApplicationActionId.PlannerUnschedule, "Planner", "Unschedule todo",
                 "Remove the selected assignment", Shortest(bindings.PlannerUnschedule), plannerUnscheduleReason),
             Item(ApplicationActionId.PlannerCreate, "Planner", "Create scheduled todo",
-                "Create a todo in the selected slot", Shortest(bindings.CreateTodo), plannerCreateReason)
+                "Create a todo in the selected slot", Shortest(bindings.CreateTodo), plannerCreateReason),
+            Item(ApplicationActionId.PlannerEdit, "Planner", "Edit todo fields",
+                "Edit the selected scheduled todo", Shortest(bindings.EditTodo), plannerSelectedReason),
+            Item(ApplicationActionId.PlannerEditContent, "Planner", "Edit notes and subtasks",
+                "Open the structured content editor", Shortest(bindings.EditTodoContent), plannerSelectedReason),
+            Item(ApplicationActionId.PlannerEditExternal, "Planner", "Edit in $EDITOR",
+                "Open the Markdown source at the selected todo", Shortest(bindings.EditTodoExternal),
+                plannerSelectedReason),
+            Item(ApplicationActionId.PlannerToggleCompleted, "Planner", "Toggle selected todo",
+                "Change the selected checkbox", Shortest(bindings.ToggleTodo), plannerSelectedReason),
+            Item(ApplicationActionId.PlannerToggleDetails, "Planner",
+                planner?.State.ShowDetails == false ? "Show details" : "Hide details",
+                "Show or hide the selected todo preview", Shortest(bindings.ToggleDetails), plannerReason)
         ];
     }
 

@@ -115,12 +115,23 @@ The TUI remembers the selected project and todo sort between runs in a separate
 still opens the Todos tab with keyboard focus in its todo list. This session
 state does not modify project Markdown files or `config.toml`.
 
+The interface uses a shared operational-console design across Todos and Day
+Planner: a responsive context header, square panels, uppercase structural
+labels, adaptive task columns, and semantic foreground colors while preserving
+the terminal background. Wide terminals show navigation, tasks, and inspector;
+medium terminals prioritize tasks and inspector with navigation available as a
+temporary view; narrow terminals show one focused view at a time.
+
 The `Day Planner` tab uses 30-minute slots from 06:00 through 21:30. Scheduling
 a todo adds `⏳ YYYY-MM-DD ⏰ HH:mm` to its original Markdown task line. Enter
 assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
 and `[`/`]` change days. The planner refuses occupied destination slots.
 Scheduled todos show `⏳ YYYY-MM-DD HH:mm` beneath their title in the Todos
-pane.
+pane. The planner shows responsive details for the selected slot; `v` hides or
+restores them. Its unscheduled-todo picker shows several filterable candidates.
+On an occupied slot, `e`, `E`, Ctrl+E, and Space provide the same field editing,
+content editing, external editing, and completion actions as the Todos tab.
+Creating with `a` uses the full todo form and applies the selected slot.
 
 In the Todos tab, `a` creates a todo under the chosen project's `## Inbox`
 heading, `e` edits the selected todo's parsed fields, and Space changes its

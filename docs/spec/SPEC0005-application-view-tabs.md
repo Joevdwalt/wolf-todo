@@ -23,14 +23,14 @@ defined by SPEC0009.
 
 ## Presentation
 
-Render the tab strip on one line above the active feature, even when only one
-tab exists. Style the active title with the configured accent and bold and
-inactive titles with the configured muted color and dim decoration.
-Escape tab titles before rendering and truncate the strip with an ellipsis when
-it exceeds the terminal width.
+Render tabs within the single-line operational header defined by SPEC0013,
+even when only one tab exists. Render titles in uppercase, bracket the active
+title with configured accent and bold, and use configured muted/dim styling for
+inactive titles. Escape tab titles and progressively omit secondary header
+context before truncating the line with an ellipsis.
 
 When more than one tab exists, append the shortest configured next-tab gesture
-and the label `tabs`. Do not show a switching hint for a single tab.
+and the label `TABS`. Do not show a switching hint for a single tab.
 
 ## Interaction
 
@@ -77,3 +77,4 @@ SPEC0009 and do not introduce a second persistence model.
 - [SPEC0002: Project Browser and Markdown Todo Format](SPEC0002-project-browser-and-markdown-todo-format.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
 - [SPEC0009: Day Planner](SPEC0009-day-planner.md)
+- [SPEC0013: Operational Console Design System](SPEC0013-operational-console-design-system.md)

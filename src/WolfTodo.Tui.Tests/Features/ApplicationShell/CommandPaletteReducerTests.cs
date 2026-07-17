@@ -1,7 +1,9 @@
 using FluentAssertions;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Core.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Tests.Features.ApplicationShell;
 
@@ -110,6 +112,30 @@ public sealed class CommandPaletteReducerTests
         catalog.Create(true, visible, null, Bindings)
             .Single(item => item.Action == ApplicationActionId.BrowserEditExternal)
             .Binding.Should().Be("Ctrl+E");
+    }
+
+    [Fact]
+    public void ActionCatalog_enables_planner_editing_actions_for_an_occupied_slot()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var todo = new TodoItem(
+            1, false, null, "Scheduled", null, [], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(6, 0))
+        };
+        var planner = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog(
+                [new TodoProject("Work", "/todos/work.md", [todo])],
+                []),
+            PlannerState.CreateInitial(date));
+
+        var items = new ApplicationActionCatalog().Create(false, null, planner, Bindings);
+
+        items.Single(item => item.Action == ApplicationActionId.PlannerEdit).IsEnabled.Should().BeTrue();
+        items.Single(item => item.Action == ApplicationActionId.PlannerEditContent).Binding.Should().Be("E");
+        items.Single(item => item.Action == ApplicationActionId.PlannerEditExternal).Binding.Should().Be("Ctrl+E");
+        items.Single(item => item.Action == ApplicationActionId.PlannerToggleCompleted).Binding.Should().Be("Spacebar");
+        items.Single(item => item.Action == ApplicationActionId.PlannerToggleDetails).Label.Should().Be("Hide details");
     }
 
     private static BrowserView BrowserView(BrowserState state) => new(

@@ -69,7 +69,7 @@ public sealed class SpectreTerminalUiTests
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("All").And.Contain("Personal").And.Contain("Milas Contract Renewal");
-        output.Should().Contain("Projects").And.Contain("Todos: All").And.Contain("Details");
+        output.Should().Contain("PROJECTS").And.Contain("TODOS: ALL").And.Contain("DETAILS");
     }
 
     [Fact]
@@ -141,11 +141,120 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(tabs, view, DefaultBindings, TuiThemes.Wolf);
         var output = AnsiConsole.ExportText();
 
-        output.Should().Contain("[ Day Planner ]")
+        output.Should().Contain("[DAY PLANNER]")
             .And.Contain("06:00")
             .And.Contain("Prepare proposal")
-            .And.Contain("[/] day")
-            .And.Contain("g today");
+            .And.Contain("[/] DAY")
+            .And.Contain("g TODAY");
+    }
+
+    [Fact]
+    public void ShowPlanner_renders_responsive_details_for_the_selected_assignment()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var todo = new TodoItem(
+            1,
+            false,
+            "EXT-42",
+            "Prepare proposal",
+            TodoPriority.High,
+            ["client"],
+            null,
+            new DateOnly(2026, 7, 16),
+            "Work",
+            [new TodoNote(2, "Check the numbers")],
+            [])
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(6, 0))
+        };
+        var catalog = new ProjectCatalog(
+            [new TodoProject("Consulting", "/todos/work.md", [todo])],
+            []);
+        var view = new DayPlannerPresenter().CreateView(catalog, PlannerState.CreateInitial(date));
+
+        StartRecording(140, 30);
+        var start = AnsiConsole.ExportText().Length;
+        new SpectreTerminalUi(() => 140, () => 30)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var wide = AnsiConsole.ExportText()[start..];
+
+        StartRecording(100, 24);
+        start = AnsiConsole.ExportText().Length;
+        new SpectreTerminalUi(() => 100, () => 24)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var narrow = AnsiConsole.ExportText()[start..];
+
+        wide.Should().Contain("INSPECTOR")
+            .And.Contain("Prepare proposal")
+            .And.Contain("PROJECT: Consulting")
+            .And.Contain("Check the numbers");
+        narrow.Should().Contain("SELECTED")
+            .And.Contain("Prepare proposal")
+            .And.Contain("Consulting");
+    }
+
+    [Fact]
+    public void ShowPlanner_renders_a_scrollable_multi_row_unscheduled_picker()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var todos = Enumerable.Range(1, 5)
+            .Select(index => new TodoItem(
+                index, false, null, $"Candidate {index}", null, [], null, null, string.Empty, [], []))
+            .ToImmutableArray();
+        var catalog = new ProjectCatalog(
+            [new TodoProject("Work", "/todos/work.md", todos)],
+            []);
+        var state = PlannerState.CreateInitial(date) with
+        {
+            Mode = PlannerMode.ChooseTodo,
+            PickerIndex = 4
+        };
+        var view = new DayPlannerPresenter().CreateView(catalog, state);
+        StartRecording(100, 24);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 24)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText()[start..];
+
+        output.Should().Contain("UNSCHEDULED TODOS")
+            .And.Contain("Candidate 2")
+            .And.Contain("Candidate 4")
+            .And.Contain("> Candidate 5");
+    }
+
+    [Fact]
+    public void ShowPlanner_keeps_the_full_todo_form_and_tabs_inside_the_viewport()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var form = new TodoFormState(
+            true,
+            "/todos/work.md",
+            0,
+            TodoFormField.Title,
+            false,
+            string.Empty,
+            new TodoUpdate("Planned task", null, null, [], null, null),
+            null,
+            null);
+        var catalog = new ProjectCatalog(
+            [new TodoProject("Work", "/todos/work.md", [])],
+            []);
+        var view = new DayPlannerPresenter().CreateView(
+            catalog,
+            PlannerState.CreateInitial(date) with { Form = form });
+        StartRecording(100, 24);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 24)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var lines = AnsiConsole.ExportText()[start..]
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        lines.Should().HaveCountLessThanOrEqualTo(23);
+        lines[0].Should().Contain("[TODOS]");
+        lines.Should().Contain(line => line.Contains("EXTERNAL REFERENCE", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("DUE DATE", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -198,10 +307,10 @@ public sealed class SpectreTerminalUiTests
             TuiThemes.Wolf);
         var output = AnsiConsole.ExportText();
 
-        output.Should().Contain("Content: Parent")
-            .And.Contain("Notes")
-            .And.Contain("Subtasks")
-            .And.Contain("Command palette")
+        output.Should().Contain("CONTENT // Parent")
+            .And.Contain("NOTES")
+            .And.Contain("SUBTASKS")
+            .And.Contain("COMMAND PALETTE")
             .And.Contain("Edit notes and subtasks");
     }
 
@@ -228,19 +337,19 @@ public sealed class SpectreTerminalUiTests
 
         var lines = RenderBrowser(view with { State = view.State with { Form = form } }, 100, 24);
         var status = lines[StatusPanelTop(lines)..];
-        var title = Array.FindIndex(status, line => line.Contains("Title", StringComparison.Ordinal));
-        var reference = Array.FindIndex(status, line => line.Contains("External reference", StringComparison.Ordinal));
-        var priority = Array.FindIndex(status, line => line.Contains("Priority", StringComparison.Ordinal));
+        var title = Array.FindIndex(status, line => line.Contains("TITLE", StringComparison.Ordinal));
+        var reference = Array.FindIndex(status, line => line.Contains("EXTERNAL REFERENCE", StringComparison.Ordinal));
+        var priority = Array.FindIndex(status, line => line.Contains("PRIORITY", StringComparison.Ordinal));
 
         lines.Should().HaveCount(23);
-        lines[0].Should().Contain("[ Todos ]");
+        lines[0].Should().Contain("[TODOS]");
         status[title + 1].Should().Contain("> Renew contract");
         status[reference + 1].Should().Contain("EXT-42");
         status[priority + 1].Should().Contain("—");
-        status.Should().Contain(line => line.Contains("Tags", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("TAGS", StringComparison.Ordinal));
         status.Should().Contain(line => line.Contains("#work #now", StringComparison.Ordinal));
-        status.Should().Contain(line => line.Contains("Start date", StringComparison.Ordinal));
-        status.Should().Contain(line => line.Contains("Due date", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("START DATE", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("DUE DATE", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -329,11 +438,11 @@ public sealed class SpectreTerminalUiTests
         var status = lines[StatusPanelTop(lines)..];
 
         lines.Should().HaveCount(15);
-        lines[0].Should().Contain("[ Todos ]");
-        status.Should().Contain(line => line.Contains("External reference (2/6)", StringComparison.Ordinal));
+        lines[0].Should().Contain("[TODOS]");
+        status.Should().Contain(line => line.Contains("EXTERNAL REFERENCE (2/6)", StringComparison.Ordinal));
         status.Should().Contain(line => line.Contains("> ", StringComparison.Ordinal) &&
             line.Contains("_", StringComparison.Ordinal) && line.Contains("…", StringComparison.Ordinal));
-        status.Should().NotContain(line => line.Contains("Start date", StringComparison.Ordinal));
+        status.Should().NotContain(line => line.Contains("START DATE", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -356,7 +465,7 @@ public sealed class SpectreTerminalUiTests
 
         status.Should().Contain(line => line.Contains("> _", StringComparison.Ordinal));
         status.Should().Contain(line => line.Contains("Title is required.", StringComparison.Ordinal));
-        status.Should().NotContain(line => line.Contains("Ctrl+S save", StringComparison.Ordinal));
+        status.Should().NotContain(line => line.Contains("Ctrl+S SAVE", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -370,7 +479,7 @@ public sealed class SpectreTerminalUiTests
         var lines = RenderPlanner(width, height);
 
         lines.Should().HaveCount(height - 1);
-        lines[0].Should().Contain("[ Day Planner ]");
+        lines[0].Should().Contain("[DAY PLANNER]");
     }
 
     [Fact]
@@ -391,7 +500,7 @@ public sealed class SpectreTerminalUiTests
         var lines = RenderPlanner(70, 16, new CommandPaletteView(paletteState, items));
 
         lines.Should().HaveCount(15);
-        lines[0].Should().Contain("[ Day Planner ]");
+        lines[0].Should().Contain("[DAY PLANNER]");
     }
 
     [Fact]
@@ -403,10 +512,10 @@ public sealed class SpectreTerminalUiTests
         var shortHeader = RenderHeader(shortView);
         var longHeader = RenderHeader(longView);
 
-        longHeader.IndexOf("Todos:", StringComparison.Ordinal)
-            .Should().Be(shortHeader.IndexOf("Todos:", StringComparison.Ordinal));
-        longHeader.IndexOf("Details", StringComparison.Ordinal)
-            .Should().Be(shortHeader.IndexOf("Details", StringComparison.Ordinal));
+        longHeader.IndexOf("TODOS:", StringComparison.Ordinal)
+            .Should().Be(shortHeader.IndexOf("TODOS:", StringComparison.Ordinal));
+        longHeader.IndexOf("DETAILS", StringComparison.Ordinal)
+            .Should().Be(shortHeader.IndexOf("DETAILS", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -442,14 +551,14 @@ public sealed class SpectreTerminalUiTests
             .Last(line => line.Contains("Prepare the unusually", StringComparison.Ordinal));
         var todoPane = todoLine.Split('│')[2];
 
-        todoPane.Should().Contain("[ ] ⏫ Prepare the unusually").And.Contain("…");
+        todoPane.Should().Contain("○ H Prepare the unusually").And.Contain("…");
         todoPane.Should().NotContain("134416").And.NotContain("#now").And.NotContain("2026-07-08");
         output.Should().Contain("quarterly review")
             .And.Contain("meeting")
-            .And.Contain("Reference: 134416")
-            .And.Contain("Tags: #now")
-            .And.Contain("Start: 2026-07-08")
-            .And.Contain("Due: 2026-07-12");
+            .And.Contain("REFERENCE: 134416")
+            .And.Contain("TAGS: #now")
+            .And.Contain("START: 2026-07-08")
+            .And.Contain("DUE: 2026-07-12");
     }
 
     [Fact]
@@ -457,11 +566,11 @@ public sealed class SpectreTerminalUiTests
     {
         var priorities = new[]
         {
-            (TodoPriority.Highest, "🔺"),
-            (TodoPriority.High, "⏫"),
-            (TodoPriority.Medium, "🔼"),
-            (TodoPriority.Low, "🔽"),
-            (TodoPriority.Lowest, "⏬")
+            (TodoPriority.Highest, "!"),
+            (TodoPriority.High, "H"),
+            (TodoPriority.Medium, "M"),
+            (TodoPriority.Low, "L"),
+            (TodoPriority.Lowest, ".")
         };
         var todos = priorities.Select((priority, index) => new TodoItem(
             index + 1,
@@ -504,10 +613,10 @@ public sealed class SpectreTerminalUiTests
 
         foreach (var (priority, marker) in priorities)
         {
-            output.Should().Contain($"[ ] {marker} Priority {priority}");
+            output.Should().Contain($"○ {marker} Priority {priority}");
         }
 
-        output.Should().Contain("[x] 🔼 Nested task");
+        output.Should().Contain("✓ M Nested task");
     }
 
     [Theory]
@@ -539,7 +648,7 @@ public sealed class SpectreTerminalUiTests
             string.Empty);
 
         var lines = RenderBrowser(view, width, height);
-        var scheduledTitle = Array.FindIndex(lines, line => line.Contains("Prepare proposal", StringComparison.Ordinal));
+        var scheduledTitle = Array.FindIndex(lines, line => line.Contains("○ H Prepare proposal", StringComparison.Ordinal));
         var nestedTitle = Array.FindIndex(lines, line => line.Contains("Nested follow-up", StringComparison.Ordinal));
 
         scheduledTitle.Should().BeGreaterThanOrEqualTo(0);
@@ -550,7 +659,7 @@ public sealed class SpectreTerminalUiTests
                 [..lines[scheduledTitle + 1].IndexOf("⏳", StringComparison.Ordinal)]
                 .GetCellWidth());
         nestedTitle.Should().BeGreaterThanOrEqualTo(0);
-        lines[nestedTitle].Should().Contain("[x] Nested follow-up");
+        lines[nestedTitle].Should().Contain("✓ -   Nested follow-up");
         lines[nestedTitle + 1].Should().Contain("⏳ 2026-07-16 10:00");
         lines[nestedTitle][..lines[nestedTitle].IndexOf("Nested follow-up", StringComparison.Ordinal)]
             .GetCellWidth()
@@ -585,7 +694,7 @@ public sealed class SpectreTerminalUiTests
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("/renew");
-        output.Should().Contain("Filter: /renew").And.Contain("empty Enter clears");
+        output.Should().Contain("FILTER: /renew").And.Contain("EMPTY Enter CLEARS");
     }
 
     [Fact]
@@ -614,9 +723,9 @@ public sealed class SpectreTerminalUiTests
         }, DefaultBindings);
         var output = AnsiConsole.ExportText();
 
-        output.Should().Contain("Sort: n/N name").And.Contain("p/P priority")
-            .And.Contain("t/T tags").And.Contain("o source");
-        output.Should().Contain("t name↓").And.Contain("t priority↑");
+        output.Should().Contain("SORT // n/N NAME").And.Contain("p/P PRIORITY")
+            .And.Contain("t/T TAGS").And.Contain("o SOURCE");
+        output.Should().Contain("t NAME↓").And.Contain("t PRIORITY↑");
     }
 
     [Fact]
@@ -628,11 +737,11 @@ public sealed class SpectreTerminalUiTests
             40,
             16);
 
-        lines[0].Should().Contain("[ Todos ]");
+        lines[0].Should().Contain("[TODOS]");
         lines.Should().HaveCount(15);
-        lines.Should().Contain(line => line.Contains("n/N name", StringComparison.Ordinal));
-        lines.Should().Contain(line => line.Contains("p/P priority", StringComparison.Ordinal));
-        lines.Should().Contain(line => line.Contains("Esc cancel", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("n/N NAME", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("p/P PRIORITY", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("Esc CANCEL", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -645,8 +754,8 @@ public sealed class SpectreTerminalUiTests
         new SpectreTerminalUi(() => 70, () => 16).ShowBrowser(DefaultTabs, view, DefaultBindings);
         var output = AnsiConsole.ExportText();
 
-        output.Should().Contain("/ filter  : command");
-        output.Should().Contain("j/k move").And.Contain("h/l back/open");
+        output.Should().Contain("/ FILTER  : COMMAND");
+        output.Should().Contain("j/k MOVE").And.Contain("h/l BACK/OPEN");
     }
 
     [Fact]
@@ -666,8 +775,8 @@ public sealed class SpectreTerminalUiTests
         new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, bindings);
         var output = AnsiConsole.ExportText()[existingOutputLength..];
 
-        output.Should().Contain("n/p navigate")
-            .And.Contain("Ctrl+F filter")
+        output.Should().Contain("n/p NAVIGATE")
+            .And.Contain("Ctrl+F FILTER")
             .And.Contain(":done")
             .And.Contain(":quit");
         output.Should().NotContain("Ctrl+N");
@@ -676,10 +785,20 @@ public sealed class SpectreTerminalUiTests
     [Fact]
     public void ShowBrowser_always_renders_the_selected_tab_strip()
     {
-        var output = RenderBrowser(ViewWithTitle("Renew contract"), 140, 30);
+        StartRecording(140, 30);
+        var existingOutputLength = AnsiConsole.ExportText().Length;
+        new SpectreTerminalUi(
+                () => 140,
+                () => 30,
+                () => new DateOnly(2030, 1, 2))
+            .ShowBrowser(DefaultTabs, ViewWithTitle("Renew contract"), DefaultBindings);
+        var output = AnsiConsole.ExportText()[existingOutputLength..]
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
-        output[0].Should().Contain("[ Todos ]");
-        output[0].Should().NotContain("tabs");
+        output[0].Should().Contain("[TODOS]");
+        output[0].Should().Contain("WED 02 JAN");
+        output[0].Should().Contain("OPEN:1").And.Contain("FILES:CLEAN");
+        output[0].Should().NotContain("TABS");
     }
 
     [Fact]
@@ -693,8 +812,8 @@ public sealed class SpectreTerminalUiTests
 
         var output = RenderBrowser(tabs, ViewWithTitle("Renew contract"), 140, 30);
 
-        output[0].Should().Contain("Todos").And.Contain("[ Day Planner ]");
-        output[0].Should().Contain("L tabs");
+        output[0].Should().Contain("TODOS").And.Contain("[DAY PLANNER]");
+        output[0].Should().Contain("L TABS");
     }
 
     [Theory]
@@ -718,8 +837,10 @@ public sealed class SpectreTerminalUiTests
             width,
             height);
 
-        output.Should().NotContain(line => line.Contains("Details", StringComparison.Ordinal));
-        output.Should().Contain(line => line.Contains("Todos: All", StringComparison.Ordinal));
+        output.Should().NotContain(line => line.TrimStart('│', ' ').StartsWith("DETAILS", StringComparison.Ordinal));
+        output.Should().Contain(line =>
+            line.Contains("TODOS: ALL", StringComparison.Ordinal) ||
+            line.Contains("TASKS // ALL", StringComparison.Ordinal));
         output.Should().HaveCountGreaterThanOrEqualTo(height - 1);
     }
 
@@ -783,7 +904,8 @@ public sealed class SpectreTerminalUiTests
             ViewWithTodoCount(25, BrowserFocus.Todos, selectedIndex: 24, scheduled: true),
             140,
             24);
-        var selectedLine = Array.FindIndex(lines, line => line.Contains("Todo 25", StringComparison.Ordinal));
+        var selectedLine = Array.FindIndex(lines, line =>
+            line.Contains("> ○ - Todo 25", StringComparison.Ordinal));
         var firstTodoContent = Array.FindIndex(lines, line =>
             line.Contains("Todo ", StringComparison.Ordinal) || line.Contains("⏳", StringComparison.Ordinal));
 
@@ -894,7 +1016,7 @@ public sealed class SpectreTerminalUiTests
     }
 
     private static int StatusPanelTop(string[] lines) =>
-        Array.FindLastIndex(lines, line => line.StartsWith('╭'));
+        Array.FindLastIndex(lines, line => line.StartsWith('┌'));
 
     private static string StyleBefore(string html, string text)
     {
@@ -915,7 +1037,7 @@ public sealed class SpectreTerminalUiTests
         new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
         return AnsiConsole.ExportText()
             .Split(Environment.NewLine)
-            .First(line => line.Contains("Projects", StringComparison.Ordinal));
+            .First(line => line.Contains("PROJECTS", StringComparison.Ordinal));
     }
 
     private static void StartRecording()

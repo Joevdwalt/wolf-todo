@@ -10,11 +10,14 @@ public sealed record PlannerState(
     string FilterText,
     string FilterDraft,
     TodoIdentity? MovingTodo,
-    string? Error,
-    int CreateProjectIndex = 0,
-    string? CreateProjectPath = null,
-    string CreateTitleDraft = "")
+    string? Error)
 {
+    public bool ShowDetails { get; init; } = true;
+
+    public TodoFormState? Form { get; init; }
+
+    public TodoContentEditorState? ContentEditor { get; init; }
+
     public static PlannerState CreateInitial(DateOnly today) => new(
         today,
         0,
@@ -25,5 +28,5 @@ public sealed record PlannerState(
         null,
         null);
 
-    public bool CapturesInput => Mode != PlannerMode.Browse;
+    public bool CapturesInput => Mode != PlannerMode.Browse || Form is not null || ContentEditor is not null;
 }

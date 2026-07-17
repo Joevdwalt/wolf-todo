@@ -40,21 +40,19 @@ public sealed class DayPlannerPresenter
         var projects = catalog.Projects
             .Select(project => new PlannerProjectOption(project.Title, project.Path))
             .ToImmutableArray();
-        var createProjectIndex = Math.Clamp(
-            state.CreateProjectIndex,
-            0,
-            Math.Max(0, projects.Length - 1));
-
         return new PlannerView(
             state with
             {
                 SlotIndex = slotIndex,
-                PickerIndex = pickerIndex,
-                CreateProjectIndex = createProjectIndex
+                PickerIndex = pickerIndex
             },
             slots,
             picker,
-            projects);
+            projects)
+        {
+            OpenTodoCount = assignments.Count(assignment => !assignment.Todo.IsCompleted),
+            ProjectErrorCount = catalog.Errors.Length
+        };
     }
 
     private static bool Matches(PlannerAssignment assignment, string filter) =>

@@ -26,6 +26,8 @@ public sealed class ProjectBrowserPresenterTests
             .Should().Equal("Alpha", "Beta");
         result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
             .Should().Equal("Open", "Another");
+        result.Todos.Where(row => row.Todo is not null).Select(row => row.ProjectTitle)
+            .Should().Equal("Alpha", "Beta");
     }
 
     [Fact]

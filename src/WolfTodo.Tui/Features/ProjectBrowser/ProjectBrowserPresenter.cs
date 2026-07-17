@@ -141,7 +141,10 @@ public sealed class ProjectBrowserPresenter
                         item.Todo,
                         item.Depth,
                         false,
-                        new TodoIdentity(project.Path, item.Todo.SourceLine)));
+                        new TodoIdentity(project.Path, item.Todo.SourceLine))
+                    {
+                        ProjectTitle = project.Title
+                    });
                 }
             }
         }

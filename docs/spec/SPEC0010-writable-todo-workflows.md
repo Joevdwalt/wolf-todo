@@ -12,7 +12,8 @@ Markdown todos.
 ## Behavior
 
 - `a` creates a todo. An individual browser project is preselected; All and
-  Planner require choosing a valid project.
+  Planner require choosing a valid project. Planner uses the same complete
+  field form and applies its selected schedule after the todo is written.
 - New todos are appended under `## Inbox`. Planner creation also applies the
   selected schedule.
 - `e` edits title, external reference, priority, tags, start date, and due
@@ -64,6 +65,9 @@ Markdown todos.
 - Preserve project, filter, sort, and logical list position after reloading;
   clear stale source-line restoration. Missing editors, launch failures, and
   nonzero exits are recoverable browser errors.
+- The property form and structured content editor are shared by Todos and Day
+  Planner. Planner write failures keep the active draft open with its error;
+  successful writes close the editor and retain the selected date and slot.
 
 Root-todo deletion, project/section movement, content reordering, and multiline
 notes remain out of scope.

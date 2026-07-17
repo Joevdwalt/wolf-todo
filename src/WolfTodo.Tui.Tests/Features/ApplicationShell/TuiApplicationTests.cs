@@ -280,6 +280,88 @@ public sealed class TuiApplicationTests
         fileSystem.ReadCount.Should().Be(1);
     }
 
+    [Fact]
+    public void Run_creates_a_todo_with_the_selected_planner_schedule_using_the_full_form()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n## Inbox\n");
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('L'),
+            Key('a'),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.Enter),
+            Key('P'), Key('l'), Key('a'), Key('n'), Key('n'), Key('e'), Key('d'),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.S, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain("- [ ] Planned")
+            .And.Contain($"⏳ {DateOnly.FromDateTime(DateTime.Today):yyyy-MM-dd} ⏰ 06:00");
+        terminal.PlannerViews.Should().Contain(view => view.State.Form != null);
+        terminal.PlannerViews.Last().SelectedAssignment!.Todo.Title.Should().Be("Planned");
+    }
+
+    [Fact]
+    public void Run_uses_completion_and_external_editor_actions_from_the_planner()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            $"# Work\n\n- [ ] Scheduled ⏳ {today:yyyy-MM-dd} ⏰ 06:00\n");
+        var launcher = new FakeExternalEditorLauncher(ExternalEditorResult.Success);
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('L'),
+            Key(ConsoleKey.Spacebar),
+            Key(ConsoleKey.E, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            externalEditorLauncher: launcher,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain("- [x] Scheduled");
+        launcher.Calls.Should().ContainSingle().Which.Should().Be(("/todos/project.md", 3));
+        terminal.ExternalSuspensions.Should().Be(1);
+        terminal.ExternalResumptions.Should().Be(1);
+    }
+
+    [Fact]
+    public void Run_keeps_the_planner_form_open_when_the_create_write_fails()
+    {
+        var fileSystem = new FailingWriteProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n## Inbox\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('L'), Key('a'), Key(ConsoleKey.Enter), Key(ConsoleKey.Enter),
+            Key('T'), Key('a'), Key('s'), Key('k'), Key(ConsoleKey.Enter),
+            Key(ConsoleKey.S, control: true),
+            Key('h'),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        terminal.PlannerViews.Should().Contain(view =>
+            view.State.Form != null &&
+            view.State.Form.Error != null &&
+            view.State.Form.Error.Contains("disk full", StringComparison.Ordinal));
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal,
@@ -288,7 +370,8 @@ public sealed class TuiApplicationTests
         IProjectFileSystem? projectFileSystem = null)
     {
         var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
-        var catalogLoader = new ProjectCatalogLoader(fileSystem, new ProjectMarkdownParser());
+        var parser = new ProjectMarkdownParser();
+        var catalogLoader = new ProjectCatalogLoader(fileSystem, parser);
         return new TuiApplication(
             configurationLoader,
             catalogLoader,
@@ -300,6 +383,7 @@ public sealed class TuiApplicationTests
             new ProjectBrowserPresenter(),
             new BrowserReducer(),
             "wolf",
+            mutationService: new ProjectTodoMutationService(fileSystem, parser),
             externalEditorLauncher: externalEditorLauncher);
     }
 
@@ -342,6 +426,31 @@ public sealed class TuiApplicationTests
             ReadCount++;
             return contents;
         }
+    }
+
+    private sealed class MutableProjectFileSystem(string path, string contents) : IProjectFileSystem
+    {
+        public string Contents { get; private set; } = contents;
+
+        public bool FileExists(string candidate) => candidate == path;
+
+        public string GetFullPath(string candidate) => candidate;
+
+        public string ReadAllText(string candidate) => Contents;
+
+        public void WriteAllTextAtomically(string candidate, string updated) => Contents = updated;
+    }
+
+    private sealed class FailingWriteProjectFileSystem(string path, string contents) : IProjectFileSystem
+    {
+        public bool FileExists(string candidate) => candidate == path;
+
+        public string GetFullPath(string candidate) => candidate;
+
+        public string ReadAllText(string candidate) => contents;
+
+        public void WriteAllTextAtomically(string candidate, string updated) =>
+            throw new IOException("disk full");
     }
 
     private sealed class FakeExternalEditorLauncher(ExternalEditorResult result) : IExternalEditorLauncher

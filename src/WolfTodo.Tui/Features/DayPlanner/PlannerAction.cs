@@ -7,5 +7,10 @@ public enum PlannerAction
     Today,
     AssignOrMove,
     Unschedule,
-    Create
+    Create,
+    Edit,
+    EditContent,
+    EditExternal,
+    ToggleCompleted,
+    ToggleDetails
 }

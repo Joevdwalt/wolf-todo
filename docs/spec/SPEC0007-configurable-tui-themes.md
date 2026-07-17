@@ -36,7 +36,7 @@ Supported override keys are:
 | `heading` | Titles, pane headings, and field labels |
 | `border` | Pane and status-panel borders |
 | `muted` | Secondary counts, hints, and empty states |
-| `success` | Completed todo state |
+| `success` | Successful transient feedback |
 | `warning` | High-priority and caution state |
 | `error` | Diagnostics and highest-priority state |
 | `tag` | Todo tags |
@@ -74,6 +74,9 @@ foreground for every role.
   project and todo rows, detail fields, metadata, empty states, diagnostics,
   sort/filter/command states, and status panel.
 - Configure foregrounds only; do not set terminal background colors.
+- Use square borders throughout the interactive application.
+- Render completed todo rows with dim `muted`; reserve `success` for explicit
+  successful feedback so completed work does not dominate active work.
 - Keep bold and dim decorations fixed so hierarchy and state do not depend on
   a user's color choices.
 - In the todo field form, render labels with bold `heading`, inactive values
@@ -102,3 +105,4 @@ foreground for every role.
 - [ADR0008: Use Semantic TUI Themes](../adr/ADR0008-use-semantic-tui-themes.md)
 - [SPEC0001: Terminal Splash Screen](SPEC0001-terminal-splash-screen.md)
 - [SPEC0002: Project Browser and Markdown Todo Format](SPEC0002-project-browser-and-markdown-todo-format.md)
+- [SPEC0013: Operational Console Design System](SPEC0013-operational-console-design-system.md)

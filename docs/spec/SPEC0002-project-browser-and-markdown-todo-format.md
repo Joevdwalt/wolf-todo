@@ -122,9 +122,9 @@ After the splash screen, open the Todos tab, restore the most recently selected
 configured project and sort, focus the Todos pane, and select its first active
 todo. Select the virtual `All` project when there is no saved selection or the
 saved project is no longer configured. Use source order when the saved sort is
-missing or invalid. The application tab strip described by SPEC0005 appears
-above the browser. The browser contains a project navigator, a todo list, a
-detail preview, and a bottom command/status line.
+missing or invalid. The operational header described by SPEC0005 and SPEC0013
+appears above the browser. The browser contains a project navigator, a todo
+list, an inspector, and a bottom contextual command/status panel.
 
 ### Wide Terminals
 
@@ -158,21 +158,20 @@ enabled each launch and is not persisted.
 
 ### Medium Terminals
 
-At 80 through 119 columns and at least 18 rows, show projects and todos. Enter
-on a todo opens its details over the todo pane; Esc closes the details.
-When details are hidden, they cannot replace Todos until the toggle or opening
-a todo restores them.
+At 80 through 119 columns and at least 18 rows, show todos and the inspector.
+The project navigator becomes a temporary full-width navigation view while it
+has focus. Open/back and focus gestures move between navigation, tasks, and
+inspector. Hiding details gives the task list the full workspace; opening a todo
+restores the inspector.
 
 ```text
-┌ Projects ──────────┬ Todos: All ────────────────────────────────────────────────┐
-│ > All           12 │ Client Contracts                                           │
-│   Client Work    7 │ > [ ] ⏫ 134416 - Milas Contract Renewal #now               │
-│                    │          ⏳ 2026-07-15 09:30                                 │
-│   Home           5 │   [ ] 🔼 Prepare proposal                                  │
-│ ! Missing source   │                                                             │
-├────────────────────┴─────────────────────────────────────────────────────────────┤
-│ j/k navigate  Tab pane  l open  h back  / filter  : command  :completed  :q     │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌ TASKS // ALL ───────────────────────────┬ INSPECTOR ─────────────────────────────┐
+│ S P TASK                      DUE       │ Milas Contract Renewal                 │
+│ ○ H Milas Contract Renewal   TODAY     │ PROJECT: Client Work                  │
+│   ⏳ 2026-07-15 09:30                  │ PRIORITY: High                        │
+├────────────────────────────────────────┴────────────────────────────────────────┤
+│ j/k NAVIGATE  Tab PANE  l OPEN  h BACK  / FILTER  : COMMAND                    │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Narrow or Short Terminals
@@ -200,9 +199,10 @@ Completed todos are hidden by default. The `:completed` command toggles them
 for the current browser session. When visible, show completed todos after open
 todos within their original project and heading groups.
 
-Todo title lines display status, optional priority, then title as one inline
-sequence. Nested subtasks use the same order. Keep each title on one line and
-truncate overflowing text with an ellipsis. A scheduled todo adds a dim,
+Todo title lines use adaptive `S P TASK`, optional `PROJECT`, and optional `DUE`
+columns as defined by SPEC0013. Nested subtasks use the same state, priority,
+then title order. Keep each title on one line and truncate overflowing text with
+an ellipsis. A scheduled todo adds a dim,
 date-colored `⏳ YYYY-MM-DD HH:mm` line beneath and aligned with its title. Keep
 the two lines together while scrolling whenever at least two content lines are
 available. The detail preview displays the complete title, external reference,
@@ -211,6 +211,10 @@ project, heading path, priority, tags, dates, notes, and nested subtasks.
 Selecting an error entry replaces the todo/detail content with its diagnostic,
 including the source path and actionable reason. Duplicate project titles are
 disambiguated with their source directory in the detail preview.
+
+Completed rows use muted/dim styling. Selection accents the row, while overdue
+styling applies to the due value only. Structural headings and inspector labels
+are uppercase; task and project values preserve their source case.
 
 ## Interaction
 

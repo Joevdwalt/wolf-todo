@@ -21,5 +21,10 @@ public enum ApplicationActionId
     PlannerToday,
     PlannerAssignOrMove,
     PlannerUnschedule,
-    PlannerCreate
+    PlannerCreate,
+    PlannerEdit,
+    PlannerEditContent,
+    PlannerEditExternal,
+    PlannerToggleCompleted,
+    PlannerToggleDetails
 }

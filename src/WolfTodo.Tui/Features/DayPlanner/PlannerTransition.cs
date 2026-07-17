@@ -8,4 +8,5 @@ public sealed record PlannerTransition(
     PlannerOperation Operation,
     TodoIdentity? TodoIdentity,
     string? ProjectPath = null,
-    TodoUpdate? Update = null);
+    TodoUpdate? Update = null,
+    TodoContentUpdate? ContentUpdate = null);

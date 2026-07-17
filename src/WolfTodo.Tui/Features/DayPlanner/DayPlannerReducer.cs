@@ -7,6 +7,7 @@ namespace WolfTodo.Tui.Features.DayPlanner;
 public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 {
     private readonly Func<DateOnly> todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
+    private readonly TodoEditorReducer todoEditorReducer = new();
 
     public PlannerTransition ReduceAction(PlannerState state, PlannerAction action, PlannerView view) =>
         action switch
@@ -22,13 +23,50 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 Error = null
             }),
             PlannerAction.Today => Transition(state with { SelectedDate = todayProvider(), Error = null }),
+            PlannerAction.Create when view.SelectedSlot.Assignments.Length > 0 => Transition(state with
+            {
+                Error = "That timeslot is already occupied."
+            }),
             PlannerAction.Create when view.Projects.Length > 0 => Transition(state with
             {
-                Mode = PlannerMode.ChooseCreateProject,
-                CreateProjectIndex = 0,
+                Form = todoEditorReducer.CreateForm(null, true),
                 Error = null
             }),
             PlannerAction.Create => Transition(state with { Error = "No valid projects are available." }),
+            PlannerAction.ToggleDetails => Transition(state with
+            {
+                ShowDetails = !state.ShowDetails,
+                Error = null
+            }),
+            PlannerAction.Edit when view.SelectedAssignment is not null => Transition(state with
+            {
+                Form = todoEditorReducer.EditForm(
+                    view.SelectedAssignment.Todo,
+                    view.SelectedAssignment.Identity),
+                Error = null
+            }),
+            PlannerAction.EditContent when view.SelectedAssignment is not null => Transition(state with
+            {
+                ContentEditor = TodoContentEditorState.Create(
+                    view.SelectedAssignment.Identity,
+                    view.SelectedAssignment.Todo),
+                Error = null
+            }),
+            PlannerAction.EditExternal when view.SelectedAssignment is not null => new PlannerTransition(
+                state with { Error = null },
+                PlannerOperation.EditExternal,
+                view.SelectedAssignment.Identity,
+                view.SelectedAssignment.ProjectPath),
+            PlannerAction.ToggleCompleted when view.SelectedAssignment is not null => new PlannerTransition(
+                state with { Error = null },
+                PlannerOperation.ToggleCompleted,
+                view.SelectedAssignment.Identity,
+                view.SelectedAssignment.ProjectPath),
+            PlannerAction.Edit or PlannerAction.EditContent or PlannerAction.EditExternal or
+                PlannerAction.ToggleCompleted => Transition(state with
+                {
+                    Error = SelectionError(view)
+                }),
             PlannerAction.Unschedule when view.SelectedSlot.Assignments.Length == 1 =>
                 new PlannerTransition(
                     state with { Error = null },
@@ -65,82 +103,29 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         TuiKeyBindings bindings,
         PlannerView view)
     {
+        if (state.ContentEditor is not null)
+        {
+            return ApplyContentTransition(
+                state,
+                todoEditorReducer.ReduceContent(state.ContentEditor, key, bindings));
+        }
+
+        if (state.Form is not null)
+        {
+            return ApplyFormTransition(
+                state,
+                todoEditorReducer.ReduceForm(
+                    state.Form,
+                    key,
+                    bindings,
+                    view.Projects
+                        .Select(project => new TodoEditorProjectOption(project.Title, project.Path))
+                        .ToArray()));
+        }
+
         if (state.Mode == PlannerMode.EditFilter)
         {
             return ReduceFilter(state, key);
-        }
-
-        if (state.Mode == PlannerMode.ChooseCreateProject)
-        {
-            if (bindings.MatchesBack(key))
-            {
-                return Transition(state with { Mode = PlannerMode.Browse, Error = null });
-            }
-
-            if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
-            {
-                var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
-                return Transition(state with
-                {
-                    CreateProjectIndex = MoveIndex(state.CreateProjectIndex, offset, view.Projects.Length),
-                    Error = null
-                });
-            }
-
-            if (bindings.MatchesOpen(key) && view.Projects.Length > 0)
-            {
-                return Transition(state with
-                {
-                    Mode = PlannerMode.EnterCreateTitle,
-                    CreateProjectPath = view.Projects[state.CreateProjectIndex].Path,
-                    CreateTitleDraft = string.Empty,
-                    Error = null
-                });
-            }
-
-            return Transition(state);
-        }
-
-        if (state.Mode == PlannerMode.EnterCreateTitle)
-        {
-            if (key.Key == ConsoleKey.Escape)
-            {
-                return Transition(state with { Mode = PlannerMode.Browse, Error = null });
-            }
-
-            if (key.Key == ConsoleKey.Backspace)
-            {
-                return Transition(state with
-                {
-                    CreateTitleDraft = state.CreateTitleDraft.Length == 0
-                        ? string.Empty
-                        : state.CreateTitleDraft[..^1],
-                    Error = null
-                });
-            }
-
-            if (key.Key == ConsoleKey.Enter)
-            {
-                if (string.IsNullOrWhiteSpace(state.CreateTitleDraft))
-                {
-                    return Transition(state with { Error = "Title is required." });
-                }
-
-                return new PlannerTransition(
-                    state with { Mode = PlannerMode.Browse, Error = null },
-                    PlannerOperation.Create,
-                    null,
-                    state.CreateProjectPath,
-                    new TodoUpdate(state.CreateTitleDraft.Trim(), null, null, [], null, null));
-            }
-
-            return char.IsControl(key.KeyChar)
-                ? Transition(state)
-                : Transition(state with
-                {
-                    CreateTitleDraft = state.CreateTitleDraft + key.KeyChar,
-                    Error = null
-                });
         }
 
         if (bindings.MatchesBack(key) && state.Mode != PlannerMode.Browse)
@@ -202,6 +187,59 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             return Transition(state with { SelectedDate = todayProvider(), Error = null });
         }
 
+        if (state.Mode == PlannerMode.Browse && bindings.MatchesToggleDetails(key))
+        {
+            return Transition(state with { ShowDetails = !state.ShowDetails, Error = null });
+        }
+
+        if (state.Mode == PlannerMode.Browse && bindings.MatchesEditTodoContent(key))
+        {
+            return view.SelectedAssignment is null
+                ? Transition(state with { Error = SelectionError(view) })
+                : Transition(state with
+                {
+                    ContentEditor = TodoContentEditorState.Create(
+                        view.SelectedAssignment.Identity,
+                        view.SelectedAssignment.Todo),
+                    Error = null
+                });
+        }
+
+        if (state.Mode == PlannerMode.Browse && bindings.MatchesEditTodoExternal(key))
+        {
+            return view.SelectedAssignment is null
+                ? Transition(state with { Error = SelectionError(view) })
+                : new PlannerTransition(
+                    state with { Error = null },
+                    PlannerOperation.EditExternal,
+                    view.SelectedAssignment.Identity,
+                    view.SelectedAssignment.ProjectPath);
+        }
+
+        if (state.Mode == PlannerMode.Browse && bindings.MatchesEditTodo(key))
+        {
+            return view.SelectedAssignment is null
+                ? Transition(state with { Error = SelectionError(view) })
+                : Transition(state with
+                {
+                    Form = todoEditorReducer.EditForm(
+                        view.SelectedAssignment.Todo,
+                        view.SelectedAssignment.Identity),
+                    Error = null
+                });
+        }
+
+        if (state.Mode == PlannerMode.Browse && bindings.MatchesToggleTodo(key))
+        {
+            return view.SelectedAssignment is null
+                ? Transition(state with { Error = SelectionError(view) })
+                : new PlannerTransition(
+                    state with { Error = null },
+                    PlannerOperation.ToggleCompleted,
+                    view.SelectedAssignment.Identity,
+                    view.SelectedAssignment.ProjectPath);
+        }
+
         if (state.Mode == PlannerMode.MoveTodo && bindings.MatchesOpen(key))
         {
             if (view.SelectedSlot.Assignments.Length > 0)
@@ -235,12 +273,13 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesCreateTodo(key))
         {
-            return view.Projects.Length == 0
+            return view.SelectedSlot.Assignments.Length > 0
+                ? Transition(state with { Error = "That timeslot is already occupied." })
+                : view.Projects.Length == 0
                 ? Transition(state with { Error = "No valid projects are available." })
                 : Transition(state with
                 {
-                    Mode = PlannerMode.ChooseCreateProject,
-                    CreateProjectIndex = 0,
+                    Form = todoEditorReducer.CreateForm(null, true),
                     Error = null
                 });
         }
@@ -306,6 +345,46 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
     private static int MoveIndex(int current, int offset, int count) =>
         count == 0 ? 0 : Math.Clamp(current + offset, 0, count - 1);
+
+    private static PlannerTransition ApplyFormTransition(
+        PlannerState state,
+        TodoFormTransition transition) => new(
+            state with
+            {
+                Form = transition.Operation == TodoEditorOperation.None ? transition.State : state.Form,
+                Error = null
+            },
+            transition.Operation switch
+            {
+                TodoEditorOperation.Create => PlannerOperation.Create,
+                TodoEditorOperation.Update => PlannerOperation.Update,
+                _ => PlannerOperation.None
+            },
+            transition.Target,
+            transition.ProjectPath,
+            transition.Update);
+
+    private static PlannerTransition ApplyContentTransition(
+        PlannerState state,
+        TodoContentEditorTransition transition) => new(
+            state with
+            {
+                ContentEditor = transition.Operation == TodoEditorOperation.None
+                    ? transition.State
+                    : state.ContentEditor,
+                Error = null
+            },
+            transition.Operation == TodoEditorOperation.UpdateContent
+                ? PlannerOperation.UpdateContent
+                : PlannerOperation.None,
+            transition.Target,
+            transition.Target?.ProjectPath,
+            ContentUpdate: transition.Update);
+
+    private static string SelectionError(PlannerView view) =>
+        view.SelectedSlot.Assignments.Length > 1
+            ? "Resolve this conflicting timeslot before editing."
+            : "No todo is assigned to this timeslot.";
 
     private static PlannerTransition Transition(PlannerState state) =>
         new(state, PlannerOperation.None, null);

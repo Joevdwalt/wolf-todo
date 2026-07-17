@@ -269,6 +269,11 @@ public sealed class TuiApplication(
                         ApplicationActionId.PlannerAssignOrMove => PlannerAction.AssignOrMove,
                         ApplicationActionId.PlannerUnschedule => PlannerAction.Unschedule,
                         ApplicationActionId.PlannerCreate => PlannerAction.Create,
+                        ApplicationActionId.PlannerEdit => PlannerAction.Edit,
+                        ApplicationActionId.PlannerEditContent => PlannerAction.EditContent,
+                        ApplicationActionId.PlannerEditExternal => PlannerAction.EditExternal,
+                        ApplicationActionId.PlannerToggleCompleted => PlannerAction.ToggleCompleted,
+                        ApplicationActionId.PlannerToggleDetails => PlannerAction.ToggleDetails,
                         _ => (PlannerAction?)null
                     };
                     if (plannerAction is not null)
@@ -277,27 +282,12 @@ public sealed class TuiApplication(
                             state.Planner,
                             plannerAction.Value,
                             plannerView!);
-                        state = state with { Planner = transition.State };
-                        if (transition.Operation == PlannerOperation.Unschedule &&
-                            transition.TodoIdentity is not null && mutationService is not null)
-                        {
-                            var assignment = FindAssignment(plannerView!, transition.TodoIdentity);
-                            if (assignment is not null)
-                            {
-                                var result = mutationService.SetSchedule(
-                                    assignment.ProjectPath,
-                                    assignment.Todo,
-                                    null);
-                                state = state with
-                                {
-                                    Planner = state.Planner with { Error = result.Error }
-                                };
-                                if (result.Succeeded)
-                                {
-                                    catalog = catalogLoader.Load(configuration.ProjectFiles);
-                                }
-                            }
-                        }
+                        state = ApplyPlannerTransition(
+                            state,
+                            transition,
+                            ref catalog,
+                            configuration,
+                            mutationService);
                     }
 
                     continue;
@@ -329,122 +319,12 @@ public sealed class TuiApplication(
                         key,
                         configuration.KeyBindings,
                         plannerView!);
-                    state = state with { Planner = transition.State };
-                    if (transition.Operation != PlannerOperation.None)
-                    {
-                        if (transition.Operation == PlannerOperation.Create &&
-                            transition.ProjectPath is not null &&
-                            transition.Update is not null &&
-                            mutationService is not null)
-                        {
-                            var createSchedule = new TodoSchedule(
-                                state.Planner.SelectedDate,
-                                new TimeOnly(6, 0).AddMinutes(state.Planner.SlotIndex * 30));
-                            var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
-                            if (latestCatalog.Projects
-                                .SelectMany(project => Flatten(project.Todos))
-                                .Any(todo => todo.Schedule == createSchedule))
-                            {
-                                catalog = latestCatalog;
-                                state = state with
-                                {
-                                    Planner = state.Planner with
-                                    {
-                                        Mode = PlannerMode.Browse,
-                                        Error = "That timeslot is already occupied."
-                                    }
-                                };
-                                continue;
-                            }
-
-                            var created = mutationService.Create(
-                                transition.ProjectPath,
-                                transition.Update,
-                                createSchedule);
-                            state = state with
-                            {
-                                Planner = state.Planner with
-                                {
-                                    Mode = PlannerMode.Browse,
-                                    Error = created.Error
-                                }
-                            };
-                            if (created.Succeeded)
-                            {
-                                catalog = catalogLoader.Load(configuration.ProjectFiles);
-                            }
-
-                            continue;
-                        }
-
-                        if (transition.TodoIdentity is null)
-                        {
-                            state = state with
-                            {
-                                Planner = state.Planner with { Error = "The selected todo cannot be updated." }
-                            };
-                            continue;
-                        }
-
-                        var assignment = FindAssignment(plannerView!, transition.TodoIdentity);
-                        if (assignment is null || mutationService is null)
-                        {
-                            state = state with
-                            {
-                                Planner = state.Planner with { Error = "The selected todo cannot be updated." }
-                            };
-                            continue;
-                        }
-
-                        var schedule = transition.Operation == PlannerOperation.Schedule
-                            ? new TodoSchedule(
-                                state.Planner.SelectedDate,
-                                new TimeOnly(6, 0).AddMinutes(state.Planner.SlotIndex * 30))
-                            : null;
-                        if (schedule is not null)
-                        {
-                            var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
-                            var occupied = latestCatalog.Projects
-                                .SelectMany(project => Flatten(project.Todos)
-                                    .Select(todo => (project.Path, Todo: todo)))
-                                .Any(candidate =>
-                                    candidate.Todo.Schedule == schedule &&
-                                    (candidate.Path != transition.TodoIdentity.ProjectPath ||
-                                     candidate.Todo.SourceLine != transition.TodoIdentity.SourceLine));
-                            catalog = latestCatalog;
-                            if (occupied)
-                            {
-                                state = state with
-                                {
-                                    Planner = state.Planner with
-                                    {
-                                        Mode = PlannerMode.Browse,
-                                        MovingTodo = null,
-                                        Error = "That timeslot is already occupied."
-                                    }
-                                };
-                                continue;
-                            }
-                        }
-
-                        var result = mutationService.SetSchedule(
-                            assignment.ProjectPath,
-                            assignment.Todo,
-                            schedule);
-                        state = state with
-                        {
-                            Planner = state.Planner with
-                            {
-                                MovingTodo = null,
-                                Mode = PlannerMode.Browse,
-                                Error = result.Error
-                            }
-                        };
-                        if (result.Succeeded)
-                        {
-                            catalog = catalogLoader.Load(configuration.ProjectFiles);
-                        }
-                    }
+                    state = ApplyPlannerTransition(
+                        state,
+                        transition,
+                        ref catalog,
+                        configuration,
+                        mutationService);
 
                     continue;
                 }
@@ -468,10 +348,168 @@ public sealed class TuiApplication(
         }
     }
 
-    private static PlannerAssignment? FindAssignment(PlannerView view, TodoIdentity identity) =>
-        view.Slots.SelectMany(slot => slot.Assignments)
-            .Concat(view.PickerTodos)
-            .FirstOrDefault(assignment => assignment.Identity == identity);
+    private ApplicationState ApplyPlannerTransition(
+        ApplicationState state,
+        PlannerTransition transition,
+        ref ProjectCatalog catalog,
+        ApplicationConfiguration configuration,
+        ProjectTodoMutationService? service)
+    {
+        state = state with { Planner = transition.State };
+        if (transition.Operation == PlannerOperation.None)
+        {
+            return state;
+        }
+
+        if (transition.Operation == PlannerOperation.EditExternal)
+        {
+            if (externalEditorLauncher is null ||
+                transition.ProjectPath is null ||
+                transition.TodoIdentity is null)
+            {
+                return PlannerFailure(state, "External editing is unavailable.");
+            }
+
+            ExternalEditorResult externalResult;
+            terminalUi.SuspendForExternalProcess();
+            try
+            {
+                externalResult = externalEditorLauncher.Open(
+                    transition.ProjectPath,
+                    transition.TodoIdentity.SourceLine);
+            }
+            finally
+            {
+                terminalUi.ResumeAfterExternalProcess();
+            }
+
+            if (externalResult.Started)
+            {
+                catalog = catalogLoader.Load(configuration.ProjectFiles);
+            }
+
+            return externalResult.Error is null
+                ? PlannerSuccess(state)
+                : PlannerFailure(state, externalResult.Error);
+        }
+
+        if (service is null)
+        {
+            return PlannerFailure(state, "Todo writing is unavailable.");
+        }
+
+        var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
+        catalog = latestCatalog;
+        var schedule = new TodoSchedule(
+            state.Planner.SelectedDate,
+            new TimeOnly(6, 0).AddMinutes(state.Planner.SlotIndex * 30));
+
+        if (transition.Operation == PlannerOperation.Create)
+        {
+            if (transition.ProjectPath is null || transition.Update is null)
+            {
+                return PlannerFailure(state, "The new todo is incomplete.");
+            }
+
+            if (IsOccupied(latestCatalog, schedule, null))
+            {
+                return PlannerFailure(state, "That timeslot is already occupied.");
+            }
+
+            var created = service.Create(transition.ProjectPath, transition.Update, schedule);
+            if (!created.Succeeded)
+            {
+                return PlannerFailure(state, created.Error ?? "The todo could not be created.");
+            }
+
+            catalog = catalogLoader.Load(configuration.ProjectFiles);
+            return PlannerSuccess(state);
+        }
+
+        if (transition.TodoIdentity is null)
+        {
+            return PlannerFailure(state, "The selected todo cannot be updated.");
+        }
+
+        var expected = FindTodo(latestCatalog, transition.TodoIdentity);
+        if (expected is null)
+        {
+            return PlannerFailure(state, "The selected todo cannot be found.");
+        }
+
+        if (transition.Operation == PlannerOperation.Schedule &&
+            IsOccupied(latestCatalog, schedule, transition.TodoIdentity))
+        {
+            return PlannerFailure(state, "That timeslot is already occupied.");
+        }
+
+        var result = transition.Operation switch
+        {
+            PlannerOperation.Schedule => service.SetSchedule(
+                transition.TodoIdentity.ProjectPath,
+                expected,
+                schedule),
+            PlannerOperation.Unschedule => service.SetSchedule(
+                transition.TodoIdentity.ProjectPath,
+                expected,
+                null),
+            PlannerOperation.Update when transition.Update is not null => service.Update(
+                transition.TodoIdentity.ProjectPath,
+                expected,
+                transition.Update),
+            PlannerOperation.UpdateContent when transition.ContentUpdate is not null => service.UpdateContent(
+                transition.TodoIdentity.ProjectPath,
+                expected,
+                transition.ContentUpdate),
+            PlannerOperation.ToggleCompleted => service.SetCompleted(
+                transition.TodoIdentity.ProjectPath,
+                expected,
+                !expected.IsCompleted),
+            _ => TodoMutationResult.Failure("The requested planner change is invalid.")
+        };
+        if (!result.Succeeded)
+        {
+            return PlannerFailure(state, result.Error ?? "The selected todo could not be updated.");
+        }
+
+        catalog = catalogLoader.Load(configuration.ProjectFiles);
+        return PlannerSuccess(state);
+    }
+
+    private static bool IsOccupied(
+        ProjectCatalog catalog,
+        TodoSchedule schedule,
+        TodoIdentity? excluded) => catalog.Projects
+        .SelectMany(project => Flatten(project.Todos).Select(todo => (project.Path, Todo: todo)))
+        .Any(candidate =>
+            candidate.Todo.Schedule == schedule &&
+            (excluded is null ||
+             candidate.Path != excluded.ProjectPath ||
+             candidate.Todo.SourceLine != excluded.SourceLine));
+
+    private static ApplicationState PlannerSuccess(ApplicationState state) => state with
+    {
+        Planner = state.Planner with
+        {
+            Mode = PlannerMode.Browse,
+            MovingTodo = null,
+            Form = null,
+            ContentEditor = null,
+            Error = null
+        }
+    };
+
+    private static ApplicationState PlannerFailure(ApplicationState state, string error) => state with
+    {
+        Planner = state.Planner with
+        {
+            Error = error,
+            Form = state.Planner.Form is null ? null : state.Planner.Form with { Error = error },
+            ContentEditor = state.Planner.ContentEditor is null
+                ? null
+                : state.Planner.ContentEditor with { Error = error }
+        }
+    };
 
     private ApplicationState ApplyBrowserTransition(
         ApplicationState state,
