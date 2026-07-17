@@ -24,7 +24,8 @@ public sealed partial class ProjectTodoMutationService(
             Priority = update.Priority,
             Tags = update.Tags,
             StartDate = update.StartDate,
-            DueDate = update.DueDate
+            DueDate = update.DueDate,
+            Schedule = update.Schedule
         }));
 
     public TodoMutationResult UpdateContent(
@@ -170,10 +171,7 @@ public sealed partial class ProjectTodoMutationService(
         }
     }
 
-    public TodoMutationResult Create(
-        string path,
-        TodoUpdate update,
-        TodoSchedule? schedule = null)
+    public TodoMutationResult Create(string path, TodoUpdate update)
     {
         if (string.IsNullOrWhiteSpace(update.Title))
         {
@@ -235,7 +233,7 @@ public sealed partial class ProjectTodoMutationService(
                 [],
                 [])
             {
-                Schedule = schedule
+                Schedule = update.Schedule
             };
             lines.Insert(insertionIndex, $"- [ ] {SerializeBody(item)}");
             Write(path, lines, newline, finalNewline: true);

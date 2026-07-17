@@ -63,9 +63,13 @@ public sealed class DayPlannerReducerTests
             View(withTitle));
 
         opened.State.Form.Should().NotBeNull();
+        opened.State.Form!.ScheduledDate.Should().Be("2026-07-15");
+        opened.State.Form.ScheduledTime.Should().Be("06:00");
+        opened.State.Form.ScheduleRequired.Should().BeTrue();
         selectedProject.State.Form!.ProjectPath.Should().Be("/todos/work.md");
         saved.Operation.Should().Be(PlannerOperation.Create);
         saved.Update!.Title.Should().Be("New planned task");
+        saved.Update.Schedule.Should().Be(new TodoSchedule(Today, new TimeOnly(6, 0)));
         saved.State.Form.Should().NotBeNull("the application clears it only after a successful write");
     }
 

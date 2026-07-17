@@ -28,10 +28,12 @@ summary beneath it. Timeline assignments show compact state and priority before
 their title. `v` hides or restores details for the current session. Conflicting slots
 show a diagnostic instead of exposing an ambiguous todo.
 
-On an occupied slot, `e` edits fields, `E` edits notes and subtasks, Ctrl+E
+On an occupied slot, `e` edits fields including scheduled date and time, `E` edits notes and subtasks, Ctrl+E
 opens the Markdown source in `$EDITOR`, and Space toggles completion without
 removing the schedule. `a` on an empty slot uses the same complete field form
-as the Todos tab and applies the selected date and time after creation.
+as the Todos tab, pre-fills the selected date and time, and requires both values.
+After rescheduling through the field editor, Planner follows the todo to its new
+date and slot. Clearing both schedule fields on an existing todo unschedules it.
 
 All actions use configured bindings. Picker, move, and create input capture
 keystrokes before application-tab switching. Conflicting assignments are

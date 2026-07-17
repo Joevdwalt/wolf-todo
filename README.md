@@ -88,7 +88,7 @@ preset = "wolf"
 # Any preset color can be overridden with a Spectre.Console color name,
 # a #RRGGBB value, or "default".
 accent = "#5FD7FF"
-heading = "#AF87FF"
+heading = "#FFAF5F"
 ```
 
 Within `[keybindings]`, only `quit` is required. Omitted bindings use the
@@ -139,12 +139,17 @@ The `Day Planner` tab uses 30-minute slots from 06:00 through 21:30. Scheduling
 a todo adds `⏳ YYYY-MM-DD ⏰ HH:mm` to its original Markdown task line. Enter
 assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
 and `[`/`]` change days. The planner refuses occupied destination slots.
-Scheduled todos show `⏳ YYYY-MM-DD HH:mm` beneath their title in the Todos
-pane. The planner shows responsive details for the selected slot; `v` hides or
+Scheduled todos show `YYYY-MM-DD HH:mm` in the adaptive `SCHEDULED` column in
+the Todos pane. The shared field editor can schedule or unschedule work, and
+`d`/`D` sort by scheduled date and time. Existing start and due annotations are
+preserved in Markdown but intentionally omitted from the normal UI. The planner
+shows responsive details for the selected slot; `v` hides or
 restores them. Its unscheduled-todo picker shows several filterable candidates.
 On an occupied slot, `e`, `E`, Ctrl+E, and Space provide the same field editing,
 content editing, external editing, and completion actions as the Todos tab.
-Creating with `a` uses the full todo form and applies the selected slot.
+Creating with `a` uses the full todo form, pre-fills the selected slot, and
+requires a schedule. Rescheduling from the Planner editor follows the task to
+its new date and slot.
 
 In the Todos tab, `a` creates a todo under the chosen project's `## Inbox`
 heading, `e` edits the selected todo's parsed fields, and Space changes its
@@ -174,6 +179,11 @@ session. Opening a todo restores hidden details automatically.
 The Vim-style `g` and `G` bindings jump to the first or last item in the
 focused Projects or Todos list. Planner keeps its contextual `g` binding for
 returning to today.
+
+Nested todos are always expanded in the Todos list and inspector. Unicode
+`├─`, `└─`, and `│` connectors show sibling and ancestor relationships. A
+filter that matches a descendant keeps its visible ancestor path as normal,
+selectable todo rows so the result retains useful tree context.
 
 
 ## AI Guidance

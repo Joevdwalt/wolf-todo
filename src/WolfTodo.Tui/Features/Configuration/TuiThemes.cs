@@ -7,8 +7,8 @@ public static class TuiThemes
     public static TuiTheme Wolf { get; } = new(
         Color.Default,
         new Color(95, 215, 255),
-        new Color(175, 135, 255),
-        new Color(95, 95, 135),
+        new Color(255, 175, 95),
+        new Color(95, 135, 175),
         new Color(128, 128, 128),
         new Color(95, 215, 135),
         new Color(255, 215, 95),

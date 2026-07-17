@@ -61,6 +61,34 @@ public sealed class ProjectTodoMutationServiceTests
     }
 
     [Fact]
+    public void Update_changes_schedule_and_preserves_legacy_start_and_due_metadata()
+    {
+        const string path = "/todos/work.md";
+        const string markdown = "- [ ] Existing 🛫 2026-07-01 📅 2026-07-31\n";
+        var parser = new ProjectMarkdownParser();
+        var expected = parser.Parse(path, markdown).Project!.Todos.Single();
+        var fileSystem = new WritableFileSystem(path, markdown);
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+        var schedule = new TodoSchedule(new DateOnly(2026, 7, 15), new TimeOnly(9, 30));
+
+        var result = service.Update(
+            path,
+            expected,
+            new TodoUpdate(
+                "Changed",
+                null,
+                null,
+                [],
+                expected.StartDate,
+                expected.DueDate,
+                schedule));
+
+        result.Succeeded.Should().BeTrue();
+        fileSystem.Contents.Should().Be(
+            "- [ ] Changed 🛫 2026-07-01 📅 2026-07-31 ⏳ 2026-07-15 ⏰ 09:30\n");
+    }
+
+    [Fact]
     public void UpdateContent_edits_and_adds_direct_content_without_rewriting_descendants()
     {
         const string path = "/todos/work.md";

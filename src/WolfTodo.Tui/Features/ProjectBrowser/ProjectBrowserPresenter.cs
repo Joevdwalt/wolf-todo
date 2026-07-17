@@ -104,10 +104,12 @@ public sealed class ProjectBrowserPresenter
                 .Select(item => item.Todo.SectionPath)
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
-            var visibleTodos = Flatten(project.Todos, state.Sort)
-                .Where(item => state.ShowCompleted || !item.Todo.IsCompleted)
-                .Where(item => MatchesFilter(item.Todo, filter))
-                .ToArray();
+            var visibleForest = BuildVisibleForest(
+                project.Todos,
+                state.Sort,
+                state.ShowCompleted,
+                filter);
+            var visibleTodos = FlattenVisible(visibleForest).ToArray();
 
             if (filter.Length > 0 && visibleTodos.Length == 0)
             {
@@ -116,7 +118,7 @@ public sealed class ProjectBrowserPresenter
 
             if (selectedProject.Project is null)
             {
-                rows.Add(new TodoRow(project.Title, null, 0, false));
+                rows.Add(new TodoRow(project.Title, null, [], false));
             }
 
             foreach (var sectionPath in sectionPaths)
@@ -131,7 +133,7 @@ public sealed class ProjectBrowserPresenter
 
                 if (!string.IsNullOrEmpty(sectionPath))
                 {
-                    rows.Add(new TodoRow(sectionPath, null, 0, false));
+                    rows.Add(new TodoRow(sectionPath, null, [], false));
                 }
 
                 foreach (var item in section)
@@ -139,7 +141,7 @@ public sealed class ProjectBrowserPresenter
                     rows.Add(new TodoRow(
                         null,
                         item.Todo,
-                        item.Depth,
+                        item.TreePath,
                         false,
                         new TodoIdentity(project.Path, item.Todo.SourceLine))
                     {
@@ -165,11 +167,65 @@ public sealed class ProjectBrowserPresenter
         return Contains(todo.Title, filter)
             || Contains(todo.ExternalReference, filter)
             || Contains(todo.SectionPath, filter)
+            || (todo.Schedule is not null &&
+                (Contains(todo.Schedule.Date.ToString("yyyy-MM-dd"), filter) ||
+                 Contains(todo.Schedule.Time.ToString("HH:mm"), filter) ||
+                 Contains($"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}", filter)))
             || todo.Tags.Any(tag => Contains(tag, filter) || Contains($"#{tag}", filter));
     }
 
     private static bool Contains(string? value, string filter) =>
         value?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true;
+
+    private static ImmutableArray<VisibleTodo> BuildVisibleForest(
+        IEnumerable<TodoItem> todos,
+        TodoSort sort,
+        bool showCompleted,
+        string filter)
+    {
+        var visible = ImmutableArray.CreateBuilder<VisibleTodo>();
+
+        foreach (var todo in OrderTodos(todos, sort))
+        {
+            var children = BuildVisibleForest(todo.Subtasks, sort, showCompleted, filter);
+            if (!showCompleted && todo.IsCompleted)
+            {
+                visible.AddRange(children);
+                continue;
+            }
+
+            if (filter.Length == 0 || MatchesFilter(todo, filter) || children.Length > 0)
+            {
+                visible.Add(new VisibleTodo(todo, children));
+            }
+        }
+
+        return visible.ToImmutable();
+    }
+
+    private static IEnumerable<(TodoItem Todo, ImmutableArray<TodoTreeSegment> TreePath)> FlattenVisible(
+        ImmutableArray<VisibleTodo> todos,
+        ImmutableArray<TodoTreeSegment> parentPath = default)
+    {
+        for (var index = 0; index < todos.Length; index++)
+        {
+            var item = todos[index];
+            yield return (item.Todo, parentPath.IsDefault ? [] : parentPath);
+
+            var childParentPath = parentPath.IsDefault ? [] : parentPath;
+            for (var childIndex = 0; childIndex < item.Children.Length; childIndex++)
+            {
+                var childPath = childParentPath.Add(
+                    childIndex == item.Children.Length - 1
+                        ? TodoTreeSegment.LastSibling
+                        : TodoTreeSegment.HasFollowingSibling);
+                foreach (var child in FlattenVisible([item.Children[childIndex]], childPath))
+                {
+                    yield return child;
+                }
+            }
+        }
+    }
 
     private static IEnumerable<(TodoItem Todo, int Depth)> Flatten(
         IEnumerable<TodoItem> todos,
@@ -230,7 +286,7 @@ public sealed class ProjectBrowserPresenter
         return sort.Property switch
         {
             TodoSortProperty.Name => NaturalStringComparer.Instance.Compare(left.Title, right.Title) * direction,
-            TodoSortProperty.StartDate => CompareOptionalDates(left.StartDate, right.StartDate, direction),
+            TodoSortProperty.Schedule => CompareOptionalSchedules(left.Schedule, right.Schedule, direction),
             TodoSortProperty.Tags => CompareOptionalText(TagSortValue(left), TagSortValue(right), direction),
             TodoSortProperty.Priority => CompareOptionalPriorities(left.Priority, right.Priority, direction),
             _ => 0
@@ -250,14 +306,15 @@ public sealed class ProjectBrowserPresenter
         return left.Value.CompareTo(right.Value) * direction;
     }
 
-    private static int CompareOptionalDates(DateOnly? left, DateOnly? right, int direction)
+    private static int CompareOptionalSchedules(TodoSchedule? left, TodoSchedule? right, int direction)
     {
         if (left is null || right is null)
         {
             return left is null == right is null ? 0 : left is null ? 1 : -1;
         }
 
-        return left.Value.CompareTo(right.Value) * direction;
+        var date = left.Date.CompareTo(right.Date);
+        return (date != 0 ? date : left.Time.CompareTo(right.Time)) * direction;
     }
 
     private static int CompareOptionalText(string? left, string? right, int direction)
@@ -297,4 +354,6 @@ public sealed class ProjectBrowserPresenter
             .SelectMany(project => Flatten(project.Todos, TodoSort.Source))
             .Any(item => item.Todo.IsCompleted);
     }
+
+    private sealed record VisibleTodo(TodoItem Todo, ImmutableArray<VisibleTodo> Children);
 }

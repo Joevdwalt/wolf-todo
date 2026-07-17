@@ -8,4 +8,5 @@ public sealed record TodoUpdate(
     TodoPriority? Priority,
     ImmutableArray<string> Tags,
     DateOnly? StartDate,
-    DateOnly? DueDate);
+    DateOnly? DueDate,
+    TodoSchedule? Schedule = null);

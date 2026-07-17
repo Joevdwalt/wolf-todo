@@ -16,8 +16,8 @@ files, configuration, or project counts.
   mode to edit the current filter. Show the prompt as `/` followed by the draft
   text.
 - Update results live as printable characters are typed. Backspace removes the
-  final character. Reset todo selection to the first matching row whenever the
-  draft changes.
+  final character. Reset todo selection to the first visible result row whenever
+  the draft changes; this may be an ancestor retained for tree context.
 - Enter trims and commits the draft. Submitting an empty draft clears the
   filter. A committed filter remains active while navigating, opening details,
   toggling completed todos, and switching projects.
@@ -43,12 +43,17 @@ ordinal substring against each todo's:
 - title;
 - external reference;
 - tags, accepting matches with or without the leading `#`; and
-- section path.
+- section path; and
+- scheduled ISO date, `HH:mm` time, or combined `YYYY-MM-DD HH:mm` value.
 
-Do not match project titles, priority, dates, notes, or other detail text.
+Do not match project titles, priority, compatibility-only start/due dates,
+notes, or other detail text.
 Apply completed-todo visibility before filtering. Match every flattened todo
-and subtask independently; a matching subtask keeps its original indentation
-without requiring nonmatching ancestors to appear.
+and subtask independently. When a subtask matches, retain its eligible ancestor
+path as normal selectable rows so the visible result remains a meaningful tree.
+Do not include unrelated siblings or descendants. If completion visibility
+hides an ancestor, promote its visible descendants to the nearest visible
+level and recalculate their tree connectors.
 
 Apply the active session sort after filtering. Changing or clearing a filter
 does not reset the selected sort property or direction.
@@ -65,12 +70,13 @@ active-todo counts remain unfiltered. When no visible row matches, show
    it and submitting an empty prompt restores the unfiltered view.
 3. Esc during editing restores the previously committed query.
 4. A tag can be found with either `now` or `#now`.
-5. A matching nested subtask appears at its original depth even when its parent
-   does not match.
-6. `:completed` continues to control whether matching completed todos are
+5. A schedule can be found by its date, time, or combined value.
+6. A matching nested subtask appears with its visible ancestor path even when
+   those ancestors do not match; unrelated branches remain hidden.
+7. `:completed` continues to control whether matching completed todos are
    eligible for display.
-7. Filtering never modifies project Markdown files.
-8. Filtering from many rows to one row keeps the status panel at the same
+8. Filtering never modifies project Markdown files.
+9. Filtering from many rows to one row keeps the status panel at the same
    terminal-relative position in every responsive layout.
 
 ## References

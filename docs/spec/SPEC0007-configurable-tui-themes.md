@@ -17,7 +17,7 @@ The optional theme table is part of the global `config.toml`:
 [tui.theme]
 preset = "wolf"
 accent = "#5FD7FF"
-heading = "#AF87FF"
+heading = "#FFAF5F"
 error = "Red"
 text = "default"
 ```
@@ -40,7 +40,7 @@ Supported override keys are:
 | `warning` | High-priority and caution state |
 | `error` | Diagnostics and highest-priority state |
 | `tag` | Todo tags |
-| `date` | Start and due dates |
+| `date` | Scheduled dates and times |
 
 An override replaces only its corresponding preset color. Unknown keys,
 unknown presets, non-string values, malformed hexadecimal colors, and unknown
@@ -55,8 +55,8 @@ The default `wolf` preset uses:
 | --- | --- |
 | `text` | `default` |
 | `accent` | `#5FD7FF` |
-| `heading` | `#AF87FF` |
-| `border` | `#5F5F87` |
+| `heading` | `#FFAF5F` |
+| `border` | `#5F87AF` |
 | `muted` | `#808080` |
 | `success` | `#5FD787` |
 | `warning` | `#FFD75F` |

@@ -15,7 +15,7 @@ Press the configured sort-mode gesture, `t` by default, outside another modal
 input to replace the bottom status panel with a sort dialog:
 
 ```text
-Sort: n/N name  d/D start  p/P priority  t/T tags  f/F file  o source  Esc cancel
+Sort: n/N name  d/D scheduled  p/P priority  t/T tags  f/F file  o source  Esc cancel
 ```
 
 Lowercase selects ascending order and uppercase selects descending order. A
@@ -38,13 +38,14 @@ next launch. A missing or invalid saved sort uses source order.
 
 - Preserve project and section groups. Keep section groups in Markdown order.
 - Sort sibling todo blocks recursively so a visible parent retains its subtask
-  block. Independently matching filtered subtasks retain their original depth.
+  block. Recalculate Unicode tree connectors from the sorted, filtered sibling
+  positions. Filtered descendant matches retain their visible ancestor path.
 - Keep open sibling blocks before completed sibling blocks when completed todos
   are visible. Equal values retain Markdown source order.
 - Compare names case-insensitively using natural numeric chunks, so `Task 2`
   precedes `Task 10`.
-- Compare start dates chronologically. Todos without a start date appear last
-  in both directions.
+- Compare scheduled values chronologically by date and then time. Unscheduled
+  todos appear last in both directions.
 - Compare priorities by severity. Ascending orders Lowest through Highest;
   descending orders Highest through Lowest. Todos without priority appear last
   in both directions.
@@ -63,8 +64,9 @@ available.
 ## Acceptance Scenarios
 
 1. Pressing `t`, then `n` orders `Task 2` before `Task 10`; `N` reverses them.
-2. `d` and `D` order dated todos in the requested direction and keep undated
-   todos last.
+2. `d` and `D` order scheduled todos in the requested direction and keep
+   unscheduled todos last. Existing persisted numeric start-date sorts map to
+   scheduled sorting because the enum position is retained.
 3. `p` orders Lowest through Highest and `P` reverses that order; both keep
    unprioritized todos last.
 4. `t` and `T` inside the dialog order normalized tag sets and keep untagged

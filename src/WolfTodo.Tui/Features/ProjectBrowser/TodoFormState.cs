@@ -14,4 +14,10 @@ public sealed record TodoFormState(
     string? Error)
 {
     public bool IsChoosingProject => ProjectPath is null;
+
+    public string ScheduledDate { get; init; } = Values.Schedule?.Date.ToString("yyyy-MM-dd") ?? string.Empty;
+
+    public string ScheduledTime { get; init; } = Values.Schedule?.Time.ToString("HH:mm") ?? string.Empty;
+
+    public bool ScheduleRequired { get; init; }
 }

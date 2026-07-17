@@ -131,17 +131,16 @@ list, an inspector, and a bottom contextual command/status panel.
 At 120 or more columns and at least 24 rows, show all three panes:
 
 ```text
-┌ Projects ──────────┬ Todos: All ──────────────────────┬ Details ────────────────┐
-│ > All           12 │ Client Contracts                 │ Milas Contract Renewal  │
-│   Client Work    7 │ > [ ] ⏫ 134416 - Milas... #now  │ Project: Client Work    │
-│                    │          ⏳ 2026-07-15 09:30       │                         │
-│   Home           5 │   [ ] 🔼 Prepare proposal       │ Section: Renewals       │
-│ ! Missing source   │                                  │ Reference: 134416       │
-│                    │ Home                             │ Priority: High          │
-│                    │   [ ] Replace bathroom light     │ Start: 2026-07-08       │
-│                    │                                  │ Due: 2026-07-31         │
+┌ PROJECTS ──────────┬ TODOS: ALL ──────────────────────┬ DETAILS ────────────────┐
+│ > All           12 │ S P TASK             SCHEDULED  │ Milas Contract Renewal  │
+│   Client Work    7 │ ○ H Milas Contract   2026-07-15 │ PROJECT: Client Work    │
+│                    │                         09:30     │ SCHEDULED: 2026-07-15   │
+│   Home           5 │ ○ M Prepare proposal -          │            09:30        │
+│ ! Missing source   │                                  │ REFERENCE: 134416       │
+│                    │ Home                             │ PRIORITY: High          │
+│                    │ ○ - Replace light    -           │                         │
 │                    │                                  │                         │
-│                    │                                  │ Notes                   │
+│                    │                                  │ NOTES                   │
 │                    │                                  │ • Review contract       │
 ├────────────────────┴──────────────────────────────────┴─────────────────────────┤
 │ j/k navigate  Tab pane  l open  h back  / filter  : command  :completed  :q    │
@@ -166,9 +165,9 @@ restores the inspector.
 
 ```text
 ┌ TASKS // ALL ───────────────────────────┬ INSPECTOR ─────────────────────────────┐
-│ S P TASK                      DUE       │ Milas Contract Renewal                 │
-│ ○ H Milas Contract Renewal   TODAY     │ PROJECT: Client Work                  │
-│   ⏳ 2026-07-15 09:30                  │ PRIORITY: High                        │
+│ S P TASK                      SCHEDULED │ Milas Contract Renewal                 │
+│ ○ H Milas Contract Renewal   2026-07-15 09:30                                  │
+│                                        │ PRIORITY: High                        │
 ├────────────────────────────────────────┴────────────────────────────────────────┤
 │ j/k NAVIGATE  Tab PANE  l OPEN  h BACK  / FILTER  : COMMAND                    │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -199,21 +198,22 @@ Completed todos are hidden by default. The `:completed` command toggles them
 for the current browser session. When visible, show completed todos after open
 todos within their original project and heading groups.
 
-Todo title lines use adaptive `S P TASK`, optional `PROJECT`, and optional `DUE`
+Todo title lines use adaptive `S P TASK`, optional `PROJECT`, and optional
+`SCHEDULED`
 columns as defined by SPEC0013. Nested subtasks use the same state, priority,
-then title order. Keep each title on one line and truncate overflowing text with
-an ellipsis. A scheduled todo adds a dim,
-date-colored `⏳ YYYY-MM-DD HH:mm` line beneath and aligned with its title. Keep
-the two lines together while scrolling whenever at least two content lines are
-available. The detail preview displays the complete title, external reference,
-project, heading path, priority, tags, dates, notes, and nested subtasks.
+then title order. They are always expanded and use Unicode `├─`, `└─`, and `│`
+connectors calculated from the visible sibling tree. Keep each title on one
+line and truncate overflowing text with an ellipsis. The scheduled column displays `YYYY-MM-DD HH:mm` or `-` and uses
+the semantic date color. The detail preview displays the complete title,
+external reference, project, heading path, priority, tags, schedule, notes, and
+the complete recursive subtask tree using the same connectors. Parsed start and due metadata remain preserved in Markdown but
+are not presented or edited by the normal TUI.
 
 Selecting an error entry replaces the todo/detail content with its diagnostic,
 including the source path and actionable reason. Duplicate project titles are
 disambiguated with their source directory in the detail preview.
 
-Completed rows use muted/dim styling. Selection accents the row, while overdue
-styling applies to the due value only. Structural headings and inspector labels
+Completed rows use muted/dim styling and selection accents the row. Structural headings and inspector labels
 are uppercase; task and project values preserve their source case.
 
 ## Interaction

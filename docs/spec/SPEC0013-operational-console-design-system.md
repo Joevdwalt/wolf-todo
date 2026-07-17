@@ -18,9 +18,9 @@ and available actions.
   shadows, gradients, decorative metrics, or continuous animation.
 - Render structural labels and action names in uppercase. Preserve user-entered
   task, project, note, filter, and command text exactly.
-- Use the semantic theme roles from SPEC0007. Selection uses the accent; errors,
-  conflicts, and overdue dates use error; completed work uses muted/dim styling.
-  Do not color an entire row to communicate priority or due state.
+- Use the semantic theme roles from SPEC0007. Selection uses the accent; errors
+  and conflicts use error; completed work uses muted/dim styling. Do not color
+  an entire row to communicate priority or schedule state.
 
 ## Operational Header
 
@@ -34,13 +34,14 @@ catalog; fake identifiers, sync claims, or system metrics are forbidden.
 ## Task Rows
 
 The task list uses adaptive columns headed `S P TASK`, followed by `PROJECT`
-and `DUE` when space permits. `PROJECT` appears for the aggregate All view only.
+and `SCHEDULED` when space permits. `PROJECT` appears for the aggregate All view only.
 State uses `○` for open and `✓` for completed. Priority uses `!`, `H`, `M`, `L`,
 `.`, or `-`. The selected row is accented and bold; a completed row is muted
-and dim. Only an overdue due value receives error styling.
-
-Scheduled metadata remains on a dim second line below and aligned with its task
-title. Inspector field labels and section headings are uppercase; values retain
+and dim. Scheduled values use the date role without coloring the entire row.
+Always-expanded subtasks use restrained Unicode `├─`, `└─`, and `│` connectors
+inside the adaptive `TASK` column. Connector width participates in truncation
+and column layout.
+Inspector field labels and section headings are uppercase; values retain
 their original case.
 
 ## Responsive Layout
@@ -80,7 +81,6 @@ model does not currently represent.
 2. Wide, medium, and narrow layouts keep the primary task or timeline workspace
    usable while making secondary views reachable.
 3. Task metadata columns appear only when their widths can remain legible.
-4. Completed work is muted and overdue emphasis is limited to its due value.
+4. Completed work is muted and schedules remain legible without dominating rows.
 5. Custom themes preserve hierarchy without setting a terminal background.
 6. Forms, menus, pickers, and command hints use the same structural language.
-

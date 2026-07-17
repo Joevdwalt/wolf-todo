@@ -29,7 +29,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             }),
             PlannerAction.Create when view.Projects.Length > 0 => Transition(state with
             {
-                Form = todoEditorReducer.CreateForm(null, true),
+                Form = todoEditorReducer.CreateForm(null, true, SelectedSchedule(state), true),
                 Error = null
             }),
             PlannerAction.Create => Transition(state with { Error = "No valid projects are available." }),
@@ -279,7 +279,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 ? Transition(state with { Error = "No valid projects are available." })
                 : Transition(state with
                 {
-                    Form = todoEditorReducer.CreateForm(null, true),
+                    Form = todoEditorReducer.CreateForm(null, true, SelectedSchedule(state), true),
                     Error = null
                 });
         }
@@ -345,6 +345,10 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
     private static int MoveIndex(int current, int offset, int count) =>
         count == 0 ? 0 : Math.Clamp(current + offset, 0, count - 1);
+
+    private static TodoSchedule SelectedSchedule(PlannerState state) => new(
+        state.SelectedDate,
+        new TimeOnly(6, 0).AddMinutes(state.SlotIndex * 30));
 
     private static PlannerTransition ApplyFormTransition(
         PlannerState state,

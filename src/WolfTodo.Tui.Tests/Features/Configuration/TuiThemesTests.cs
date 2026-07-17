@@ -18,10 +18,11 @@ public sealed class TuiThemesTests
     }
 
     [Fact]
-    public void Wolf_uses_the_arctic_semantic_palette()
+    public void Wolf_uses_the_semantic_palette()
     {
         TuiThemes.Wolf.Accent.Should().Be(new Color(95, 215, 255));
-        TuiThemes.Wolf.Heading.Should().Be(new Color(175, 135, 255));
+        TuiThemes.Wolf.Heading.Should().Be(new Color(255, 175, 95));
+        TuiThemes.Wolf.Border.Should().Be(new Color(95, 135, 175));
         TuiThemes.Wolf.Error.Should().Be(new Color(255, 95, 95));
         TuiThemes.Wolf.Tag.Should().Be(new Color(95, 215, 175));
     }

@@ -75,6 +75,19 @@ public sealed class JsonApplicationStateStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_maps_the_legacy_start_date_sort_position_to_schedule()
+    {
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(
+            Path.Combine(directory, "state.json"),
+            "{\"Sort\":{\"Property\":2,\"Direction\":0}}");
+
+        var result = CreateStore().Load();
+
+        result.Sort.Should().Be(new TodoSort(TodoSortProperty.Schedule, TodoSortDirection.Ascending));
+    }
+
+    [Fact]
     public void Load_keeps_the_project_and_defaults_an_unknown_sort()
     {
         Directory.CreateDirectory(directory);

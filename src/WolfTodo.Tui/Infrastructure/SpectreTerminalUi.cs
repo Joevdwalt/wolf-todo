@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using WolfTodo.Core.Features.ProjectBrowser;
@@ -803,12 +804,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             var lines = new List<IRenderable> { TodoListRow(
                 row,
                 layout,
-                theme,
-                today) };
-            if (row.Todo!.Schedule is not null)
-            {
-                lines.Add(TodoScheduleLine(row, contentWidth, theme));
-            }
+                theme) };
 
             return new TodoLineGroup(lines, row.IsSelected);
         }));
@@ -854,8 +850,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
                 theme,
                 theme.Tag);
-            AddField(lines, "Start", todo.StartDate?.ToString("yyyy-MM-dd"), theme, theme.Date);
-            AddField(lines, "Due", todo.DueDate?.ToString("yyyy-MM-dd"), theme, theme.Date);
             AddField(
                 lines,
                 "Scheduled",
@@ -883,7 +877,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 {
                     lines.Add(new Text(string.Empty));
                     lines.Add(new Text("SUBTASKS", ThemeStyle(theme.Heading, Decoration.Bold)));
-                    lines.AddRange(todo.Subtasks.Select(subtask => DetailedTodoLine(subtask, 0, false, theme)));
+                    lines.AddRange(FlattenSubtasks(todo.Subtasks)
+                        .Select(item => DetailedTodoLine(item.Todo, item.TreePath, false, theme)));
                 }
             }
         }
@@ -928,8 +923,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
             todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
             theme,
             theme.Tag);
-        AddField(lines, "Start", todo.StartDate?.ToString("yyyy-MM-dd"), theme, theme.Date);
-        AddField(lines, "Due", todo.DueDate?.ToString("yyyy-MM-dd"), theme, theme.Date);
+        AddField(
+            lines,
+            "Scheduled",
+            todo.Schedule is null
+                ? null
+                : $"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}",
+            theme,
+            theme.Date);
 
         if (todo.Notes.Length > 0)
         {
@@ -942,7 +943,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             lines.Add(new Text(string.Empty));
             lines.Add(new Text("SUBTASKS", ThemeStyle(theme.Heading, Decoration.Bold)));
-            lines.AddRange(todo.Subtasks.Select(subtask => DetailedTodoLine(subtask, 0, false, theme)));
+            lines.AddRange(todo.Subtasks.Select(subtask => DetailedTodoLine(subtask, [], false, theme)));
         }
 
         if (todo.Notes.Length == 0 && todo.Subtasks.Length == 0)
@@ -975,7 +976,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
             assignment.ProjectTitle,
             todo.Priority?.ToString(),
             todo.Tags.Length == 0 ? null : string.Join(' ', todo.Tags.Select(tag => $"#{tag}")),
-            todo.DueDate is null ? null : $"due {todo.DueDate:yyyy-MM-dd}"
+            todo.Schedule is null
+                ? null
+                : $"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}"
         };
         var line = new System.Text.StringBuilder();
         AppendStyled(line, todo.Title, theme.Heading, Decoration.Bold);
@@ -1094,17 +1097,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static TodoColumnLayout TodoColumns(int contentWidth, bool includeProject)
     {
         var showProject = includeProject && contentWidth >= 52;
-        var showDue = contentWidth >= 38;
+        var showSchedule = contentWidth >= 44;
         const int projectWidth = 10;
-        const int dueWidth = 10;
-        var fixedWidth = 6 + (showProject ? projectWidth + 2 : 0) + (showDue ? dueWidth + 2 : 0);
+        const int scheduleWidth = 16;
+        var fixedWidth = 6 + (showProject ? projectWidth + 2 : 0) +
+                         (showSchedule ? scheduleWidth + 2 : 0);
         return new TodoColumnLayout(
             contentWidth,
             Math.Max(1, contentWidth - fixedWidth),
             showProject,
             projectWidth,
-            showDue,
-            dueWidth);
+            showSchedule,
+            scheduleWidth);
     }
 
     private static IRenderable TodoColumnHeader(TodoColumnLayout layout, TuiTheme theme)
@@ -1115,9 +1119,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
             text += $"  {FitColumn("PROJECT", layout.ProjectWidth)}";
         }
 
-        if (layout.ShowDue)
+        if (layout.ShowSchedule)
         {
-            text += $"  {FitColumn("DUE", layout.DueWidth)}";
+            text += $"  {FitColumn("SCHEDULED", layout.ScheduleWidth)}";
         }
 
         return new Text(Truncate(text, layout.ContentWidth), ThemeStyle(theme.Heading, Decoration.Bold));
@@ -1126,18 +1130,23 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static IRenderable TodoListRow(
         TodoRow row,
         TodoColumnLayout layout,
-        TuiTheme theme,
-        DateOnly today)
+        TuiTheme theme)
     {
         var todo = row.Todo!;
         var cursor = row.IsSelected ? ">" : " ";
-        var indent = new string(' ', row.Depth * 2);
+        var treePrefix = TodoTreeFormatter.Format(row.TreePath);
         var status = todo.IsCompleted ? "✓" : "○";
         var priority = PriorityCode(todo.Priority);
-        var taskWidth = Math.Max(1, layout.TaskWidth - DisplayWidth(indent));
-        var title = indent + FitColumn(todo.Title, taskWidth);
+        var prefixWidth = DisplayWidth(treePrefix);
+        var visiblePrefix = prefixWidth >= layout.TaskWidth
+            ? FitColumn(treePrefix, layout.TaskWidth)
+            : treePrefix;
+        var title = prefixWidth >= layout.TaskWidth
+            ? string.Empty
+            : FitColumn(todo.Title, layout.TaskWidth - prefixWidth);
         var selectedColor = row.IsSelected ? theme.Accent : theme.Text;
         var baseColor = todo.IsCompleted ? theme.Muted : selectedColor;
+        var treeColor = row.IsSelected ? theme.Accent : theme.Muted;
         var decoration = row.IsSelected
             ? Decoration.Bold
             : todo.IsCompleted ? Decoration.Dim : Decoration.None;
@@ -1150,7 +1159,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
             priority,
             row.IsSelected || todo.IsCompleted ? baseColor : PriorityColor(todo.Priority, theme),
             decoration);
-        AppendStyled(line, $" {title}", baseColor, decoration);
+        AppendStyled(line, " ", baseColor, decoration);
+        AppendStyled(line, visiblePrefix, treeColor, decoration);
+        AppendStyled(line, title, baseColor, decoration);
         if (layout.ShowProject)
         {
             AppendStyled(
@@ -1160,33 +1171,21 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 decoration);
         }
 
-        if (layout.ShowDue)
+        if (layout.ShowSchedule)
         {
-            var due = todo.DueDate is null
+            var schedule = todo.Schedule is null
                 ? "-"
-                : todo.DueDate == today ? "TODAY" : todo.DueDate.Value.ToString("yyyy-MM-dd");
-            var dueColor = row.IsSelected || todo.IsCompleted
+                : $"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}";
+            var scheduleColor = row.IsSelected || todo.IsCompleted
                 ? baseColor
-                : todo.DueDate.GetValueOrDefault() < today ? theme.Error : theme.Date;
-            AppendStyled(line, $"  {FitColumn(due, layout.DueWidth)}", dueColor, decoration);
+                : theme.Date;
+            AppendStyled(
+                line,
+                $"  {FitColumn(schedule, layout.ScheduleWidth)}",
+                scheduleColor,
+                decoration);
         }
 
-        return new Markup(line.ToString());
-    }
-
-    private static IRenderable TodoScheduleLine(TodoRow row, int contentWidth, TuiTheme theme)
-    {
-        var schedule = row.Todo!.Schedule!;
-        var titleIndentWidth = Math.Min(6 + (row.Depth * 2), Math.Max(0, contentWidth - 1));
-        var availableWidth = Math.Max(1, contentWidth - titleIndentWidth);
-        var value = Truncate($"⏳ {schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}", availableWidth);
-        var line = new System.Text.StringBuilder();
-        AppendStyled(line, new string(' ', titleIndentWidth), theme.Text);
-        AppendStyled(
-            line,
-            value,
-            row.Todo.IsCompleted ? theme.Muted : theme.Date,
-            Decoration.Dim);
         return new Markup(line.ToString());
     }
 
@@ -1233,16 +1232,41 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static int DisplayWidth(string value) => value.GetCellWidth();
 
-    private static IRenderable DetailedTodoLine(TodoItem todo, int depth, bool selected, TuiTheme theme)
+    private static IEnumerable<(TodoItem Todo, ImmutableArray<TodoTreeSegment> TreePath)> FlattenSubtasks(
+        ImmutableArray<TodoItem> todos,
+        ImmutableArray<TodoTreeSegment> parentPath = default)
+    {
+        for (var index = 0; index < todos.Length; index++)
+        {
+            var path = (parentPath.IsDefault ? ImmutableArray<TodoTreeSegment>.Empty : parentPath).Add(
+                index == todos.Length - 1
+                    ? TodoTreeSegment.LastSibling
+                    : TodoTreeSegment.HasFollowingSibling);
+            var todo = todos[index];
+            yield return (todo, path);
+
+            foreach (var descendant in FlattenSubtasks(todo.Subtasks, path))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private static IRenderable DetailedTodoLine(
+        TodoItem todo,
+        ImmutableArray<TodoTreeSegment> treePath,
+        bool selected,
+        TuiTheme theme)
     {
         var cursor = selected ? ">" : " ";
-        var indent = new string(' ', depth * 2);
+        var treePrefix = TodoTreeFormatter.Format(treePath);
         var status = todo.IsCompleted ? "✓" : "○";
         var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
         var priority = PriorityCode(todo.Priority);
         var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
-        var start = todo.StartDate is null ? string.Empty : $" 🛫 {todo.StartDate:yyyy-MM-dd}";
-        var due = todo.DueDate is null ? string.Empty : $" 📅 {todo.DueDate:yyyy-MM-dd}";
+        var schedule = todo.Schedule is null
+            ? string.Empty
+            : $" ⏳ {todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}";
 
         var line = new System.Text.StringBuilder();
         AppendStyled(
@@ -1252,8 +1276,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
             selected ? Decoration.Bold : todo.IsCompleted ? Decoration.Dim : Decoration.None);
         AppendStyled(
             line,
-            $" {indent}",
-            todo.IsCompleted ? theme.Muted : theme.Text,
+            $" {treePrefix}",
+            selected ? theme.Accent : theme.Muted,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
         AppendStyled(
             line,
@@ -1268,7 +1292,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
         AppendStyled(line, tags, todo.IsCompleted ? theme.Muted : theme.Tag,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(line, start + due, todo.IsCompleted ? theme.Muted : theme.Date,
+        AppendStyled(line, schedule, todo.IsCompleted ? theme.Muted : theme.Date,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
         return new Markup(line.ToString());
     }
@@ -1352,15 +1376,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
             string[] menuLines = terminalWidth switch
             {
                 >= 100 =>
-                    ["SORT // n/N NAME  d/D START  p/P PRIORITY  t/T TAGS  f/F FILE  o SOURCE  Esc CANCEL"],
+                    ["SORT // n/N NAME  d/D SCHEDULED  p/P PRIORITY  t/T TAGS  f/F FILE  o SOURCE  Esc CANCEL"],
                 >= 60 =>
                 [
-                    "SORT // n/N NAME  d/D START  p/P PRIORITY",
+                    "SORT // n/N NAME  d/D SCHEDULED  p/P PRIORITY",
                     "t/T TAGS  f/F FILE  o SOURCE  Esc CANCEL"
                 ],
                 _ =>
                 [
-                    "SORT // n/N NAME  d/D START",
+                    "SORT // n/N NAME  d/D SCHEDULED",
                     "p/P PRIORITY  t/T TAGS",
                     "f/F FILE  o SOURCE",
                     "Esc CANCEL"
@@ -1410,8 +1434,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
             (TodoFormField.Reference, "External reference", form.Values.ExternalReference ?? string.Empty),
             (TodoFormField.Priority, "Priority", form.Values.Priority?.ToString() ?? string.Empty),
             (TodoFormField.Tags, "Tags", string.Join(' ', form.Values.Tags.Select(tag => $"#{tag}"))),
-            (TodoFormField.StartDate, "Start date", form.Values.StartDate?.ToString("yyyy-MM-dd") ?? string.Empty),
-            (TodoFormField.DueDate, "Due date", form.Values.DueDate?.ToString("yyyy-MM-dd") ?? string.Empty)
+            (TodoFormField.ScheduledDate, "Scheduled date", form.ScheduledDate),
+            (TodoFormField.ScheduledTime, "Scheduled time", form.ScheduledTime)
         };
         var contentWidth = Math.Max(1, terminalWidth - 4);
         var selectedIndex = Array.FindIndex(fields, field => field.Item1 == form.Field);
@@ -1662,7 +1686,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var property = state.Sort.Property switch
         {
             TodoSortProperty.Name => "name",
-            TodoSortProperty.StartDate => "start",
+            TodoSortProperty.Schedule => "scheduled",
             TodoSortProperty.Tags => "tags",
             TodoSortProperty.File => "file",
             TodoSortProperty.Priority => "priority",
@@ -1754,8 +1778,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
         int TaskWidth,
         bool ShowProject,
         int ProjectWidth,
-        bool ShowDue,
-        int DueWidth);
+        bool ShowSchedule,
+        int ScheduleWidth);
 
     private sealed record BrowserStatusLine(
         string Text,

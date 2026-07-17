@@ -13,11 +13,12 @@ Markdown todos.
 
 - `a` creates a todo. An individual browser project is preselected; All and
   Planner require choosing a valid project. Planner uses the same complete
-  field form and applies its selected schedule after the todo is written.
+  field form with its selected schedule pre-filled and required.
 - New todos are appended under `## Inbox`. Planner creation also applies the
   selected schedule.
-- `e` edits title, external reference, priority, tags, start date, and due
-  date. Project, section, schedule, notes, and subtasks remain unchanged.
+- `e` edits title, external reference, priority, tags, scheduled date, and
+  scheduled time. Project, section, compatibility-only start/due metadata,
+  notes, and subtasks remain unchanged.
 - Spacebar toggles the selected Markdown checkbox. `:completed` continues to
   control completed-todo visibility only.
 - The bottom form uses configured movement and open/back gestures. Ctrl+S
@@ -50,7 +51,8 @@ Markdown todos.
   error styling for validation failures.
 - Successful changes reload the catalog and restore selection to the resulting
   source identity. Validation, stale targets, and I/O failures remain visible
-  without discarding external content.
+  without discarding external content or the active form. Schedule writes also
+  reject slots occupied by another configured todo.
 - Uppercase `E` opens a structured draft for the selected todo's direct notes
   and subtasks. Add, edit, remove, and subtask completion changes are written
   together with Ctrl+S; Escape discards them.

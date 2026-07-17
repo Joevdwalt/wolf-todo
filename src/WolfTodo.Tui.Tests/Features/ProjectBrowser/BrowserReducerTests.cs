@@ -196,8 +196,8 @@ public sealed class BrowserReducerTests
     [Theory]
     [InlineData('n', TodoSortProperty.Name, TodoSortDirection.Ascending)]
     [InlineData('N', TodoSortProperty.Name, TodoSortDirection.Descending)]
-    [InlineData('d', TodoSortProperty.StartDate, TodoSortDirection.Ascending)]
-    [InlineData('D', TodoSortProperty.StartDate, TodoSortDirection.Descending)]
+    [InlineData('d', TodoSortProperty.Schedule, TodoSortDirection.Ascending)]
+    [InlineData('D', TodoSortProperty.Schedule, TodoSortDirection.Descending)]
     [InlineData('t', TodoSortProperty.Tags, TodoSortDirection.Ascending)]
     [InlineData('T', TodoSortProperty.Tags, TodoSortDirection.Descending)]
     [InlineData('f', TodoSortProperty.File, TodoSortDirection.Ascending)]
@@ -281,7 +281,9 @@ public sealed class BrowserReducerTests
         {
             Form = opened.State.Form! with
             {
-                Values = new TodoUpdate("New task", null, null, [], null, null)
+                Values = new TodoUpdate("New task", null, null, [], null, null),
+                ScheduledDate = "2026-07-15",
+                ScheduledTime = "09:30"
             }
         };
 
@@ -294,6 +296,41 @@ public sealed class BrowserReducerTests
         saved.Operation.Should().Be(BrowserOperation.Create);
         saved.ProjectPath.Should().Be(project.Path);
         saved.Update!.Title.Should().Be("New task");
+        saved.Update.Schedule.Should().Be(
+            new TodoSchedule(new DateOnly(2026, 7, 15), new TimeOnly(9, 30)));
+        saved.State.Form.Should().NotBeNull("the application clears it after a successful write");
+    }
+
+    [Theory]
+    [InlineData("2026-07-15", "", "both be set")]
+    [InlineData("", "09:30", "both be set")]
+    [InlineData("2026-07-15", "09:15", "half-hour")]
+    [InlineData("2026-07-15", "22:00", "half-hour")]
+    public void Reduce_rejects_incomplete_or_invalid_schedules(
+        string date,
+        string time,
+        string expectedError)
+    {
+        var project = new TodoProject("Alpha", "/alpha.md", []);
+        var view = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("Alpha", 0, project, null, true)],
+            [], null, "Alpha", project.Path, null, string.Empty);
+        var opened = reducer.Reduce(BrowserState.Initial, Key('a'), Configuration, view);
+        var state = opened.State with
+        {
+            Form = opened.State.Form! with
+            {
+                Values = new TodoUpdate("New task", null, null, [], null, null),
+                ScheduledDate = date,
+                ScheduledTime = time
+            }
+        };
+
+        var saved = reducer.Reduce(state, Key(ConsoleKey.S, control: true), Configuration, view);
+
+        saved.Operation.Should().Be(BrowserOperation.None);
+        saved.State.Form!.Error.Should().Contain(expectedError);
     }
 
     [Fact]
@@ -450,7 +487,7 @@ public sealed class BrowserReducerTests
         return new BrowserView(
             BrowserState.Initial with { Focus = BrowserFocus.Todos },
             [new ProjectRow("All", count, null, null, true)],
-            [.. todos.Select((todo, index) => new TodoRow(null, todo, 0, index == 0))],
+            [.. todos.Select((todo, index) => new TodoRow(null, todo, [], index == 0))],
             todos[0],
             "All",
             null,
@@ -480,7 +517,7 @@ public sealed class BrowserReducerTests
         return new BrowserView(
             BrowserState.Initial,
             [new ProjectRow("All", 1, null, null, true)],
-            [new TodoRow(null, todo, 0, true, identity)],
+            [new TodoRow(null, todo, [], true, identity)],
             todo,
             "All",
             null,

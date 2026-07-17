@@ -167,7 +167,7 @@ public sealed class TuiApplicationTests
     [Fact]
     public void Run_falls_back_to_all_when_the_saved_project_is_not_configured()
     {
-        var savedSort = new TodoSort(TodoSortProperty.StartDate, TodoSortDirection.Descending);
+        var savedSort = new TodoSort(TodoSortProperty.Schedule, TodoSortDirection.Descending);
         var stateStore = new FakeApplicationStateStore("/todos/removed.md", savedSort);
         var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
         var application = CreateApplication(new FixedConfigurationLoader(), terminal, stateStore);
@@ -360,6 +360,80 @@ public sealed class TuiApplicationTests
             view.State.Form != null &&
             view.State.Form.Error != null &&
             view.State.Form.Error.Contains("disk full", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_follows_a_todo_to_its_new_slot_after_planner_rescheduling()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var tomorrow = today.AddDays(1);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            $"# Work\n\n- [ ] Scheduled ⏳ {today:yyyy-MM-dd} ⏰ 06:00\n");
+        var keys = new List<ConsoleKeyInfo>
+        {
+            Key('x'), Key('L'), Key('e'),
+            Key('j'), Key('j'), Key('j'), Key('j'), Key('l')
+        };
+        keys.AddRange(Enumerable.Repeat(Key(ConsoleKey.Backspace), 10));
+        keys.AddRange(tomorrow.ToString("yyyy-MM-dd").Select(Key));
+        keys.Add(Key(ConsoleKey.Enter));
+        keys.AddRange([Key('j'), Key('l')]);
+        keys.AddRange(Enumerable.Repeat(Key(ConsoleKey.Backspace), 5));
+        keys.AddRange("07:30".Select(Key));
+        keys.AddRange([
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.S, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter)
+        ]);
+        var terminal = new FakeTerminal([.. keys]);
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain($"⏳ {tomorrow:yyyy-MM-dd} ⏰ 07:30");
+        var final = terminal.PlannerViews.Last();
+        final.State.SelectedDate.Should().Be(tomorrow);
+        final.State.SlotIndex.Should().Be(3);
+        final.SelectedAssignment!.Todo.Title.Should().Be("Scheduled");
+    }
+
+    [Fact]
+    public void Run_rejects_an_occupied_schedule_and_keeps_the_browser_form_open()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today);
+        var original =
+            $"# Work\n\n- [ ] Unscheduled\n- [ ] Occupied ⏳ {date:yyyy-MM-dd} ⏰ 09:30\n";
+        var fileSystem = new MutableProjectFileSystem("/todos/project.md", original);
+        var keys = new List<ConsoleKeyInfo>
+        {
+            Key('x'), Key('e'),
+            Key('j'), Key('j'), Key('j'), Key('j'), Key('l')
+        };
+        keys.AddRange(date.ToString("yyyy-MM-dd").Select(Key));
+        keys.AddRange([Key(ConsoleKey.Enter), Key('j'), Key('l')]);
+        keys.AddRange("09:30".Select(Key));
+        keys.AddRange([
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.S, control: true),
+            Key('h'),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter)
+        ]);
+        var terminal = new FakeTerminal([.. keys]);
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Be(original);
+        terminal.BrowserViews.Should().Contain(view =>
+            view.State.Form != null &&
+            view.State.Form.Error == "That timeslot is already occupied.");
     }
 
     private static TuiApplication CreateApplication(

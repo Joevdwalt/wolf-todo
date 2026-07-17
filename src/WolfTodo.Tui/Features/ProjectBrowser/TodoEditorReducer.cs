@@ -30,16 +30,23 @@ public sealed record TodoContentEditorTransition(
 
 public sealed class TodoEditorReducer
 {
-    public TodoFormState CreateForm(string? projectPath, bool hasProjects) => new(
-        true,
-        projectPath,
-        0,
-        TodoFormField.Title,
-        false,
-        string.Empty,
-        new TodoUpdate(string.Empty, null, null, [], null, null),
-        null,
-        hasProjects ? null : "No valid projects are available.");
+    public TodoFormState CreateForm(
+        string? projectPath,
+        bool hasProjects,
+        TodoSchedule? schedule = null,
+        bool scheduleRequired = false) => new(
+            true,
+            projectPath,
+            0,
+            TodoFormField.Title,
+            false,
+            string.Empty,
+            new TodoUpdate(string.Empty, null, null, [], null, null, schedule),
+            null,
+            hasProjects ? null : "No valid projects are available.")
+        {
+            ScheduleRequired = scheduleRequired
+        };
 
     public TodoFormState EditForm(TodoItem todo, TodoIdentity identity) => new(
         false,
@@ -54,7 +61,8 @@ public sealed class TodoEditorReducer
             todo.Priority,
             todo.Tags,
             todo.StartDate,
-            todo.DueDate),
+            todo.DueDate,
+            todo.Schedule),
         identity,
         null);
 
@@ -151,12 +159,18 @@ public sealed class TodoEditorReducer
                 return Transition(form with { Error = "Title is required." });
             }
 
+            var schedule = ParseSchedule(form, out var scheduleError);
+            if (scheduleError is not null)
+            {
+                return Transition(form with { Error = scheduleError });
+            }
+
             return new TodoFormTransition(
                 null,
                 form.IsCreate ? TodoEditorOperation.Create : TodoEditorOperation.Update,
                 form.ProjectPath,
                 form.Target,
-                form.Values);
+                form.Values with { Schedule = schedule });
         }
 
         return Transition(form);
@@ -373,11 +387,13 @@ public sealed class TodoEditorReducer
                         .ToImmutableArray()
                 };
                 break;
-            case TodoFormField.StartDate:
-                values = values with { StartDate = ParseDate(form.Draft, out error) };
+            case TodoFormField.ScheduledDate:
+                var scheduledDate = ParseDateText(form.Draft, out error);
+                form = form with { ScheduledDate = scheduledDate };
                 break;
-            case TodoFormField.DueDate:
-                values = values with { DueDate = ParseDate(form.Draft, out error) };
+            case TodoFormField.ScheduledTime:
+                var scheduledTime = ParseTimeText(form.Draft, out error);
+                form = form with { ScheduledTime = scheduledTime };
                 break;
         }
 
@@ -434,12 +450,12 @@ public sealed class TodoEditorReducer
         };
     }
 
-    private static DateOnly? ParseDate(string value, out string? error)
+    private static string ParseDateText(string value, out string? error)
     {
         error = null;
         if (string.IsNullOrWhiteSpace(value))
         {
-            return null;
+            return string.Empty;
         }
 
         if (DateOnly.TryParseExact(
@@ -449,11 +465,74 @@ public sealed class TodoEditorReducer
                 DateTimeStyles.None,
                 out var date))
         {
-            return date;
+            return date.ToString("yyyy-MM-dd");
         }
 
         error = "Date must use YYYY-MM-DD or be empty.";
-        return null;
+        return value;
+    }
+
+    private static string ParseTimeText(string value, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        if (TimeOnly.TryParseExact(
+                value.Trim(),
+                "HH:mm",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var time) &&
+            time.Minute is 0 or 30 &&
+            time >= new TimeOnly(6, 0) &&
+            time <= new TimeOnly(21, 30))
+        {
+            return time.ToString("HH:mm");
+        }
+
+        error = "Time must use HH:mm on a half-hour from 06:00 through 21:30, or be empty.";
+        return value;
+    }
+
+    private static TodoSchedule? ParseSchedule(TodoFormState form, out string? error)
+    {
+        error = null;
+        var hasDate = form.ScheduledDate.Length > 0;
+        var hasTime = form.ScheduledTime.Length > 0;
+        if (!hasDate && !hasTime)
+        {
+            if (form.ScheduleRequired)
+            {
+                error = "A schedule is required when creating from Planner.";
+            }
+
+            return null;
+        }
+
+        if (!hasDate || !hasTime)
+        {
+            error = "Scheduled date and time must both be set or both be empty.";
+            return null;
+        }
+
+        var dateText = ParseDateText(form.ScheduledDate, out error);
+        if (error is not null)
+        {
+            return null;
+        }
+
+        var timeText = ParseTimeText(form.ScheduledTime, out error);
+        if (error is not null)
+        {
+            return null;
+        }
+
+        return new TodoSchedule(
+            DateOnly.ParseExact(dateText, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            TimeOnly.ParseExact(timeText, "HH:mm", CultureInfo.InvariantCulture));
     }
 
     private static string FieldValue(TodoFormState form) => form.Field switch
@@ -462,8 +541,8 @@ public sealed class TodoEditorReducer
         TodoFormField.Reference => form.Values.ExternalReference ?? string.Empty,
         TodoFormField.Priority => form.Values.Priority?.ToString() ?? string.Empty,
         TodoFormField.Tags => string.Join(' ', form.Values.Tags.Select(tag => $"#{tag}")),
-        TodoFormField.StartDate => form.Values.StartDate?.ToString("yyyy-MM-dd") ?? string.Empty,
-        TodoFormField.DueDate => form.Values.DueDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+        TodoFormField.ScheduledDate => form.ScheduledDate,
+        TodoFormField.ScheduledTime => form.ScheduledTime,
         _ => string.Empty
     };
 

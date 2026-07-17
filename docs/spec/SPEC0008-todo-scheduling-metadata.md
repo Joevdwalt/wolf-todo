@@ -28,11 +28,16 @@ must refuse occupied destinations and expose externally introduced conflicts.
 Scheduling, moving, and unscheduling update the original task line using the
 conflict-safe strategy in ADR0009.
 
-In the Todos pane, render a scheduled todo's structured value on a second line
-as `⏳ YYYY-MM-DD HH:mm`, aligned beneath the todo title. Use the semantic date
-color with dim emphasis. Treat the title and schedule as one scrolling group so
-the schedule is not shown without its todo. If only one content line is
-available, show the selected todo title and temporarily omit its schedule.
+In the Todos pane, render a scheduled todo's structured value in an adaptive
+`SCHEDULED` column as `YYYY-MM-DD HH:mm`; render `-` for unscheduled work. Use
+the semantic date color. The shared editor accepts separate ISO date and `HH:mm`
+fields. Both blank values unschedule a todo, while partial pairs, off-grid
+minutes, and times outside the Planner range are rejected.
+
+Before create or update, reload the catalog and reject a schedule occupied by
+another todo across configured projects. Exclude the todo being edited from
+that check. Start and due metadata remain parser/serializer compatibility data
+and are not part of the interactive scheduling workflow.
 
 ## Acceptance Scenarios
 
@@ -41,8 +46,8 @@ available, show the selected todo title and temporarily omit its schedule.
 3. Scheduling preserves surrounding Markdown and external changes are never
    silently overwritten.
 4. Existing files without schedule metadata require no migration.
-5. Scheduled todos show their date and time beneath the title in every
-   responsive Todos-pane layout without displacing tabs or status controls.
+5. Scheduled todos show their date and time in every responsive Todos-pane
+   layout without displacing tabs or status controls.
 
 ## References
 

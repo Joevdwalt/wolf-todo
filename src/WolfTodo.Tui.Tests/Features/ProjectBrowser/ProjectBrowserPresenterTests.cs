@@ -61,6 +61,8 @@ public sealed class ProjectBrowserPresenterTests
     [InlineData("abc-123", "Reference match")]
     [InlineData("#NOW", "Tag match")]
     [InlineData("contracts", "Section match")]
+    [InlineData("2026-07-15", "Schedule match")]
+    [InlineData("09:30", "Schedule match")]
     public void CreateView_filters_todos_by_supported_metadata_case_insensitively(
         string filter,
         string expectedTitle)
@@ -72,6 +74,10 @@ public sealed class ProjectBrowserPresenterTests
                 Todo("Reference match") with { ExternalReference = "ABC-123" },
                 Todo("Tag match") with { Tags = ["now"] },
                 Todo("Section match") with { SectionPath = "Client / Contracts" },
+                Todo("Schedule match") with
+                {
+                    Schedule = new TodoSchedule(new DateOnly(2026, 7, 15), new TimeOnly(9, 30))
+                },
                 Todo("No match"))],
             []);
         var state = BrowserState.Initial with { FilterText = filter };
@@ -137,19 +143,64 @@ public sealed class ProjectBrowserPresenterTests
     }
 
     [Fact]
-    public void CreateView_shows_a_matching_subtask_without_its_nonmatching_parent()
+    public void CreateView_shows_selectable_ancestor_context_for_a_matching_subtask()
     {
-        var child = Todo("Matching child");
-        var parent = Todo("Unrelated parent") with { Subtasks = [child] };
+        var child = Todo("Matching child") with { SourceLine = 2 };
+        var unrelatedChild = Todo("Unrelated child") with { SourceLine = 3 };
+        var parent = Todo("Unrelated parent") with
+        {
+            SourceLine = 1,
+            Subtasks = [child, unrelatedChild]
+        };
         var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
         var state = BrowserState.Initial with { FilterText = "matching" };
 
         var result = presenter.CreateView(catalog, state);
         var todoRows = result.Todos.Where(row => row.Todo is not null).ToArray();
 
-        todoRows.Should().ContainSingle();
-        todoRows[0].Todo.Should().BeSameAs(child);
-        todoRows[0].Depth.Should().Be(1);
+        todoRows.Select(row => row.Todo!.Title).Should().Equal("Unrelated parent", "Matching child");
+        todoRows[0].TreePath.Should().BeEmpty();
+        todoRows[1].TreePath.Should().Equal(TodoTreeSegment.LastSibling);
+        result.SelectableTodoCount.Should().Be(2);
+    }
+
+    [Fact]
+    public void CreateView_builds_tree_paths_from_visible_sibling_positions()
+    {
+        var grandchild = Todo("Grandchild") with { SourceLine = 3 };
+        var firstChild = Todo("First child") with { SourceLine = 2, Subtasks = [grandchild] };
+        var lastChild = Todo("Last child") with { SourceLine = 4 };
+        var parent = Todo("Parent") with { SourceLine = 1, Subtasks = [firstChild, lastChild] };
+        var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
+
+        var result = presenter.CreateView(catalog, BrowserState.Initial with { ProjectIndex = 1 });
+        var rows = result.Todos.Where(row => row.Todo is not null).ToArray();
+
+        rows.Select(row => row.Todo!.Title).Should().Equal(
+            "Parent",
+            "First child",
+            "Grandchild",
+            "Last child");
+        rows[0].TreePath.Should().BeEmpty();
+        rows[1].TreePath.Should().Equal(TodoTreeSegment.HasFollowingSibling);
+        rows[2].TreePath.Should().Equal(
+            TodoTreeSegment.HasFollowingSibling,
+            TodoTreeSegment.LastSibling);
+        rows[3].TreePath.Should().Equal(TodoTreeSegment.LastSibling);
+    }
+
+    [Fact]
+    public void CreateView_promotes_open_descendants_when_a_completed_ancestor_is_hidden()
+    {
+        var child = Todo("Open child") with { SourceLine = 2 };
+        var parent = Todo("Completed parent", completed: true) with { SourceLine = 1, Subtasks = [child] };
+        var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
+
+        var result = presenter.CreateView(catalog, BrowserState.Initial with { ProjectIndex = 1 });
+        var row = result.Todos.Single(item => item.Todo is not null);
+
+        row.Todo.Should().BeSameAs(child);
+        row.TreePath.Should().BeEmpty();
     }
 
     [Fact]
@@ -192,7 +243,7 @@ public sealed class ProjectBrowserPresenterTests
     [Theory]
     [InlineData(TodoSortDirection.Ascending, "Early", "Late")]
     [InlineData(TodoSortDirection.Descending, "Late", "Early")]
-    public void CreateView_sorts_start_dates_and_keeps_missing_dates_last(
+    public void CreateView_sorts_scheduled_datetimes_and_keeps_unscheduled_todos_last(
         TodoSortDirection direction,
         string first,
         string second)
@@ -201,13 +252,21 @@ public sealed class ProjectBrowserPresenterTests
             [Project(
                 "Alpha",
                 Todo("Missing") with { SourceLine = 1 },
-                Todo("Late") with { SourceLine = 2, StartDate = new DateOnly(2026, 8, 1) },
-                Todo("Early") with { SourceLine = 3, StartDate = new DateOnly(2026, 7, 1) })],
+                Todo("Late") with
+                {
+                    SourceLine = 2,
+                    Schedule = new TodoSchedule(new DateOnly(2026, 8, 1), new TimeOnly(9, 0))
+                },
+                Todo("Early") with
+                {
+                    SourceLine = 3,
+                    Schedule = new TodoSchedule(new DateOnly(2026, 7, 1), new TimeOnly(9, 0))
+                })],
             []);
         var state = BrowserState.Initial with
         {
             ProjectIndex = 1,
-            Sort = new TodoSort(TodoSortProperty.StartDate, direction)
+            Sort = new TodoSort(TodoSortProperty.Schedule, direction)
         };
 
         var result = presenter.CreateView(catalog, state);

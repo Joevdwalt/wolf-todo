@@ -4,7 +4,7 @@ public enum TodoSortProperty
 {
     Source,
     Name,
-    StartDate,
+    Schedule,
     Tags,
     File,
     Priority

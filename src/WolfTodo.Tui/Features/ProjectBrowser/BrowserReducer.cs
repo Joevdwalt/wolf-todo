@@ -252,7 +252,11 @@ public sealed class BrowserReducer
     private static BrowserTransition ApplyFormTransition(
         BrowserState state,
         TodoFormTransition transition) => new(
-            state with { Form = transition.State, Error = null },
+            state with
+            {
+                Form = transition.Operation == TodoEditorOperation.None ? transition.State : state.Form,
+                Error = null
+            },
             transition.Operation switch
             {
                 TodoEditorOperation.Create => BrowserOperation.Create,
@@ -285,8 +289,8 @@ public sealed class BrowserReducer
         {
             'n' => new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending),
             'N' => new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending),
-            'd' => new TodoSort(TodoSortProperty.StartDate, TodoSortDirection.Ascending),
-            'D' => new TodoSort(TodoSortProperty.StartDate, TodoSortDirection.Descending),
+            'd' => new TodoSort(TodoSortProperty.Schedule, TodoSortDirection.Ascending),
+            'D' => new TodoSort(TodoSortProperty.Schedule, TodoSortDirection.Descending),
             't' => new TodoSort(TodoSortProperty.Tags, TodoSortDirection.Ascending),
             'T' => new TodoSort(TodoSortProperty.Tags, TodoSortDirection.Descending),
             'f' => new TodoSort(TodoSortProperty.File, TodoSortDirection.Ascending),

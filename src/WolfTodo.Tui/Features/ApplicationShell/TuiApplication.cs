@@ -252,7 +252,6 @@ public sealed class TuiApplication(
                             state = ApplyBrowserTransition(
                                 state,
                                 transition,
-                                browserView!,
                                 ref catalog,
                                 configuration,
                                 mutationService);
@@ -333,7 +332,6 @@ public sealed class TuiApplication(
                 state = ApplyBrowserTransition(
                     state,
                     browserTransition,
-                    browserView!,
                     ref catalog,
                     configuration,
                     mutationService);
@@ -411,19 +409,24 @@ public sealed class TuiApplication(
                 return PlannerFailure(state, "The new todo is incomplete.");
             }
 
-            if (IsOccupied(latestCatalog, schedule, null))
+            if (transition.Update.Schedule is null)
+            {
+                return PlannerFailure(state, "A schedule is required when creating from Planner.");
+            }
+
+            if (IsOccupied(latestCatalog, transition.Update.Schedule, null))
             {
                 return PlannerFailure(state, "That timeslot is already occupied.");
             }
 
-            var created = service.Create(transition.ProjectPath, transition.Update, schedule);
+            var created = service.Create(transition.ProjectPath, transition.Update);
             if (!created.Succeeded)
             {
                 return PlannerFailure(state, created.Error ?? "The todo could not be created.");
             }
 
             catalog = catalogLoader.Load(configuration.ProjectFiles);
-            return PlannerSuccess(state);
+            return PlannerSuccess(state, transition.Update.Schedule);
         }
 
         if (transition.TodoIdentity is null)
@@ -439,6 +442,13 @@ public sealed class TuiApplication(
 
         if (transition.Operation == PlannerOperation.Schedule &&
             IsOccupied(latestCatalog, schedule, transition.TodoIdentity))
+        {
+            return PlannerFailure(state, "That timeslot is already occupied.");
+        }
+
+        if (transition.Operation == PlannerOperation.Update &&
+            transition.Update?.Schedule is not null &&
+            IsOccupied(latestCatalog, transition.Update.Schedule, transition.TodoIdentity))
         {
             return PlannerFailure(state, "That timeslot is already occupied.");
         }
@@ -473,7 +483,9 @@ public sealed class TuiApplication(
         }
 
         catalog = catalogLoader.Load(configuration.ProjectFiles);
-        return PlannerSuccess(state);
+        return PlannerSuccess(
+            state,
+            transition.Operation == PlannerOperation.Update ? transition.Update?.Schedule : null);
     }
 
     private static bool IsOccupied(
@@ -487,10 +499,14 @@ public sealed class TuiApplication(
              candidate.Path != excluded.ProjectPath ||
              candidate.Todo.SourceLine != excluded.SourceLine));
 
-    private static ApplicationState PlannerSuccess(ApplicationState state) => state with
+    private static ApplicationState PlannerSuccess(ApplicationState state, TodoSchedule? follow = null) => state with
     {
         Planner = state.Planner with
         {
+            SelectedDate = follow?.Date ?? state.Planner.SelectedDate,
+            SlotIndex = follow is null
+                ? state.Planner.SlotIndex
+                : ((follow.Time.Hour - 6) * 2) + (follow.Time.Minute / 30),
             Mode = PlannerMode.Browse,
             MovingTodo = null,
             Form = null,
@@ -514,7 +530,6 @@ public sealed class TuiApplication(
     private ApplicationState ApplyBrowserTransition(
         ApplicationState state,
         BrowserTransition transition,
-        BrowserView view,
         ref ProjectCatalog catalog,
         ApplicationConfiguration configuration,
         ProjectTodoMutationService? service)
@@ -530,12 +545,19 @@ public sealed class TuiApplication(
             return ApplyExternalEdit(state, transition, ref catalog, configuration);
         }
 
-        var result = ApplyBrowserOperation(transition, view, catalog, service);
+        var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
+        catalog = latestCatalog;
+        var result = ApplyBrowserOperation(transition, latestCatalog, service);
         state = state with
         {
             Browser = state.Browser with
             {
                 Error = result.Error,
+                Form = result.Succeeded
+                    ? null
+                    : state.Browser.Form is null
+                        ? null
+                        : state.Browser.Form with { Error = result.Error },
                 PendingTodoSelection = result.Succeeded && result.SourceLine is not null &&
                                        transition.ProjectPath is not null
                     ? new TodoIdentity(transition.ProjectPath, result.SourceLine.Value)
@@ -596,7 +618,6 @@ public sealed class TuiApplication(
 
     private static TodoMutationResult ApplyBrowserOperation(
         BrowserTransition transition,
-        BrowserView view,
         ProjectCatalog catalog,
         ProjectTodoMutationService? service)
     {
@@ -607,6 +628,12 @@ public sealed class TuiApplication(
 
         if (transition.Operation == BrowserOperation.Create && transition.Update is not null)
         {
+            if (transition.Update.Schedule is not null &&
+                IsOccupied(catalog, transition.Update.Schedule, null))
+            {
+                return TodoMutationResult.Failure("That timeslot is already occupied.");
+            }
+
             return service.Create(transition.ProjectPath, transition.Update);
         }
 
@@ -614,6 +641,13 @@ public sealed class TuiApplication(
         if (expected is null)
         {
             return TodoMutationResult.Failure("The selected todo cannot be found.");
+        }
+
+        if (transition.Operation == BrowserOperation.Update &&
+            transition.Update?.Schedule is not null &&
+            IsOccupied(catalog, transition.Update.Schedule, transition.TodoIdentity))
+        {
+            return TodoMutationResult.Failure("That timeslot is already occupied.");
         }
 
         return transition.Operation switch
