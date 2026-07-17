@@ -110,6 +110,19 @@ Each configured Markdown file is one project. Start the application with:
 task run-tui
 ```
 
+To publish the TUI and make `wtodo-tui` available from your shell, run:
+
+```text
+task install-tui
+```
+
+On macOS and Linux this creates `~/.local/bin/wtodo-tui`, linked to a
+framework-dependent Release publish in the platform user-data directory. On
+Windows it creates `%USERPROFILE%\bin\wtodo-tui.cmd`. The task warns when the
+launcher directory is not already on `PATH`. Set `WTODO_INSTALL_DIR` or
+`WTODO_LINK_DIR` to override either location before running the task. Re-run
+the task after updating Wolf Todo to replace the published application.
+
 The TUI remembers the selected project and todo sort between runs in a separate
 `state.json` file under the platform application-state directory. Every launch
 still opens the Todos tab with keyboard focus in its todo list. This session

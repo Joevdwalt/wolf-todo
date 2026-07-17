@@ -22,6 +22,10 @@ tasks:
     desc: Run the Wolf Todo terminal user interface.
     cmds:
       - pwsh -NoProfile -File src/scripts/run-tui.ps1
+  install-tui:
+    desc: Publish Wolf Todo TUI and link it into the user executable directory.
+    cmds:
+      - pwsh -NoProfile -File src/scripts/install-tui.ps1
   run-cli:
     desc: Run the Wolf Todo command-line interface.
     cmds:
