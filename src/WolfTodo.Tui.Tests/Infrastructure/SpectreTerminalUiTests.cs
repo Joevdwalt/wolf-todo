@@ -709,6 +709,113 @@ public sealed class SpectreTerminalUiTests
         lines[nestedTitle].Should().Contain("2026-07-16 10:00");
     }
 
+    [Theory]
+    [InlineData(140, 30)]
+    [InlineData(100, 20)]
+    [InlineData(70, 16)]
+    public void ShowBrowser_renders_tags_beneath_their_task_titles(
+        int width,
+        int height)
+    {
+        var root = new TodoItem(
+            1, false, null, "Prepare proposal", TodoPriority.High, ["work", "now"],
+            null, null, string.Empty, [], []);
+        var nested = new TodoItem(
+            2, true, null, "Nested follow-up", null, ["client"],
+            null, null, string.Empty, [], []);
+        var view = new BrowserView(
+            BrowserState.Initial with { Focus = BrowserFocus.Todos },
+            [new ProjectRow("All", 2, null, null, true)],
+            [
+                new TodoRow(null, root, [], true),
+                new TodoRow(null, nested, [TodoTreeSegment.LastSibling], false)
+            ],
+            root,
+            "All",
+            "/todos/project.md",
+            null,
+            string.Empty);
+
+        var lines = RenderBrowser(view, width, height);
+        var rootTitle = Array.FindIndex(lines, line =>
+            line.Contains("> ○ H Prepare proposal", StringComparison.Ordinal));
+        var nestedTitle = Array.FindIndex(lines, line =>
+            line.Contains("✓ - └─ Nested follow-up", StringComparison.Ordinal));
+
+        rootTitle.Should().BeGreaterThanOrEqualTo(0);
+        nestedTitle.Should().BeGreaterThanOrEqualTo(0);
+        lines[rootTitle + 1].Should().Contain("#work #now");
+        lines[nestedTitle + 1].Should().Contain("#client");
+        lines[rootTitle + 1].IndexOf("#work", StringComparison.Ordinal)
+            .Should().Be(lines[rootTitle].IndexOf("Prepare proposal", StringComparison.Ordinal));
+        lines[nestedTitle + 1].IndexOf("#client", StringComparison.Ordinal)
+            .Should().Be(lines[nestedTitle].IndexOf("Nested follow-up", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ShowBrowser_truncates_tags_inside_the_adaptive_task_column()
+    {
+        var todo = new TodoItem(
+            1,
+            false,
+            null,
+            "Short title",
+            null,
+            ["this-is-a-very-long-tag-that-cannot-fit-in-the-task-column"],
+            null,
+            null,
+            string.Empty,
+            [],
+            []);
+        var view = new BrowserView(
+            BrowserState.Initial with { Focus = BrowserFocus.Todos },
+            [new ProjectRow("All", 1, null, null, true)],
+            [new TodoRow(null, todo, [], true) { ProjectTitle = "DistinctProject" }],
+            null,
+            "All",
+            "/todos/project.md",
+            null,
+            string.Empty);
+
+        var lines = RenderBrowser(view, 140, 30);
+        var tagLine = lines.Single(line => line.Contains("#this-is-a-very", StringComparison.Ordinal));
+        var todoPane = tagLine.Split('│')[2];
+
+        todoPane.Should().Contain("…");
+        todoPane.Should().NotContain("DistinctProject").And.NotContain("2026-");
+    }
+
+    [Fact]
+    public void ShowBrowser_applies_tag_selection_theme_to_the_browser_tag_line()
+    {
+        var todo = new TodoItem(
+            1, false, null, "Selected task", null, ["browser-tag"],
+            null, null, string.Empty, [], []);
+        var view = new BrowserView(
+            BrowserState.Initial with { Focus = BrowserFocus.Todos },
+            [new ProjectRow("All", 1, null, null, true)],
+            [new TodoRow(null, todo, [], true)],
+            null,
+            "All",
+            "/todos/project.md",
+            null,
+            string.Empty);
+        var theme = TuiThemes.Wolf with
+        {
+            AccentBright = new Color(1, 2, 3),
+            Surface2 = new Color(4, 5, 6)
+        };
+        StartRecording();
+
+        new SpectreTerminalUi(() => 140, () => 30)
+            .ShowBrowser(DefaultTabs, view, DefaultBindings, theme);
+        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+
+        StyleBefore(html, "#browser-tag").Should().Contain("#010203")
+            .And.Contain("#040506")
+            .And.Contain("font-weight: bold");
+    }
+
     [Fact]
     public void ShowBrowser_renders_unicode_tree_connectors_in_the_list_and_inspector()
     {
@@ -992,6 +1099,21 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowBrowser_keeps_a_selected_todo_and_its_tags_together_in_the_visible_window()
+    {
+        var lines = RenderBrowser(
+            ViewWithTodoCount(25, BrowserFocus.Todos, selectedIndex: 24, tagged: true),
+            140,
+            24);
+        var selectedLine = Array.FindIndex(lines, line =>
+            line.Contains("> ○ - Todo 25", StringComparison.Ordinal));
+
+        lines.Should().HaveCount(23);
+        selectedLine.Should().BeGreaterThanOrEqualTo(0);
+        lines[selectedLine + 1].Should().Contain("#focus");
+    }
+
+    [Fact]
     public void ShowBrowser_leaves_the_final_terminal_row_free_to_avoid_scrolling_the_tabs()
     {
         var lines = RenderBrowser(ViewWithTodoCount(1, BrowserFocus.Todos), 140, 30);
@@ -1030,7 +1152,8 @@ public sealed class SpectreTerminalUiTests
         int count,
         BrowserFocus focus,
         int selectedIndex = 0,
-        bool scheduled = false)
+        bool scheduled = false,
+        bool tagged = false)
     {
         var todos = Enumerable.Range(1, count)
             .Select(index => new TodoItem(
@@ -1039,7 +1162,7 @@ public sealed class SpectreTerminalUiTests
                 null,
                 $"Todo {index}",
                 null,
-                [],
+                tagged ? ["focus"] : [],
                 null,
                 null,
                 string.Empty,

@@ -835,6 +835,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 row,
                 layout,
                 theme) };
+            if (row.Todo!.Tags.Length > 0)
+            {
+                lines.Add(TodoTagsRow(row, layout, theme));
+            }
 
             return new TodoLineGroup(lines, row.IsSelected);
         }));
@@ -1215,6 +1219,32 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 scheduleColor,
                 decoration);
         }
+
+        var content = (IRenderable)new Markup(line.ToString());
+        return row.IsSelected
+            ? OnSurface(content, theme.Surface2, true)
+            : content;
+    }
+
+    private static IRenderable TodoTagsRow(
+        TodoRow row,
+        TodoColumnLayout layout,
+        TuiTheme theme)
+    {
+        var todo = row.Todo!;
+        var treePrefixWidth = DisplayWidth(TodoTreeFormatter.Format(row.TreePath));
+        var visibleIndentWidth = Math.Min(treePrefixWidth, Math.Max(0, layout.TaskWidth - 1));
+        var tagWidth = layout.TaskWidth - visibleIndentWidth;
+        var tags = string.Join(' ', todo.Tags.Select(tag => $"#{tag}"));
+        var color = row.IsSelected
+            ? theme.AccentBright
+            : todo.IsCompleted ? theme.Muted : theme.Tag;
+        var decoration = row.IsSelected
+            ? Decoration.Bold
+            : todo.IsCompleted ? Decoration.Dim : Decoration.None;
+        var line = new System.Text.StringBuilder();
+        AppendStyled(line, new string(' ', 6 + visibleIndentWidth), color, decoration);
+        AppendStyled(line, FitColumn(tags, tagWidth), color, decoration);
 
         var content = (IRenderable)new Markup(line.ToString());
         return row.IsSelected

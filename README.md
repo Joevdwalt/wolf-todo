@@ -191,6 +191,9 @@ Nested todos are always expanded in the Todos list and inspector. Unicode
 `├─`, `└─`, and `│` connectors show sibling and ancestor relationships. A
 filter that matches a descendant keeps its visible ancestor path as normal,
 selectable todo rows so the result retains useful tree context.
+Todos with tags show a compact `#work #now` line beneath the title. The tag
+line follows the task's tree indentation and remains attached to its task while
+the list scrolls.
 
 
 ## AI Guidance

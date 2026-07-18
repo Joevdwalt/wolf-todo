@@ -42,7 +42,11 @@ and bold emphasis; a completed row is muted
 and dim. Scheduled values use the date role without coloring the entire row.
 Always-expanded subtasks use restrained Unicode `├─`, `└─`, and `│` connectors
 inside the adaptive `TASK` column. Connector width participates in truncation
-and column layout.
+and column layout. Tagged todos add one non-wrapping tag line beneath the title,
+aligned after the state, priority, and tree indentation. Tag lines use the
+semantic tag role, remain inside `TASK`, and form one scrolling unit with their
+title row. Selected tag lines share the elevated selection surface; completed
+tag lines are muted and dim.
 Inspector field labels and section headings are uppercase; values retain
 their original case.
 
