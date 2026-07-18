@@ -34,7 +34,7 @@ public sealed class TuiThemesTests
         theme.AccentBright.Should().Be(new Color(255, 177, 74));
         theme.Heading.Should().Be(theme.AccentBright);
         theme.Success.Should().Be(new Color(108, 191, 132));
-        theme.Tag.Should().Be(theme.Success);
+        theme.Tag.Should().Be(new Color(125, 183, 216));
         theme.Warning.Should().Be(new Color(226, 182, 77));
         theme.Error.Should().Be(new Color(217, 108, 108));
         theme.Info.Should().Be(new Color(95, 168, 211));

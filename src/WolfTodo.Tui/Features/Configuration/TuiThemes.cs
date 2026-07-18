@@ -13,7 +13,7 @@ public static class TuiThemes
         new Color(108, 191, 132),
         new Color(226, 182, 77),
         new Color(217, 108, 108),
-        new Color(108, 191, 132),
+        new Color(125, 183, 216),
         new Color(95, 168, 211),
         new Color(9, 18, 27),
         new Color(16, 28, 40),

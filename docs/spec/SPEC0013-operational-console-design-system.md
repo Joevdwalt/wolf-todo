@@ -46,7 +46,8 @@ and column layout. Tagged todos add one non-wrapping tag line beneath the title,
 aligned after the state, priority, and tree indentation. Tag lines use the
 semantic tag role, remain inside `TASK`, and form one scrolling unit with their
 title row. Selected tag lines share the elevated selection surface; completed
-tag lines are muted and dim.
+tag lines are muted and dim. Preserve applicable ancestor and following-sibling
+continuation bars in the tag-line tree gutter.
 Inspector field labels and section headings are uppercase; values retain
 their original case.
 

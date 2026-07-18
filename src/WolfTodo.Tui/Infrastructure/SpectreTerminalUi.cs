@@ -1232,19 +1232,23 @@ public sealed class SpectreTerminalUi : ITerminalUi
         TuiTheme theme)
     {
         var todo = row.Todo!;
-        var treePrefixWidth = DisplayWidth(TodoTreeFormatter.Format(row.TreePath));
-        var visibleIndentWidth = Math.Min(treePrefixWidth, Math.Max(0, layout.TaskWidth - 1));
-        var tagWidth = layout.TaskWidth - visibleIndentWidth;
+        var treeContinuation = TodoTreeFormatter.FormatContinuation(row.TreePath);
+        var treeWidth = DisplayWidth(treeContinuation);
+        var visibleTreeWidth = Math.Min(treeWidth, Math.Max(0, layout.TaskWidth - 1));
+        var visibleTree = FitColumn(treeContinuation, visibleTreeWidth);
+        var tagWidth = layout.TaskWidth - visibleTreeWidth;
         var tags = string.Join(' ', todo.Tags.Select(tag => $"#{tag}"));
-        var color = row.IsSelected
+        var tagColor = row.IsSelected
             ? theme.AccentBright
             : todo.IsCompleted ? theme.Muted : theme.Tag;
+        var treeColor = row.IsSelected ? theme.AccentBright : theme.Muted;
         var decoration = row.IsSelected
             ? Decoration.Bold
             : todo.IsCompleted ? Decoration.Dim : Decoration.None;
         var line = new System.Text.StringBuilder();
-        AppendStyled(line, new string(' ', 6 + visibleIndentWidth), color, decoration);
-        AppendStyled(line, FitColumn(tags, tagWidth), color, decoration);
+        AppendStyled(line, new string(' ', 6), tagColor, decoration);
+        AppendStyled(line, visibleTree, treeColor, decoration);
+        AppendStyled(line, FitColumn(tags, tagWidth), tagColor, decoration);
 
         var content = (IRenderable)new Markup(line.ToString());
         return row.IsSelected

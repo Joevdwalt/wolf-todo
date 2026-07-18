@@ -193,7 +193,8 @@ filter that matches a descendant keeps its visible ancestor path as normal,
 selectable todo rows so the result retains useful tree context.
 Todos with tags show a compact `#work #now` line beneath the title. The tag
 line follows the task's tree indentation and remains attached to its task while
-the list scrolls.
+the list scrolls. Tree continuation bars remain visible through tag lines so
+sibling relationships are not interrupted.
 
 
 ## AI Guidance

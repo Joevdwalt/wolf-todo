@@ -39,4 +39,15 @@ public static class TodoTreeFormatter
         prefix.Append(path[^1] == TodoTreeSegment.HasFollowingSibling ? "├─ " : "└─ ");
         return prefix.ToString();
     }
+
+    public static string FormatContinuation(ImmutableArray<TodoTreeSegment> path)
+    {
+        if (path.IsDefaultOrEmpty)
+        {
+            return string.Empty;
+        }
+
+        return string.Concat(path.Select(segment =>
+            segment == TodoTreeSegment.HasFollowingSibling ? "│  " : "   "));
+    }
 }

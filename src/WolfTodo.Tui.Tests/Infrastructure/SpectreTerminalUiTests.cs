@@ -820,8 +820,13 @@ public sealed class SpectreTerminalUiTests
     public void ShowBrowser_renders_unicode_tree_connectors_in_the_list_and_inspector()
     {
         var grandchild = CreateTodoItem("Grandchild", 3);
-        var firstChild = CreateTodoItem("First child", 2) with { Subtasks = [grandchild] };
-        var lastChild = CreateTodoItem("Last child", 4);
+        grandchild = grandchild with { Tags = ["deep"] };
+        var firstChild = CreateTodoItem("First child", 2) with
+        {
+            Tags = ["branch"],
+            Subtasks = [grandchild]
+        };
+        var lastChild = CreateTodoItem("Last child", 4) with { Tags = ["last"] };
         var parent = CreateTodoItem("Parent", 1) with { Subtasks = [firstChild, lastChild] };
         var view = new BrowserView(
             BrowserState.Initial with { Focus = BrowserFocus.Todos },
@@ -846,7 +851,9 @@ public sealed class SpectreTerminalUiTests
 
         output.Should().Contain("├─ First child")
             .And.Contain("│  └─ Grandchild")
-            .And.Contain("└─ Last child");
+            .And.Contain("└─ Last child")
+            .And.Contain("│  #branch")
+            .And.Contain("│     #deep");
     }
 
     [Fact]

@@ -78,7 +78,7 @@ The default `wolf` preset uses:
 | `accent_bright` | `#FFB14A` |
 | `heading` | `#FFB14A` |
 | `success` | `#6CBF84` |
-| `tag` | `#6CBF84` |
+| `tag` | `#7DB7D8` |
 | `warning` | `#E2B64D` |
 | `error` | `#D96C6C` |
 | `info` | `#5FA8D3` |
