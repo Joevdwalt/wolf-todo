@@ -475,6 +475,8 @@ public sealed class SpectreTerminalUiTests
     [InlineData(70, 16)]
     [InlineData(80, 18)]
     [InlineData(100, 24)]
+    [InlineData(120, 24)]
+    [InlineData(140, 30)]
     public void ShowPlanner_leaves_the_final_terminal_row_free_and_keeps_tabs_visible(
         int width,
         int height)

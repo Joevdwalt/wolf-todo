@@ -206,7 +206,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         if (wideDetails)
         {
             var timelineWidth = Math.Max(40, (width * 2 / 3) - 2);
-            var shell = new Table().NoBorder().Collapse();
+            var shell = new Table().NoBorder().Collapse().HideHeaders();
             shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
             shell.AddColumn(new TableColumn(string.Empty).NoWrap());
             shell.AddRow(
