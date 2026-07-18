@@ -87,8 +87,12 @@ save_form = ["Ctrl+S"]
 preset = "wolf"
 # Any preset color can be overridden with a Spectre.Console color name,
 # a #RRGGBB value, or "default".
-accent = "#5FD7FF"
-heading = "#FFAF5F"
+background = "#09121B"
+surface = "#101C28"
+surface_2 = "#162433"
+accent = "#F28C28"
+accent_bright = "#FFB14A"
+info = "#5FA8D3"
 ```
 
 Within `[keybindings]`, only `quit` is required. Omitted bindings use the
@@ -99,10 +103,13 @@ defaults. Bindings accept printable characters, named console keys, and
 The optional `[tui.theme]` table selects the startup theme. Available presets
 are `wolf` (the default), `classic`, and `mono`. The configurable semantic
 colors are `text`, `accent`, `heading`, `border`, `muted`, `success`,
-`warning`, `error`, `tag`, and `date`. Color values accept Spectre.Console
-named colors such as `Cyan`, six-digit hexadecimal colors such as `#5FD7FF`,
-or `default` to use the terminal foreground. Unknown presets, keys, or color
-values are configuration errors.
+`warning`, `error`, `tag`, `date`, `background`, `surface`, `surface_2`,
+`secondary_text`, `border_active`, `accent_bright`, and `info`. Color values
+accept Spectre.Console named colors such as `Cyan`, six-digit hexadecimal
+colors such as `#F28C28`, or `default`. Using `default` for a foreground role
+uses the terminal foreground; using it for a surface makes that layer
+transparent to its enclosing or terminal background. Unknown presets, keys, or
+color values are configuration errors.
 
 Each configured Markdown file is one project. Start the application with:
 
@@ -130,8 +137,8 @@ state does not modify project Markdown files or `config.toml`.
 
 The interface uses a shared operational-console design across Todos and Day
 Planner: a responsive context header, square panels, uppercase structural
-labels, adaptive task columns, and semantic foreground colors while preserving
-the terminal background. Wide terminals show navigation, tasks, and inspector;
+labels, adaptive task columns, and configurable semantic foreground and surface
+colors. Wide terminals show navigation, tasks, and inspector;
 medium terminals prioritize tasks and inspector with navigation available as a
 temporary view; narrow terminals show one focused view at a time.
 

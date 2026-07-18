@@ -47,12 +47,21 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         if (widthProvider() < LongestLine(logo) || heightProvider() < 5)
         {
-            AnsiConsole.Write(new Text("Wolf Todo\n", ThemeStyle(theme.Heading, Decoration.Bold)));
-            AnsiConsole.Write(new Text("Press any key to continue\n", ThemeStyle(theme.Muted, Decoration.Dim)));
+            WriteSurface(
+                new Text("Wolf Todo\n", ThemeStyle(theme.Heading, Decoration.Bold)),
+                theme.Background,
+                true);
+            WriteSurface(
+                new Text("Press any key to continue\n", ThemeStyle(theme.Muted, Decoration.Dim)),
+                theme.Background,
+                true);
             return;
         }
 
-        AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
+        WriteSurface(
+            new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle),
+            theme.Background,
+            true);
     }
 
     public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings) =>
@@ -155,7 +164,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var availableRows = Math.Max(1, height - status.Count - reservedHeight);
         var visibleSlots = WindowPlannerSlots(view.Slots, view.State.SlotIndex, availableRows);
         var table = new Table().SquareBorder().Expand();
-        table.BorderStyle = ThemeStyle(theme.Border);
+        table.BorderStyle = ThemeStyle(theme.BorderActive);
         table.AddColumn(new TableColumn(new Text(
             view.State.SelectedDate.ToString("ddd yyyy-MM-dd"),
             ThemeStyle(theme.Heading, Decoration.Bold)))
@@ -166,7 +175,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         table.AddColumn(new TableColumn(new Text("PLAN", ThemeStyle(theme.Accent, Decoration.Bold))));
         foreach (var slot in visibleSlots)
         {
-            var selectedColor = slot.IsSelected ? theme.Accent : theme.Date;
+            var selectedColor = slot.IsSelected ? theme.AccentBright : theme.Date;
             var time = new Text(
                 slot.Time.ToString("HH:mm"),
                 ThemeStyle(selectedColor, slot.IsSelected ? Decoration.Bold : Decoration.None));
@@ -186,7 +195,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 content = new Text(
                     $"{prefix} {state} {priority} {assignment.Todo.Title}  [{assignment.ProjectTitle}]",
                     ThemeStyle(
-                        assignment.Todo.IsCompleted ? theme.Muted : slot.IsSelected ? theme.Accent : theme.Text,
+                        assignment.Todo.IsCompleted ? theme.Muted : slot.IsSelected ? theme.AccentBright : theme.Text,
                         assignment.Todo.IsCompleted ? Decoration.Dim : slot.IsSelected ? Decoration.Bold : Decoration.None))
                     .Ellipsis();
             }
@@ -195,7 +204,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 content = new Text(slot.IsSelected ? "> —" : "  —", ThemeStyle(theme.Muted, Decoration.Dim));
             }
 
-            table.AddRow(time, content);
+            table.AddRow(
+                slot.IsSelected ? OnSurface(time, theme.Surface2, true) : time,
+                slot.IsSelected ? OnSurface(content, theme.Surface2, true) : content);
         }
 
         for (var index = visibleSlots.Count; index < availableRows; index++)
@@ -211,30 +222,36 @@ public sealed class SpectreTerminalUi : ITerminalUi
             shell.AddColumn(new TableColumn(string.Empty).NoWrap());
             shell.AddRow(
                 table,
-                new Panel(CreateContent(FitLines(
-                    PlannerDetailLines(view, theme),
-                    Math.Max(1, availableRows + 1),
-                    0)))
-                {
-                    Header = new PanelHeader("INSPECTOR"),
-                    Border = BoxBorder.Square,
-                    BorderStyle = ThemeStyle(theme.Border),
-                    Expand = true
-                });
-            AnsiConsole.Write(shell);
+                OnSurface(
+                    new Panel(CreateContent(FitLines(
+                        PlannerDetailLines(view, theme),
+                        Math.Max(1, availableRows + 1),
+                        0)))
+                    {
+                        Header = new PanelHeader("INSPECTOR"),
+                        Border = BoxBorder.Square,
+                        BorderStyle = ThemeStyle(theme.Border),
+                        Expand = true
+                    },
+                    theme.Surface2,
+                    true));
+            WriteSurface(shell, theme.Surface, true);
         }
         else
         {
-            AnsiConsole.Write(table);
+            WriteSurface(table, theme.Surface, true);
             if (compactDetails)
             {
-                AnsiConsole.Write(new Panel(PlannerCompactDetail(view, theme))
-                {
-                    Header = new PanelHeader("SELECTED"),
-                    Border = BoxBorder.Square,
-                    BorderStyle = ThemeStyle(theme.Border),
-                    Expand = true
-                });
+                WriteSurface(
+                    new Panel(PlannerCompactDetail(view, theme))
+                    {
+                        Header = new PanelHeader("SELECTED"),
+                        Border = BoxBorder.Square,
+                        BorderStyle = ThemeStyle(theme.Border),
+                        Expand = true
+                    },
+                    theme.Surface2,
+                    true);
             }
         }
 
@@ -362,7 +379,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 lines.Add(new Text(
                     $"{(selected ? ">" : " ")} {todo.Todo.Title}  [{todo.ProjectTitle}]",
                     ThemeStyle(
-                        selected ? theme.Accent : theme.Text,
+                        selected ? theme.AccentBright : theme.Text,
                         selected ? Decoration.Bold : Decoration.None)).Ellipsis());
             }
         }
@@ -372,13 +389,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
             lines.Add(new Text(string.Empty));
         }
 
-        AnsiConsole.Write(new Panel(new Rows(lines))
-        {
-            Header = new PanelHeader("UNSCHEDULED TODOS"),
-            Border = BoxBorder.Square,
-            BorderStyle = ThemeStyle(theme.Border),
-            Expand = true
-        });
+        WriteSurface(
+            new Panel(new Rows(lines))
+            {
+                Header = new PanelHeader("UNSCHEDULED TODOS"),
+                Border = BoxBorder.Square,
+                BorderStyle = ThemeStyle(theme.BorderActive),
+                Expand = true
+            },
+            theme.Surface2,
+            true);
     }
 
     private static void WritePlannerStatus(
@@ -392,26 +412,30 @@ public sealed class SpectreTerminalUi : ITerminalUi
             : view.GlobalCommand is not null || view.CommandPalette is not null
                 ? ThemeStyle(theme.Accent)
             : view.State.Mode == PlannerMode.Browse
-                ? ThemeStyle(theme.Muted, Decoration.Dim)
+                ? ThemeStyle(theme.SecondaryText)
                 : ThemeStyle(theme.Accent);
         var content = lines.Select(line => new Text(
             line.Text,
             line.Role switch
             {
                 BrowserStatusRole.FormLabel => ThemeStyle(theme.Heading, Decoration.Bold),
-                BrowserStatusRole.FormValue => ThemeStyle(theme.Text),
-                BrowserStatusRole.FormActiveValue => ThemeStyle(theme.Accent, Decoration.Bold),
+                BrowserStatusRole.FormValue => ThemeStyle(theme.SecondaryText),
+                BrowserStatusRole.FormActiveValue => ThemeStyle(theme.AccentBright, Decoration.Bold),
                 BrowserStatusRole.FormPlaceholder => ThemeStyle(theme.Muted, Decoration.Dim),
                 BrowserStatusRole.FormHint => ThemeStyle(theme.Muted, Decoration.Dim),
                 BrowserStatusRole.FormError => ThemeStyle(theme.Error, Decoration.Bold),
                 _ => defaultStyle
             }));
-        AnsiConsole.Write(new Panel(new Rows(content))
-        {
-            Border = BoxBorder.Square,
-            BorderStyle = ThemeStyle(theme.Border),
-            Expand = true
-        });
+        WriteSurface(
+            new Panel(new Rows(content))
+            {
+                Border = BoxBorder.Square,
+                BorderStyle = ThemeStyle(
+                    view.State.Mode == PlannerMode.Browse ? theme.Border : theme.BorderActive),
+                Expand = true
+            },
+            theme.Surface2,
+            true);
     }
 
     public void ShowStartupError(string message)
@@ -504,7 +528,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             twoPaneTable.AddRow(CreateContent(hiddenDetailProjectLines), CreateContent(expandedTodoLines));
             PadToContentHeight(
                 twoPaneTable, contentHeight, hiddenDetailProjectLines.Count, expandedTodoLines.Count);
-            AnsiConsole.Write(twoPaneTable);
+            WriteSurface(twoPaneTable, theme.Surface, true);
             return;
         }
 
@@ -522,9 +546,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
         table.AddRow(
             CreateContent(projectLines),
             CreateContent(todoLines),
-            CreateContent(detailLines));
+            OnSurface(CreateContent(detailLines), theme.Surface2, true));
         PadToContentHeight(table, contentHeight, projectLines.Count, todoLines.Count, detailLines.Count);
-        AnsiConsole.Write(table);
+        WriteSurface(table, theme.Surface, true);
     }
 
     private static void WriteMedium(
@@ -543,7 +567,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             var navigation = CreatePaneTable(theme, ("Navigation", null, true, true));
             navigation.AddRow(CreateContent(projectLines));
             PadToContentHeight(navigation, contentHeight, projectLines.Count);
-            AnsiConsole.Write(navigation);
+            WriteSurface(navigation, theme.Surface, true);
             return;
         }
 
@@ -555,7 +579,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 ($"Tasks // {view.SelectedProjectTitle}", null, true, true));
             tasks.AddRow(CreateContent(taskLines));
             PadToContentHeight(tasks, contentHeight, taskLines.Count);
-            AnsiConsole.Write(tasks);
+            WriteSurface(tasks, theme.Surface, true);
             return;
         }
 
@@ -569,9 +593,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
             theme,
             ($"Tasks // {view.SelectedProjectTitle}", taskWidth, view.State.Focus == BrowserFocus.Todos, true),
             ("Inspector", detailWidth, view.State.Focus == BrowserFocus.Details, false));
-        table.AddRow(CreateContent(todos), CreateContent(details));
+        table.AddRow(CreateContent(todos), OnSurface(CreateContent(details), theme.Surface2, true));
         PadToContentHeight(table, contentHeight, todos.Count, details.Count);
-        AnsiConsole.Write(table);
+        WriteSurface(table, theme.Surface, true);
     }
 
     private static void WriteNarrow(
@@ -599,10 +623,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
             _ => FitLines(DetailLines(view, theme), contentHeight, 0)
         };
         var table = CreatePaneTable(theme, (title, null, true, focus != BrowserFocus.Details));
-        table.AddRow(CreateContent(lines));
+        table.AddRow(focus == BrowserFocus.Details
+            ? OnSurface(CreateContent(lines), theme.Surface2, true)
+            : CreateContent(lines));
         PadToContentHeight(table, contentHeight, lines.Count);
 
-        AnsiConsole.Write(table);
+        WriteSurface(table, theme.Surface, true);
     }
 
     private static Table CreatePaneTable(
@@ -610,7 +636,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
         params (string Title, int? Width, bool Focused, bool NoWrap)[] panes)
     {
         var table = new Table().SquareBorder().Expand();
-        table.BorderStyle = ThemeStyle(theme.Border);
+        table.BorderStyle = ThemeStyle(
+            panes.Any(pane => pane.Focused) ? theme.BorderActive : theme.Border);
 
         foreach (var pane in panes)
         {
@@ -664,7 +691,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             segments.Add(($"[{active.Title.ToUpperInvariant()}]", theme.Accent, Decoration.Bold));
         }
 
-        segments.Add(($"  MODE:{mode}", theme.Text, Decoration.None));
+        segments.Add(($"  MODE:{mode}", theme.SecondaryText, Decoration.None));
         if (terminalWidth >= 80)
         {
             segments.Add(($"  {date.ToString("ddd dd MMM").ToUpperInvariant()}", theme.Date, Decoration.None));
@@ -708,7 +735,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             AppendStyled(output, "…", theme.Muted);
         }
 
-        AnsiConsole.Write(new Markup(output.ToString()));
+        WriteSurface(new Markup(output.ToString()), theme.Background, true);
         AnsiConsole.WriteLine();
     }
 
@@ -749,7 +776,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             AppendStyled(
                 line,
                 row.IsSelected ? ">" : " ",
-                row.IsSelected ? theme.Accent : theme.Text,
+                row.IsSelected ? theme.AccentBright : theme.Text,
                 row.IsSelected ? Decoration.Bold : Decoration.None);
             AppendStyled(
                 line,
@@ -759,10 +786,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
             AppendStyled(line, $" {row.Title}", row.Error is null ? theme.Text : theme.Error);
             if (row.Error is null)
             {
-                AppendStyled(line, $" {row.ActiveCount}", theme.Muted, Decoration.Dim);
+                AppendStyled(line, $" {row.ActiveCount}", theme.SecondaryText, Decoration.Dim);
             }
 
-            return (IRenderable)new Markup(line.ToString()).Ellipsis();
+            var content = (IRenderable)new Markup(line.ToString()).Ellipsis();
+            return row.IsSelected
+                ? OnSurface(content, theme.Surface2, true)
+                : content;
         }).ToArray();
     }
 
@@ -837,7 +867,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
             }
 
-            AddField(lines, "Reference", todo.ExternalReference, theme, theme.Text);
+            AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
             AddField(
                 lines,
                 "Priority",
@@ -915,7 +945,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
         }
 
-        AddField(lines, "Reference", todo.ExternalReference, theme, theme.Text);
+        AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
         AddField(lines, "Priority", todo.Priority?.ToString(), theme, PriorityColor(todo.Priority, theme));
         AddField(
             lines,
@@ -1144,9 +1174,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var title = prefixWidth >= layout.TaskWidth
             ? string.Empty
             : FitColumn(todo.Title, layout.TaskWidth - prefixWidth);
-        var selectedColor = row.IsSelected ? theme.Accent : theme.Text;
+        var selectedColor = row.IsSelected ? theme.AccentBright : theme.Text;
         var baseColor = todo.IsCompleted ? theme.Muted : selectedColor;
-        var treeColor = row.IsSelected ? theme.Accent : theme.Muted;
+        var treeColor = row.IsSelected ? theme.AccentBright : theme.Muted;
         var decoration = row.IsSelected
             ? Decoration.Bold
             : todo.IsCompleted ? Decoration.Dim : Decoration.None;
@@ -1186,7 +1216,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 decoration);
         }
 
-        return new Markup(line.ToString());
+        var content = (IRenderable)new Markup(line.ToString());
+        return row.IsSelected
+            ? OnSurface(content, theme.Surface2, true)
+            : content;
     }
 
     private static string FitColumn(string value, int width)
@@ -1639,26 +1672,35 @@ public sealed class SpectreTerminalUi : ITerminalUi
             { IsSortMode: true } => ThemeStyle(theme.Accent),
             { Form: not null } => ThemeStyle(theme.Accent),
             { ContentEditor: not null } => ThemeStyle(theme.Accent),
-            _ => ThemeStyle(theme.Muted, Decoration.Dim)
+            _ => ThemeStyle(theme.SecondaryText)
         };
         var content = lines.Select(line => new Text(
             line.Text,
             line.Role switch
             {
                 BrowserStatusRole.FormLabel => ThemeStyle(theme.Heading, Decoration.Bold),
-                BrowserStatusRole.FormValue => ThemeStyle(theme.Text),
-                BrowserStatusRole.FormActiveValue => ThemeStyle(theme.Accent, Decoration.Bold),
+                BrowserStatusRole.FormValue => ThemeStyle(theme.SecondaryText),
+                BrowserStatusRole.FormActiveValue => ThemeStyle(theme.AccentBright, Decoration.Bold),
                 BrowserStatusRole.FormPlaceholder => ThemeStyle(theme.Muted, Decoration.Dim),
                 BrowserStatusRole.FormHint => ThemeStyle(theme.Muted, Decoration.Dim),
                 BrowserStatusRole.FormError => ThemeStyle(theme.Error, Decoration.Bold),
                 _ => defaultStyle
             }));
-        AnsiConsole.Write(new Panel(new Rows(content))
-        {
-            Border = BoxBorder.Square,
-            BorderStyle = ThemeStyle(theme.Border),
-            Expand = true
-        });
+        var statusIsActive = view.GlobalCommand is not null ||
+                             view.CommandPalette is not null ||
+                             view.State.IsFilterMode ||
+                             view.State.IsSortMode ||
+                             view.State.Form is not null ||
+                             view.State.ContentEditor is not null;
+        WriteSurface(
+            new Panel(new Rows(content))
+            {
+                Border = BoxBorder.Square,
+                BorderStyle = ThemeStyle(statusIsActive ? theme.BorderActive : theme.Border),
+                Expand = true
+            },
+            theme.Surface2,
+            true);
     }
 
     private static string NormalStatus(TuiKeyBindings bindings, BrowserState state) =>
@@ -1699,14 +1741,26 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static string Shortest(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>
         TuiKeyBindings.ShortestDisplayName(gestures);
 
-    private static Style ThemeStyle(Color color, Decoration decoration = Decoration.None) =>
-        new(color, decoration: decoration);
+    private static Style ThemeStyle(
+        Color color,
+        Decoration decoration = Decoration.None,
+        Color? background = null) =>
+        new(color, background ?? Color.Default, decoration);
+
+    private static IRenderable OnSurface(IRenderable content, Color background, bool expand = false) =>
+        background == Color.Default
+            ? content
+            : new SurfaceRenderable(content, background, expand);
+
+    private static void WriteSurface(IRenderable content, Color background, bool expand = false) =>
+        AnsiConsole.Write(OnSurface(content, background, expand));
 
     private static void AppendStyled(
         System.Text.StringBuilder output,
         string value,
         Color color,
-        Decoration decoration = Decoration.None)
+        Decoration decoration = Decoration.None,
+        Color? background = null)
     {
         if (value.Length == 0)
         {
@@ -1717,6 +1771,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
         if (color != Color.Default)
         {
             styles.Add(color.ToMarkup());
+        }
+
+        if (background is not null && background != Color.Default)
+        {
+            styles.Add($"on {background.Value.ToMarkup()}");
         }
 
         if ((decoration & Decoration.Bold) != 0)

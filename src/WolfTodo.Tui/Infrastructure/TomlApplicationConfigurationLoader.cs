@@ -24,7 +24,14 @@ public sealed class TomlApplicationConfigurationLoader(
         "warning",
         "error",
         "tag",
-        "date"
+        "date",
+        "background",
+        "surface",
+        "surface_2",
+        "secondary_text",
+        "border_active",
+        "accent_bright",
+        "info"
     ];
 
     private static readonly IReadOnlyDictionary<string, Color> NamedColors = typeof(Color)
@@ -100,7 +107,14 @@ public sealed class TomlApplicationConfigurationLoader(
             Warning = ReadThemeColor(theme, "warning", preset.Warning),
             Error = ReadThemeColor(theme, "error", preset.Error),
             Tag = ReadThemeColor(theme, "tag", preset.Tag),
-            Date = ReadThemeColor(theme, "date", preset.Date)
+            Date = ReadThemeColor(theme, "date", preset.Date),
+            Background = ReadThemeColor(theme, "background", preset.Background),
+            Surface = ReadThemeColor(theme, "surface", preset.Surface),
+            Surface2 = ReadThemeColor(theme, "surface_2", preset.Surface2),
+            SecondaryText = ReadThemeColor(theme, "secondary_text", preset.SecondaryText),
+            BorderActive = ReadThemeColor(theme, "border_active", preset.BorderActive),
+            AccentBright = ReadThemeColor(theme, "accent_bright", preset.AccentBright),
+            Info = ReadThemeColor(theme, "info", preset.Info)
         };
     }
 

@@ -24,7 +24,8 @@ public sealed class SpectreTerminalUiTests
         {
             Accent = new Color(1, 2, 3),
             Heading = new Color(4, 5, 6),
-            Muted = new Color(7, 8, 9)
+            Muted = new Color(7, 8, 9),
+            Background = new Color(10, 11, 12)
         };
         StartRecording();
 
@@ -33,7 +34,8 @@ public sealed class SpectreTerminalUiTests
 
         html.Should().Contain("#010203")
             .And.Contain("#040506")
-            .And.Contain("#070809");
+            .And.Contain("#070809")
+            .And.Contain("#0a0b0c");
     }
 
     [Fact]
@@ -81,7 +83,11 @@ public sealed class SpectreTerminalUiTests
             Accent = new Color(1, 2, 3),
             Heading = new Color(4, 5, 6),
             Border = new Color(7, 8, 9),
-            Muted = new Color(10, 11, 12)
+            BorderActive = new Color(7, 8, 9),
+            Muted = new Color(10, 11, 12),
+            Background = new Color(13, 14, 15),
+            Surface = new Color(16, 17, 18),
+            Surface2 = new Color(19, 20, 21)
         };
         StartRecording();
 
@@ -92,7 +98,10 @@ public sealed class SpectreTerminalUiTests
         html.Should().Contain("#010203")
             .And.Contain("#040506")
             .And.Contain("#070809")
-            .And.Contain("#0a0b0c");
+            .And.Contain("#0a0b0c")
+            .And.Contain("#0d0e0f")
+            .And.Contain("#101112")
+            .And.Contain("#131415");
     }
 
     [Fact]
@@ -146,6 +155,34 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("Prepare proposal")
             .And.Contain("[/] DAY")
             .And.Contain("g TODAY");
+    }
+
+    [Fact]
+    public void ShowPlanner_applies_canvas_workspace_overlay_and_active_roles()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date));
+        var theme = TuiThemes.Wolf with
+        {
+            Background = new Color(1, 2, 3),
+            Surface = new Color(4, 5, 6),
+            Surface2 = new Color(7, 8, 9),
+            BorderActive = new Color(10, 11, 12),
+            AccentBright = new Color(13, 14, 15)
+        };
+        StartRecording(100, 24);
+
+        new SpectreTerminalUi(() => 100, () => 24)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
+        var html = AnsiConsole.ExportHtml().ToLowerInvariant();
+
+        html.Should().Contain("#010203")
+            .And.Contain("#040506")
+            .And.Contain("#070809")
+            .And.Contain("#0a0b0c")
+            .And.Contain("#0d0e0f");
     }
 
     [Fact]
@@ -372,11 +409,14 @@ public sealed class SpectreTerminalUiTests
         var theme = TuiThemes.Wolf with
         {
             Text = new Color(17, 17, 17),
+            SecondaryText = new Color(17, 17, 17),
             Accent = new Color(34, 34, 34),
+            AccentBright = new Color(34, 34, 34),
             Heading = new Color(51, 51, 51),
             Muted = new Color(68, 68, 68),
             Error = new Color(85, 85, 85),
-            Border = new Color(102, 102, 102)
+            Border = new Color(102, 102, 102),
+            BorderActive = new Color(102, 102, 102)
         };
         StartRecording(100, 30);
         var terminal = new SpectreTerminalUi(() => 100, () => 24);
@@ -415,8 +455,8 @@ public sealed class SpectreTerminalUiTests
         StyleBefore(formHtml, "external").Should().Contain("#333333").And.Contain("font-weight: bold");
         StyleBefore(formHtml, "inactive-42").Should().Contain("#111111");
         StyleBefore(formHtml, "form").Should().Contain("#222222").And.Contain("font-weight: bold");
-        StyleBefore(formHtml, "—").Should().Contain("#a1a1a1");
-        StyleBefore(formHtml, "j/k").Should().Contain("#a1a1a1");
+        StyleBefore(formHtml, "—").Should().Contain("#2d343b").And.Contain("#162433");
+        StyleBefore(formHtml, "j/k").Should().Contain("#2d343b").And.Contain("#162433");
         StyleBefore(errorHtml, "theme").Should().Contain("#555555").And.Contain("font-weight: bold");
         StyleBefore(filterHtml, "unique-filter").Should().Contain("#222222");
         formHtml.Should().Contain("#666666");

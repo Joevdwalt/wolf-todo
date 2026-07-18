@@ -12,4 +12,11 @@ public sealed record TuiTheme(
     Color Warning,
     Color Error,
     Color Tag,
-    Color Date);
+    Color Date,
+    Color Background,
+    Color Surface,
+    Color Surface2,
+    Color SecondaryText,
+    Color BorderActive,
+    Color AccentBright,
+    Color Info);

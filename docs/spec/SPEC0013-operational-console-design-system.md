@@ -13,7 +13,8 @@ and available actions.
 
 ## Foundation
 
-- Preserve the user's terminal background and configure foreground colors only.
+- Use the configured semantic canvas and surface roles. A `default` surface
+  preserves the user's terminal background.
 - Use square, thin borders and compact spacing. Do not use rounded cards,
   shadows, gradients, decorative metrics, or continuous animation.
 - Render structural labels and action names in uppercase. Preserve user-entered
@@ -36,7 +37,8 @@ catalog; fake identifiers, sync claims, or system metrics are forbidden.
 The task list uses adaptive columns headed `S P TASK`, followed by `PROJECT`
 and `SCHEDULED` when space permits. `PROJECT` appears for the aggregate All view only.
 State uses `○` for open and `✓` for completed. Priority uses `!`, `H`, `M`, `L`,
-`.`, or `-`. The selected row is accented and bold; a completed row is muted
+`.`, or `-`. The selected row uses the elevated surface with bright accent text
+and bold emphasis; a completed row is muted
 and dim. Scheduled values use the date role without coloring the entire row.
 Always-expanded subtasks use restrained Unicode `├─`, `└─`, and `│` connectors
 inside the adaptive `TASK` column. Connector width participates in truncation
@@ -82,5 +84,5 @@ model does not currently represent.
    usable while making secondary views reachable.
 3. Task metadata columns appear only when their widths can remain legible.
 4. Completed work is muted and schedules remain legible without dominating rows.
-5. Custom themes preserve hierarchy without setting a terminal background.
+5. Custom themes preserve hierarchy with colored or terminal-default surfaces.
 6. Forms, menus, pickers, and command hints use the same structural language.

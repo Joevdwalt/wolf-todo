@@ -53,15 +53,29 @@ public sealed class TomlApplicationConfigurationLoaderTests
             [tui.theme]
             preset = "CLASSIC"
             accent = "#123456"
+            accent_bright = "#654321"
             tag = "aquamarine3"
             text = "default"
+            secondary_text = "#223344"
+            background = "#010203"
+            surface = "#040506"
+            surface_2 = "#070809"
+            border_active = "#0A0B0C"
+            info = "#0D0E0F"
             """);
 
         var result = loader.Load();
 
         result.Theme.Accent.Should().Be(new Color(0x12, 0x34, 0x56));
+        result.Theme.AccentBright.Should().Be(new Color(0x65, 0x43, 0x21));
         result.Theme.Tag.Should().Be(Color.Aquamarine3);
         result.Theme.Text.Should().Be(Color.Default);
+        result.Theme.SecondaryText.Should().Be(new Color(0x22, 0x33, 0x44));
+        result.Theme.Background.Should().Be(new Color(1, 2, 3));
+        result.Theme.Surface.Should().Be(new Color(4, 5, 6));
+        result.Theme.Surface2.Should().Be(new Color(7, 8, 9));
+        result.Theme.BorderActive.Should().Be(new Color(10, 11, 12));
+        result.Theme.Info.Should().Be(new Color(13, 14, 15));
         result.Theme.Error.Should().Be(Color.Red);
     }
 

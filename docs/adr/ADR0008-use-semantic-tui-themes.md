@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted; the foreground-only restriction is superseded by ADR0011.
 
 ## Context
 
@@ -24,7 +24,8 @@ Represent TUI colors as a semantic theme with these foreground roles:
 Load the theme once at startup from the optional `[tui.theme]` table in the
 global TOML configuration. A theme starts from one of three built-in presets:
 
-- `wolf`: the default arctic cyan and purple palette.
+- `wolf`: the default orange-and-blue palette, extended with surfaces by
+  ADR0011.
 - `classic`: a restrained palette compatible with the former interface.
 - `mono`: the terminal's default foreground for every semantic role.
 
@@ -33,7 +34,7 @@ Spectre.Console named colors, exact six-digit `#RRGGBB` values, and the special
 value `default`. Reject unknown presets, theme keys, and invalid values as
 startup configuration errors.
 
-Configure foreground colors only. Keep bold and dim decorations as fixed
+ADR0011 extends this decision with semantic background and surface roles. Keep bold and dim decorations as fixed
 accessibility and hierarchy cues. Delegate conversion to the terminal's
 available color capability to Spectre.Console.
 
@@ -51,7 +52,7 @@ available color capability to Spectre.Console.
 
 - Theme changes require restarting the application.
 - The configuration contract depends on Spectre.Console's named color set.
-- Foreground-only themes cannot customize terminal backgrounds.
+- Surface themes require complete-cell rendering to avoid patchy backgrounds.
 
 ## References
 
