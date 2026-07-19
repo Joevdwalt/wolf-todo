@@ -304,8 +304,8 @@ public sealed class TuiApplicationTests
         application.Run();
 
         fileSystem.Contents.Should().Contain("- [ ] Planned")
-            .And.Contain($"⏳ {DateOnly.FromDateTime(DateTime.Today):yyyy-MM-dd} ⏰ 06:00");
-        terminal.PlannerViews.Should().Contain(view => view.State.Form != null);
+            .And.Contain($"⏰ 06:00 ⏳ {DateOnly.FromDateTime(DateTime.Today):yyyy-MM-dd}");
+        terminal.PlannerViews.Should().Contain(view => view.State.Editor != null);
         terminal.PlannerViews.Last().SelectedAssignment!.Todo.Title.Should().Be("Planned");
     }
 
@@ -357,9 +357,9 @@ public sealed class TuiApplicationTests
         application.Run();
 
         terminal.PlannerViews.Should().Contain(view =>
-            view.State.Form != null &&
-            view.State.Form.Error != null &&
-            view.State.Form.Error.Contains("disk full", StringComparison.Ordinal));
+            view.State.Editor != null &&
+            view.State.Editor.Error != null &&
+            view.State.Editor.Error.Contains("disk full", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -394,7 +394,7 @@ public sealed class TuiApplicationTests
 
         application.Run();
 
-        fileSystem.Contents.Should().Contain($"⏳ {tomorrow:yyyy-MM-dd} ⏰ 07:30");
+        fileSystem.Contents.Should().Contain($"⏰ 07:30 ⏳ {tomorrow:yyyy-MM-dd}");
         var final = terminal.PlannerViews.Last();
         final.State.SelectedDate.Should().Be(tomorrow);
         final.State.SlotIndex.Should().Be(3);
@@ -432,8 +432,8 @@ public sealed class TuiApplicationTests
 
         fileSystem.Contents.Should().Be(original);
         terminal.BrowserViews.Should().Contain(view =>
-            view.State.Form != null &&
-            view.State.Form.Error == "That timeslot is already occupied.");
+            view.State.Editor != null &&
+            view.State.Editor.Error == "That timeslot is already occupied.");
     }
 
     private static TuiApplication CreateApplication(

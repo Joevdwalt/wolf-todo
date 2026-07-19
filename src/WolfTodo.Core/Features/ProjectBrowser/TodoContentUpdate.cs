@@ -3,9 +3,11 @@ using System.Collections.Immutable;
 namespace WolfTodo.Core.Features.ProjectBrowser;
 
 public sealed record TodoContentUpdate(
-    ImmutableArray<TodoNoteUpdate> Notes,
-    ImmutableArray<TodoSubtaskUpdate> Subtasks);
+    ImmutableArray<TodoContentItemUpdate> Items);
 
-public sealed record TodoNoteUpdate(int? SourceLine, string Text);
+public abstract record TodoContentItemUpdate(int? SourceLine);
 
-public sealed record TodoSubtaskUpdate(int? SourceLine, string Title, bool IsCompleted);
+public sealed record TodoNoteUpdate(int? SourceLine, string Text) : TodoContentItemUpdate(SourceLine);
+
+public sealed record TodoSubtaskUpdate(int? SourceLine, string Title, bool IsCompleted) :
+    TodoContentItemUpdate(SourceLine);

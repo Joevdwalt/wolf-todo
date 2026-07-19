@@ -76,6 +76,7 @@ planner_today = ["g"]
 planner_unschedule = ["u"]
 create_todo = ["a"]
 edit_todo = ["e"]
+# Compatibility alias for the same unified editor.
 edit_todo_content = ["E"]
 edit_todo_external = ["Ctrl+E"]
 toggle_todo = ["Spacebar"]
@@ -143,7 +144,9 @@ medium terminals prioritize tasks and inspector with navigation available as a
 temporary view; narrow terminals show one focused view at a time.
 
 The `Day Planner` tab uses 30-minute slots from 06:00 through 21:30. Scheduling
-a todo adds `⏳ YYYY-MM-DD ⏰ HH:mm` to its original Markdown task line. Enter
+a todo adds Wolf Todo's `⏰ HH:mm` time before all task markers and retains the
+Obsidian Tasks-compatible `⏳ YYYY-MM-DD` scheduled date, for example
+`Prepare proposal ⏰ 09:30 #work ⏳ 2026-07-15`. Enter
 assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
 and `[`/`]` change days. The planner refuses occupied destination slots.
 Scheduled todos show `YYYY-MM-DD HH:mm` in the adaptive `SCHEDULED` column in
@@ -152,23 +155,22 @@ the Todos pane. The shared field editor can schedule or unschedule work, and
 preserved in Markdown but intentionally omitted from the normal UI. The planner
 shows responsive details for the selected slot; `v` hides or
 restores them. Its unscheduled-todo picker shows several filterable candidates.
-On an occupied slot, `e`, `E`, Ctrl+E, and Space provide the same field editing,
-content editing, external editing, and completion actions as the Todos tab.
-Creating with `a` uses the full todo form, pre-fills the selected slot, and
+On an occupied slot, `e` or `E`, Ctrl+E, and Space provide the same task editing,
+external editing, and completion actions as the Todos tab. Creating with `a`
+uses the complete task editor, pre-fills the selected slot, and
 requires a schedule. Rescheduling from the Planner editor follows the task to
 its new date and slot.
 
-In the Todos tab, `a` creates a todo under the chosen project's `## Inbox`
-heading, `e` edits the selected todo's parsed fields, and Space changes its
-Markdown checkbox. Ctrl+S saves the create/edit form. Writes re-read and
-validate the source before atomically replacing it so external changes are not
-silently overwritten.
-
-Uppercase `E` opens the structured notes and subtasks editor. It shows the
-selected todo's direct content; opening it on a subtask supports deeper nesting.
-Use `a` to add, `e` to edit, `d` to remove, Space to toggle a subtask, and
-Ctrl+S to atomically save the draft. Removing a subtask with descendants
-requires confirmation.
+In the Todos tab, `a` creates a todo under the chosen project's `## Inbox`.
+`e` opens one task editor for title, reference, priority, tags, schedule, notes,
+and direct subtasks; `E` is a compatibility alias for the same editor. It uses
+one cursor across compact field rows and a source-ordered content outline.
+Notes use `•`; open and completed subtasks use `○` and `✓`. Use `a` to choose
+and insert content after the selected item (or append when a field is selected),
+`e` or open to edit, `d` to remove, Space to toggle a subtask, and Ctrl+S to save
+the entire task in one conflict-safe Markdown write. Removing a subtask with
+descendants requires confirmation. Space outside the editor changes the
+selected task's Markdown checkbox.
 
 Ctrl+E opens the selected todo's Markdown project at its source line in the
 terminal editor named by `$EDITOR`. Wolf Todo waits for the editor, then reloads

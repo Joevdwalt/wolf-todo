@@ -193,7 +193,8 @@ public sealed partial class ProjectMarkdownParser
         text = TagPattern().Replace(text, string.Empty);
         text = RemoveRecognizedToken(text, startResult.Token);
         text = RemoveRecognizedToken(text, dueResult.Token);
-        text = RemoveRecognizedToken(text, scheduleResult.Token);
+        text = RemoveRecognizedToken(text, scheduleResult.TimeToken);
+        text = RemoveRecognizedToken(text, scheduleResult.DateToken);
 
         foreach (var marker in Priorities.Keys)
         {
@@ -247,26 +248,28 @@ public sealed partial class ProjectMarkdownParser
 
     private static ScheduleResult ParseSchedule(string text)
     {
-        var matches = SchedulePattern().Matches(text);
-        if (matches.Count > 1)
+        var dateMatches = ScheduleDatePattern().Matches(text);
+        var timeMatches = ScheduleTimePattern().Matches(text);
+        if (dateMatches.Count == 0 || timeMatches.Count == 0)
         {
-            return new ScheduleResult(null, null, "Todo contains more than one schedule.");
+            return new ScheduleResult(null, null, null, null);
         }
 
-        if (matches.Count == 0)
+        if (dateMatches.Count > 1 || timeMatches.Count > 1)
         {
-            return new ScheduleResult(null, null, null);
+            return new ScheduleResult(null, null, null, "Todo contains more than one schedule.");
         }
 
-        var match = matches[0];
+        var dateMatch = dateMatches[0];
+        var timeMatch = timeMatches[0];
         if (!DateOnly.TryParseExact(
-                match.Groups[1].Value,
+                dateMatch.Groups[1].Value,
                 "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
                 out var date) ||
             !TimeOnly.TryParseExact(
-                match.Groups[2].Value,
+                timeMatch.Groups[1].Value,
                 "HH:mm",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
@@ -278,10 +281,15 @@ public sealed partial class ProjectMarkdownParser
             return new ScheduleResult(
                 null,
                 null,
+                null,
                 "Todo schedule must use a valid date and a half-hour time from 06:00 through 21:30.");
         }
 
-        return new ScheduleResult(new TodoSchedule(date, time), match.Value, null);
+        return new ScheduleResult(
+            new TodoSchedule(date, time),
+            timeMatch.Value,
+            dateMatch.Value,
+            null);
     }
 
     private static string RemoveRecognizedToken(string text, string? token) =>
@@ -312,8 +320,11 @@ public sealed partial class ProjectMarkdownParser
     [GeneratedRegex("📅\\s+(\\d{4}-\\d{2}-\\d{2})")]
     private static partial Regex DueDatePattern();
 
-    [GeneratedRegex("⏳\\s+(\\d{4}-\\d{2}-\\d{2})\\s+⏰\\s+(\\d{2}:\\d{2})")]
-    private static partial Regex SchedulePattern();
+    [GeneratedRegex("⏰\\s+(\\d{2}:\\d{2})")]
+    private static partial Regex ScheduleTimePattern();
+
+    [GeneratedRegex("⏳\\s+(\\d{4}-\\d{2}-\\d{2})")]
+    private static partial Regex ScheduleDatePattern();
 
     [GeneratedRegex("\\s+")]
     private static partial Regex WhitespacePattern();
@@ -362,5 +373,9 @@ public sealed partial class ProjectMarkdownParser
 
     private sealed record DateResult(DateOnly? Date, string? Token, string? Error);
 
-    private sealed record ScheduleResult(TodoSchedule? Schedule, string? Token, string? Error);
+    private sealed record ScheduleResult(
+        TodoSchedule? Schedule,
+        string? TimeToken,
+        string? DateToken,
+        string? Error);
 }

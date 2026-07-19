@@ -152,8 +152,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var wideDetails = view.State.ShowDetails && width >= 120;
         var compactDetails = view.State.ShowDetails && !wideDetails &&
                              view.State.Mode == PlannerMode.Browse &&
-                             view.State.Form is null &&
-                             view.State.ContentEditor is null &&
+                             view.State.Editor is null &&
                              view.CommandPalette is null &&
                              view.GlobalCommand is null;
         const int tabTableStatusBorderAndCursorHeight = 8;
@@ -291,25 +290,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 CommandPaletteStatus(view.CommandPalette, bindings, terminalWidth, terminalHeight));
         }
 
-        if (view.State.Form is not null)
+        if (view.State.Editor is not null)
         {
-            return TodoFormStatus(
-                view.State.Form,
+            return TodoTaskEditorStatus(
+                view.State.Editor,
                 view.Projects
                     .Select(project => new TodoEditorProjectOption(project.Title, project.Path))
                     .ToArray(),
                 bindings,
                 terminalWidth,
                 terminalHeight);
-        }
-
-        if (view.State.ContentEditor is not null)
-        {
-            return DefaultStatusLines(TodoContentEditorStatus(
-                view.State.ContentEditor,
-                bindings,
-                terminalWidth,
-                terminalHeight));
         }
 
         if (view.GlobalCommand is not null)
@@ -424,6 +414,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 BrowserStatusRole.FormPlaceholder => ThemeStyle(theme.Muted, Decoration.Dim),
                 BrowserStatusRole.FormHint => ThemeStyle(theme.Muted, Decoration.Dim),
                 BrowserStatusRole.FormError => ThemeStyle(theme.Error, Decoration.Bold),
+                BrowserStatusRole.ContentWarning => ThemeStyle(theme.Warning, Decoration.Bold),
                 _ => defaultStyle
             }));
         WriteSurface(
@@ -744,9 +735,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
         { CommandPalette: not null } => "HELP",
         { GlobalCommand: not null } => "COMMAND",
         { GlobalError: not null } => "ERROR",
-        { State.ContentEditor: not null } => "CONTENT",
-        { State.Form.IsCreate: true } => "CREATE",
-        { State.Form: not null } => "EDIT",
+        { State.Editor.IsCreate: true } => "CREATE",
+        { State.Editor: not null } => "EDIT",
         { State.IsFilterMode: true } => "FILTER",
         { State.IsSortMode: true } => "SORT",
         { State.Error: not null } => "ERROR",
@@ -758,9 +748,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
         { CommandPalette: not null } => "HELP",
         { GlobalCommand: not null } => "COMMAND",
         { GlobalError: not null } => "ERROR",
-        { State.ContentEditor: not null } => "CONTENT",
-        { State.Form.IsCreate: true } => "CREATE",
-        { State.Form: not null } => "EDIT",
+        { State.Editor.IsCreate: true } => "CREATE",
+        { State.Editor: not null } => "EDIT",
         { State.Mode: PlannerMode.EditFilter } => "FILTER",
         { State.Mode: PlannerMode.ChooseTodo } => "PICK",
         { State.Mode: PlannerMode.MoveTodo } => "MOVE",
@@ -1416,10 +1405,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
             return DefaultStatusLines(WrapStatus(view.GlobalError, Math.Max(1, terminalWidth - 4)));
         }
 
-        if (view.State.Form is not null)
+        if (view.State.Editor is not null)
         {
-            return TodoFormStatus(
-                view.State.Form,
+            return TodoTaskEditorStatus(
+                view.State.Editor,
                 view.Projects
                     .Where(project => project.Project is not null)
                     .Select(project => new TodoEditorProjectOption(project.Title, project.Project!.Path))
@@ -1427,15 +1416,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 keyBindings,
                 terminalWidth,
                 terminalHeight);
-        }
-
-        if (view.State.ContentEditor is not null)
-        {
-            return DefaultStatusLines(TodoContentEditorStatus(
-                view.State.ContentEditor,
-                keyBindings,
-                terminalWidth,
-                terminalHeight));
         }
 
         if (view.State.IsSortMode)
@@ -1477,137 +1457,126 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return DefaultStatusLines(WrapStatus(status, Math.Max(1, terminalWidth - 4)));
     }
 
-    private static IReadOnlyList<BrowserStatusLine> TodoFormStatus(
-        TodoFormState form,
+    private static IReadOnlyList<BrowserStatusLine> TodoTaskEditorStatus(
+        TodoTaskEditorState editor,
         IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings,
         int terminalWidth,
         int terminalHeight)
     {
-        if (form.IsChoosingProject)
+        var width = Math.Max(1, terminalWidth - 4);
+        if (editor.IsChoosingProject)
         {
             var title = projects.Count == 0
                 ? "No valid projects"
-                : projects[Math.Clamp(form.ProjectPickerIndex, 0, projects.Count - 1)].Title;
+                : projects[Math.Clamp(editor.ProjectPickerIndex, 0, projects.Count - 1)].Title;
             return DefaultStatusLines(WrapStatus(
                 $"CHOOSE PROJECT: {title}  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
                 $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
-                Math.Max(1, terminalWidth - 4)));
+                width));
+        }
+
+        if (editor.Mode == TodoTaskEditorMode.ChooseContentType)
+        {
+            var pickerLines = new List<BrowserStatusLine>
+            {
+                new("ADD CONTENT", BrowserStatusRole.FormLabel)
+            };
+            foreach (var kind in Enum.GetValues<ContentItemKind>())
+            {
+                pickerLines.Add(new BrowserStatusLine(
+                    $"{(editor.AddKind == kind ? ">" : " ")} {kind.ToString().ToUpperInvariant()}",
+                    editor.AddKind == kind
+                        ? BrowserStatusRole.FormActiveValue
+                        : BrowserStatusRole.FormValue));
+            }
+
+            pickerLines.AddRange(ContentStatusLines(
+                $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+                $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
+                width,
+                BrowserStatusRole.FormHint));
+            return pickerLines;
+        }
+
+        if (editor.Mode == TodoTaskEditorMode.ConfirmRemoval)
+        {
+            var selected = (ContentSubtaskDraft)editor.Items[editor.SelectedContentIndex];
+            return ContentStatusLines(
+                $"REMOVE '{selected.Title}' AND {selected.DescendantCount} NESTED ITEM(S)?  " +
+                $"{Shortest(bindings.Open)} CONFIRM  {Shortest(bindings.Back)} CANCEL",
+                width,
+                BrowserStatusRole.ContentWarning);
+        }
+
+        if (editor.Mode == TodoTaskEditorMode.Edit && editor.IsAddingContent)
+        {
+            return ContentStatusLines(
+                $"ADD {editor.AddKind.ToString().ToUpperInvariant()}: {editor.Draft}_  Enter ACCEPT  Esc CANCEL",
+                width,
+                BrowserStatusRole.FormActiveValue);
         }
 
         var fields = new[]
         {
-            (TodoFormField.Title, "Title", form.Values.Title),
-            (TodoFormField.Reference, "External reference", form.Values.ExternalReference ?? string.Empty),
-            (TodoFormField.Priority, "Priority", form.Values.Priority?.ToString() ?? string.Empty),
-            (TodoFormField.Tags, "Tags", string.Join(' ', form.Values.Tags.Select(tag => $"#{tag}"))),
-            (TodoFormField.ScheduledDate, "Scheduled date", form.ScheduledDate),
-            (TodoFormField.ScheduledTime, "Scheduled time", form.ScheduledTime)
+            ("Title", editor.Values.Title),
+            ("Reference", editor.Values.ExternalReference ?? string.Empty),
+            ("Priority", editor.Values.Priority?.ToString() ?? string.Empty),
+            ("Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
+            ("Scheduled date", editor.ScheduledDate),
+            ("Scheduled time", editor.ScheduledTime)
         };
-        var contentWidth = Math.Max(1, terminalWidth - 4);
-        var selectedIndex = Array.FindIndex(fields, field => field.Item1 == form.Field);
-        var lines = new List<BrowserStatusLine>();
-        if (terminalHeight >= 24)
+
+        var rows = new List<(int? Selection, BrowserStatusLine Line)>();
+        for (var index = 0; index < fields.Length; index++)
         {
-            foreach (var field in fields)
-            {
-                lines.Add(new BrowserStatusLine(field.Item2.ToUpperInvariant(), BrowserStatusRole.FormLabel));
-                lines.Add(FormValueLine(form, field.Item1, field.Item3, contentWidth));
-            }
+            rows.Add((index, TaskEditorFieldLine(editor, index, fields[index].Item1, fields[index].Item2, width)));
+        }
+
+        rows.Add((null, new BrowserStatusLine("  CONTENT", BrowserStatusRole.FormLabel)));
+        if (editor.Items.Length == 0)
+        {
+            rows.Add((null, new BrowserStatusLine("    — No notes or subtasks", BrowserStatusRole.FormPlaceholder)));
         }
         else
         {
-            var field = fields[Math.Max(0, selectedIndex)];
-            lines.Add(new BrowserStatusLine(
-                $"{field.Item2.ToUpperInvariant()} ({Math.Max(0, selectedIndex) + 1}/{fields.Length})",
-                BrowserStatusRole.FormLabel));
-            lines.Add(FormValueLine(form, field.Item1, field.Item3, contentWidth));
+            for (var index = 0; index < editor.Items.Length; index++)
+            {
+                var selection = TodoTaskEditorState.FieldCount + index;
+                var selected = selection == editor.SelectedIndex;
+                rows.Add((selection, new BrowserStatusLine(
+                    ContentOutlineLine(
+                        editor.Items[index],
+                        selected,
+                        width,
+                        editor.Mode == TodoTaskEditorMode.Edit && selected ? editor.Draft + "_" : null),
+                    selected ? BrowserStatusRole.FormActiveValue : BrowserStatusRole.FormValue)));
+            }
         }
 
-        var message = form.Error ??
-            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} FIELD  " +
-            $"{Shortest(bindings.Open)} EDIT  {Shortest(bindings.SaveForm)} SAVE  " +
-            $"{Shortest(bindings.Back)} CANCEL";
-        var messageRole = form.Error is null
-            ? BrowserStatusRole.FormHint
-            : BrowserStatusRole.FormError;
-        lines.AddRange(WrapStatus(message, contentWidth)
-            .Select(line => new BrowserStatusLine(line, messageRole)));
+        var selectedRow = Math.Max(0, rows.FindIndex(row => row.Selection == editor.SelectedIndex));
+        var visibleRows = Math.Max(1, Math.Min(12, terminalHeight - 12));
+        var start = Math.Clamp(selectedRow - visibleRows + 1, 0, Math.Max(0, rows.Count - visibleRows));
+        var lines = new List<BrowserStatusLine>
+        {
+            new(Truncate(
+                $"{(editor.IsCreate ? "CREATE" : "EDIT")} TASK // " +
+                $"{(editor.Values.Title.Length == 0 ? "NEW TODO" : editor.Values.Title)}",
+                width), BrowserStatusRole.FormLabel)
+        };
+        lines.AddRange(rows.Skip(start).Take(visibleRows).Select(row => row.Line));
+
+        var message = editor.Error ?? (editor.Mode == TodoTaskEditorMode.Edit
+            ? "Enter ACCEPT  Esc CANCEL"
+            : $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+              $"{Shortest(bindings.Open)} EDIT  {Shortest(bindings.CreateTodo)} ADD  " +
+              $"{Shortest(bindings.RemoveContent)} REMOVE  Space TOGGLE  " +
+              $"{Shortest(bindings.SaveForm)} SAVE  {Shortest(bindings.Back)} CANCEL");
+        lines.AddRange(ContentStatusLines(
+            message,
+            width,
+            editor.Error is null ? BrowserStatusRole.FormHint : BrowserStatusRole.FormError));
         return lines;
-    }
-
-    private static BrowserStatusLine FormValueLine(
-        TodoFormState form,
-        TodoFormField field,
-        string value,
-        int contentWidth)
-    {
-        var selected = field == form.Field;
-        var prefix = selected ? "> " : "  ";
-        var availableWidth = Math.Max(1, contentWidth - prefix.Length);
-        if (form.IsEditing && selected)
-        {
-            var display = availableWidth == 1
-                ? "_"
-                : Truncate(form.Draft, availableWidth - 1) + "_";
-            return new BrowserStatusLine(prefix + display, BrowserStatusRole.FormActiveValue);
-        }
-
-        var valueOrPlaceholder = string.IsNullOrEmpty(value) ? "—" : value;
-        var role = selected
-            ? BrowserStatusRole.FormActiveValue
-            : string.IsNullOrEmpty(value)
-                ? BrowserStatusRole.FormPlaceholder
-                : BrowserStatusRole.FormValue;
-        return new BrowserStatusLine(prefix + Truncate(valueOrPlaceholder, availableWidth), role);
-    }
-
-    private static IReadOnlyList<string> TodoContentEditorStatus(
-        TodoContentEditorState editor,
-        TuiKeyBindings bindings,
-        int terminalWidth,
-        int terminalHeight)
-    {
-        var width = Math.Max(1, terminalWidth - 4);
-        if (editor.Mode == ContentEditorMode.Edit)
-        {
-            var kind = editor.Focus == ContentEditorFocus.Notes ? "note" : "subtask";
-            return WrapStatus(
-                $"{(editor.IsAdding ? "ADD" : "EDIT")} {kind.ToUpperInvariant()}: {editor.Draft}_  Enter ACCEPT  Esc CANCEL",
-                width);
-        }
-
-        if (editor.Mode == ContentEditorMode.ConfirmRemoval)
-        {
-            var selected = editor.Subtasks[editor.SubtaskIndex];
-            return WrapStatus(
-                $"REMOVE '{selected.Title}' AND {selected.DescendantCount} NESTED ITEM(S)?  " +
-                $"{Shortest(bindings.Open)} CONFIRM  {Shortest(bindings.Back)} CANCEL",
-                width);
-        }
-
-        var lines = new List<string> { $"CONTENT // {editor.TodoTitle}" };
-        var rowsPerSection = Math.Max(1, Math.Min(3, (terminalHeight - 12) / 2));
-        AddContentRows(
-            lines,
-            "Notes",
-            editor.Notes.Select(note => note.Text).ToArray(),
-            editor.NoteIndex,
-            editor.Focus == ContentEditorFocus.Notes,
-            rowsPerSection);
-        AddContentRows(
-            lines,
-            "Subtasks",
-            editor.Subtasks.Select(todo => $"[{(todo.IsCompleted ? 'x' : ' ')}] {todo.Title}").ToArray(),
-            editor.SubtaskIndex,
-            editor.Focus == ContentEditorFocus.Subtasks,
-            rowsPerSection);
-        lines.Add(editor.Error ??
-            $"{Shortest(bindings.FocusNext)} SECTION  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
-            $"{Shortest(bindings.CreateTodo)} ADD  {Shortest(bindings.EditTodo)} EDIT  " +
-            $"{Shortest(bindings.RemoveContent)} REMOVE  {Shortest(bindings.SaveForm)} SAVE  " +
-            $"{Shortest(bindings.Back)} CANCEL");
-        return lines.SelectMany(line => WrapStatus(line, width)).ToArray();
     }
 
     private static IReadOnlyList<string> CommandPaletteStatus(
@@ -1648,27 +1617,64 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return lines.SelectMany(line => WrapStatus(line, width)).ToArray();
     }
 
-    private static void AddContentRows(
-        List<string> output,
-        string heading,
-        IReadOnlyList<string> values,
-        int selectedIndex,
-        bool focused,
-        int visibleRows)
+    private static BrowserStatusLine TaskEditorFieldLine(
+        TodoTaskEditorState editor,
+        int index,
+        string label,
+        string value,
+        int width)
     {
-        output.Add($"{(focused ? ">" : " ")} {heading.ToUpperInvariant()}");
-        if (values.Count == 0)
-        {
-            output.Add("    —");
-            return;
-        }
-
-        var start = Math.Clamp(selectedIndex - visibleRows + 1, 0, Math.Max(0, values.Count - visibleRows));
-        for (var index = start; index < Math.Min(values.Count, start + visibleRows); index++)
-        {
-            output.Add($"  {(focused && index == selectedIndex ? ">" : " ")} {values[index]}");
-        }
+        var selected = editor.SelectedIndex == index;
+        var labelWidth = Math.Min(16, Math.Max(6, width / 3));
+        var prefix = $"{(selected ? ">" : " ")} {FitColumn(label.ToUpperInvariant(), labelWidth)} ";
+        var display = editor.Mode == TodoTaskEditorMode.Edit && selected
+            ? editor.Draft + "_"
+            : string.IsNullOrEmpty(value) ? "—" : value;
+        var role = selected
+            ? BrowserStatusRole.FormActiveValue
+            : string.IsNullOrEmpty(value)
+                ? BrowserStatusRole.FormPlaceholder
+                : BrowserStatusRole.FormValue;
+        return new BrowserStatusLine(
+            prefix + Truncate(display, Math.Max(1, width - DisplayWidth(prefix))),
+            role);
     }
+
+    private static string ContentOutlineLine(
+        ContentItemDraft item,
+        bool selected,
+        int width,
+        string? valueOverride = null)
+    {
+        var marker = selected ? ">" : " ";
+        var icon = item switch
+        {
+            ContentNoteDraft => "•",
+            ContentSubtaskDraft { IsCompleted: true } => "✓",
+            ContentSubtaskDraft => "○",
+            _ => "-"
+        };
+        var value = valueOverride ?? item switch
+        {
+            ContentNoteDraft note => note.Text,
+            ContentSubtaskDraft subtask => subtask.Title,
+            _ => string.Empty
+        };
+        var suffix = item is ContentSubtaskDraft { DescendantCount: > 0 } nestedSubtask
+            ? $"  +{nestedSubtask.DescendantCount} nested"
+            : string.Empty;
+        var prefix = $"{marker} {icon} ";
+        var fixedWidth = DisplayWidth(prefix) + DisplayWidth(suffix);
+        return fixedWidth >= width
+            ? Truncate(prefix + value, width)
+            : prefix + Truncate(value, width - fixedWidth) + suffix;
+    }
+
+    private static IReadOnlyList<BrowserStatusLine> ContentStatusLines(
+        string value,
+        int width,
+        BrowserStatusRole role) =>
+        WrapStatus(value, width).Select(line => new BrowserStatusLine(line, role)).ToArray();
 
     private static IReadOnlyList<string> WrapStatus(string value, int width)
     {
@@ -1704,8 +1710,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             { Error: not null } => ThemeStyle(theme.Error, Decoration.Bold),
             { IsFilterMode: true } => ThemeStyle(theme.Accent),
             { IsSortMode: true } => ThemeStyle(theme.Accent),
-            { Form: not null } => ThemeStyle(theme.Accent),
-            { ContentEditor: not null } => ThemeStyle(theme.Accent),
+            { Editor: not null } => ThemeStyle(theme.Accent),
             _ => ThemeStyle(theme.SecondaryText)
         };
         var content = lines.Select(line => new Text(
@@ -1718,14 +1723,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 BrowserStatusRole.FormPlaceholder => ThemeStyle(theme.Muted, Decoration.Dim),
                 BrowserStatusRole.FormHint => ThemeStyle(theme.Muted, Decoration.Dim),
                 BrowserStatusRole.FormError => ThemeStyle(theme.Error, Decoration.Bold),
+                BrowserStatusRole.ContentWarning => ThemeStyle(theme.Warning, Decoration.Bold),
                 _ => defaultStyle
             }));
         var statusIsActive = view.GlobalCommand is not null ||
                              view.CommandPalette is not null ||
                              view.State.IsFilterMode ||
                              view.State.IsSortMode ||
-                             view.State.Form is not null ||
-                             view.State.ContentEditor is not null;
+                             view.State.Editor is not null;
         WriteSurface(
             new Panel(new Rows(content))
             {
@@ -1886,6 +1891,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         FormActiveValue,
         FormPlaceholder,
         FormHint,
-        FormError
+        FormError,
+        ContentWarning
     }
 }

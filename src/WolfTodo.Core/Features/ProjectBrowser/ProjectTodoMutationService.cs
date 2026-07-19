@@ -17,30 +17,38 @@ public sealed partial class ProjectTodoMutationService(
         MutateExisting(path, expected, todo => Serialize(todo with { IsCompleted = isCompleted }));
 
     public TodoMutationResult Update(string path, TodoItem expected, TodoUpdate update) =>
-        MutateExisting(path, expected, todo => Serialize(todo with
-        {
-            Title = update.Title.Trim(),
-            ExternalReference = NullIfWhiteSpace(update.ExternalReference),
-            Priority = update.Priority,
-            Tags = update.Tags,
-            StartDate = update.StartDate,
-            DueDate = update.DueDate,
-            Schedule = update.Schedule
-        }));
+        UpdateTask(path, expected, new TodoTaskUpdate(update, ContentUpdate(expected)));
 
     public TodoMutationResult UpdateContent(
         string path,
         TodoItem expected,
-        TodoContentUpdate update)
+        TodoContentUpdate update) =>
+        UpdateTask(path, expected, new TodoTaskUpdate(FieldUpdate(expected), update));
+
+    public TodoMutationResult UpdateTask(
+        string path,
+        TodoItem expected,
+        TodoTaskUpdate update)
     {
-        if (update.Notes.Any(note => string.IsNullOrWhiteSpace(note.Text)))
+        if (string.IsNullOrWhiteSpace(update.Fields.Title))
+        {
+            return TodoMutationResult.Failure("Todo title must not be empty.");
+        }
+
+        if (update.Content.Items.OfType<TodoNoteUpdate>().Any(note => string.IsNullOrWhiteSpace(note.Text)))
         {
             return TodoMutationResult.Failure("Notes must not be empty.");
         }
 
-        if (update.Subtasks.Any(subtask => string.IsNullOrWhiteSpace(subtask.Title)))
+        if (update.Content.Items.OfType<TodoSubtaskUpdate>()
+            .Any(subtask => string.IsNullOrWhiteSpace(subtask.Title)))
         {
             return TodoMutationResult.Failure("Subtask titles must not be empty.");
+        }
+
+        if (update.Content.Items.Any(item => item is not TodoNoteUpdate and not TodoSubtaskUpdate))
+        {
+            return TodoMutationResult.Failure("The todo content draft contains an unsupported item.");
         }
 
         try
@@ -60,20 +68,26 @@ public sealed partial class ProjectTodoMutationService(
                     "The todo content changed on disk. Reload it before saving your change.");
             }
 
-            var existingNoteLines = current.Notes.Select(note => note.SourceLine).ToHashSet();
-            var updatedNoteLines = update.Notes
-                .Where(note => note.SourceLine is not null)
-                .Select(note => note.SourceLine!.Value)
+            var currentItems = current.Notes
+                .Select(note => (note.SourceLine, IsNote: true))
+                .Concat(current.Subtasks.Select(todo => (todo.SourceLine, IsNote: false)))
+                .OrderBy(item => item.SourceLine)
                 .ToArray();
-            var existingSubtaskLines = current.Subtasks.Select(todo => todo.SourceLine).ToHashSet();
-            var updatedSubtaskLines = update.Subtasks
-                .Where(todo => todo.SourceLine is not null)
-                .Select(todo => todo.SourceLine!.Value)
+            var currentByLine = currentItems.ToDictionary(item => item.SourceLine);
+            var updatedExisting = update.Content.Items
+                .Where(item => item.SourceLine is not null)
                 .ToArray();
-            if (updatedNoteLines.Distinct().Count() != updatedNoteLines.Length ||
-                updatedNoteLines.Any(line => !existingNoteLines.Contains(line)) ||
-                updatedSubtaskLines.Distinct().Count() != updatedSubtaskLines.Length ||
-                updatedSubtaskLines.Any(line => !existingSubtaskLines.Contains(line)))
+            var updatedLines = updatedExisting.Select(item => item.SourceLine!.Value).ToArray();
+            var retainedLines = updatedLines.ToHashSet();
+            var expectedOrder = currentItems
+                .Where(item => retainedLines.Contains(item.SourceLine))
+                .Select(item => item.SourceLine)
+                .ToArray();
+            if (updatedLines.Distinct().Count() != updatedLines.Length ||
+                updatedExisting.Any(item =>
+                    !currentByLine.TryGetValue(item.SourceLine!.Value, out var currentItem) ||
+                    currentItem.IsNote != (item is TodoNoteUpdate)) ||
+                !updatedLines.SequenceEqual(expectedOrder))
             {
                 return TodoMutationResult.Failure("The todo content draft contains stale items.");
             }
@@ -91,15 +105,25 @@ public sealed partial class ProjectTodoMutationService(
             var targetIndent = LeadingWhitespace(lines[targetIndex]);
             var childIndent = targetIndent + "  ";
             var blockEnd = FindTodoBlockEnd(lines, targetIndex, targetIndent.Length);
-            var firstSubtaskIndex = current.Subtasks.Length == 0
-                ? blockEnd
-                : current.Subtasks.Min(todo => todo.SourceLine) - 1;
             var replacements = new Dictionary<int, string>();
             var removals = new HashSet<int>();
+            var insertions = new Dictionary<int, List<string>>();
+            replacements[targetIndex] = targetPrefix.Groups[1].Value + Serialize(current with
+            {
+                Title = update.Fields.Title.Trim(),
+                ExternalReference = NullIfWhiteSpace(update.Fields.ExternalReference),
+                Priority = update.Fields.Priority,
+                Tags = update.Fields.Tags,
+                StartDate = update.Fields.StartDate,
+                DueDate = update.Fields.DueDate,
+                Schedule = update.Fields.Schedule
+            });
 
             foreach (var note in current.Notes)
             {
-                var replacement = update.Notes.FirstOrDefault(candidate => candidate.SourceLine == note.SourceLine);
+                var replacement = update.Content.Items
+                    .OfType<TodoNoteUpdate>()
+                    .FirstOrDefault(candidate => candidate.SourceLine == note.SourceLine);
                 if (replacement is null)
                 {
                     removals.Add(note.SourceLine - 1);
@@ -113,7 +137,8 @@ public sealed partial class ProjectTodoMutationService(
 
             foreach (var subtask in current.Subtasks)
             {
-                var replacement = update.Subtasks
+                var replacement = update.Content.Items
+                    .OfType<TodoSubtaskUpdate>()
                     .FirstOrDefault(candidate => candidate.SourceLine == subtask.SourceLine);
                 if (replacement is null)
                 {
@@ -134,25 +159,34 @@ public sealed partial class ProjectTodoMutationService(
                 });
             }
 
-            var newNotes = update.Notes
-                .Where(note => note.SourceLine is null)
-                .Select(note => $"{childIndent}- {note.Text.Trim()}")
-                .ToArray();
-            var newSubtasks = update.Subtasks
-                .Where(todo => todo.SourceLine is null)
-                .Select(todo => $"{childIndent}- [{(todo.IsCompleted ? 'x' : ' ')}] {todo.Title.Trim()}")
-                .ToArray();
-            var output = new List<string>(lines.Count + newNotes.Length + newSubtasks.Length);
-            for (var index = 0; index <= lines.Count; index++)
+            var pendingInsertions = new List<string>();
+            foreach (var item in update.Content.Items)
             {
-                if (index == firstSubtaskIndex)
+                if (item.SourceLine is null)
                 {
-                    output.AddRange(newNotes);
+                    pendingInsertions.Add(SerializeContentItem(item, childIndent));
+                    continue;
                 }
 
-                if (index == blockEnd)
+                if (pendingInsertions.Count > 0)
                 {
-                    output.AddRange(newSubtasks);
+                    insertions[item.SourceLine.Value - 1] = [.. pendingInsertions];
+                    pendingInsertions.Clear();
+                }
+            }
+
+            if (pendingInsertions.Count > 0)
+            {
+                insertions[blockEnd] = [.. pendingInsertions];
+            }
+
+            var newItemCount = update.Content.Items.Count(item => item.SourceLine is null);
+            var output = new List<string>(lines.Count + newItemCount);
+            for (var index = 0; index <= lines.Count; index++)
+            {
+                if (insertions.TryGetValue(index, out var insertedLines))
+                {
+                    output.AddRange(insertedLines);
                 }
 
                 if (index < lines.Count && !removals.Contains(index))
@@ -172,10 +206,30 @@ public sealed partial class ProjectTodoMutationService(
     }
 
     public TodoMutationResult Create(string path, TodoUpdate update)
+        => Create(path, new TodoTaskUpdate(update, new TodoContentUpdate([])));
+
+    public TodoMutationResult Create(string path, TodoTaskUpdate update)
     {
-        if (string.IsNullOrWhiteSpace(update.Title))
+        if (string.IsNullOrWhiteSpace(update.Fields.Title))
         {
             return TodoMutationResult.Failure("Todo title must not be empty.");
+        }
+
+        if (update.Content.Items.Any(item => item.SourceLine is not null))
+        {
+            return TodoMutationResult.Failure("New todo content must not have source identities.");
+        }
+
+        if (update.Content.Items.Any(item => item is not TodoNoteUpdate and not TodoSubtaskUpdate))
+        {
+            return TodoMutationResult.Failure("The new todo content contains an unsupported item.");
+        }
+
+        if (update.Content.Items.OfType<TodoNoteUpdate>().Any(note => string.IsNullOrWhiteSpace(note.Text)) ||
+            update.Content.Items.OfType<TodoSubtaskUpdate>()
+                .Any(subtask => string.IsNullOrWhiteSpace(subtask.Title)))
+        {
+            return TodoMutationResult.Failure("New todo content must not be empty.");
         }
 
         try
@@ -223,19 +277,22 @@ public sealed partial class ProjectTodoMutationService(
             var item = new TodoItem(
                 insertionIndex + 1,
                 false,
-                NullIfWhiteSpace(update.ExternalReference),
-                update.Title.Trim(),
-                update.Priority,
-                update.Tags,
-                update.StartDate,
-                update.DueDate,
+                NullIfWhiteSpace(update.Fields.ExternalReference),
+                update.Fields.Title.Trim(),
+                update.Fields.Priority,
+                update.Fields.Tags,
+                update.Fields.StartDate,
+                update.Fields.DueDate,
                 "Inbox",
                 [],
                 [])
             {
-                Schedule = update.Schedule
+                Schedule = update.Fields.Schedule
             };
             lines.Insert(insertionIndex, $"- [ ] {SerializeBody(item)}");
+            lines.InsertRange(
+                insertionIndex + 1,
+                update.Content.Items.Select(content => SerializeContentItem(content, "  ")));
             Write(path, lines, newline, finalNewline: true);
             return TodoMutationResult.Success(insertionIndex + 1);
         }
@@ -320,7 +377,21 @@ public sealed partial class ProjectTodoMutationService(
             parts.Add($"{todo.ExternalReference} -");
         }
 
-        parts.Add(todo.Title);
+        var (description, preservedMetadata) = SplitTitleMetadata(todo.Title);
+        if (description.Length > 0)
+        {
+            parts.Add(description);
+        }
+        if (todo.Schedule is not null)
+        {
+            parts.Add($"⏰ {todo.Schedule.Time:HH:mm}");
+        }
+
+        if (preservedMetadata is not null)
+        {
+            parts.Add(preservedMetadata);
+        }
+
         var priority = todo.Priority switch
         {
             TodoPriority.Highest => "🔺",
@@ -348,10 +419,18 @@ public sealed partial class ProjectTodoMutationService(
 
         if (todo.Schedule is not null)
         {
-            parts.Add($"⏳ {todo.Schedule.Date:yyyy-MM-dd} ⏰ {todo.Schedule.Time:HH:mm}");
+            parts.Add($"⏳ {todo.Schedule.Date:yyyy-MM-dd}");
         }
 
         return string.Join(' ', parts);
+    }
+
+    private static (string Description, string? Metadata) SplitTitleMetadata(string title)
+    {
+        var match = PreservedTaskMetadataPattern().Match(title);
+        return !match.Success
+            ? (title, null)
+            : (title[..match.Index].TrimEnd(), title[match.Index..].TrimStart());
     }
 
     private static bool SameTarget(TodoItem current, TodoItem expected) =>
@@ -421,6 +500,32 @@ public sealed partial class ProjectTodoMutationService(
 
     private static string LeadingWhitespace(string line) => line[..(line.Length - line.TrimStart().Length)];
 
+    private static string SerializeContentItem(TodoContentItemUpdate item, string indent) => item switch
+    {
+        TodoNoteUpdate note => $"{indent}- {note.Text.Trim()}",
+        TodoSubtaskUpdate subtask =>
+            $"{indent}- [{(subtask.IsCompleted ? 'x' : ' ')}] {subtask.Title.Trim()}",
+        _ => throw new InvalidOperationException("Unsupported todo content item.")
+    };
+
+    private static TodoUpdate FieldUpdate(TodoItem todo) => new(
+        todo.Title,
+        todo.ExternalReference,
+        todo.Priority,
+        todo.Tags,
+        todo.StartDate,
+        todo.DueDate,
+        todo.Schedule);
+
+    private static TodoContentUpdate ContentUpdate(TodoItem todo) => new(
+        [.. todo.Notes
+            .Select(note => (TodoContentItemUpdate)new TodoNoteUpdate(note.SourceLine, note.Text))
+            .Concat(todo.Subtasks.Select(subtask => (TodoContentItemUpdate)new TodoSubtaskUpdate(
+                subtask.SourceLine,
+                subtask.Title,
+                subtask.IsCompleted)))
+            .OrderBy(item => item.SourceLine)]);
+
     private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
     {
         foreach (var todo in todos)
@@ -475,4 +580,7 @@ public sealed partial class ProjectTodoMutationService(
 
     [GeneratedRegex("^(\\s*)([-*+]\\s+)?(.*)$")]
     private static partial Regex NoteLinePattern();
+
+    [GeneratedRegex("(?:^|\\s)(?=(?:🔁|➕|✅|❌|🆔|⛔|🏁|⏰|🛫|⏳|📅|🔺|⏫|🔼|🔽|⏬))")]
+    private static partial Regex PreservedTaskMetadataPattern();
 }

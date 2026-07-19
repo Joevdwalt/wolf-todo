@@ -10,7 +10,6 @@ public enum ApplicationActionId
     BrowserSort,
     BrowserCreate,
     BrowserEdit,
-    BrowserEditContent,
     BrowserEditExternal,
     BrowserToggleCompleted,
     BrowserToggleDetails,
@@ -23,7 +22,6 @@ public enum ApplicationActionId
     PlannerUnschedule,
     PlannerCreate,
     PlannerEdit,
-    PlannerEditContent,
     PlannerEditExternal,
     PlannerToggleCompleted,
     PlannerToggleDetails

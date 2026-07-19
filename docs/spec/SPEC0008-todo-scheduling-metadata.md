@@ -11,17 +11,25 @@ Planner slot.
 
 ## Format
 
-Append one complete ordered pair to the task line:
+Write Wolf Todo's time extension immediately after the description and before
+every Obsidian Tasks marker. Keep the Tasks scheduled date in the metadata
+suffix:
 
 ```markdown
-- [ ] Prepare proposal ⏳ 2026-07-15 ⏰ 09:30
+- [ ] Prepare proposal ⏰ 09:30 ⏫ #work ⏳ 2026-07-15
 ```
 
 The date uses `YYYY-MM-DD`. Time uses `HH:mm`, must be `:00` or `:30`, and must
-fall between 06:00 and 21:30. Remove the pair from the displayed title and
-expose it as structured schedule data. Standalone `⏳` or `⏰` annotations remain
-ordinary title text. Duplicate pairs and complete-looking invalid values are
-project diagnostics.
+fall between 06:00 and 21:30. The tokens need not be adjacent: priority, tags,
+recurrence, IDs, dependencies, dates, and other preserved task metadata may
+appear between them. Remove both tokens from the displayed title and expose
+them as structured schedule data. Standalone `⏳` or time-only `⏰` annotations
+remain ordinary title text. Duplicate tokens and complete-looking invalid
+values are project diagnostics.
+
+Read the legacy adjacent `⏳ YYYY-MM-DD ⏰ HH:mm` order for compatibility, but
+never write it. A conflict-safe write to a legacy scheduled task normalizes the
+clock before all task markers; loading a project performs no migration.
 
 Only one todo may occupy a date/time pair across configured projects. The UI
 must refuse occupied destinations and expose externally introduced conflicts.
@@ -41,13 +49,15 @@ and are not part of the interactive scheduling workflow.
 
 ## Acceptance Scenarios
 
-1. Valid schedule metadata round-trips through parsing and writing.
+1. Clock-first schedule metadata round-trips through parsing and writing while
+   Obsidian Tasks continues to recognize the task markers.
 2. Invalid dates, off-grid times, and duplicate pairs produce diagnostics.
 3. Scheduling preserves surrounding Markdown and external changes are never
    silently overwritten.
 4. Existing files without schedule metadata require no migration.
 5. Scheduled todos show their date and time in every responsive Todos-pane
    layout without displacing tabs or status controls.
+6. Legacy date-then-clock schedules load and normalize only when changed.
 
 ## References
 

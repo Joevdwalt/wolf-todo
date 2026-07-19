@@ -51,7 +51,7 @@ public sealed class DayPlannerReducerTests
         var selectedProject = reducer.Reduce(opened.State, Key(ConsoleKey.Enter), Bindings, View(opened.State));
         var withTitle = selectedProject.State with
         {
-            Form = selectedProject.State.Form! with
+            Editor = selectedProject.State.Editor! with
             {
                 Values = new TodoUpdate("New planned task", null, null, [], null, null)
             }
@@ -62,15 +62,15 @@ public sealed class DayPlannerReducerTests
             Bindings,
             View(withTitle));
 
-        opened.State.Form.Should().NotBeNull();
-        opened.State.Form!.ScheduledDate.Should().Be("2026-07-15");
-        opened.State.Form.ScheduledTime.Should().Be("06:00");
-        opened.State.Form.ScheduleRequired.Should().BeTrue();
-        selectedProject.State.Form!.ProjectPath.Should().Be("/todos/work.md");
+        opened.State.Editor.Should().NotBeNull();
+        opened.State.Editor!.ScheduledDate.Should().Be("2026-07-15");
+        opened.State.Editor.ScheduledTime.Should().Be("06:00");
+        opened.State.Editor.ScheduleRequired.Should().BeTrue();
+        selectedProject.State.Editor!.ProjectPath.Should().Be("/todos/work.md");
         saved.Operation.Should().Be(PlannerOperation.Create);
-        saved.Update!.Title.Should().Be("New planned task");
-        saved.Update.Schedule.Should().Be(new TodoSchedule(Today, new TimeOnly(6, 0)));
-        saved.State.Form.Should().NotBeNull("the application clears it only after a successful write");
+        saved.Update!.Fields.Title.Should().Be("New planned task");
+        saved.Update.Fields.Schedule.Should().Be(new TodoSchedule(Today, new TimeOnly(6, 0)));
+        saved.State.Editor.Should().NotBeNull("the application clears it only after a successful write");
     }
 
     [Fact]
@@ -89,8 +89,8 @@ public sealed class DayPlannerReducerTests
         var external = reducer.Reduce(state, Key(ConsoleKey.E, control: true), Bindings, view);
         var completed = reducer.Reduce(state, Key(ConsoleKey.Spacebar), Bindings, view);
 
-        edit.State.Form.Should().NotBeNull();
-        content.State.ContentEditor.Should().NotBeNull();
+        edit.State.Editor.Should().NotBeNull();
+        content.State.Editor.Should().NotBeNull();
         external.Operation.Should().Be(PlannerOperation.EditExternal);
         completed.Operation.Should().Be(PlannerOperation.ToggleCompleted);
         external.TodoIdentity.Should().Be(view.SelectedAssignment!.Identity);

@@ -132,7 +132,8 @@ public sealed class CommandPaletteReducerTests
         var items = new ApplicationActionCatalog().Create(false, null, planner, Bindings);
 
         items.Single(item => item.Action == ApplicationActionId.PlannerEdit).IsEnabled.Should().BeTrue();
-        items.Single(item => item.Action == ApplicationActionId.PlannerEditContent).Binding.Should().Be("E");
+        items.Single(item => item.Action == ApplicationActionId.PlannerEdit).Binding.Should().Be("e");
+        items.Should().NotContain(item => item.Label == "Edit task content");
         items.Single(item => item.Action == ApplicationActionId.PlannerEditExternal).Binding.Should().Be("Ctrl+E");
         items.Single(item => item.Action == ApplicationActionId.PlannerToggleCompleted).Binding.Should().Be("Spacebar");
         items.Single(item => item.Action == ApplicationActionId.PlannerToggleDetails).Label.Should().Be("Hide details");

@@ -7,5 +7,4 @@ public sealed record BrowserTransition(
     BrowserOperation Operation = BrowserOperation.None,
     string? ProjectPath = null,
     TodoIdentity? TodoIdentity = null,
-    TodoUpdate? Update = null,
-    TodoContentUpdate? ContentUpdate = null);
+    TodoTaskUpdate? Update = null);

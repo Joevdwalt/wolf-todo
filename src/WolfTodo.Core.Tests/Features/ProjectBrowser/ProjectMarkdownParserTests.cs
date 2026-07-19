@@ -70,7 +70,7 @@ public sealed class ProjectMarkdownParserTests
     }
 
     [Fact]
-    public void Parse_reads_a_half_hour_schedule_and_removes_it_from_the_title()
+    public void Parse_reads_the_legacy_schedule_order_for_compatibility()
     {
         var result = parser.Parse(
             "/todos/home.md",
@@ -82,10 +82,25 @@ public sealed class ProjectMarkdownParserTests
         todo.Tags.Should().Equal("work");
     }
 
+    [Fact]
+    public void Parse_reads_clock_first_schedule_with_task_markers_between_the_tokens()
+    {
+        var result = parser.Parse(
+            "/todos/home.md",
+            "- [ ] Prepare proposal ⏰ 09:30 🔁 every day ⏫ #work ⏳ 2026-07-15");
+
+        var todo = result.Project!.Todos.Single();
+        todo.Title.Should().Be("Prepare proposal 🔁 every day");
+        todo.Schedule.Should().Be(new TodoSchedule(new DateOnly(2026, 7, 15), new TimeOnly(9, 30)));
+        todo.Priority.Should().Be(TodoPriority.High);
+        todo.Tags.Should().Equal("work");
+    }
+
     [Theory]
     [InlineData("⏳ 2026-07-15 ⏰ 09:15")]
     [InlineData("⏳ 2026-07-15 ⏰ 05:30")]
     [InlineData("⏳ 2026-02-30 ⏰ 09:30")]
+    [InlineData("⏰ 09:15 🔁 every day ⏳ 2026-07-15")]
     public void Parse_rejects_complete_but_invalid_schedule_metadata(string schedule)
     {
         var result = parser.Parse("/todos/home.md", $"- [ ] Prepare proposal {schedule}");
@@ -101,6 +116,29 @@ public sealed class ProjectMarkdownParserTests
 
         result.Project!.Todos.Single().Title.Should().Be("Prepare proposal ⏳ 2026-07-15");
         result.Project.Todos.Single().Schedule.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_preserves_a_standalone_wolf_time_as_title_text()
+    {
+        var result = parser.Parse("/todos/home.md", "- [ ] Prepare proposal ⏰ 09:30");
+
+        result.Project!.Todos.Single().Title.Should().Be("Prepare proposal ⏰ 09:30");
+        result.Project.Todos.Single().Schedule.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_rejects_duplicate_clock_or_scheduled_date_tokens()
+    {
+        var duplicateClock = parser.Parse(
+            "/todos/home.md",
+            "- [ ] Prepare proposal ⏰ 09:00 ⏰ 09:30 ⏳ 2026-07-15");
+        var duplicateDate = parser.Parse(
+            "/todos/home.md",
+            "- [ ] Prepare proposal ⏰ 09:30 ⏳ 2026-07-15 ⏳ 2026-07-16");
+
+        duplicateClock.Error.Should().Contain("more than one schedule");
+        duplicateDate.Error.Should().Contain("more than one schedule");
     }
 
     [Fact]

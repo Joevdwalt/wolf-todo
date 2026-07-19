@@ -89,6 +89,12 @@ Recognize this Obsidian Tasks-compatible metadata subset:
 | Start date | `🛫 YYYY-MM-DD` | Optional, unique, and a valid calendar date. |
 | Due date | `📅 YYYY-MM-DD` | Optional, unique, and a valid calendar date. |
 
+Wolf Todo additionally pairs a description-level `⏰ HH:mm` token with one
+Obsidian scheduled date, `⏳ YYYY-MM-DD`, as defined by SPEC0008. The clock must
+be serialized before every task metadata marker so Obsidian Tasks can continue
+to recognize the metadata suffix. A scheduled-date or clock token without its
+counterpart remains ordinary title text.
+
 Metadata tokens may appear in any order after the descriptive text. Remove
 recognized metadata from the displayed title and show it in the row and detail
 fields. The remaining title must be non-empty. An unrecognized emoji or text is
@@ -112,9 +118,10 @@ order at every level.
 Use the canonical file path and source line as runtime identity. Do not add or
 require a persistent Wolf Todo ID.
 
-Scheduled, created, completed, and cancelled dates; recurrence; dependencies;
-explicit task IDs; and other Obsidian Tasks fields are not interpreted in this
-version. Preserve them as ordinary title or note text.
+Created, completed, and cancelled dates; recurrence; dependencies; explicit
+task IDs; and other Obsidian Tasks fields are not interpreted in this version.
+Preserve them as ordinary title or note text. Scheduled date/time pairs are the
+exception described by SPEC0008.
 
 ## Project Browser Layout
 

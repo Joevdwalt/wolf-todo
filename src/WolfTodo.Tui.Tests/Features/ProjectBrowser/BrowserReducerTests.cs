@@ -279,7 +279,7 @@ public sealed class BrowserReducerTests
         var opened = reducer.Reduce(BrowserState.Initial, Key('a'), Configuration, view);
         var withTitle = opened.State with
         {
-            Form = opened.State.Form! with
+            Editor = opened.State.Editor! with
             {
                 Values = new TodoUpdate("New task", null, null, [], null, null),
                 ScheduledDate = "2026-07-15",
@@ -295,10 +295,10 @@ public sealed class BrowserReducerTests
 
         saved.Operation.Should().Be(BrowserOperation.Create);
         saved.ProjectPath.Should().Be(project.Path);
-        saved.Update!.Title.Should().Be("New task");
-        saved.Update.Schedule.Should().Be(
+        saved.Update!.Fields.Title.Should().Be("New task");
+        saved.Update.Fields.Schedule.Should().Be(
             new TodoSchedule(new DateOnly(2026, 7, 15), new TimeOnly(9, 30)));
-        saved.State.Form.Should().NotBeNull("the application clears it after a successful write");
+        saved.State.Editor.Should().NotBeNull("the application clears it after a successful write");
     }
 
     [Theory]
@@ -319,7 +319,7 @@ public sealed class BrowserReducerTests
         var opened = reducer.Reduce(BrowserState.Initial, Key('a'), Configuration, view);
         var state = opened.State with
         {
-            Form = opened.State.Form! with
+            Editor = opened.State.Editor! with
             {
                 Values = new TodoUpdate("New task", null, null, [], null, null),
                 ScheduledDate = date,
@@ -330,7 +330,7 @@ public sealed class BrowserReducerTests
         var saved = reducer.Reduce(state, Key(ConsoleKey.S, control: true), Configuration, view);
 
         saved.Operation.Should().Be(BrowserOperation.None);
-        saved.State.Form!.Error.Should().Contain(expectedError);
+        saved.State.Editor!.Error.Should().Contain(expectedError);
     }
 
     [Fact]
@@ -344,18 +344,79 @@ public sealed class BrowserReducerTests
         var view = SelectedView(identity, todo);
 
         var opened = reducer.Reduce(BrowserState.Initial, Key('E'), Configuration, view);
-        var adding = reducer.Reduce(opened.State, Key('a'), Configuration, view);
-        var typed = reducer.Reduce(adding.State, Key('N'), Configuration, view);
+        var contentSelected = opened.State with
+        {
+            Editor = opened.State.Editor! with { SelectedIndex = TodoTaskEditorState.FieldCount }
+        };
+        var adding = reducer.Reduce(contentSelected, Key('a'), Configuration, view);
+        var choosing = reducer.Reduce(adding.State, Key(ConsoleKey.Enter), Configuration, view);
+        var typed = reducer.Reduce(choosing.State, Key('N'), Configuration, view);
         var accepted = reducer.Reduce(typed.State, Key(ConsoleKey.Enter), Configuration, view);
-        var subtasks = reducer.Reduce(accepted.State, Key(ConsoleKey.Tab), Configuration, view);
-        var toggled = reducer.Reduce(subtasks.State, Key(ConsoleKey.Spacebar), Configuration, view);
+        var subtask = reducer.Reduce(accepted.State, Key('j'), Configuration, view);
+        var toggled = reducer.Reduce(subtask.State, Key(ConsoleKey.Spacebar), Configuration, view);
         var saved = reducer.Reduce(toggled.State, Key(ConsoleKey.S, control: true), Configuration, view);
 
-        opened.State.ContentEditor.Should().NotBeNull();
-        saved.Operation.Should().Be(BrowserOperation.UpdateContent);
-        saved.ContentUpdate!.Notes.Select(note => note.Text).Should().Equal("Existing note", "N");
-        saved.ContentUpdate.Subtasks.Should().ContainSingle().Which.IsCompleted.Should().BeTrue();
-        saved.State.ContentEditor.Should().BeNull();
+        opened.State.Editor.Should().NotBeNull();
+        saved.Operation.Should().Be(BrowserOperation.Update);
+        saved.Update!.Content.Items.Should().HaveCount(3);
+        saved.Update.Content.Items.OfType<TodoNoteUpdate>()
+            .Select(note => note.Text).Should().Equal("Existing note", "N");
+        saved.Update.Content.Items.OfType<TodoSubtaskUpdate>()
+            .Should().ContainSingle().Which.IsCompleted.Should().BeTrue();
+        saved.State.Editor.Should().NotBeNull("the application clears it after a successful write");
+    }
+
+    [Fact]
+    public void Reduce_adds_a_chosen_subtask_after_the_outline_selection()
+    {
+        var identity = new TodoIdentity("/alpha.md", 1);
+        var child = new TodoItem(3, false, null, "Existing child", null, [], null, null, string.Empty, [], []);
+        var todo = new TodoItem(
+            1, false, null, "Parent", null, [], null, null, string.Empty,
+            [new TodoNote(2, "Opening note")], [child]);
+        var view = SelectedView(identity, todo);
+
+        var opened = reducer.Reduce(BrowserState.Initial, Key('E'), Configuration, view);
+        var contentSelected = opened.State with
+        {
+            Editor = opened.State.Editor! with { SelectedIndex = TodoTaskEditorState.FieldCount }
+        };
+        var picker = reducer.Reduce(contentSelected, Key('a'), Configuration, view);
+        var subtaskType = reducer.Reduce(picker.State, Key('j'), Configuration, view);
+        var editing = reducer.Reduce(subtaskType.State, Key('l'), Configuration, view);
+        var typed = reducer.Reduce(editing.State, Key('N'), Configuration, view);
+        var accepted = reducer.Reduce(typed.State, Key(ConsoleKey.Enter), Configuration, view);
+
+        picker.State.Editor!.Mode.Should().Be(TodoTaskEditorMode.ChooseContentType);
+        subtaskType.State.Editor!.AddKind.Should().Be(ContentItemKind.Subtask);
+        accepted.State.Editor!.SelectedIndex.Should().Be(TodoTaskEditorState.FieldCount + 1);
+        accepted.State.Editor.Items.Should().SatisfyRespectively(
+            item => item.Should().BeOfType<ContentNoteDraft>(),
+            item => item.Should().BeOfType<ContentSubtaskDraft>()
+                .Which.Title.Should().Be("N"),
+            item => item.Should().BeOfType<ContentSubtaskDraft>()
+                .Which.Title.Should().Be("Existing child"));
+    }
+
+    [Fact]
+    public void Reduce_reports_when_completion_is_used_on_a_note()
+    {
+        var identity = new TodoIdentity("/alpha.md", 1);
+        var todo = new TodoItem(
+            1, false, null, "Parent", null, [], null, null, string.Empty,
+            [new TodoNote(2, "Note")], []);
+        var view = SelectedView(identity, todo);
+        var opened = reducer.Reduce(BrowserState.Initial, Key('E'), Configuration, view);
+        var noteSelected = opened.State with
+        {
+            Editor = opened.State.Editor! with { SelectedIndex = TodoTaskEditorState.FieldCount }
+        };
+
+        var toggled = reducer.Reduce(noteSelected, Key(ConsoleKey.Spacebar), Configuration, view);
+
+        toggled.State.Editor!.Error.Should().Be("Only subtasks can be completed.");
+        toggled.State.Editor.Items.Should().ContainSingle()
+            .Which.Should().BeOfType<ContentNoteDraft>();
     }
 
     [Fact]
@@ -401,13 +462,16 @@ public sealed class BrowserReducerTests
         var todo = new TodoItem(1, false, null, "Parent", null, [], null, null, string.Empty, [], [child]);
         var view = SelectedView(identity, todo);
         var opened = reducer.Reduce(BrowserState.Initial, Key('E'), Configuration, view);
-        var focused = reducer.Reduce(opened.State, Key(ConsoleKey.Tab), Configuration, view);
+        var subtaskSelected = opened.State with
+        {
+            Editor = opened.State.Editor! with { SelectedIndex = TodoTaskEditorState.FieldCount }
+        };
 
-        var requested = reducer.Reduce(focused.State, Key('d'), Configuration, view);
+        var requested = reducer.Reduce(subtaskSelected, Key('d'), Configuration, view);
         var confirmed = reducer.Reduce(requested.State, Key('l'), Configuration, view);
 
-        requested.State.ContentEditor!.Mode.Should().Be(ContentEditorMode.ConfirmRemoval);
-        confirmed.State.ContentEditor!.Subtasks.Should().BeEmpty();
+        requested.State.Editor!.Mode.Should().Be(TodoTaskEditorMode.ConfirmRemoval);
+        confirmed.State.Editor!.Items.Should().BeEmpty();
     }
 
     [Fact]

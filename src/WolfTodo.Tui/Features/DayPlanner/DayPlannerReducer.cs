@@ -29,7 +29,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             }),
             PlannerAction.Create when view.Projects.Length > 0 => Transition(state with
             {
-                Form = todoEditorReducer.CreateForm(null, true, SelectedSchedule(state), true),
+                Editor = todoEditorReducer.CreateEditor(null, true, SelectedSchedule(state), true),
                 Error = null
             }),
             PlannerAction.Create => Transition(state with { Error = "No valid projects are available." }),
@@ -38,18 +38,12 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 ShowDetails = !state.ShowDetails,
                 Error = null
             }),
-            PlannerAction.Edit when view.SelectedAssignment is not null => Transition(state with
+            PlannerAction.Edit when view.SelectedAssignment is not null =>
+                Transition(state with
             {
-                Form = todoEditorReducer.EditForm(
+                Editor = todoEditorReducer.EditEditor(
                     view.SelectedAssignment.Todo,
                     view.SelectedAssignment.Identity),
-                Error = null
-            }),
-            PlannerAction.EditContent when view.SelectedAssignment is not null => Transition(state with
-            {
-                ContentEditor = TodoContentEditorState.Create(
-                    view.SelectedAssignment.Identity,
-                    view.SelectedAssignment.Todo),
                 Error = null
             }),
             PlannerAction.EditExternal when view.SelectedAssignment is not null => new PlannerTransition(
@@ -62,7 +56,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 PlannerOperation.ToggleCompleted,
                 view.SelectedAssignment.Identity,
                 view.SelectedAssignment.ProjectPath),
-            PlannerAction.Edit or PlannerAction.EditContent or PlannerAction.EditExternal or
+            PlannerAction.Edit or PlannerAction.EditExternal or
                 PlannerAction.ToggleCompleted => Transition(state with
                 {
                     Error = SelectionError(view)
@@ -103,19 +97,12 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         TuiKeyBindings bindings,
         PlannerView view)
     {
-        if (state.ContentEditor is not null)
+        if (state.Editor is not null)
         {
-            return ApplyContentTransition(
+            return ApplyEditorTransition(
                 state,
-                todoEditorReducer.ReduceContent(state.ContentEditor, key, bindings));
-        }
-
-        if (state.Form is not null)
-        {
-            return ApplyFormTransition(
-                state,
-                todoEditorReducer.ReduceForm(
-                    state.Form,
+                todoEditorReducer.Reduce(
+                    state.Editor,
                     key,
                     bindings,
                     view.Projects
@@ -192,19 +179,6 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             return Transition(state with { ShowDetails = !state.ShowDetails, Error = null });
         }
 
-        if (state.Mode == PlannerMode.Browse && bindings.MatchesEditTodoContent(key))
-        {
-            return view.SelectedAssignment is null
-                ? Transition(state with { Error = SelectionError(view) })
-                : Transition(state with
-                {
-                    ContentEditor = TodoContentEditorState.Create(
-                        view.SelectedAssignment.Identity,
-                        view.SelectedAssignment.Todo),
-                    Error = null
-                });
-        }
-
         if (state.Mode == PlannerMode.Browse && bindings.MatchesEditTodoExternal(key))
         {
             return view.SelectedAssignment is null
@@ -216,13 +190,14 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                     view.SelectedAssignment.ProjectPath);
         }
 
-        if (state.Mode == PlannerMode.Browse && bindings.MatchesEditTodo(key))
+        if (state.Mode == PlannerMode.Browse &&
+            (bindings.MatchesEditTodo(key) || bindings.MatchesEditTodoContent(key)))
         {
             return view.SelectedAssignment is null
                 ? Transition(state with { Error = SelectionError(view) })
                 : Transition(state with
                 {
-                    Form = todoEditorReducer.EditForm(
+                    Editor = todoEditorReducer.EditEditor(
                         view.SelectedAssignment.Todo,
                         view.SelectedAssignment.Identity),
                     Error = null
@@ -279,7 +254,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 ? Transition(state with { Error = "No valid projects are available." })
                 : Transition(state with
                 {
-                    Form = todoEditorReducer.CreateForm(null, true, SelectedSchedule(state), true),
+                    Editor = todoEditorReducer.CreateEditor(null, true, SelectedSchedule(state), true),
                     Error = null
                 });
         }
@@ -350,12 +325,12 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         state.SelectedDate,
         new TimeOnly(6, 0).AddMinutes(state.SlotIndex * 30));
 
-    private static PlannerTransition ApplyFormTransition(
+    private static PlannerTransition ApplyEditorTransition(
         PlannerState state,
-        TodoFormTransition transition) => new(
+        TodoEditorTransition transition) => new(
             state with
             {
-                Form = transition.Operation == TodoEditorOperation.None ? transition.State : state.Form,
+                Editor = transition.Operation == TodoEditorOperation.None ? transition.State : state.Editor,
                 Error = null
             },
             transition.Operation switch
@@ -367,23 +342,6 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             transition.Target,
             transition.ProjectPath,
             transition.Update);
-
-    private static PlannerTransition ApplyContentTransition(
-        PlannerState state,
-        TodoContentEditorTransition transition) => new(
-            state with
-            {
-                ContentEditor = transition.Operation == TodoEditorOperation.None
-                    ? transition.State
-                    : state.ContentEditor,
-                Error = null
-            },
-            transition.Operation == TodoEditorOperation.UpdateContent
-                ? PlannerOperation.UpdateContent
-                : PlannerOperation.None,
-            transition.Target,
-            transition.Target?.ProjectPath,
-            ContentUpdate: transition.Update);
 
     private static string SelectionError(PlannerView view) =>
         view.SelectedSlot.Assignments.Length > 1

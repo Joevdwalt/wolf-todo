@@ -21,7 +21,7 @@ public sealed class BrowserReducer
             BrowserAction.Sort => Transition(state with { IsSortMode = true, Error = null }),
             BrowserAction.Create => Transition(state with
             {
-                Form = todoEditorReducer.CreateForm(
+                Editor = todoEditorReducer.CreateEditor(
                     view.Projects.FirstOrDefault(project => project.IsSelected)?.Project?.Path,
                     view.Projects.Any(project => project.Project is not null)),
                 Error = null
@@ -29,16 +29,7 @@ public sealed class BrowserReducer
             BrowserAction.Edit when view.SelectedTodo is not null && view.SelectedTodoIdentity is not null =>
                 Transition(state with
                 {
-                    Form = todoEditorReducer.EditForm(view.SelectedTodo, view.SelectedTodoIdentity),
-                    Error = null
-                }),
-            BrowserAction.EditContent
-                when view.SelectedTodo is not null && view.SelectedTodoIdentity is not null =>
-                Transition(state with
-                {
-                    ContentEditor = TodoContentEditorState.Create(
-                        view.SelectedTodoIdentity,
-                        view.SelectedTodo),
+                    Editor = todoEditorReducer.EditEditor(view.SelectedTodo, view.SelectedTodoIdentity),
                     Error = null
                 }),
             BrowserAction.EditExternal when view.SelectedTodoIdentity is not null =>
@@ -63,19 +54,12 @@ public sealed class BrowserReducer
     {
         var bindings = configuration.KeyBindings;
 
-        if (state.ContentEditor is not null)
+        if (state.Editor is not null)
         {
-            return ApplyContentTransition(
+            return ApplyEditorTransition(
                 state,
-                todoEditorReducer.ReduceContent(state.ContentEditor, key, bindings));
-        }
-
-        if (state.Form is not null)
-        {
-            return ApplyFormTransition(
-                state,
-                todoEditorReducer.ReduceForm(
-                    state.Form,
+                todoEditorReducer.Reduce(
+                    state.Editor,
                     key,
                     bindings,
                     EditorProjects(view)));
@@ -116,39 +100,9 @@ public sealed class BrowserReducer
             var projectPath = selectedProject?.Path;
             return Transition(state with
             {
-                Form = todoEditorReducer.CreateForm(
+                Editor = todoEditorReducer.CreateEditor(
                     projectPath,
                     view.Projects.Any(project => project.Project is not null)),
-                Error = null
-            });
-        }
-
-        if (bindings.MatchesEditTodo(key))
-        {
-            if (view.SelectedTodo is null || view.SelectedTodoIdentity is null)
-            {
-                return Transition(state with { Error = "Select a todo to edit." });
-            }
-
-            return Transition(state with
-            {
-                Form = todoEditorReducer.EditForm(view.SelectedTodo, view.SelectedTodoIdentity),
-                Error = null
-            });
-        }
-
-        if (bindings.MatchesEditTodoContent(key))
-        {
-            if (view.SelectedTodo is null || view.SelectedTodoIdentity is null)
-            {
-                return Transition(state with { Error = "Select a todo to edit its content." });
-            }
-
-            return Transition(state with
-            {
-                ContentEditor = TodoContentEditorState.Create(
-                    view.SelectedTodoIdentity,
-                    view.SelectedTodo),
                 Error = null
             });
         }
@@ -161,6 +115,20 @@ public sealed class BrowserReducer
             }
 
             return ExternalEdit(state, view.SelectedTodoIdentity);
+        }
+
+        if (bindings.MatchesEditTodo(key) || bindings.MatchesEditTodoContent(key))
+        {
+            if (view.SelectedTodo is null || view.SelectedTodoIdentity is null)
+            {
+                return Transition(state with { Error = "Select a todo to edit." });
+            }
+
+            return Transition(state with
+            {
+                Editor = todoEditorReducer.EditEditor(view.SelectedTodo, view.SelectedTodoIdentity),
+                Error = null
+            });
         }
 
         if (bindings.MatchesToggleTodo(key))
@@ -249,12 +217,12 @@ public sealed class BrowserReducer
             .Select(project => new TodoEditorProjectOption(project.Title, project.Project!.Path))
             .ToArray();
 
-    private static BrowserTransition ApplyFormTransition(
+    private static BrowserTransition ApplyEditorTransition(
         BrowserState state,
-        TodoFormTransition transition) => new(
+        TodoEditorTransition transition) => new(
             state with
             {
-                Form = transition.Operation == TodoEditorOperation.None ? transition.State : state.Form,
+                Editor = transition.Operation == TodoEditorOperation.None ? transition.State : state.Editor,
                 Error = null
             },
             transition.Operation switch
@@ -266,17 +234,6 @@ public sealed class BrowserReducer
             transition.ProjectPath,
             transition.Target,
             transition.Update);
-
-    private static BrowserTransition ApplyContentTransition(
-        BrowserState state,
-        TodoContentEditorTransition transition) => new(
-            state with { ContentEditor = transition.State, Error = null },
-            transition.Operation == TodoEditorOperation.UpdateContent
-                ? BrowserOperation.UpdateContent
-                : BrowserOperation.None,
-            transition.Target?.ProjectPath,
-            transition.Target,
-            ContentUpdate: transition.Update);
 
     private static BrowserTransition ReduceSort(BrowserState state, ConsoleKeyInfo key, BrowserView view)
     {

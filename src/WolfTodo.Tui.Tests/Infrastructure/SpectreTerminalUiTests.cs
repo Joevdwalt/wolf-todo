@@ -264,22 +264,16 @@ public sealed class SpectreTerminalUiTests
     public void ShowPlanner_keeps_the_full_todo_form_and_tabs_inside_the_viewport()
     {
         var date = new DateOnly(2026, 7, 15);
-        var form = new TodoFormState(
-            true,
-            "/todos/work.md",
-            0,
-            TodoFormField.Title,
-            false,
-            string.Empty,
-            new TodoUpdate("Planned task", null, null, [], null, null),
-            null,
-            null);
+        var editor = TodoTaskEditorState.Create("/todos/work.md", true) with
+        {
+            Values = new TodoUpdate("Planned task", null, null, [], null, null)
+        };
         var catalog = new ProjectCatalog(
             [new TodoProject("Work", "/todos/work.md", [])],
             []);
         var view = new DayPlannerPresenter().CreateView(
             catalog,
-            PlannerState.CreateInitial(date) with { Form = form });
+            PlannerState.CreateInitial(date) with { Editor = editor });
         StartRecording(100, 24);
         var start = AnsiConsole.ExportText().Length;
 
@@ -290,7 +284,7 @@ public sealed class SpectreTerminalUiTests
 
         lines.Should().HaveCountLessThanOrEqualTo(23);
         lines[0].Should().Contain("[TODOS]");
-        lines.Should().Contain(line => line.Contains("EXTERNAL REFERENCE", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("REFERENCE", StringComparison.Ordinal));
         lines.Should().Contain(line => line.Contains("SCHEDULED DATE", StringComparison.Ordinal));
         lines.Should().Contain(line => line.Contains("SCHEDULED TIME", StringComparison.Ordinal));
     }
@@ -318,16 +312,24 @@ public sealed class SpectreTerminalUiTests
     {
         var view = ViewWithTitle("Parent");
         var identity = view.SelectedTodoIdentity!;
-        var editor = TodoContentEditorState.Create(identity, view.SelectedTodo!);
+        var editor = TodoTaskEditorState.Edit(view.SelectedTodo!, identity) with
+        {
+            SelectedIndex = TodoTaskEditorState.FieldCount,
+            Items =
+            [
+                new ContentNoteDraft(2, "Review current contract"),
+                new ContentSubtaskDraft(3, "Request approval", false, 2)
+            ]
+        };
         var paletteState = CommandPaletteState.Closed with { IsOpen = true };
         var palette = new CommandPaletteView(
             paletteState,
             [new CommandPaletteItem(
-                ApplicationActionId.BrowserEditContent,
+                ApplicationActionId.BrowserEdit,
                 "Todos",
-                "Edit notes and subtasks",
-                "Open content editor",
-                "E",
+                "Edit todo",
+                "Open task editor",
+                "e",
                 true,
                 null)]);
         StartRecording(100, 30);
@@ -335,7 +337,22 @@ public sealed class SpectreTerminalUiTests
 
         terminal.ShowBrowser(
             DefaultTabs,
-            view with { State = view.State with { ContentEditor = editor } },
+            view with { State = view.State with { Editor = editor } },
+            DefaultBindings,
+            TuiThemes.Wolf);
+        terminal.ShowBrowser(
+            DefaultTabs,
+            view with
+            {
+                State = view.State with
+                {
+                    Editor = editor with
+                    {
+                        Mode = TodoTaskEditorMode.ChooseContentType,
+                        AddKind = ContentItemKind.Subtask
+                    }
+                }
+            },
             DefaultBindings,
             TuiThemes.Wolf);
         terminal.ShowBrowser(
@@ -345,45 +362,65 @@ public sealed class SpectreTerminalUiTests
             TuiThemes.Wolf);
         var output = AnsiConsole.ExportText();
 
-        output.Should().Contain("CONTENT // Parent")
-            .And.Contain("NOTES")
-            .And.Contain("SUBTASKS")
+        output.Should().Contain("EDIT TASK // Parent")
+            .And.Contain("• Review current contract")
+            .And.Contain("○ Request approval  +2 nested")
+            .And.Contain("ADD CONTENT")
+            .And.Contain("> SUBTASK")
             .And.Contain("COMMAND PALETTE")
-            .And.Contain("Edit notes and subtasks");
+            .And.Contain("Edit todo");
+    }
+
+    [Theory]
+    [InlineData(100, 30)]
+    [InlineData(70, 16)]
+    public void ShowBrowser_keeps_the_selected_content_item_in_the_responsive_outline(
+        int width,
+        int height)
+    {
+        var view = ViewWithTitle("Parent");
+        var editor = TodoTaskEditorState.Edit(view.SelectedTodo!, view.SelectedTodoIdentity!) with
+        {
+            SelectedIndex = TodoTaskEditorState.FieldCount + 9,
+            Items = [.. Enumerable.Range(1, 10)
+                .Select(index => (ContentItemDraft)new ContentNoteDraft(index + 1, $"Content {index:00}"))]
+        };
+
+        var lines = RenderBrowser(
+            view with { State = view.State with { Editor = editor } },
+            width,
+            height);
+
+        lines.Should().HaveCount(height - 1);
+        lines.Should().Contain(line => line.Contains("• Content 10", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void ShowBrowser_renders_the_full_todo_form_as_stacked_label_value_pairs()
+    public void ShowBrowser_renders_fields_and_content_in_one_compact_editor()
     {
         var view = ViewWithTitle("Existing task");
-        var form = new TodoFormState(
-            false,
-            "/todos/project.md",
-            0,
-            TodoFormField.Title,
-            false,
-            string.Empty,
-            new TodoUpdate(
+        var editor = TodoTaskEditorState.Edit(view.SelectedTodo!, view.SelectedTodoIdentity!) with
+        {
+            Values = new TodoUpdate(
                 "Renew contract",
                 "EXT-42",
                 null,
                 ["work", "now"],
                 new DateOnly(2026, 7, 15),
-                new DateOnly(2026, 7, 31)),
-            view.SelectedTodoIdentity,
-            null);
+                new DateOnly(2026, 7, 31))
+        };
 
-        var lines = RenderBrowser(view with { State = view.State with { Form = form } }, 100, 24);
+        var lines = RenderBrowser(view with { State = view.State with { Editor = editor } }, 100, 24);
         var status = lines[StatusPanelTop(lines)..];
         var title = Array.FindIndex(status, line => line.Contains("TITLE", StringComparison.Ordinal));
-        var reference = Array.FindIndex(status, line => line.Contains("EXTERNAL REFERENCE", StringComparison.Ordinal));
+        var reference = Array.FindIndex(status, line => line.Contains("REFERENCE", StringComparison.Ordinal));
         var priority = Array.FindIndex(status, line => line.Contains("PRIORITY", StringComparison.Ordinal));
 
         lines.Should().HaveCount(23);
         lines[0].Should().Contain("[TODOS]");
-        status[title + 1].Should().Contain("> Renew contract");
-        status[reference + 1].Should().Contain("EXT-42");
-        status[priority + 1].Should().Contain("—");
+        status[title].Should().Contain("> ").And.Contain("Renew contract");
+        status[reference].Should().Contain("EXT-42");
+        status[priority].Should().Contain("—");
         status.Should().Contain(line => line.Contains("TAGS", StringComparison.Ordinal));
         status.Should().Contain(line => line.Contains("#work #now", StringComparison.Ordinal));
         status.Should().Contain(line => line.Contains("SCHEDULED DATE", StringComparison.Ordinal));
@@ -396,16 +433,10 @@ public sealed class SpectreTerminalUiTests
     public void ShowBrowser_applies_semantic_theme_roles_to_the_todo_form_only()
     {
         var view = ViewWithTitle("Existing task");
-        var form = new TodoFormState(
-            false,
-            "/todos/project.md",
-            0,
-            TodoFormField.Title,
-            false,
-            string.Empty,
-            new TodoUpdate("Active form value", "INACTIVE-42", null, [], null, null),
-            view.SelectedTodoIdentity,
-            null);
+        var editor = TodoTaskEditorState.Edit(view.SelectedTodo!, view.SelectedTodoIdentity!) with
+        {
+            Values = new TodoUpdate("Active form value", "INACTIVE-42", null, [], null, null)
+        };
         var theme = TuiThemes.Wolf with
         {
             Text = new Color(17, 17, 17),
@@ -423,7 +454,7 @@ public sealed class SpectreTerminalUiTests
 
         terminal.ShowBrowser(
             DefaultTabs,
-            view with { State = view.State with { Form = form } },
+            view with { State = view.State with { Editor = editor } },
             DefaultBindings,
             theme);
         var formHtml = NormalizeHtml(AnsiConsole.ExportHtml());
@@ -435,7 +466,7 @@ public sealed class SpectreTerminalUiTests
             {
                 State = view.State with
                 {
-                    Form = form with { Error = "Theme validation error" }
+                    Editor = editor with { Error = "Theme validation error" }
                 }
             },
             DefaultBindings,
@@ -452,9 +483,9 @@ public sealed class SpectreTerminalUiTests
             DefaultBindings,
             theme);
         var filterHtml = NormalizeHtml(AnsiConsole.ExportHtml());
-        StyleBefore(formHtml, "external").Should().Contain("#333333").And.Contain("font-weight: bold");
+        StyleBefore(formHtml, "content").Should().Contain("#333333").And.Contain("font-weight: bold");
         StyleBefore(formHtml, "inactive-42").Should().Contain("#111111");
-        StyleBefore(formHtml, "form").Should().Contain("#222222").And.Contain("font-weight: bold");
+        StyleBefore(formHtml, "title").Should().Contain("#222222").And.Contain("font-weight: bold");
         StyleBefore(formHtml, "—").Should().Contain("#2d343b").And.Contain("#162433");
         StyleBefore(formHtml, "j/k").Should().Contain("#2d343b").And.Contain("#162433");
         StyleBefore(errorHtml, "theme").Should().Contain("#555555").And.Contain("font-weight: bold");
@@ -466,25 +497,22 @@ public sealed class SpectreTerminalUiTests
     public void ShowBrowser_renders_only_the_active_editing_field_in_the_compact_todo_form()
     {
         var view = ViewWithTitle("Existing task");
-        var form = new TodoFormState(
-            false,
-            "/todos/project.md",
-            0,
-            TodoFormField.Reference,
-            true,
-            new string('x', 100),
-            new TodoUpdate("Renew contract", null, null, [], null, null),
-            view.SelectedTodoIdentity,
-            null);
+        var editor = TodoTaskEditorState.Edit(view.SelectedTodo!, view.SelectedTodoIdentity!) with
+        {
+            SelectedIndex = (int)TodoFormField.Reference,
+            Mode = TodoTaskEditorMode.Edit,
+            Draft = new string('x', 100),
+            Values = new TodoUpdate("Renew contract", null, null, [], null, null)
+        };
 
-        var lines = RenderBrowser(view with { State = view.State with { Form = form } }, 70, 16);
+        var lines = RenderBrowser(view with { State = view.State with { Editor = editor } }, 70, 16);
         var status = lines[StatusPanelTop(lines)..];
 
         lines.Should().HaveCount(15);
         lines[0].Should().Contain("[TODOS]");
-        status.Should().Contain(line => line.Contains("EXTERNAL REFERENCE (2/6)", StringComparison.Ordinal));
-        status.Should().Contain(line => line.Contains("> ", StringComparison.Ordinal) &&
-            line.Contains("_", StringComparison.Ordinal) && line.Contains("…", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("REFERENCE", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("> REFERENCE", StringComparison.Ordinal) &&
+            line.Contains("…", StringComparison.Ordinal));
         status.Should().NotContain(line => line.Contains("START DATE", StringComparison.Ordinal));
     }
 
@@ -492,21 +520,19 @@ public sealed class SpectreTerminalUiTests
     public void ShowBrowser_replaces_form_hints_with_the_validation_error()
     {
         var view = ViewWithTitle("Existing task");
-        var form = new TodoFormState(
-            false,
-            "/todos/project.md",
-            0,
-            TodoFormField.Title,
-            true,
-            string.Empty,
-            new TodoUpdate(string.Empty, null, null, [], null, null),
-            view.SelectedTodoIdentity,
-            "Title is required.");
+        var editor = TodoTaskEditorState.Edit(view.SelectedTodo!, view.SelectedTodoIdentity!) with
+        {
+            Mode = TodoTaskEditorMode.Edit,
+            Draft = string.Empty,
+            Values = new TodoUpdate(string.Empty, null, null, [], null, null),
+            Error = "Title is required."
+        };
 
-        var lines = RenderBrowser(view with { State = view.State with { Form = form } }, 70, 16);
+        var lines = RenderBrowser(view with { State = view.State with { Editor = editor } }, 70, 16);
         var status = lines[StatusPanelTop(lines)..];
 
-        status.Should().Contain(line => line.Contains("> _", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("> TITLE", StringComparison.Ordinal) &&
+            line.Contains("_", StringComparison.Ordinal));
         status.Should().Contain(line => line.Contains("Title is required.", StringComparison.Ordinal));
         status.Should().NotContain(line => line.Contains("Ctrl+S SAVE", StringComparison.Ordinal));
     }
@@ -585,7 +611,7 @@ public sealed class SpectreTerminalUiTests
         var view = new BrowserView(
             BrowserState.Initial,
             [new ProjectRow("All", 1, null, null, true)],
-            [new TodoRow(null, todo, [], true)],
+            [new TodoRow(null, todo, [], true, new TodoIdentity("/todos/contracts.md", todo.SourceLine))],
             todo,
             "All",
             "/todos/contracts.md",
@@ -1134,7 +1160,7 @@ public sealed class SpectreTerminalUiTests
         return new BrowserView(
             BrowserState.Initial,
             [new ProjectRow("All", 1, null, null, true)],
-            [new TodoRow(null, todo, [], true)],
+            [new TodoRow(null, todo, [], true, new TodoIdentity("/todos/project.md", todo.SourceLine))],
             todo,
             "All",
             "/todos/project.md",

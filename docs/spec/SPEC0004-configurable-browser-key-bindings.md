@@ -27,9 +27,9 @@ the existing keyboard interaction and command syntax.
 - `:completed` toggles completed todos and the required configured quit command
   exits the application.
 - `[`/`]` change planner dates, `g` selects today, and `u` unschedules.
-- `a`, `e`, uppercase `E`, Ctrl+E, Spacebar, `d`, and Ctrl+S create, edit
-  fields, edit structured content, open `$EDITOR`, complete, remove draft
-  content, and save todos.
+- `a`, `e`, uppercase `E`, Ctrl+E, Spacebar, `d`, and Ctrl+S create, open the
+  unified task editor (`E` is a compatibility alias), open `$EDITOR`, complete,
+  remove draft content, and save todos.
 
 These inputs are resolved from the global configuration described by ADR0005.
 Configured arrays replace the defaults for their action. A custom command-mode
@@ -40,7 +40,7 @@ Backspace edits. Printable navigation bindings are entered as text instead of
 triggering browser navigation. Application-tab bindings are also ignored while
 either input mode is active. The sort dialog also captures input and prevents
 application-tab switching until an option is chosen or Esc cancels it.
-Planner pickers, move mode, and todo forms capture input in the same way.
+Planner pickers, move mode, and the unified task editor capture input in the same way.
 The command palette captures input after it opens; its search mode treats
 printable navigation bindings as query text.
 

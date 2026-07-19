@@ -13,39 +13,32 @@ Markdown todos.
 
 - `a` creates a todo. An individual browser project is preselected; All and
   Planner require choosing a valid project. Planner uses the same complete
-  field form with its selected schedule pre-filled and required.
+  task editor with its selected schedule pre-filled and required.
 - New todos are appended under `## Inbox`. Planner creation also applies the
   selected schedule.
-- `e` edits title, external reference, priority, tags, scheduled date, and
-  scheduled time. Project, section, compatibility-only start/due metadata,
-  notes, and subtasks remain unchanged.
+- `e` and its compatibility alias `E` open one editor for title, external
+  reference, priority, tags, scheduled date/time, direct notes, and direct
+  subtasks. Project, section, and compatibility-only start/due metadata remain
+  unchanged. The command palette exposes one Edit todo action.
 - Spacebar toggles the selected Markdown checkbox. `:completed` continues to
   control completed-todo visibility only.
-- The bottom form uses configured movement and open/back gestures. Ctrl+S
-  saves; cancellation performs no write. On terminals at least 24 rows tall,
-  show each field as a stacked label and value:
+- The bottom editor uses configured movement and open/back gestures and one
+  cursor across six compact field rows and the ordered content outline. Ctrl+S
+  saves; cancellation performs no write. A field row places label and value on
+  one physical line:
 
   ```text
-  Title
-  > Renew contract_
-  External reference
-    EXT-42
-  Priority
-    —
+  > TITLE            Renew contract
+    REFERENCE        EXT-42
+    PRIORITY         —
+    CONTENT
+    • Review current contract
   ```
 
-  On shorter terminals, show only the active field with its position:
-
-  ```text
-  Title (1/6)
-  > Renew contract_
-  j/k field  l edit  Ctrl+S save  h cancel
-  ```
-
-  Use `—` for empty committed values and `_` as the text-entry cursor. Keep
-  labels and values on one physical line, truncating long values with an
-  ellipsis. Explicitly wrap hints and validation errors so the status panel
-  remains within the terminal viewport. Use the configured theme hierarchy:
+  Use `—` for empty committed values and `_` as the text-entry cursor. A
+  viewport keeps the selected row visible on shorter terminals, truncating
+  long values with an ellipsis. Explicitly wrap hints and validation errors so
+  the status panel remains within the terminal viewport. Use the configured theme hierarchy:
   bold headings for labels, ordinary text for inactive values, bold accent for
   the selected value, dim muted styling for placeholders and hints, and bold
   error styling for validation failures.
@@ -53,8 +46,9 @@ Markdown todos.
   source identity. Validation, stale targets, and I/O failures remain visible
   without discarding external content or the active form. Schedule writes also
   reject slots occupied by another configured todo.
-- Uppercase `E` opens a structured draft for the selected todo's direct notes
-  and subtasks. Add, edit, remove, and subtask completion changes are written
+- Within the editor, `a` opens a configured-binding picker for a note or
+  subtask. It inserts after selected content or appends when a field is selected.
+  Add, edit, remove, field, schedule, and subtask completion changes are written
   together with Ctrl+S; Escape discards them.
 - Removing a subtask includes its descendant subtree and requires confirmation
   when nested content exists.
@@ -67,8 +61,8 @@ Markdown todos.
 - Preserve project, filter, sort, and logical list position after reloading;
   clear stale source-line restoration. Missing editors, launch failures, and
   nonzero exits are recoverable browser errors.
-- The property form and structured content editor are shared by Todos and Day
-  Planner. Planner write failures keep the active draft open with its error;
+- The unified task editor is shared by Todos and Day Planner. Planner write
+  failures keep the active draft open with its error;
   successful writes close the editor and retain the selected date and slot.
 
 Root-todo deletion, project/section movement, content reordering, and multiline

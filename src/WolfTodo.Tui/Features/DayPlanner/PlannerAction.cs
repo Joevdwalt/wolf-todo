@@ -9,7 +9,6 @@ public enum PlannerAction
     Unschedule,
     Create,
     Edit,
-    EditContent,
     EditExternal,
     ToggleCompleted,
     ToggleDetails

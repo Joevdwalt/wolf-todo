@@ -13,9 +13,7 @@ public sealed record BrowserState(
     TodoIdentity? PendingTodoSelection,
     string? Error)
 {
-    public TodoFormState? Form { get; init; }
-
-    public TodoContentEditorState? ContentEditor { get; init; }
+    public TodoTaskEditorState? Editor { get; init; }
 
     public bool ShowDetails { get; init; } = true;
 

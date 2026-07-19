@@ -14,9 +14,7 @@ public sealed record PlannerState(
 {
     public bool ShowDetails { get; init; } = true;
 
-    public TodoFormState? Form { get; init; }
-
-    public TodoContentEditorState? ContentEditor { get; init; }
+    public TodoTaskEditorState? Editor { get; init; }
 
     public static PlannerState CreateInitial(DateOnly today) => new(
         today,
@@ -28,5 +26,5 @@ public sealed record PlannerState(
         null,
         null);
 
-    public bool CapturesInput => Mode != PlannerMode.Browse || Form is not null || ContentEditor is not null;
+    public bool CapturesInput => Mode != PlannerMode.Browse || Editor is not null;
 }

@@ -6,7 +6,6 @@ public enum BrowserAction
     Sort,
     Create,
     Edit,
-    EditContent,
     EditExternal,
     ToggleCompleted,
     ToggleDetails,

@@ -135,7 +135,7 @@ public sealed class TuiApplication(
                 var key = terminalUi.ReadKey();
                 var featureCapturesInput = state.Tabs.ActiveTab == TodosTab
                     ? state.Browser.IsFilterMode || state.Browser.IsSortMode ||
-                      state.Browser.Form is not null || state.Browser.ContentEditor is not null
+                      state.Browser.Editor is not null
                     : state.Planner.CapturesInput;
 
                 if (state.Command.IsActive ||
@@ -235,7 +235,6 @@ public sealed class TuiApplication(
                             ApplicationActionId.BrowserSort => BrowserAction.Sort,
                             ApplicationActionId.BrowserCreate => BrowserAction.Create,
                             ApplicationActionId.BrowserEdit => BrowserAction.Edit,
-                            ApplicationActionId.BrowserEditContent => BrowserAction.EditContent,
                             ApplicationActionId.BrowserEditExternal => BrowserAction.EditExternal,
                             ApplicationActionId.BrowserToggleCompleted => BrowserAction.ToggleCompleted,
                             ApplicationActionId.BrowserToggleDetails => BrowserAction.ToggleDetails,
@@ -269,7 +268,6 @@ public sealed class TuiApplication(
                         ApplicationActionId.PlannerUnschedule => PlannerAction.Unschedule,
                         ApplicationActionId.PlannerCreate => PlannerAction.Create,
                         ApplicationActionId.PlannerEdit => PlannerAction.Edit,
-                        ApplicationActionId.PlannerEditContent => PlannerAction.EditContent,
                         ApplicationActionId.PlannerEditExternal => PlannerAction.EditExternal,
                         ApplicationActionId.PlannerToggleCompleted => PlannerAction.ToggleCompleted,
                         ApplicationActionId.PlannerToggleDetails => PlannerAction.ToggleDetails,
@@ -396,6 +394,7 @@ public sealed class TuiApplication(
             return PlannerFailure(state, "Todo writing is unavailable.");
         }
 
+        var expected = FindTodo(catalog, transition.TodoIdentity);
         var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
         catalog = latestCatalog;
         var schedule = new TodoSchedule(
@@ -409,12 +408,12 @@ public sealed class TuiApplication(
                 return PlannerFailure(state, "The new todo is incomplete.");
             }
 
-            if (transition.Update.Schedule is null)
+            if (transition.Update.Fields.Schedule is null)
             {
                 return PlannerFailure(state, "A schedule is required when creating from Planner.");
             }
 
-            if (IsOccupied(latestCatalog, transition.Update.Schedule, null))
+            if (IsOccupied(latestCatalog, transition.Update.Fields.Schedule, null))
             {
                 return PlannerFailure(state, "That timeslot is already occupied.");
             }
@@ -426,7 +425,7 @@ public sealed class TuiApplication(
             }
 
             catalog = catalogLoader.Load(configuration.ProjectFiles);
-            return PlannerSuccess(state, transition.Update.Schedule);
+            return PlannerSuccess(state, transition.Update.Fields.Schedule);
         }
 
         if (transition.TodoIdentity is null)
@@ -434,7 +433,6 @@ public sealed class TuiApplication(
             return PlannerFailure(state, "The selected todo cannot be updated.");
         }
 
-        var expected = FindTodo(latestCatalog, transition.TodoIdentity);
         if (expected is null)
         {
             return PlannerFailure(state, "The selected todo cannot be found.");
@@ -447,8 +445,8 @@ public sealed class TuiApplication(
         }
 
         if (transition.Operation == PlannerOperation.Update &&
-            transition.Update?.Schedule is not null &&
-            IsOccupied(latestCatalog, transition.Update.Schedule, transition.TodoIdentity))
+            transition.Update?.Fields.Schedule is not null &&
+            IsOccupied(latestCatalog, transition.Update.Fields.Schedule, transition.TodoIdentity))
         {
             return PlannerFailure(state, "That timeslot is already occupied.");
         }
@@ -463,14 +461,10 @@ public sealed class TuiApplication(
                 transition.TodoIdentity.ProjectPath,
                 expected,
                 null),
-            PlannerOperation.Update when transition.Update is not null => service.Update(
+            PlannerOperation.Update when transition.Update is not null => service.UpdateTask(
                 transition.TodoIdentity.ProjectPath,
                 expected,
                 transition.Update),
-            PlannerOperation.UpdateContent when transition.ContentUpdate is not null => service.UpdateContent(
-                transition.TodoIdentity.ProjectPath,
-                expected,
-                transition.ContentUpdate),
             PlannerOperation.ToggleCompleted => service.SetCompleted(
                 transition.TodoIdentity.ProjectPath,
                 expected,
@@ -485,7 +479,7 @@ public sealed class TuiApplication(
         catalog = catalogLoader.Load(configuration.ProjectFiles);
         return PlannerSuccess(
             state,
-            transition.Operation == PlannerOperation.Update ? transition.Update?.Schedule : null);
+            transition.Operation == PlannerOperation.Update ? transition.Update?.Fields.Schedule : null);
     }
 
     private static bool IsOccupied(
@@ -509,8 +503,7 @@ public sealed class TuiApplication(
                 : ((follow.Time.Hour - 6) * 2) + (follow.Time.Minute / 30),
             Mode = PlannerMode.Browse,
             MovingTodo = null,
-            Form = null,
-            ContentEditor = null,
+            Editor = null,
             Error = null
         }
     };
@@ -520,10 +513,7 @@ public sealed class TuiApplication(
         Planner = state.Planner with
         {
             Error = error,
-            Form = state.Planner.Form is null ? null : state.Planner.Form with { Error = error },
-            ContentEditor = state.Planner.ContentEditor is null
-                ? null
-                : state.Planner.ContentEditor with { Error = error }
+            Editor = state.Planner.Editor is null ? null : state.Planner.Editor with { Error = error }
         }
     };
 
@@ -545,19 +535,20 @@ public sealed class TuiApplication(
             return ApplyExternalEdit(state, transition, ref catalog, configuration);
         }
 
+        var expectedCatalog = catalog;
         var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
         catalog = latestCatalog;
-        var result = ApplyBrowserOperation(transition, latestCatalog, service);
+        var result = ApplyBrowserOperation(transition, expectedCatalog, latestCatalog, service);
         state = state with
         {
             Browser = state.Browser with
             {
                 Error = result.Error,
-                Form = result.Succeeded
+                Editor = result.Succeeded
                     ? null
-                    : state.Browser.Form is null
+                    : state.Browser.Editor is null
                         ? null
-                        : state.Browser.Form with { Error = result.Error },
+                        : state.Browser.Editor with { Error = result.Error },
                 PendingTodoSelection = result.Succeeded && result.SourceLine is not null &&
                                        transition.ProjectPath is not null
                     ? new TodoIdentity(transition.ProjectPath, result.SourceLine.Value)
@@ -618,7 +609,8 @@ public sealed class TuiApplication(
 
     private static TodoMutationResult ApplyBrowserOperation(
         BrowserTransition transition,
-        ProjectCatalog catalog,
+        ProjectCatalog expectedCatalog,
+        ProjectCatalog latestCatalog,
         ProjectTodoMutationService? service)
     {
         if (service is null || transition.ProjectPath is null)
@@ -628,8 +620,8 @@ public sealed class TuiApplication(
 
         if (transition.Operation == BrowserOperation.Create && transition.Update is not null)
         {
-            if (transition.Update.Schedule is not null &&
-                IsOccupied(catalog, transition.Update.Schedule, null))
+            if (transition.Update.Fields.Schedule is not null &&
+                IsOccupied(latestCatalog, transition.Update.Fields.Schedule, null))
             {
                 return TodoMutationResult.Failure("That timeslot is already occupied.");
             }
@@ -637,15 +629,15 @@ public sealed class TuiApplication(
             return service.Create(transition.ProjectPath, transition.Update);
         }
 
-        var expected = FindTodo(catalog, transition.TodoIdentity);
+        var expected = FindTodo(expectedCatalog, transition.TodoIdentity);
         if (expected is null)
         {
             return TodoMutationResult.Failure("The selected todo cannot be found.");
         }
 
         if (transition.Operation == BrowserOperation.Update &&
-            transition.Update?.Schedule is not null &&
-            IsOccupied(catalog, transition.Update.Schedule, transition.TodoIdentity))
+            transition.Update?.Fields.Schedule is not null &&
+            IsOccupied(latestCatalog, transition.Update.Fields.Schedule, transition.TodoIdentity))
         {
             return TodoMutationResult.Failure("That timeslot is already occupied.");
         }
@@ -653,9 +645,7 @@ public sealed class TuiApplication(
         return transition.Operation switch
         {
             BrowserOperation.Update when transition.Update is not null =>
-                service.Update(transition.ProjectPath, expected, transition.Update),
-            BrowserOperation.UpdateContent when transition.ContentUpdate is not null =>
-                service.UpdateContent(transition.ProjectPath, expected, transition.ContentUpdate),
+                service.UpdateTask(transition.ProjectPath, expected, transition.Update),
             BrowserOperation.ToggleCompleted =>
                 service.SetCompleted(transition.ProjectPath, expected, !expected.IsCompleted),
             _ => TodoMutationResult.Failure("The requested todo change is invalid.")
