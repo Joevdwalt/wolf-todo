@@ -409,6 +409,56 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowPlanner_uses_browser_semantic_colors_for_todos_and_prominent_panels()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var timed = new TodoItem(
+            1, false, "REF-TIMED", "Timed task", TodoPriority.High, ["timed"], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(6, 0))
+        };
+        var allDay = new TodoItem(
+            2, false, "REF-ALLDAY", "All-day task", TodoPriority.Highest, ["allday"], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(date)
+        };
+        var theme = TuiThemes.Wolf with
+        {
+            Accent = new Color(1, 2, 3),
+            AccentBright = new Color(4, 5, 6),
+            Error = new Color(7, 8, 9),
+            Warning = new Color(10, 11, 12),
+            Info = new Color(13, 14, 15),
+            Tag = new Color(16, 17, 18),
+            Date = new Color(19, 20, 21),
+            SecondaryText = new Color(22, 23, 24),
+            BorderActive = new Color(25, 26, 27)
+        };
+        var catalog = new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [timed, allDay])], []);
+        var view = new DayPlannerPresenter().CreateView(catalog, PlannerState.CreateInitial(date));
+        StartRecording(140, 30);
+        var textStart = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 140, () => 30)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
+        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+        var text = AnsiConsole.ExportText()[textStart..];
+
+        text.Should().Contain("REF-TIMED - Timed task  [Work] #timed")
+            .And.Contain("REF-ALLDAY - All-day task  [Work]")
+            .And.Contain("#allday")
+            .And.Contain("INSPECTOR")
+            .And.Contain("ALL DAY");
+        html.Should().Contain("#040506")
+            .And.Contain("#070809")
+            .And.Contain("#0d0e0f")
+            .And.Contain("#101112")
+            .And.Contain("#131415")
+            .And.Contain("#161718")
+            .And.Contain("#191a1b");
+    }
+
+    [Fact]
     public void ShowPlanner_renders_a_scrollable_multi_row_unscheduled_picker()
     {
         var date = new DateOnly(2026, 7, 15);

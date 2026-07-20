@@ -56,9 +56,11 @@ public sealed class DayPlannerPresenter
             .Where(assignment => assignment.Todo.Schedule?.Date == state.SelectedDate &&
                                  assignment.Todo.Schedule.Time is null)
             .Select(assignment => new PlannerCalendarAllDayItem(
-                $"◯ {assignment.Todo.Title} [{assignment.ProjectTitle}]",
+                assignment.Todo.Title,
                 PlannerCalendarItemKind.Todo,
-                assignment.Todo.IsCompleted));
+                assignment.Todo.IsCompleted,
+                assignment.Todo,
+                assignment.ProjectTitle));
         return new PlannerView(
             state with
             {

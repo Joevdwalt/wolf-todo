@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using WolfTodo.Core.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Features.DayPlanner;
 
@@ -16,7 +17,9 @@ public sealed record PlannerCalendarAgenda(
 public sealed record PlannerCalendarAllDayItem(
     string Title,
     PlannerCalendarItemKind Kind,
-    bool IsCompleted = false);
+    bool IsCompleted = false,
+    TodoItem? Todo = null,
+    string? ProjectTitle = null);
 
 public sealed record PlannerCalendarMeeting(string Title, TimeOnly Start, TimeOnly End);
 

@@ -222,16 +222,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
             {
                 var assignment = slot.Assignments[0];
                 var prefix = slot.IsSelected ? ">" : " ";
-                var state = TodoStatusGlyph(assignment.Todo.IsCompleted);
-                var priority = PriorityCode(assignment.Todo.Priority);
                 var meeting = MeetingHint(slot);
-                content = new Text(
-                    $"{prefix} {state} {priority} {assignment.Todo.Title}  [{assignment.ProjectTitle}]{meeting}",
-                    ThemeStyle(
-                        slot.Meetings.Length > 0 ? theme.Warning :
-                        assignment.Todo.IsCompleted ? theme.Muted : slot.IsSelected ? theme.AccentBright : theme.Text,
-                        assignment.Todo.IsCompleted ? Decoration.Dim : slot.IsSelected ? Decoration.Bold : Decoration.None))
-                    .Ellipsis();
+                content = PlannerTodoLine(assignment.Todo, assignment.ProjectTitle, prefix, slot.IsSelected, meeting, theme);
             }
             else if (slot.Meetings.Length > 0)
             {
@@ -259,7 +251,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         if (wideDetails)
         {
             var detailWidth = Math.Max(28, width - timelineWidth - 4);
-            const int inspectorContentHeight = 8;
+            const int inspectorContentHeight = 10;
             var allDayContentHeight = Math.Max(1, availableRows - inspectorContentHeight - 2);
             var shell = new Table().NoBorder().Collapse().HideHeaders();
             shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
@@ -1138,6 +1130,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         var lines = view.CalendarAgenda.AllDayItems.Select(item =>
         {
+            if (item.Todo is not null)
+            {
+                return PlannerTodoLine(item.Todo, item.ProjectTitle, "•", false, string.Empty, theme);
+            }
+
             var color = item.IsCompleted ? theme.Muted :
                 item.Kind == PlannerCalendarItemKind.Todo ? theme.Text : theme.Info;
             return (IRenderable)new Text($"• {item.Title}", ThemeStyle(
@@ -1147,14 +1144,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return FitLines(lines, contentHeight, 0);
     }
 
-    private static Panel PlannerPanel(string header, IReadOnlyList<IRenderable> lines, TuiTheme theme) =>
-        new(CreateContent(lines))
+    private static Panel PlannerPanel(string header, IReadOnlyList<IRenderable> lines, TuiTheme theme)
+    {
+        var styledHeader = new System.Text.StringBuilder();
+        AppendStyled(styledHeader, header, theme.AccentBright, Decoration.Bold);
+        var panel = new Panel(CreateContent(lines))
         {
-            Header = new PanelHeader(header),
+            Header = new PanelHeader(styledHeader.ToString()),
             Border = BoxBorder.Square,
-            BorderStyle = ThemeStyle(theme.Border),
+            BorderStyle = ThemeStyle(theme.BorderActive),
             Expand = true
         };
+        return panel;
+    }
 
     private static IReadOnlyList<IRenderable> FixedLines(
         IReadOnlyList<IRenderable> lines,
@@ -1549,6 +1551,40 @@ public sealed class SpectreTerminalUi : ITerminalUi
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
         AppendStyled(line, schedule, todo.IsCompleted ? theme.Muted : theme.Date,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        return new Markup(line.ToString());
+    }
+
+    private static IRenderable PlannerTodoLine(
+        TodoItem todo,
+        string? projectTitle,
+        string prefix,
+        bool selected,
+        string meetingHint,
+        TuiTheme theme)
+    {
+        var completed = todo.IsCompleted;
+        var decoration = selected ? Decoration.Bold : completed ? Decoration.Dim : Decoration.None;
+        var baseColor = selected ? theme.AccentBright : completed ? theme.Muted : theme.Text;
+        var markerColor = selected ? theme.AccentBright : completed ? theme.Muted : theme.Accent;
+        var priorityColor = selected ? theme.AccentBright : completed ? theme.Muted : PriorityColor(todo.Priority, theme);
+        var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
+        var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
+        var schedule = todo.Schedule is null ? string.Empty : $" ⏳ {FormatSchedule(todo.Schedule)}";
+        var line = new System.Text.StringBuilder();
+
+        AppendStyled(line, $"{prefix} ", baseColor, decoration);
+        AppendStyled(line, TodoStatusGlyph(completed), markerColor, decoration);
+        AppendStyled(line, " ", baseColor, decoration);
+        AppendStyled(line, PriorityCode(todo.Priority), priorityColor, decoration);
+        AppendStyled(line, " ", baseColor, decoration);
+        AppendStyled(line, reference, selected ? theme.AccentBright : completed ? theme.Muted : theme.Info, decoration);
+        AppendStyled(line, todo.Title, baseColor, decoration);
+        AppendStyled(line, projectTitle is null ? string.Empty : $"  [{projectTitle}]",
+            selected ? theme.AccentBright : completed ? theme.Muted : theme.SecondaryText,
+            decoration);
+        AppendStyled(line, tags, selected ? theme.AccentBright : completed ? theme.Muted : theme.Tag, decoration);
+        AppendStyled(line, schedule, selected ? theme.AccentBright : completed ? theme.Muted : theme.Date, decoration);
+        AppendStyled(line, meetingHint, theme.Warning, decoration);
         return new Markup(line.ToString());
     }
 
