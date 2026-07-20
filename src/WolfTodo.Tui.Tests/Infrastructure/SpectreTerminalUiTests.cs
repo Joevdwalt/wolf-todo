@@ -195,11 +195,11 @@ public sealed class SpectreTerminalUiTests
             PlannerCalendarSyncState.Ready);
         var view = new DayPlannerPresenter().CreateView(
             new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
-            PlannerState.CreateInitial(date) with { SlotIndex = 7 },
+            PlannerState.CreateInitial(date),
             agenda);
-        StartRecording(100, 24);
+        StartRecording(140, 24);
 
-        new SpectreTerminalUi(() => 100, () => 24)
+        new SpectreTerminalUi(() => 140, () => 24)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
         var output = AnsiConsole.ExportText();
 

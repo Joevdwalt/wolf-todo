@@ -33,6 +33,21 @@ public sealed class ApplicationCommandReducer
 
         if (key.Key == ConsoleKey.Enter)
         {
+            const string movePrefix = ":move-todo-project";
+            if (state.Value.StartsWith(movePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var projectTitle = state.Value[movePrefix.Length..].Trim();
+                return new ApplicationCommandTransition(state with
+                {
+                    IsActive = false,
+                    Value = string.Empty,
+                    Error = projectTitle.Length == 0
+                        ? "Usage: :move-todo-project <project title>"
+                        : null
+                }, projectTitle.Length == 0 ? ApplicationCommandOperation.None : ApplicationCommandOperation.MoveTodoProject,
+                projectTitle.Length == 0 ? null : projectTitle);
+            }
+
             var operation = state.Value switch
             {
                 var command when command == bindings.QuitCommand => ApplicationCommandOperation.Exit,

@@ -5,5 +5,6 @@ public enum ApplicationCommandOperation
     None,
     Exit,
     ToggleCompleted,
-    OpenPalette
+    OpenPalette,
+    MoveTodoProject
 }

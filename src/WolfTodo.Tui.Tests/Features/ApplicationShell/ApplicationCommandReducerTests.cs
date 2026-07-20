@@ -51,6 +51,18 @@ public sealed class ApplicationCommandReducerTests
     }
 
     [Fact]
+    public void Reduce_parses_a_project_title_for_the_move_todo_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":move-todo-project Personal Admin", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.MoveTodoProject);
+        result.ProjectTitle.Should().Be("Personal Admin");
+    }
+
+    [Fact]
     public void Reduce_cancels_and_keeps_the_colon_when_backspacing()
     {
         var backed = reducer.Reduce(

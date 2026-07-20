@@ -32,8 +32,9 @@ Read the legacy adjacent `⏳ YYYY-MM-DD ⏰ HH:mm` order for compatibility, but
 never write it. A conflict-safe write to a legacy scheduled task normalizes the
 clock before all task markers; loading a project performs no migration.
 
-Only one todo may occupy a date/time pair across configured projects. The UI
-must refuse occupied destinations and expose externally introduced conflicts.
+Only one todo may occupy a timed date/time pair across configured projects.
+Any number of date-only todos may share a day. The UI must refuse occupied
+timed destinations and expose externally introduced timed conflicts.
 Scheduling, moving, and unscheduling update the original task line using the
 conflict-safe strategy in ADR0009.
 

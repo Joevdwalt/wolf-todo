@@ -189,6 +189,17 @@ public sealed class TuiApplication(
                         };
                     }
 
+                    if (commandTransition.Operation == ApplicationCommandOperation.MoveTodoProject)
+                    {
+                        state = MoveSelectedTodoToProject(
+                            state,
+                            browserView,
+                            commandTransition.ProjectTitle,
+                            ref catalog,
+                            configuration,
+                            mutationService);
+                    }
+
                     continue;
                 }
 
@@ -518,7 +529,7 @@ public sealed class TuiApplication(
     private static bool IsOccupied(
         ProjectCatalog catalog,
         TodoSchedule schedule,
-        TodoIdentity? excluded) => catalog.Projects
+        TodoIdentity? excluded) => schedule.Time is not null && catalog.Projects
         .SelectMany(project => Flatten(project.Todos).Select(todo => (project.Path, Todo: todo)))
         .Any(candidate =>
             candidate.Todo.Schedule == schedule &&
@@ -636,6 +647,55 @@ public sealed class TuiApplication(
             {
                 PendingTodoSelection = null,
                 Error = result.Error
+            }
+        };
+    }
+
+    private ApplicationState MoveSelectedTodoToProject(
+        ApplicationState state,
+        BrowserView? view,
+        string? targetTitle,
+        ref ProjectCatalog catalog,
+        ApplicationConfiguration configuration,
+        ProjectTodoMutationService? service)
+    {
+        if (state.Tabs.ActiveTab != TodosTab || view?.SelectedTodoIdentity is not { } identity)
+        {
+            return state with { Browser = state.Browser with { Error = "Select a todo in the Todos tab before moving it." } };
+        }
+
+        var target = catalog.Projects.FirstOrDefault(project =>
+            string.Equals(project.Title, targetTitle, StringComparison.OrdinalIgnoreCase));
+        var source = catalog.Projects.FirstOrDefault(project => project.Path == identity.ProjectPath);
+        var todo = source is null ? null : Flatten(source.Todos).FirstOrDefault(item => item.SourceLine == identity.SourceLine);
+        if (target is null)
+        {
+            return state with { Browser = state.Browser with { Error = $"Project not found: {targetTitle}" } };
+        }
+        if (todo is null || service is null)
+        {
+            return state with { Browser = state.Browser with { Error = "The selected todo cannot be moved." } };
+        }
+
+        var result = service.Move(source!.Path, target.Path, todo);
+        if (!result.Succeeded)
+        {
+            return state with { Browser = state.Browser with { Error = result.Error } };
+        }
+
+        catalog = catalogLoader.Load(configuration.ProjectFiles);
+        var targetIndex = catalog.Projects
+            .Select((project, index) => (project, index))
+            .FirstOrDefault(candidate => candidate.project.Path == target.Path).index;
+        return state with
+        {
+            Browser = state.Browser with
+            {
+                Focus = BrowserFocus.Todos,
+                ProjectIndex = Math.Max(0, targetIndex),
+                TodoIndex = 0,
+                PendingTodoSelection = null,
+                Error = null
             }
         };
     }

@@ -16,6 +16,61 @@ public sealed partial class ProjectTodoMutationService(
     public TodoMutationResult SetCompleted(string path, TodoItem expected, bool isCompleted) =>
         MutateExisting(path, expected, todo => Serialize(todo with { IsCompleted = isCompleted }));
 
+    public TodoMutationResult Move(string sourcePath, string destinationPath, TodoItem expected)
+    {
+        if (string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return TodoMutationResult.Failure("The todo is already in that project.");
+        }
+
+        try
+        {
+            var sourceContents = fileSystem.ReadAllText(sourcePath);
+            var source = parser.Parse(sourcePath, sourceContents);
+            if (source.Project is null)
+            {
+                return TodoMutationResult.Failure(source.Error ?? "Source project cannot be parsed.");
+            }
+
+            var current = Flatten(source.Project.Todos).SingleOrDefault(todo => todo.SourceLine == expected.SourceLine);
+            if (current is null || !SameTree(current, expected))
+            {
+                return TodoMutationResult.Failure("The todo changed on disk. Reload it before moving it.");
+            }
+
+            var destinationContents = fileSystem.ReadAllText(destinationPath);
+            var destination = parser.Parse(destinationPath, destinationContents);
+            if (destination.Project is null)
+            {
+                return TodoMutationResult.Failure(destination.Error ?? "Destination project cannot be parsed.");
+            }
+
+            var sourceLines = SplitLines(sourceContents);
+            var sourceIndex = expected.SourceLine - 1;
+            var sourceIndent = LeadingWhitespace(sourceLines[sourceIndex]);
+            var blockEnd = FindTodoBlockEnd(sourceLines, sourceIndex, sourceIndent.Length);
+            var block = sourceLines[sourceIndex..blockEnd]
+                .Select(line => line.StartsWith(sourceIndent, StringComparison.Ordinal)
+                    ? line[sourceIndent.Length..]
+                    : line)
+                .ToArray();
+
+            var destinationLines = SplitLines(destinationContents);
+            var insertionIndex = InboxInsertionIndex(destinationLines);
+            destinationLines.InsertRange(insertionIndex, block);
+
+            // Write the destination first: a failed source write may duplicate the todo, but never loses it.
+            Write(destinationPath, destinationLines, DetectNewline(destinationContents), finalNewline: true);
+            sourceLines.RemoveRange(sourceIndex, blockEnd - sourceIndex);
+            Write(sourcePath, sourceLines, DetectNewline(sourceContents), sourceContents.EndsWith('\n'));
+            return TodoMutationResult.Success(insertionIndex + 1);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return TodoMutationResult.Failure($"Cannot move todo: {exception.Message}");
+        }
+    }
+
     public TodoMutationResult Update(string path, TodoItem expected, TodoUpdate update) =>
         UpdateTask(path, expected, new TodoTaskUpdate(update, ContentUpdate(expected)));
 
@@ -364,6 +419,34 @@ public sealed partial class ProjectTodoMutationService(
         }
 
         fileSystem.WriteAllTextAtomically(path, contents);
+    }
+
+    private static int InboxInsertionIndex(List<string> lines)
+    {
+        var inboxes = lines.Select((line, index) => (line, index))
+            .Where(candidate => InboxHeadingPattern().IsMatch(candidate.line)).ToArray();
+        if (inboxes.Length > 1)
+        {
+            throw new InvalidDataException("Project contains more than one ## Inbox heading.");
+        }
+
+        if (inboxes.Length == 0)
+        {
+            if (lines.Count > 0 && lines[^1].Length > 0)
+            {
+                lines.Add(string.Empty);
+            }
+            lines.Add("## Inbox");
+            lines.Add(string.Empty);
+            return lines.Count;
+        }
+
+        var insertionIndex = FindSectionEnd(lines, inboxes[0].index + 1);
+        while (insertionIndex > inboxes[0].index + 1 && lines[insertionIndex - 1].Length == 0)
+        {
+            insertionIndex--;
+        }
+        return insertionIndex;
     }
 
     private static string Serialize(TodoItem todo) =>

@@ -215,6 +215,11 @@ The Vim-style `g` and `G` bindings jump to the first or last item in the
 focused Projects or Todos list. Planner keeps its contextual `g` binding for
 returning to today.
 
+Use `:move-todo-project <project title>` from the Todos tab to move the
+selected todo, including its notes and nested subtasks, into the destination
+project's `## Inbox`. Wolf Todo writes the destination before removing the
+source, so a failed source write cannot lose the task.
+
 Nested todos are always expanded in the Todos list and inspector. Unicode
 `├─`, `└─`, and `│` connectors show sibling and ancestor relationships. A
 filter that matches a descendant keeps its visible ancestor path as normal,

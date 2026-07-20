@@ -161,7 +161,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var status = PlannerStatus(view, keyBindings, width, height);
         var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
         var pickerRows = pickerVisible ? Math.Clamp(height / 5, 3, 7) : 0;
-        var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0;
         var wideDetails = view.State.ShowDetails && width >= 120;
         var compactDetails = view.State.ShowDetails && !wideDetails &&
                              view.State.Mode == PlannerMode.Browse &&
@@ -171,9 +170,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         const int tabTableStatusBorderAndCursorHeight = 8;
         var pickerHeight = pickerVisible ? pickerRows + 2 : 0;
         const int compactDetailsHeight = 3;
+        var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0;
+        var narrowAllDayHeight = !wideDetails && allDayVisible
+            ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
+            : 0;
         var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
-                             (allDayVisible ? 1 : 0) +
-                             (compactDetails ? compactDetailsHeight : 0);
+                             (compactDetails ? compactDetailsHeight : 0) + narrowAllDayHeight;
         var availableRows = Math.Max(1, height - status.Count - reservedHeight);
         var now = nowProvider();
         var timelineRows = WindowPlannerTimeline(
@@ -254,29 +256,26 @@ public sealed class SpectreTerminalUi : ITerminalUi
             table.AddEmptyRow();
         }
 
-        if (allDayVisible)
-        {
-            WriteSurface(AllDayStrip(view, theme), theme.Surface2, true);
-        }
-
         if (wideDetails)
         {
+            var detailWidth = Math.Max(28, width - timelineWidth - 4);
+            const int inspectorContentHeight = 8;
+            var allDayContentHeight = Math.Max(1, availableRows - inspectorContentHeight - 2);
             var shell = new Table().NoBorder().Collapse().HideHeaders();
             shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
-            shell.AddColumn(new TableColumn(string.Empty).NoWrap());
+            shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
             shell.AddRow(
                 table,
                 OnSurface(
-                    new Panel(CreateContent(FitLines(
-                        PlannerDetailLines(view, theme),
-                        Math.Max(1, availableRows + 1),
-                        0)))
-                    {
-                        Header = new PanelHeader("INSPECTOR"),
-                        Border = BoxBorder.Square,
-                        BorderStyle = ThemeStyle(theme.Border),
-                        Expand = true
-                    },
+                    new Rows(
+                        PlannerPanel(
+                            "INSPECTOR",
+                            FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
+                            theme),
+                        PlannerPanel(
+                            "ALL DAY",
+                            AllDayAgendaLines(view, theme, allDayContentHeight),
+                            theme)),
                     theme.Surface2,
                     true));
             WriteSurface(shell, theme.Surface, true);
@@ -297,6 +296,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
                     theme.Surface2,
                     true);
             }
+            if (narrowAllDayHeight > 0)
+            {
+                WriteSurface(
+                    PlannerPanel(
+                        "ALL DAY",
+                        AllDayAgendaLines(view, theme, Math.Max(1, narrowAllDayHeight - 2)),
+                        theme),
+                    theme.Surface2,
+                    true);
+            }
         }
 
         if (view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter)
@@ -306,12 +315,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         WritePlannerStatus(status, view, theme);
         EndUpdate(useSynchronizedUpdate);
-    }
-
-    private static IRenderable AllDayStrip(PlannerView view, TuiTheme theme)
-    {
-        var text = string.Join("  ·  ", view.CalendarAgenda.AllDayItems.Select(item => item.Title));
-        return new Text($"ALL DAY  {text}", ThemeStyle(theme.Info)).Ellipsis();
     }
 
     private static string MeetingHint(PlannerSlotView slot) =>
@@ -1121,6 +1124,49 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
 
         return lines;
+    }
+
+    private static IReadOnlyList<IRenderable> AllDayAgendaLines(
+        PlannerView view,
+        TuiTheme theme,
+        int contentHeight)
+    {
+        if (view.CalendarAgenda.AllDayItems.Length == 0)
+        {
+            return [new Text("NO ALL-DAY ITEMS", ThemeStyle(theme.Muted, Decoration.Dim))];
+        }
+
+        var lines = view.CalendarAgenda.AllDayItems.Select(item =>
+        {
+            var color = item.IsCompleted ? theme.Muted :
+                item.Kind == PlannerCalendarItemKind.Todo ? theme.Text : theme.Info;
+            return (IRenderable)new Text($"• {item.Title}", ThemeStyle(
+                color,
+                item.IsCompleted ? Decoration.Dim : Decoration.None)).Ellipsis();
+        }).ToArray();
+        return FitLines(lines, contentHeight, 0);
+    }
+
+    private static Panel PlannerPanel(string header, IReadOnlyList<IRenderable> lines, TuiTheme theme) =>
+        new(CreateContent(lines))
+        {
+            Header = new PanelHeader(header),
+            Border = BoxBorder.Square,
+            BorderStyle = ThemeStyle(theme.Border),
+            Expand = true
+        };
+
+    private static IReadOnlyList<IRenderable> FixedLines(
+        IReadOnlyList<IRenderable> lines,
+        int contentHeight)
+    {
+        var fitted = FitLines(lines, contentHeight, 0).ToList();
+        while (fitted.Count < contentHeight)
+        {
+            fitted.Add(new Text(string.Empty));
+        }
+
+        return fitted;
     }
 
     private static IRenderable PlannerCompactDetail(PlannerView view, TuiTheme theme)
