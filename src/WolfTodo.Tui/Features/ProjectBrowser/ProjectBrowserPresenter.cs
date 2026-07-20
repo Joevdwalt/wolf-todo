@@ -335,15 +335,8 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
     private static int CompareOptionalPriorities(
         TodoPriority? left,
         TodoPriority? right,
-        int direction)
-    {
-        if (left is null || right is null)
-        {
-            return left is null == right is null ? 0 : left is null ? 1 : -1;
-        }
-
-        return left.Value.CompareTo(right.Value) * direction;
-    }
+        int direction) =>
+        (left ?? TodoPriority.Medium).CompareTo(right ?? TodoPriority.Medium) * direction;
 
     private static int CompareOptionalSchedules(TodoSchedule? left, TodoSchedule? right, int direction)
     {
