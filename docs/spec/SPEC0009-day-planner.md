@@ -6,12 +6,14 @@ Accepted
 
 ## Purpose
 
-Add a second application tab that assigns Markdown todos to a dated half-hour
+Add a second application tab that assigns Markdown todos to a dated quarter-hour
 agenda without introducing separate planner storage.
 
 ## Behavior
 
-Show 32 slots from 06:00 through 21:30 for the selected date. Start on today
+Show 64 slots from 06:00 through 21:45 for the selected date. Render the `:00`
+and `:15` task slots stacked under each 30-minute time label, so the time column
+shows only `:00` and `:30` labels. Start on today
 each launch and preserve planner state while switching tabs. Keep the selected
 slot visible on short terminals and show scheduled completed todos dimly.
 
@@ -28,12 +30,12 @@ warnings only; they never reserve slots or block todo assignment. The planner
 shows syncing, sign-in, configuration, and offline states without making the
 planner unusable.
 
-On today, add a logical current-time row immediately before the next half-hour
+On today, add a logical current-time row immediately before the next quarter-hour
 slot. Show the exact `HH:mm` value in the time column and fill the plan column
 with `▶` followed by `─` characters in the configured bright accent. Fill the
 actual rendered cell width without wrapping. This row is timeline content: do
 not use panel borders, active-row backgrounds, intersections, or surface fills. Before 06:00 place it before the first slot; after
-21:30 place it after the last. Keep the selected slot visible when it cannot fit
+21:45 place it after the last. Keep the selected slot visible when it cannot fit
 with the marker. While Planner is active, an idle one-minute input timeout
 redraws without changing application state so the line remains current.
 

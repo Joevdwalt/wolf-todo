@@ -273,7 +273,7 @@ public sealed partial class ProjectMarkdownParser
                 null,
                 null,
                 null,
-                "Todo schedule must use a valid date and a half-hour time from 06:00 through 21:30.");
+                "Todo schedule must use a valid date and a quarter-hour time from 06:00 through 21:45.");
         }
 
         if (timeMatch is null)
@@ -287,7 +287,7 @@ public sealed partial class ProjectMarkdownParser
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
                 out var time) ||
-            time.Minute is not (0 or 30) ||
+            time.Minute is not (0 or 15 or 30 or 45) ||
             time < new TimeOnly(6, 0) ||
             time >= new TimeOnly(22, 0))
         {
@@ -295,7 +295,7 @@ public sealed partial class ProjectMarkdownParser
                 null,
                 null,
                 null,
-                "Todo schedule must use a valid date and a half-hour time from 06:00 through 21:30.");
+                "Todo schedule must use a valid date and a quarter-hour time from 06:00 through 21:45.");
         }
 
         return new ScheduleResult(

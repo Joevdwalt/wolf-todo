@@ -323,7 +323,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
     private static TodoSchedule SelectedSchedule(PlannerState state) => new(
         state.SelectedDate,
-        new TimeOnly(6, 0).AddMinutes(state.SlotIndex * 30));
+        new TimeOnly(6, 0).AddMinutes(state.SlotIndex * 15));
 
     private static PlannerTransition ApplyEditorTransition(
         PlannerState state,

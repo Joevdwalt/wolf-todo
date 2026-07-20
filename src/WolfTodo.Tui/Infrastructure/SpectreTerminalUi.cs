@@ -209,7 +209,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             var slot = ((PlannerSlotTimelineRow)row).Slot;
             var selectedColor = slot.IsSelected ? theme.AccentBright : theme.Date;
             var time = new Text(
-                slot.Time.ToString("HH:mm"),
+                slot.Time.Minute is 0 or 30 ? slot.Time.ToString("HH:mm") : string.Empty,
                 ThemeStyle(selectedColor, slot.IsSelected ? Decoration.Bold : Decoration.None));
             IRenderable content;
             if (slot.Assignments.Length > 1)

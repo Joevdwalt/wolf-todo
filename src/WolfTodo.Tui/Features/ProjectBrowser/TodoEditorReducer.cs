@@ -484,9 +484,9 @@ public sealed class TodoEditorReducer
             return null;
         }
 
-        if (time.Minute is not (0 or 30) || time < new TimeOnly(6, 0) || time > new TimeOnly(21, 30))
+        if (time.Minute is not (0 or 15 or 30 or 45) || time < new TimeOnly(6, 0) || time > new TimeOnly(21, 45))
         {
-            error = "Scheduled time must be a half-hour from 06:00 through 21:30.";
+            error = "Scheduled time must be a quarter-hour from 06:00 through 21:45.";
             return null;
         }
 
@@ -524,14 +524,14 @@ public sealed class TodoEditorReducer
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
                 out var time) &&
-            time.Minute is 0 or 30 &&
+            time.Minute is 0 or 15 or 30 or 45 &&
             time >= new TimeOnly(6, 0) &&
-            time <= new TimeOnly(21, 30))
+            time <= new TimeOnly(21, 45))
         {
             return time.ToString("HH:mm");
         }
 
-        error = "Time must use HH:mm on a half-hour from 06:00 through 21:30, or be empty.";
+        error = "Time must use HH:mm on a quarter-hour from 06:00 through 21:45, or be empty.";
         return value;
     }
 

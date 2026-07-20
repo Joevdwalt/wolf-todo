@@ -19,9 +19,9 @@ public sealed class DayPlannerPresenterTests
 
         var view = new DayPlannerPresenter().CreateView(
             catalog,
-            PlannerState.CreateInitial(date) with { SlotIndex = 7 });
+            PlannerState.CreateInitial(date) with { SlotIndex = 14 });
 
-        view.Slots.Should().HaveCount(32);
+        view.Slots.Should().HaveCount(64);
         view.SelectedSlot.Time.Should().Be(new TimeOnly(9, 30));
         view.SelectedSlot.Assignments.Should().ContainSingle().Which.Todo.Title.Should().Be("Scheduled");
         view.PickerTodos.Should().ContainSingle().Which.Todo.Title.Should().Be("Available");
@@ -60,7 +60,7 @@ public sealed class DayPlannerPresenterTests
             PlannerState.CreateInitial(date),
             agenda);
 
-        view.Slots.Where(slot => slot.Time >= new TimeOnly(9, 0) && slot.Time <= new TimeOnly(10, 0))
+        view.Slots.Where(slot => slot.Time >= new TimeOnly(9, 15) && slot.Time <= new TimeOnly(10, 0))
             .Should().OnlyContain(slot => slot.Meetings.Single().Title == "Team stand-up");
         view.Slots.Single(slot => slot.Time == new TimeOnly(10, 30)).Meetings.Should().BeEmpty();
     }

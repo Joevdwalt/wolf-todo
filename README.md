@@ -163,8 +163,9 @@ colors. Wide terminals show navigation, tasks, and inspector;
 medium terminals prioritize tasks and inspector with navigation available as a
 temporary view; narrow terminals show one focused view at a time.
 
-The `Day Planner` tab uses 30-minute slots from 06:00 through 21:30. A todo can
-be scheduled for a whole day with `⏳ YYYY-MM-DD`, or assigned to a half-hour
+The `Day Planner` tab uses 15-minute slots from 06:00 through 21:45, displayed
+as two stacked task slots beneath each 30-minute time label. A todo can
+be scheduled for a whole day with `⏳ YYYY-MM-DD`, or assigned to a quarter-hour
 slot with Wolf Todo's `⏰ HH:mm` time before all task markers and the
 Obsidian Tasks-compatible `⏳ YYYY-MM-DD` scheduled date, for example
 `Prepare proposal ⏰ 09:30 #work ⏳ 2026-07-15`. Enter

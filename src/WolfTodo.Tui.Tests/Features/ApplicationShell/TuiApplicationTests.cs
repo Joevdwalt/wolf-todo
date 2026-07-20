@@ -439,7 +439,7 @@ public sealed class TuiApplicationTests
         fileSystem.Contents.Should().Contain($"⏰ 07:30 ⏳ {tomorrow:yyyy-MM-dd}");
         var final = terminal.PlannerViews.Last();
         final.State.SelectedDate.Should().Be(tomorrow);
-        final.State.SlotIndex.Should().Be(3);
+        final.State.SlotIndex.Should().Be(6);
         final.SelectedAssignment!.Todo.Title.Should().Be("Scheduled");
     }
 

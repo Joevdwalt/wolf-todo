@@ -97,16 +97,28 @@ public sealed class ProjectMarkdownParserTests
     }
 
     [Theory]
-    [InlineData("⏳ 2026-07-15 ⏰ 09:15")]
+    [InlineData("⏳ 2026-07-15 ⏰ 09:10")]
     [InlineData("⏳ 2026-07-15 ⏰ 05:30")]
     [InlineData("⏳ 2026-02-30 ⏰ 09:30")]
-    [InlineData("⏰ 09:15 🔁 every day ⏳ 2026-07-15")]
+    [InlineData("⏰ 09:10 🔁 every day ⏳ 2026-07-15")]
     public void Parse_rejects_complete_but_invalid_schedule_metadata(string schedule)
     {
         var result = parser.Parse("/todos/home.md", $"- [ ] Prepare proposal {schedule}");
 
         result.IsSuccess.Should().BeFalse();
         result.Error.Should().Contain("schedule must use a valid date");
+    }
+
+    [Fact]
+    public void Parse_reads_a_quarter_hour_schedule()
+    {
+        var result = parser.Parse(
+            "/todos/home.md",
+            "- [ ] Prepare proposal ⏰ 09:15 ⏳ 2026-07-15");
+
+        result.IsSuccess.Should().BeTrue();
+        result.Project!.Todos.Single().Schedule.Should().Be(
+            new TodoSchedule(new DateOnly(2026, 7, 15), new TimeOnly(9, 15)));
     }
 
     [Fact]

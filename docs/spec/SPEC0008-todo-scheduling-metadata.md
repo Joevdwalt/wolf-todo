@@ -20,8 +20,8 @@ suffix:
 ```
 
 The date uses `YYYY-MM-DD`. A valid standalone `⏳ YYYY-MM-DD` is an all-day
-schedule. A timed schedule adds `⏰ HH:mm`; time must be `:00` or `:30`, and
-must fall between 06:00 and 21:30. The tokens need not be adjacent: priority, tags,
+schedule. A timed schedule adds `⏰ HH:mm`; time must be `:00`, `:15`, `:30`, or
+`:45`, and must fall between 06:00 and 21:45. The tokens need not be adjacent: priority, tags,
 recurrence, IDs, dependencies, dates, and other preserved task metadata may
 appear between them. Remove both tokens from the displayed title and expose
 them as structured schedule data. A time-only `⏰` annotation remains ordinary

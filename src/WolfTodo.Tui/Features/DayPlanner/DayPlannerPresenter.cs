@@ -6,7 +6,7 @@ namespace WolfTodo.Tui.Features.DayPlanner;
 
 public sealed class DayPlannerPresenter
 {
-    public const int SlotCount = 32;
+    public const int SlotCount = 64;
 
     public PlannerView CreateView(
         ProjectCatalog catalog,
@@ -34,12 +34,12 @@ public sealed class DayPlannerPresenter
         var slots = Enumerable.Range(0, SlotCount)
             .Select(index =>
             {
-                var time = new TimeOnly(6, 0).AddMinutes(index * 30);
+                var time = new TimeOnly(6, 0).AddMinutes(index * 15);
                 var items = assignments
                     .Where(assignment => assignment.Todo.Schedule?.Date == state.SelectedDate &&
                                          assignment.Todo.Schedule.Time == time)
                     .ToImmutableArray();
-                var slotEnd = time.AddMinutes(30);
+                var slotEnd = time.AddMinutes(15);
                 var meetings = agenda.Meetings
                     .Where(meeting => meeting.Start < slotEnd && meeting.End > time)
                     .ToImmutableArray();

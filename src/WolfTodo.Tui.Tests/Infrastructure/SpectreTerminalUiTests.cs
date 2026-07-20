@@ -242,7 +242,7 @@ public sealed class SpectreTerminalUiTests
     {
         var date = new DateOnly(2026, 7, 15);
         var now = new DateTime(2026, 7, 15, 14, 23, 0);
-        var state = PlannerState.CreateInitial(date) with { SlotIndex = 17 };
+        var state = PlannerState.CreateInitial(date) with { SlotIndex = 33 };
         var view = new DayPlannerPresenter().CreateView(new ProjectCatalog([], []), state);
         var theme = TuiThemes.Wolf with
         {
@@ -272,8 +272,8 @@ public sealed class SpectreTerminalUiTests
 
     [Theory]
     [InlineData(5, 15, 0, "06:00", true)]
-    [InlineData(14, 30, 17, "14:30", true)]
-    [InlineData(22, 0, 31, "21:30", false)]
+    [InlineData(14, 30, 34, "14:30", true)]
+    [InlineData(22, 0, 63, "21:30", false)]
     public void ShowPlanner_places_the_current_time_at_its_timeline_boundary(
         int hour,
         int minute,

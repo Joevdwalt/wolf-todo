@@ -329,8 +329,8 @@ public sealed class BrowserReducerTests
 
     [Theory]
     [InlineData("", "09:30", "requires a scheduled date")]
-    [InlineData("2026-07-15", "09:15", "half-hour")]
-    [InlineData("2026-07-15", "22:00", "half-hour")]
+    [InlineData("2026-07-15", "09:10", "quarter-hour")]
+    [InlineData("2026-07-15", "22:00", "quarter-hour")]
     public void Reduce_rejects_invalid_schedules(
         string date,
         string time,

@@ -443,7 +443,7 @@ public sealed class TuiApplication(
         catalog = latestCatalog;
         var schedule = new TodoSchedule(
             state.Planner.SelectedDate,
-            new TimeOnly(6, 0).AddMinutes(state.Planner.SlotIndex * 30));
+            new TimeOnly(6, 0).AddMinutes(state.Planner.SlotIndex * 15));
 
         if (transition.Operation == PlannerOperation.Create)
         {
@@ -543,7 +543,7 @@ public sealed class TuiApplication(
         {
             SelectedDate = follow?.Date ?? state.Planner.SelectedDate,
             SlotIndex = follow?.Time is { } time
-                ? ((time.Hour - 6) * 2) + (time.Minute / 30)
+                ? ((time.Hour - 6) * 4) + (time.Minute / 15)
                 : state.Planner.SlotIndex,
             Mode = PlannerMode.Browse,
             MovingTodo = null,
