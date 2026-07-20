@@ -302,11 +302,10 @@ public sealed class BrowserReducerTests
     }
 
     [Theory]
-    [InlineData("2026-07-15", "", "both be set")]
-    [InlineData("", "09:30", "both be set")]
+    [InlineData("", "09:30", "requires a scheduled date")]
     [InlineData("2026-07-15", "09:15", "half-hour")]
     [InlineData("2026-07-15", "22:00", "half-hour")]
-    public void Reduce_rejects_incomplete_or_invalid_schedules(
+    public void Reduce_rejects_invalid_schedules(
         string date,
         string time,
         string expectedError)

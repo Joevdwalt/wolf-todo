@@ -26,7 +26,8 @@ public sealed class TuiApplication(
     CommandPaletteReducer? paletteReducer = null,
     CommandPalettePresenter? palettePresenter = null,
     ApplicationActionCatalog? actionCatalog = null,
-    IExternalEditorLauncher? externalEditorLauncher = null)
+    IExternalEditorLauncher? externalEditorLauncher = null,
+    PlannerCalendarAgendaCache? plannerCalendarCache = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -43,6 +44,8 @@ public sealed class TuiApplication(
     private readonly CommandPalettePresenter palettePresenter = palettePresenter ?? new CommandPalettePresenter();
     private readonly ApplicationActionCatalog actionCatalog = actionCatalog ?? new ApplicationActionCatalog();
     private readonly IExternalEditorLauncher? externalEditorLauncher = externalEditorLauncher;
+    private readonly PlannerCalendarAgendaCache plannerCalendarCache = plannerCalendarCache ??
+        new PlannerCalendarAgendaCache(new DisabledPlannerCalendarAgendaProvider());
 
     public int Run()
     {
@@ -111,7 +114,10 @@ public sealed class TuiApplication(
                 }
                 else
                 {
-                    plannerView = plannerPresenter.CreateView(catalog, state.Planner);
+                    var agenda = plannerCalendarCache.GetAgenda(
+                        configuration.GoogleCalendar,
+                        state.Planner.SelectedDate);
+                    plannerView = plannerPresenter.CreateView(catalog, state.Planner, agenda);
                     state = state with { Planner = plannerView.State };
                     if (state.Palette.IsOpen)
                     {
@@ -133,7 +139,9 @@ public sealed class TuiApplication(
                 }
 
                 var pendingKey = state.Tabs.ActiveTab == PlannerTab
-                    ? terminalUi.ReadKey(TimeSpan.FromMinutes(1))
+                    ? terminalUi.ReadKey(plannerCalendarCache.IsRefreshing
+                        ? TimeSpan.FromMilliseconds(250)
+                        : TimeSpan.FromMinutes(1))
                     : terminalUi.ReadKey();
                 if (pendingKey is null)
                 {
@@ -267,6 +275,14 @@ public sealed class TuiApplication(
                         continue;
                     }
 
+                    if (action == ApplicationActionId.PlannerRefreshCalendar)
+                    {
+                        plannerCalendarCache.Refresh(
+                            configuration.GoogleCalendar,
+                            state.Planner.SelectedDate);
+                        continue;
+                    }
+
                     var plannerAction = action switch
                     {
                         ApplicationActionId.PlannerPreviousDay => PlannerAction.PreviousDay,
@@ -319,6 +335,15 @@ public sealed class TuiApplication(
 
                 if (state.Tabs.ActiveTab == PlannerTab)
                 {
+                    if (!state.Planner.CapturesInput &&
+                        configuration.KeyBindings.MatchesPlannerRefreshCalendar(key))
+                    {
+                        plannerCalendarCache.Refresh(
+                            configuration.GoogleCalendar,
+                            state.Planner.SelectedDate);
+                        continue;
+                    }
+
                     var transition = plannerReducer.Reduce(
                         state.Planner,
                         key,
@@ -506,9 +531,9 @@ public sealed class TuiApplication(
         Planner = state.Planner with
         {
             SelectedDate = follow?.Date ?? state.Planner.SelectedDate,
-            SlotIndex = follow is null
-                ? state.Planner.SlotIndex
-                : ((follow.Time.Hour - 6) * 2) + (follow.Time.Minute / 30),
+            SlotIndex = follow?.Time is { } time
+                ? ((time.Hour - 6) * 2) + (time.Minute / 30)
+                : state.Planner.SlotIndex,
             Mode = PlannerMode.Browse,
             MovingTodo = null,
             Editor = null,

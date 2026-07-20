@@ -250,7 +250,7 @@ public sealed partial class ProjectMarkdownParser
     {
         var dateMatches = ScheduleDatePattern().Matches(text);
         var timeMatches = ScheduleTimePattern().Matches(text);
-        if (dateMatches.Count == 0 || timeMatches.Count == 0)
+        if (dateMatches.Count == 0)
         {
             return new ScheduleResult(null, null, null, null);
         }
@@ -261,14 +261,27 @@ public sealed partial class ProjectMarkdownParser
         }
 
         var dateMatch = dateMatches[0];
-        var timeMatch = timeMatches[0];
+        var timeMatch = timeMatches.Count == 0 ? null : timeMatches[0];
         if (!DateOnly.TryParseExact(
                 dateMatch.Groups[1].Value,
                 "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
-                out var date) ||
-            !TimeOnly.TryParseExact(
+                out var date))
+        {
+            return new ScheduleResult(
+                null,
+                null,
+                null,
+                "Todo schedule must use a valid date and a half-hour time from 06:00 through 21:30.");
+        }
+
+        if (timeMatch is null)
+        {
+            return new ScheduleResult(new TodoSchedule(date), null, dateMatch.Value, null);
+        }
+
+        if (!TimeOnly.TryParseExact(
                 timeMatch.Groups[1].Value,
                 "HH:mm",
                 CultureInfo.InvariantCulture,

@@ -36,7 +36,55 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesSortMode(Key('t')).Should().BeTrue();
         result.KeyBindings.MatchesTabNext(Key('L')).Should().BeTrue();
         result.KeyBindings.MatchesTabPrevious(Key('H')).Should().BeTrue();
+        result.KeyBindings.MatchesPlannerRefreshCalendar(Key('r')).Should().BeTrue();
         result.Theme.Should().Be(TuiThemes.Wolf);
+        result.GoogleCalendar.Should().Be(GoogleCalendarConfiguration.Disabled);
+    }
+
+    [Fact]
+    public void Load_reads_optional_google_calendar_configuration()
+    {
+        var path = Path.GetFullPath("todo.md");
+        var clientFile = Path.GetFullPath("google-client.json");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [google_calendar]
+            enabled = true
+            oauth_client_file = "{{clientFile}}"
+            """);
+
+        var result = loader.Load();
+
+        result.GoogleCalendar.Should().Be(new GoogleCalendarConfiguration(true, clientFile));
+    }
+
+    [Theory]
+    [InlineData("enabled = true", "*oauth_client_file*absolute*")]
+    [InlineData("enabled = \"yes\"", "*enabled*true or false*")]
+    [InlineData("enabled = true\noauth_client_file = \"relative.json\"", "*oauth_client_file*absolute*")]
+    [InlineData("unexpected = true", "*google_calendar.unexpected*not supported*")]
+    public void Load_rejects_invalid_google_calendar_configuration(string setting, string expectedMessage)
+    {
+        var path = Path.GetFullPath("todo.md");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [google_calendar]
+            {{setting}}
+            """);
+
+        var action = loader.Invoking(candidate => candidate.Load());
+
+        action.Should().Throw<InvalidDataException>().WithMessage(expectedMessage);
     }
 
     [Fact]

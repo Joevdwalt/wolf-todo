@@ -182,6 +182,34 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowPlanner_renders_all_day_items_and_meeting_overlap_warnings()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var todo = CreateTodoItem("Prepare proposal", 1) with
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(9, 30))
+        };
+        var agenda = new PlannerCalendarAgenda(
+            [new PlannerCalendarAllDayItem("Company holiday", PlannerCalendarItemKind.Event)],
+            [new PlannerCalendarMeeting("Client meeting", new TimeOnly(9, 0), new TimeOnly(10, 0))],
+            PlannerCalendarSyncState.Ready);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 7 },
+            agenda);
+        StartRecording(100, 24);
+
+        new SpectreTerminalUi(() => 100, () => 24)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText();
+
+        output.Should().Contain("ALL DAY")
+            .And.Contain("Company holiday")
+            .And.Contain("Prepare proposal")
+            .And.Contain("Client meeting");
+    }
+
+    [Fact]
     public void ShowPlanner_applies_canvas_workspace_overlay_and_active_roles()
     {
         var date = new DateOnly(2026, 7, 15);

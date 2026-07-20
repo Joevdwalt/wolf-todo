@@ -8,6 +8,8 @@ public sealed record ApplicationConfiguration(
 {
     public TuiTheme Theme { get; init; } = TuiThemes.Wolf;
 
+    public GoogleCalendarConfiguration GoogleCalendar { get; init; } = GoogleCalendarConfiguration.Disabled;
+
     public ApplicationConfiguration(ImmutableArray<string> projectFiles, string quitCommand)
         : this(projectFiles, TuiKeyBindings.CreateDefaults(quitCommand))
     {

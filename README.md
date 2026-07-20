@@ -74,6 +74,7 @@ planner_previous_day = ["["]
 planner_next_day = ["]"]
 planner_today = ["g"]
 planner_unschedule = ["u"]
+planner_refresh_calendar = ["r"]
 create_todo = ["a"]
 edit_todo = ["e"]
 # Compatibility alias for the same unified editor.
@@ -94,6 +95,12 @@ surface_2 = "#162433"
 accent = "#F28C28"
 accent_bright = "#FFB14A"
 info = "#5FA8D3"
+
+[google_calendar]
+# Optional: show primary Google Calendar meetings in the Day Planner.
+enabled = false
+# Required when enabled. Download this desktop OAuth client JSON from Google Cloud.
+oauth_client_file = "/absolute/path/to/google-oauth-client.json"
 ```
 
 Within `[keybindings]`, only `quit` is required. Omitted bindings use the
@@ -111,6 +118,13 @@ colors such as `#F28C28`, or `default`. Using `default` for a foreground role
 uses the terminal foreground; using it for a surface makes that layer
 transparent to its enclosing or terminal background. Unknown presets, keys, or
 color values are configuration errors.
+
+The optional `[google_calendar]` table adds a read-only primary Google Calendar
+overlay to Day Planner. Set `enabled = true` and provide an absolute path to a
+Desktop OAuth client JSON file. The first refresh opens Google's consent flow;
+the refresh token is stored in Wolf Todo's application-state directory, not in
+the project Markdown. `r` refreshes the selected day. Calendar meetings only
+warn when a todo shares their time; they never prevent scheduling.
 
 Each configured Markdown file is one project. Start the application with:
 
@@ -149,13 +163,17 @@ colors. Wide terminals show navigation, tasks, and inspector;
 medium terminals prioritize tasks and inspector with navigation available as a
 temporary view; narrow terminals show one focused view at a time.
 
-The `Day Planner` tab uses 30-minute slots from 06:00 through 21:30. Scheduling
-a todo adds Wolf Todo's `⏰ HH:mm` time before all task markers and retains the
+The `Day Planner` tab uses 30-minute slots from 06:00 through 21:30. A todo can
+be scheduled for a whole day with `⏳ YYYY-MM-DD`, or assigned to a half-hour
+slot with Wolf Todo's `⏰ HH:mm` time before all task markers and the
 Obsidian Tasks-compatible `⏳ YYYY-MM-DD` scheduled date, for example
 `Prepare proposal ⏰ 09:30 #work ⏳ 2026-07-15`. Enter
 assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
 and `[`/`]` change days. The planner refuses occupied destination slots.
-Scheduled todos show `YYYY-MM-DD HH:mm` in the adaptive `SCHEDULED` column in
+All-day todos appear above the timeline. When Google Calendar is configured,
+all-day events and focus/status entries share that header, while timed meetings
+appear in their slots and warn on overlaps. Scheduled todos show either
+`YYYY-MM-DD` or `YYYY-MM-DD HH:mm` in the adaptive `SCHEDULED` column in
 the Todos pane. The shared field editor can schedule or unschedule work, and
 `d`/`D` sort by scheduled date and time. Existing start and due annotations are
 preserved in Markdown but intentionally omitted from the normal UI. The planner

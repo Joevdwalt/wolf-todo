@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="../WolfTodo.Core/WolfTodo.Core.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
+    <PackageReference Include="Google.Apis.Calendar.v3" Version="1.75.0.4182" />
     <PackageReference Include="Spectre.Console" Version="0.57.1" />
     <PackageReference Include="Tomlyn" Version="0.20.0" />
   </ItemGroup>

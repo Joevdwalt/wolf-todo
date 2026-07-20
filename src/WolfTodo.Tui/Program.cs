@@ -16,6 +16,9 @@ builder.Services.AddSingleton<ProjectBrowserPresenter>();
 builder.Services.AddSingleton<BrowserReducer>();
 builder.Services.AddSingleton<DayPlannerPresenter>();
 builder.Services.AddSingleton<DayPlannerReducer>();
+builder.Services.AddSingleton<IPlannerCalendarAgendaProvider>(
+    new GoogleCalendarAgendaProvider(GlobalGoogleCalendarTokenPath.Resolve()));
+builder.Services.AddSingleton<PlannerCalendarAgendaCache>();
 builder.Services.AddSingleton<ProjectTodoMutationService>();
 builder.Services.AddSingleton<TabHostPresenter>();
 builder.Services.AddSingleton<TabHostReducer>();
@@ -47,7 +50,8 @@ builder.Services.AddSingleton(serviceProvider =>
         serviceProvider.GetRequiredService<DayPlannerReducer>(),
         serviceProvider.GetRequiredService<ProjectTodoMutationService>(),
         serviceProvider.GetRequiredService<ApplicationCommandReducer>(),
-        externalEditorLauncher: serviceProvider.GetRequiredService<IExternalEditorLauncher>()));
+        externalEditorLauncher: serviceProvider.GetRequiredService<IExternalEditorLauncher>(),
+        plannerCalendarCache: serviceProvider.GetRequiredService<PlannerCalendarAgendaCache>()));
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();

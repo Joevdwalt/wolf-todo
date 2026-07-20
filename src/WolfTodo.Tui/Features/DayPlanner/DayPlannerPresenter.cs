@@ -8,8 +8,12 @@ public sealed class DayPlannerPresenter
 {
     public const int SlotCount = 32;
 
-    public PlannerView CreateView(ProjectCatalog catalog, PlannerState state)
+    public PlannerView CreateView(
+        ProjectCatalog catalog,
+        PlannerState state,
+        PlannerCalendarAgenda? calendarAgenda = null)
     {
+        var agenda = calendarAgenda ?? PlannerCalendarAgenda.Disabled;
         var assignments = catalog.Projects
             .SelectMany(project => Flatten(project.Todos)
                 .Select(todo => new PlannerAssignment(
@@ -32,14 +36,29 @@ public sealed class DayPlannerPresenter
             {
                 var time = new TimeOnly(6, 0).AddMinutes(index * 30);
                 var items = assignments
-                    .Where(assignment => assignment.Todo.Schedule == new TodoSchedule(state.SelectedDate, time))
+                    .Where(assignment => assignment.Todo.Schedule?.Date == state.SelectedDate &&
+                                         assignment.Todo.Schedule.Time == time)
                     .ToImmutableArray();
-                return new PlannerSlotView(time, items, index == slotIndex);
+                var slotEnd = time.AddMinutes(30);
+                var meetings = agenda.Meetings
+                    .Where(meeting => meeting.Start < slotEnd && meeting.End > time)
+                    .ToImmutableArray();
+                return new PlannerSlotView(time, items, index == slotIndex)
+                {
+                    Meetings = meetings
+                };
             })
             .ToImmutableArray();
         var projects = catalog.Projects
             .Select(project => new PlannerProjectOption(project.Title, project.Path))
             .ToImmutableArray();
+        var allDayTodos = assignments
+            .Where(assignment => assignment.Todo.Schedule?.Date == state.SelectedDate &&
+                                 assignment.Todo.Schedule.Time is null)
+            .Select(assignment => new PlannerCalendarAllDayItem(
+                $"◯ {assignment.Todo.Title} [{assignment.ProjectTitle}]",
+                PlannerCalendarItemKind.Todo,
+                assignment.Todo.IsCompleted));
         return new PlannerView(
             state with
             {
@@ -51,7 +70,8 @@ public sealed class DayPlannerPresenter
             projects)
         {
             OpenTodoCount = assignments.Count(assignment => !assignment.Todo.IsCompleted),
-            ProjectErrorCount = catalog.Errors.Length
+            ProjectErrorCount = catalog.Errors.Length,
+            CalendarAgenda = agenda with { AllDayItems = [.. agenda.AllDayItems.Concat(allDayTodos)] }
         };
     }
 

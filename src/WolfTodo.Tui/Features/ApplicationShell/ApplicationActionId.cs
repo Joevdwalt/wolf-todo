@@ -18,6 +18,7 @@ public enum ApplicationActionId
     PlannerPreviousDay,
     PlannerNextDay,
     PlannerToday,
+    PlannerRefreshCalendar,
     PlannerAssignOrMove,
     PlannerUnschedule,
     PlannerCreate,

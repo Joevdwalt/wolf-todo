@@ -30,6 +30,42 @@ public sealed class DayPlannerPresenterTests
     }
 
     [Fact]
+    public void CreateView_puts_date_only_todos_in_the_all_day_agenda()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var allDay = Todo("Submit report") with { Schedule = new TodoSchedule(date) };
+        var catalog = new ProjectCatalog(
+            [new TodoProject("Work", "/todos/work.md", [allDay])],
+            []);
+
+        var view = new DayPlannerPresenter().CreateView(catalog, PlannerState.CreateInitial(date));
+
+        view.CalendarAgenda.AllDayItems.Should().ContainSingle(item =>
+            item.Kind == PlannerCalendarItemKind.Todo && item.Title.Contains("Submit report"));
+        view.Slots.SelectMany(slot => slot.Assignments).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CreateView_places_calendar_meetings_in_each_overlapping_slot()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var agenda = new PlannerCalendarAgenda(
+            [],
+            [new PlannerCalendarMeeting("Team stand-up", new TimeOnly(9, 15), new TimeOnly(10, 15))],
+            PlannerCalendarSyncState.Ready,
+            null);
+
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date),
+            agenda);
+
+        view.Slots.Where(slot => slot.Time >= new TimeOnly(9, 0) && slot.Time <= new TimeOnly(10, 0))
+            .Should().OnlyContain(slot => slot.Meetings.Single().Title == "Team stand-up");
+        view.Slots.Single(slot => slot.Time == new TimeOnly(10, 30)).Meetings.Should().BeEmpty();
+    }
+
+    [Fact]
     public void CreateView_exposes_conflicting_external_assignments()
     {
         var date = new DateOnly(2026, 7, 15);

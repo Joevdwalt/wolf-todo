@@ -382,9 +382,9 @@ public sealed partial class ProjectTodoMutationService(
         {
             parts.Add(description);
         }
-        if (todo.Schedule is not null)
+        if (todo.Schedule?.Time is not null)
         {
-            parts.Add($"⏰ {todo.Schedule.Time:HH:mm}");
+            parts.Add($"⏰ {todo.Schedule.Time.Value:HH:mm}");
         }
 
         if (preservedMetadata is not null)

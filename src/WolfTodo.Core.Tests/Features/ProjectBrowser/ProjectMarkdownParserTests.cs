@@ -110,12 +110,12 @@ public sealed class ProjectMarkdownParserTests
     }
 
     [Fact]
-    public void Parse_preserves_standalone_schedule_tokens_as_title_text()
+    public void Parse_reads_a_standalone_scheduled_date_as_an_all_day_schedule()
     {
         var result = parser.Parse("/todos/home.md", "- [ ] Prepare proposal ⏳ 2026-07-15");
 
-        result.Project!.Todos.Single().Title.Should().Be("Prepare proposal ⏳ 2026-07-15");
-        result.Project.Todos.Single().Schedule.Should().BeNull();
+        result.Project!.Todos.Single().Title.Should().Be("Prepare proposal");
+        result.Project.Todos.Single().Schedule.Should().Be(new TodoSchedule(new DateOnly(2026, 7, 15)));
     }
 
     [Fact]

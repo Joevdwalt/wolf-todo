@@ -196,8 +196,10 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
             || Contains(todo.SectionPath, filter)
             || (todo.Schedule is not null &&
                 (Contains(todo.Schedule.Date.ToString("yyyy-MM-dd"), filter) ||
-                 Contains(todo.Schedule.Time.ToString("HH:mm"), filter) ||
-                 Contains($"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}", filter)))
+                 Contains(todo.Schedule.Time?.ToString("HH:mm"), filter) ||
+                 Contains(todo.Schedule.Time is null
+                     ? todo.Schedule.Date.ToString("yyyy-MM-dd")
+                     : $"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}", filter)))
             || todo.Tags.Any(tag => Contains(tag, filter) || Contains($"#{tag}", filter));
     }
 
@@ -351,7 +353,10 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         }
 
         var date = left.Date.CompareTo(right.Date);
-        return (date != 0 ? date : left.Time.CompareTo(right.Time)) * direction;
+        var time = left.Time is null || right.Time is null
+            ? left.Time is null == right.Time is null ? 0 : left.Time is null ? -1 : 1
+            : left.Time.Value.CompareTo(right.Time.Value);
+        return (date != 0 ? date : time) * direction;
     }
 
     private static int CompareOptionalText(string? left, string? right, int direction)

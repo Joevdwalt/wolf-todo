@@ -161,6 +161,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var status = PlannerStatus(view, keyBindings, width, height);
         var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
         var pickerRows = pickerVisible ? Math.Clamp(height / 5, 3, 7) : 0;
+        var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0;
         var wideDetails = view.State.ShowDetails && width >= 120;
         var compactDetails = view.State.ShowDetails && !wideDetails &&
                              view.State.Mode == PlannerMode.Browse &&
@@ -171,6 +172,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var pickerHeight = pickerVisible ? pickerRows + 2 : 0;
         const int compactDetailsHeight = 3;
         var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
+                             (allDayVisible ? 1 : 0) +
                              (compactDetails ? compactDetailsHeight : 0);
         var availableRows = Math.Max(1, height - status.Count - reservedHeight);
         var now = nowProvider();
@@ -220,12 +222,22 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 var prefix = slot.IsSelected ? ">" : " ";
                 var state = TodoStatusGlyph(assignment.Todo.IsCompleted);
                 var priority = PriorityCode(assignment.Todo.Priority);
+                var meeting = MeetingHint(slot);
                 content = new Text(
-                    $"{prefix} {state} {priority} {assignment.Todo.Title}  [{assignment.ProjectTitle}]",
+                    $"{prefix} {state} {priority} {assignment.Todo.Title}  [{assignment.ProjectTitle}]{meeting}",
                     ThemeStyle(
+                        slot.Meetings.Length > 0 ? theme.Warning :
                         assignment.Todo.IsCompleted ? theme.Muted : slot.IsSelected ? theme.AccentBright : theme.Text,
                         assignment.Todo.IsCompleted ? Decoration.Dim : slot.IsSelected ? Decoration.Bold : Decoration.None))
                     .Ellipsis();
+            }
+            else if (slot.Meetings.Length > 0)
+            {
+                content = new Text(
+                    $"{(slot.IsSelected ? ">" : " ")} MEETING {MeetingLabel(slot.Meetings[0])}" +
+                    (slot.Meetings.Length > 1 ? $" +{slot.Meetings.Length - 1}" : string.Empty),
+                    ThemeStyle(slot.IsSelected ? theme.AccentBright : theme.Info,
+                        slot.IsSelected ? Decoration.Bold : Decoration.None)).Ellipsis();
             }
             else
             {
@@ -240,6 +252,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
         for (var index = timelineRows.Count; index < availableRows; index++)
         {
             table.AddEmptyRow();
+        }
+
+        if (allDayVisible)
+        {
+            WriteSurface(AllDayStrip(view, theme), theme.Surface2, true);
         }
 
         if (wideDetails)
@@ -290,6 +307,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
         WritePlannerStatus(status, view, theme);
         EndUpdate(useSynchronizedUpdate);
     }
+
+    private static IRenderable AllDayStrip(PlannerView view, TuiTheme theme)
+    {
+        var text = string.Join("  ·  ", view.CalendarAgenda.AllDayItems.Select(item => item.Title));
+        return new Text($"ALL DAY  {text}", ThemeStyle(theme.Info)).Ellipsis();
+    }
+
+    private static string MeetingHint(PlannerSlotView slot) =>
+        slot.Meetings.Length == 0 ? string.Empty : $"  ⚠ {MeetingLabel(slot.Meetings[0])}" +
+            (slot.Meetings.Length > 1 ? $" +{slot.Meetings.Length - 1}" : string.Empty);
+
+    private static string MeetingLabel(PlannerCalendarMeeting meeting) =>
+        $"{meeting.Start:HH:mm}–{meeting.End:HH:mm} {meeting.Title}";
 
     private static IReadOnlyList<PlannerTimelineRow> WindowPlannerTimeline(
         IReadOnlyList<PlannerSlotView> slots,
@@ -387,6 +417,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             status = [view.State.Error];
         }
+        else if (view.CalendarAgenda.Error is not null)
+        {
+            status = [$"{view.CalendarAgenda.Error}  {Shortest(bindings.PlannerRefreshCalendar)} RETRY"];
+        }
         else
         {
             status = view.State.Mode switch
@@ -411,7 +445,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
                     $"{Shortest(bindings.PlannerToday)} TODAY  {Shortest(bindings.Open)} ASSIGN/MOVE  " +
                     $"{Shortest(bindings.PlannerUnschedule)} UNSCHEDULE  " +
                     $"{Shortest(bindings.CreateTodo)} CREATE  {Shortest(bindings.EditTodo)} EDIT  " +
-                    $"{Shortest(bindings.ToggleTodo)} COMPLETE  {Shortest(bindings.ToggleDetails)} DETAILS"
+                    $"{Shortest(bindings.ToggleTodo)} COMPLETE  {Shortest(bindings.ToggleDetails)} DETAILS" +
+                    (view.CalendarAgenda.SyncState == PlannerCalendarSyncState.Disabled
+                        ? string.Empty
+                        : $"  {Shortest(bindings.PlannerRefreshCalendar)} CALENDAR {CalendarStatus(view.CalendarAgenda)}")
                 ]
             };
         }
@@ -419,6 +456,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var statusWidth = Math.Max(1, terminalWidth - 4);
         return DefaultStatusLines(status.SelectMany(line => WrapStatus(line, statusWidth)));
     }
+
+    private static string CalendarStatus(PlannerCalendarAgenda agenda) => agenda.SyncState switch
+    {
+        PlannerCalendarSyncState.Syncing => "SYNCING",
+        PlannerCalendarSyncState.Ready => "READY",
+        PlannerCalendarSyncState.AuthenticationRequired => "SIGN IN",
+        PlannerCalendarSyncState.ConfigurationError => "CONFIG",
+        PlannerCalendarSyncState.Offline => "OFFLINE",
+        _ => string.Empty
+    };
 
     private static void WritePlannerPicker(PlannerView view, TuiTheme theme, int width, int visibleRows)
     {
@@ -976,7 +1023,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 "Scheduled",
                 todo.Schedule is null
                     ? null
-                    : $"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}",
+                    : FormatSchedule(todo.Schedule),
                 theme,
                 theme.Date);
 
@@ -1049,7 +1096,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             "Scheduled",
             todo.Schedule is null
                 ? null
-                : $"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}",
+                : FormatSchedule(todo.Schedule),
             theme,
             theme.Date);
 
@@ -1099,7 +1146,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             todo.Tags.Length == 0 ? null : string.Join(' ', todo.Tags.Select(tag => $"#{tag}")),
             todo.Schedule is null
                 ? null
-                : $"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}"
+                : FormatSchedule(todo.Schedule)
         };
         var line = new System.Text.StringBuilder();
         AppendStyled(line, todo.Title, theme.Heading, Decoration.Bold);
@@ -1296,7 +1343,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             var schedule = todo.Schedule is null
                 ? "-"
-                : $"{todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}";
+                : FormatSchedule(todo.Schedule);
             var scheduleColor = row.IsSelected || todo.IsCompleted
                 ? baseColor
                 : theme.Date;
@@ -1348,6 +1395,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var result = Truncate(value, width);
         return result + new string(' ', Math.Max(0, width - DisplayWidth(result)));
     }
+
+    private static string FormatSchedule(TodoSchedule schedule) =>
+        schedule.Time is null
+            ? schedule.Date.ToString("yyyy-MM-dd")
+            : $"{schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}";
 
     private static string PriorityCode(TodoPriority? priority) => priority switch
     {
@@ -1423,7 +1475,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
         var schedule = todo.Schedule is null
             ? string.Empty
-            : $" ⏳ {todo.Schedule.Date:yyyy-MM-dd} {todo.Schedule.Time:HH:mm}";
+            : $" ⏳ {FormatSchedule(todo.Schedule)}";
 
         var line = new System.Text.StringBuilder();
         AppendStyled(

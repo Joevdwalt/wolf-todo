@@ -34,6 +34,12 @@ public sealed class TomlApplicationConfigurationLoader(
         "info"
     ];
 
+    private static readonly HashSet<string> GoogleCalendarKeys =
+    [
+        "enabled",
+        "oauth_client_file"
+    ];
+
     private static readonly IReadOnlyDictionary<string, Color> NamedColors = typeof(Color)
         .GetProperties(BindingFlags.Public | BindingFlags.Static)
         .Where(property => property.PropertyType == typeof(Color))
@@ -63,7 +69,51 @@ public sealed class TomlApplicationConfigurationLoader(
         var files = ReadProjectFiles(document);
         var bindings = ReadKeyBindings(document);
         var theme = ReadTheme(document);
-        return new ApplicationConfiguration(files, bindings) { Theme = theme };
+        var googleCalendar = ReadGoogleCalendar(document);
+        return new ApplicationConfiguration(files, bindings)
+        {
+            Theme = theme,
+            GoogleCalendar = googleCalendar
+        };
+    }
+
+    private static GoogleCalendarConfiguration ReadGoogleCalendar(TomlTable document)
+    {
+        if (!document.TryGetValue("google_calendar", out var calendarValue))
+        {
+            return GoogleCalendarConfiguration.Disabled;
+        }
+
+        if (calendarValue is not TomlTable calendar)
+        {
+            throw new InvalidDataException("Invalid configuration file: google_calendar must be a TOML table.");
+        }
+
+        var unknownKey = calendar.Keys.FirstOrDefault(key => !GoogleCalendarKeys.Contains(key));
+        if (unknownKey is not null)
+        {
+            throw new InvalidDataException(
+                $"Invalid configuration file: google_calendar.{unknownKey} is not supported.");
+        }
+
+        var enabled = calendar.TryGetValue("enabled", out var enabledValue)
+            ? enabledValue is bool value
+                ? value
+                : throw new InvalidDataException(
+                    "Invalid configuration file: google_calendar.enabled must be true or false.")
+            : false;
+        var oauthClientFile = calendar.TryGetValue("oauth_client_file", out var clientFileValue)
+            ? clientFileValue as string ?? throw new InvalidDataException(
+                "Invalid configuration file: google_calendar.oauth_client_file must be a string.")
+            : null;
+
+        if (enabled && (string.IsNullOrWhiteSpace(oauthClientFile) || !Path.IsPathFullyQualified(oauthClientFile)))
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: google_calendar.oauth_client_file must be an absolute path when enabled.");
+        }
+
+        return new GoogleCalendarConfiguration(enabled, oauthClientFile);
     }
 
     private static TuiTheme ReadTheme(TomlTable document)
@@ -247,6 +297,8 @@ public sealed class TomlApplicationConfigurationLoader(
             PlannerToday = ReadGestures(keybindings, "planner_today", defaults.PlannerToday),
             PlannerUnschedule = ReadGestures(
                 keybindings, "planner_unschedule", defaults.PlannerUnschedule),
+            PlannerRefreshCalendar = ReadGestures(
+                keybindings, "planner_refresh_calendar", defaults.PlannerRefreshCalendar),
             CreateTodo = ReadGestures(keybindings, "create_todo", defaults.CreateTodo),
             EditTodo = ReadGestures(keybindings, "edit_todo", defaults.EditTodo),
             EditTodoContent = ReadGestures(
@@ -366,6 +418,7 @@ public sealed class TomlApplicationConfigurationLoader(
             ("planner_next_day", bindings.PlannerNextDay),
             ("planner_today", bindings.PlannerToday),
             ("planner_unschedule", bindings.PlannerUnschedule),
+            ("planner_refresh_calendar", bindings.PlannerRefreshCalendar),
             ("create_todo", bindings.CreateTodo),
             ("edit_todo", bindings.EditTodo),
             ("edit_todo_content", bindings.EditTodoContent),

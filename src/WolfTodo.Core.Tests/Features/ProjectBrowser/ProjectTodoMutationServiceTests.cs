@@ -45,6 +45,21 @@ public sealed class ProjectTodoMutationServiceTests
     }
 
     [Fact]
+    public void SetSchedule_writes_an_all_day_schedule_without_a_clock()
+    {
+        const string path = "/todos/work.md";
+        var fileSystem = new WritableFileSystem(path, "- [ ] Prepare proposal #work\n");
+        var parser = new ProjectMarkdownParser();
+        var expected = parser.Parse(path, fileSystem.Contents).Project!.Todos.Single();
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+
+        var result = service.SetSchedule(path, expected, new TodoSchedule(new DateOnly(2026, 7, 15)));
+
+        result.Succeeded.Should().BeTrue();
+        fileSystem.Contents.Should().Be("- [ ] Prepare proposal #work ⏳ 2026-07-15\n");
+    }
+
+    [Fact]
     public void Create_adds_an_inbox_and_returns_the_new_source_line()
     {
         const string path = "/todos/work.md";

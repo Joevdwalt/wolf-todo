@@ -443,9 +443,9 @@ public sealed class TodoEditorReducer
             return null;
         }
 
-        if (!hasDate || !hasTime)
+        if (!hasDate)
         {
-            error = "Scheduled date and time must both be set or both be empty.";
+            error = "A scheduled time requires a scheduled date.";
             return null;
         }
 
@@ -454,8 +454,24 @@ public sealed class TodoEditorReducer
                 "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
-                out var date) ||
-            !TimeOnly.TryParseExact(
+                out var date))
+        {
+            error = "Schedule must use YYYY-MM-DD and HH:mm.";
+            return null;
+        }
+
+        if (!hasTime)
+        {
+            if (editor.ScheduleRequired)
+            {
+                error = "A scheduled date and time are required.";
+                return null;
+            }
+
+            return new TodoSchedule(date);
+        }
+
+        if (!TimeOnly.TryParseExact(
                 editor.ScheduledTime,
                 "HH:mm",
                 CultureInfo.InvariantCulture,

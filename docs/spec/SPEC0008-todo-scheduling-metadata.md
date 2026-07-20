@@ -6,8 +6,8 @@ Accepted
 
 ## Purpose
 
-Define the Markdown representation used to assign an existing todo to one Day
-Planner slot.
+Define the Markdown representation used to schedule an existing todo for a day
+or assign it to one Day Planner slot.
 
 ## Format
 
@@ -19,12 +19,13 @@ suffix:
 - [ ] Prepare proposal ⏰ 09:30 ⏫ #work ⏳ 2026-07-15
 ```
 
-The date uses `YYYY-MM-DD`. Time uses `HH:mm`, must be `:00` or `:30`, and must
-fall between 06:00 and 21:30. The tokens need not be adjacent: priority, tags,
+The date uses `YYYY-MM-DD`. A valid standalone `⏳ YYYY-MM-DD` is an all-day
+schedule. A timed schedule adds `⏰ HH:mm`; time must be `:00` or `:30`, and
+must fall between 06:00 and 21:30. The tokens need not be adjacent: priority, tags,
 recurrence, IDs, dependencies, dates, and other preserved task metadata may
 appear between them. Remove both tokens from the displayed title and expose
-them as structured schedule data. Standalone `⏳` or time-only `⏰` annotations
-remain ordinary title text. Duplicate tokens and complete-looking invalid
+them as structured schedule data. A time-only `⏰` annotation remains ordinary
+title text. Duplicate tokens and complete-looking invalid
 values are project diagnostics.
 
 Read the legacy adjacent `⏳ YYYY-MM-DD ⏰ HH:mm` order for compatibility, but
@@ -37,10 +38,12 @@ Scheduling, moving, and unscheduling update the original task line using the
 conflict-safe strategy in ADR0009.
 
 In the Todos pane, render a scheduled todo's structured value in an adaptive
-`SCHEDULED` column as `YYYY-MM-DD HH:mm`; render `-` for unscheduled work. Use
+`SCHEDULED` column as `YYYY-MM-DD` for all-day or `YYYY-MM-DD HH:mm` for timed
+work; render `-` for unscheduled work. Use
 the semantic date color. The shared editor accepts separate ISO date and `HH:mm`
-fields. Both blank values unschedule a todo, while partial pairs, off-grid
-minutes, and times outside the Planner range are rejected.
+fields. A date without a time creates an all-day schedule. Both blank values
+unschedule a todo, while time without date, off-grid minutes, and times outside
+the Planner range are rejected. Planner creation still requires date and time.
 
 Before create or update, reload the catalog and reject a schedule occupied by
 another todo across configured projects. Exclude the todo being edited from
@@ -51,7 +54,7 @@ and are not part of the interactive scheduling workflow.
 
 1. Clock-first schedule metadata round-trips through parsing and writing while
    Obsidian Tasks continues to recognize the task markers.
-2. Invalid dates, off-grid times, and duplicate pairs produce diagnostics.
+2. Invalid dates, time-only values, off-grid times, and duplicate pairs produce diagnostics.
 3. Scheduling preserves surrounding Markdown and external changes are never
    silently overwritten.
 4. Existing files without schedule metadata require no migration.

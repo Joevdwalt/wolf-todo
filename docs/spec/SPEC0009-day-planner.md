@@ -15,6 +15,19 @@ Show 32 slots from 06:00 through 21:30 for the selected date. Start on today
 each launch and preserve planner state while switching tabs. Keep the selected
 slot visible on short terminals and show scheduled completed todos dimly.
 
+Show a single all-day strip above the timeline when it has content. It contains
+date-only Wolf Todo schedules and, when configured, Google Calendar all-day
+events, focus time, and out-of-office entries. Date-only todos are editable
+through the normal task editor but are not slot assignments.
+
+An optional, read-only Google Calendar primary-calendar overlay may display
+timed meetings in their overlapping slots. It uses desktop OAuth configured by
+an absolute client JSON path, stores refresh credentials in application state,
+and refreshes with the configured `r` binding. Meetings produce overlap
+warnings only; they never reserve slots or block todo assignment. The planner
+shows syncing, sign-in, configuration, and offline states without making the
+planner unusable.
+
 On today, add a logical current-time row immediately before the next half-hour
 slot. Show the exact `HH:mm` value in the time column and fill the plan column
 with `▶` followed by `─` characters in the configured bright accent. Fill the
@@ -69,6 +82,10 @@ feedback match the Todos view.
    same conflict-safe Markdown workflows as the Todos tab.
 8. Today's current-time row uses the highlight foreground without resembling a
    table border, stays within the viewport budget, and advances while idle.
+9. Date-only schedules and calendar all-day items fit in the all-day header
+   without reducing access to the selected timeline slot.
+10. Calendar overlap warnings and failed calendar refreshes never block normal
+    Markdown todo scheduling.
 
 ## References
 

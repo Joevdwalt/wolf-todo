@@ -1,3 +1,3 @@
 namespace WolfTodo.Core.Features.ProjectBrowser;
 
-public sealed record TodoSchedule(DateOnly Date, TimeOnly Time);
+public sealed record TodoSchedule(DateOnly Date, TimeOnly? Time = null);

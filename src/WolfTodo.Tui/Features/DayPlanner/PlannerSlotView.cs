@@ -5,4 +5,7 @@ namespace WolfTodo.Tui.Features.DayPlanner;
 public sealed record PlannerSlotView(
     TimeOnly Time,
     ImmutableArray<PlannerAssignment> Assignments,
-    bool IsSelected);
+    bool IsSelected)
+{
+    public ImmutableArray<PlannerCalendarMeeting> Meetings { get; init; } = [];
+}
