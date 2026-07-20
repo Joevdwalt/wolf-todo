@@ -136,6 +136,12 @@ The TUI remembers the selected project and todo sort between runs in a separate
 still opens the Todos tab with keyboard focus in its todo list. This session
 state does not modify project Markdown files or `config.toml`.
 
+The project sidebar includes a virtual `@today` view directly below `All`.
+It gathers tasks scheduled for the current local date from every valid project,
+keeps project grouping and the active sort, and combines with the `/` filter.
+Completed scheduled tasks remain controlled by `:completed`. Because `@today`
+is a temporary view, closing there reopens `All` on the next launch.
+
 The interface uses a shared operational-console design across Todos and Day
 Planner: a responsive context header, square panels, uppercase structural
 labels, adaptive task columns, and configurable semantic foreground and surface
@@ -154,7 +160,9 @@ the Todos pane. The shared field editor can schedule or unschedule work, and
 `d`/`D` sort by scheduled date and time. Existing start and due annotations are
 preserved in Markdown but intentionally omitted from the normal UI. The planner
 shows responsive details for the selected slot; `v` hides or
-restores them. Its unscheduled-todo picker shows several filterable candidates.
+restores them. On today, a bright, full-width `▶────` timeline row shows the exact current
+time and refreshes once per idle minute without borrowing the panel-border
+style. Its unscheduled-todo picker shows several filterable candidates.
 On an occupied slot, `e` or `E`, Ctrl+E, and Space provide the same task editing,
 external editing, and completion actions as the Todos tab. Creating with `a`
 uses the complete task editor, pre-fills the selected slot, and
@@ -165,7 +173,7 @@ In the Todos tab, `a` creates a todo under the chosen project's `## Inbox`.
 `e` opens one task editor for title, reference, priority, tags, schedule, notes,
 and direct subtasks; `E` is a compatibility alias for the same editor. It uses
 one cursor across compact field rows and a source-ordered content outline.
-Notes use `•`; open and completed subtasks use `○` and `✓`. Use `a` to choose
+Notes use `•`; open and completed subtasks use `◯` and `✓`. Use `a` to choose
 and insert content after the selected item (or append when a field is selected),
 `e` or open to edit, `d` to remove, Space to toggle a subtask, and Ctrl+S to save
 the entire task in one conflict-safe Markdown write. Removing a subtask with

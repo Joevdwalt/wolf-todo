@@ -36,7 +36,7 @@ catalog; fake identifiers, sync claims, or system metrics are forbidden.
 
 The task list uses adaptive columns headed `S P TASK`, followed by `PROJECT`
 and `SCHEDULED` when space permits. `PROJECT` appears for the aggregate All view only.
-State uses `○` for open and `✓` for completed. Priority uses `!`, `H`, `M`, `L`,
+State uses `◯` for open and `✓` for completed. Priority uses `!`, `H`, `M`, `L`,
 `.`, or `-`. The selected row uses the elevated surface with bright accent text
 and bold emphasis; a completed row is muted
 and dim. Scheduled values use the date role without coloring the entire row.
@@ -50,6 +50,10 @@ tag lines are muted and dim. Preserve applicable ancestor and following-sibling
 continuation bars in the tag-line tree gutter.
 Inspector field labels and section headings are uppercase; values retain
 their original case.
+
+The project navigator renders the virtual `@today` entry with the semantic date
+foreground while it is inactive. The normal bright accent and elevated surface
+take precedence while it is selected.
 
 ## Responsive Layout
 

@@ -13,23 +13,35 @@ namespace WolfTodo.Tui.Infrastructure;
 
 public sealed class SpectreTerminalUi : ITerminalUi
 {
+    private const string OpenTodoGlyph = "◯";
+    private const string CompletedTodoGlyph = "✓";
+
+    private abstract record PlannerTimelineRow;
+
+    private sealed record PlannerSlotTimelineRow(PlannerSlotView Slot) : PlannerTimelineRow;
+
+    private sealed record PlannerNowTimelineRow(TimeOnly Time) : PlannerTimelineRow;
+
     private readonly Func<int> widthProvider;
     private readonly Func<int> heightProvider;
     private readonly Func<DateOnly> todayProvider;
+    private readonly Func<DateTime> nowProvider;
     private bool browserRendered;
 
-    public SpectreTerminalUi() : this(SafeWindowWidth, SafeWindowHeight, null)
+    public SpectreTerminalUi() : this(SafeWindowWidth, SafeWindowHeight, null, null)
     {
     }
 
     public SpectreTerminalUi(
         Func<int> widthProvider,
         Func<int> heightProvider,
-        Func<DateOnly>? todayProvider = null)
+        Func<DateOnly>? todayProvider = null,
+        Func<DateTime>? nowProvider = null)
     {
         this.widthProvider = widthProvider;
         this.heightProvider = heightProvider;
         this.todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
+        this.nowProvider = nowProvider ?? (() => DateTime.Now);
     }
 
     public void ShowSplash(string logo) => ShowSplash(logo, TuiThemes.Wolf);
@@ -161,7 +173,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
                              (compactDetails ? compactDetailsHeight : 0);
         var availableRows = Math.Max(1, height - status.Count - reservedHeight);
-        var visibleSlots = WindowPlannerSlots(view.Slots, view.State.SlotIndex, availableRows);
+        var now = nowProvider();
+        var timelineRows = WindowPlannerTimeline(
+            view.Slots,
+            view.State.SlotIndex,
+            availableRows,
+            view.State.SelectedDate,
+            now);
+        var timelineWidth = wideDetails ? Math.Max(40, (width * 2 / 3) - 2) : width;
         var table = new Table().SquareBorder().Expand();
         table.BorderStyle = ThemeStyle(theme.BorderActive);
         table.AddColumn(new TableColumn(new Text(
@@ -172,8 +191,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
             NoWrap = true
         });
         table.AddColumn(new TableColumn(new Text("PLAN", ThemeStyle(theme.Accent, Decoration.Bold))));
-        foreach (var slot in visibleSlots)
+        foreach (var row in timelineRows)
         {
+            if (row is PlannerNowTimelineRow marker)
+            {
+                table.AddRow(
+                    new Text(marker.Time.ToString("HH:mm"), ThemeStyle(theme.AccentBright, Decoration.Bold)),
+                    new TimelineMarkerRenderable(
+                        ThemeStyle(theme.AccentBright, Decoration.Bold)));
+                continue;
+            }
+
+            var slot = ((PlannerSlotTimelineRow)row).Slot;
             var selectedColor = slot.IsSelected ? theme.AccentBright : theme.Date;
             var time = new Text(
                 slot.Time.ToString("HH:mm"),
@@ -189,7 +218,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             {
                 var assignment = slot.Assignments[0];
                 var prefix = slot.IsSelected ? ">" : " ";
-                var state = assignment.Todo.IsCompleted ? "✓" : "○";
+                var state = TodoStatusGlyph(assignment.Todo.IsCompleted);
                 var priority = PriorityCode(assignment.Todo.Priority);
                 content = new Text(
                     $"{prefix} {state} {priority} {assignment.Todo.Title}  [{assignment.ProjectTitle}]",
@@ -208,14 +237,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 slot.IsSelected ? OnSurface(content, theme.Surface2, true) : content);
         }
 
-        for (var index = visibleSlots.Count; index < availableRows; index++)
+        for (var index = timelineRows.Count; index < availableRows; index++)
         {
             table.AddEmptyRow();
         }
 
         if (wideDetails)
         {
-            var timelineWidth = Math.Max(40, (width * 2 / 3) - 2);
             var shell = new Table().NoBorder().Collapse().HideHeaders();
             shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
             shell.AddColumn(new TableColumn(string.Empty).NoWrap());
@@ -263,18 +291,63 @@ public sealed class SpectreTerminalUi : ITerminalUi
         EndUpdate(useSynchronizedUpdate);
     }
 
-    private static IReadOnlyList<PlannerSlotView> WindowPlannerSlots(
+    private static IReadOnlyList<PlannerTimelineRow> WindowPlannerTimeline(
         IReadOnlyList<PlannerSlotView> slots,
         int selectedIndex,
-        int availableRows)
+        int availableRows,
+        DateOnly selectedDate,
+        DateTime now)
     {
-        if (slots.Count <= availableRows)
+        var rows = new List<PlannerTimelineRow>(slots.Count + 1);
+        var today = DateOnly.FromDateTime(now);
+        var currentTime = new TimeOnly(now.Hour, now.Minute);
+        var addMarker = selectedDate == today;
+        var markerAdded = false;
+        foreach (var slot in slots)
         {
-            return slots;
+            if (addMarker && !markerAdded && currentTime <= slot.Time)
+            {
+                rows.Add(new PlannerNowTimelineRow(currentTime));
+                markerAdded = true;
+            }
+
+            rows.Add(new PlannerSlotTimelineRow(slot));
         }
 
-        var start = Math.Clamp(selectedIndex - availableRows + 1, 0, slots.Count - availableRows);
-        return slots.Skip(start).Take(availableRows).ToArray();
+        if (addMarker && !markerAdded)
+        {
+            rows.Add(new PlannerNowTimelineRow(currentTime));
+        }
+
+        if (rows.Count <= availableRows)
+        {
+            return rows;
+        }
+
+        var selectedRow = rows.FindIndex(row =>
+            row is PlannerSlotTimelineRow slotRow && slotRow.Slot.IsSelected);
+        if (selectedRow < 0)
+        {
+            selectedRow = Math.Clamp(selectedIndex, 0, rows.Count - 1);
+        }
+
+        var start = Math.Clamp(selectedRow - availableRows + 1, 0, rows.Count - availableRows);
+        var markerRow = rows.FindIndex(row => row is PlannerNowTimelineRow);
+        if (markerRow >= 0 && Math.Abs(markerRow - selectedRow) < availableRows)
+        {
+            if (markerRow < start)
+            {
+                start = markerRow;
+            }
+            else if (markerRow >= start + availableRows)
+            {
+                start = markerRow - availableRows + 1;
+            }
+
+            start = Math.Clamp(start, 0, rows.Count - availableRows);
+        }
+
+        return rows.Skip(start).Take(availableRows).ToArray();
     }
 
     private static IReadOnlyList<BrowserStatusLine> PlannerStatus(
@@ -461,6 +534,28 @@ public sealed class SpectreTerminalUi : ITerminalUi
     }
 
     public ConsoleKeyInfo ReadKey() => Console.ReadKey(intercept: true);
+
+    public ConsoleKeyInfo? ReadKey(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (Console.KeyAvailable)
+            {
+                return Console.ReadKey(intercept: true);
+            }
+
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining > TimeSpan.Zero)
+            {
+                Thread.Sleep(remaining < TimeSpan.FromMilliseconds(50)
+                    ? remaining
+                    : TimeSpan.FromMilliseconds(50));
+            }
+        }
+
+        return null;
+    }
 
     private static void BeginUpdate(bool synchronized)
     {
@@ -762,17 +857,20 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return view.Projects.Select(row =>
         {
             var line = new System.Text.StringBuilder();
+            var rowColor = row.IsSelected
+                ? theme.AccentBright
+                : row.Kind == ProjectRowKind.Today ? theme.Date : theme.Text;
             AppendStyled(
                 line,
                 row.IsSelected ? ">" : " ",
-                row.IsSelected ? theme.AccentBright : theme.Text,
+                rowColor,
                 row.IsSelected ? Decoration.Bold : Decoration.None);
             AppendStyled(
                 line,
                 row.Error is null ? " " : "!",
-                row.Error is null ? theme.Text : theme.Error,
+                row.Error is null ? rowColor : theme.Error,
                 row.Error is null ? Decoration.None : Decoration.Bold);
-            AppendStyled(line, $" {row.Title}", row.Error is null ? theme.Text : theme.Error);
+            AppendStyled(line, $" {row.Title}", row.Error is null ? rowColor : theme.Error);
             if (row.Error is null)
             {
                 AppendStyled(line, $" {row.ActiveCount}", theme.SecondaryText, Decoration.Dim);
@@ -1158,7 +1256,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var todo = row.Todo!;
         var cursor = row.IsSelected ? ">" : " ";
         var treePrefix = TodoTreeFormatter.Format(row.TreePath);
-        var status = todo.IsCompleted ? "✓" : "○";
+        var status = TodoStatusGlyph(todo.IsCompleted);
         var priority = PriorityCode(todo.Priority);
         var prefixWidth = DisplayWidth(treePrefix);
         var visiblePrefix = prefixWidth >= layout.TaskWidth
@@ -1261,6 +1359,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
         _ => "-"
     };
 
+    private static string TodoStatusGlyph(bool isCompleted) =>
+        isCompleted ? CompletedTodoGlyph : OpenTodoGlyph;
+
     private static string Truncate(string value, int width)
     {
         if (DisplayWidth(value) <= width)
@@ -1316,7 +1417,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
     {
         var cursor = selected ? ">" : " ";
         var treePrefix = TodoTreeFormatter.Format(treePath);
-        var status = todo.IsCompleted ? "✓" : "○";
+        var status = TodoStatusGlyph(todo.IsCompleted);
         var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
         var priority = PriorityCode(todo.Priority);
         var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
@@ -1650,8 +1751,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var icon = item switch
         {
             ContentNoteDraft => "•",
-            ContentSubtaskDraft { IsCompleted: true } => "✓",
-            ContentSubtaskDraft => "○",
+            ContentSubtaskDraft subtask => TodoStatusGlyph(subtask.IsCompleted),
             _ => "-"
         };
         var value = valueOverride ?? item switch

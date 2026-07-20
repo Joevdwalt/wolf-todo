@@ -105,6 +105,30 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowBrowser_renders_today_as_a_date_colored_virtual_project()
+    {
+        var view = ViewWithTitle("Renew contract");
+        view = view with
+        {
+            Projects =
+            [
+                new ProjectRow("All", 1, null, null, true, ProjectRowKind.All),
+                new ProjectRow("@today", 1, null, null, false, ProjectRowKind.Today)
+            ]
+        };
+        var theme = TuiThemes.Wolf with { Date = new Color(1, 2, 3) };
+        StartRecording(140, 30);
+
+        new SpectreTerminalUi(() => 140, () => 30)
+            .ShowBrowser(DefaultTabs, view, DefaultBindings, theme);
+        var output = AnsiConsole.ExportText();
+        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+
+        output.Should().Contain("@today 1");
+        StyleBefore(html, "@today").Should().Contain("#010203");
+    }
+
+    [Fact]
     public void ShowBrowser_renders_global_command_input_and_errors()
     {
         var baseView = ViewWithTitle("Renew contract");
@@ -183,6 +207,132 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("#070809")
             .And.Contain("#0a0b0c")
             .And.Contain("#0d0e0f");
+    }
+
+    [Fact]
+    public void ShowPlanner_renders_current_time_as_a_full_width_highlighted_timeline_row()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var now = new DateTime(2026, 7, 15, 14, 23, 0);
+        var state = PlannerState.CreateInitial(date) with { SlotIndex = 17 };
+        var view = new DayPlannerPresenter().CreateView(new ProjectCatalog([], []), state);
+        var theme = TuiThemes.Wolf with
+        {
+            AccentBright = new Color(1, 2, 3),
+            Surface2 = new Color(4, 5, 6),
+            BorderActive = new Color(7, 8, 9)
+        };
+        StartRecording(100, 24);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 24, () => date, () => now)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
+        var output = AnsiConsole.ExportText()[start..];
+        var markerLine = output.Split(Environment.NewLine)
+            .Single(line => line.Contains("14:23", StringComparison.Ordinal));
+        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+
+        var cells = markerLine.Split('│');
+        var planCell = cells[^2].Trim();
+
+        planCell.Should().StartWith("▶");
+        planCell[1..].Should().NotBeEmpty().And.MatchRegex("^─+$");
+        planCell.Length.Should().Be(cells[^2].Length - 2);
+        StyleBefore(html, "14:23").Should().Contain("#010203").And.NotContain("#040506");
+        html.Should().Contain("#070809");
+    }
+
+    [Theory]
+    [InlineData(5, 15, 0, "06:00", true)]
+    [InlineData(14, 30, 17, "14:30", true)]
+    [InlineData(22, 0, 31, "21:30", false)]
+    public void ShowPlanner_places_the_current_time_at_its_timeline_boundary(
+        int hour,
+        int minute,
+        int selectedSlot,
+        string adjacentSlot,
+        bool markerBeforeSlot)
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var now = new DateTime(2026, 7, 15, hour, minute, 0);
+        var state = PlannerState.CreateInitial(date) with { SlotIndex = selectedSlot };
+        var view = new DayPlannerPresenter().CreateView(new ProjectCatalog([], []), state);
+        StartRecording(100, 24);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 24, () => date, () => now)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var lines = AnsiConsole.ExportText()[start..]
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        var markerIndex = Array.FindIndex(lines, line => line.Contains($"{hour:00}:{minute:00}"));
+        var slotIndex = Array.FindIndex(lines, line =>
+            line.Contains(adjacentSlot) && line.Contains('—'));
+
+        markerIndex.Should().BeGreaterThanOrEqualTo(0);
+        slotIndex.Should().BeGreaterThanOrEqualTo(0);
+        (markerIndex < slotIndex).Should().Be(markerBeforeSlot);
+    }
+
+    [Fact]
+    public void ShowPlanner_prioritizes_a_distant_selected_slot_over_the_current_time_marker()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var now = new DateTime(2026, 7, 15, 18, 17, 0);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date));
+        StartRecording(70, 16);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 70, () => 16, () => date, () => now)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText()[start..];
+
+        output.Should().Contain("06:00").And.NotContain("18:17");
+    }
+
+    [Fact]
+    public void ShowPlanner_omits_the_current_time_marker_for_another_date()
+    {
+        var selectedDate = new DateOnly(2026, 7, 16);
+        var now = new DateTime(2026, 7, 15, 6, 17, 0);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(selectedDate));
+        StartRecording(100, 24);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 24, () => selectedDate, () => now)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText()[start..];
+
+        output.Should().NotContain("06:17");
+    }
+
+    [Theory]
+    [InlineData(70, 16)]
+    [InlineData(80, 18)]
+    [InlineData(100, 24)]
+    [InlineData(140, 30)]
+    public void ShowPlanner_keeps_the_live_time_marker_inside_the_responsive_height_budget(
+        int width,
+        int height)
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var now = new DateTime(2026, 7, 15, 6, 17, 0);
+        var state = PlannerState.CreateInitial(date) with { SlotIndex = 1 };
+        var view = new DayPlannerPresenter().CreateView(new ProjectCatalog([], []), state);
+        StartRecording(width, height);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => width, () => height, () => date, () => now)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var lines = AnsiConsole.ExportText()[start..]
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        lines.Should().HaveCount(height - 1);
+        lines[0].Should().Contain("[TODOS]");
+        lines.Should().Contain(line => line.Contains("06:17", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -364,7 +514,7 @@ public sealed class SpectreTerminalUiTests
 
         output.Should().Contain("EDIT TASK // Parent")
             .And.Contain("• Review current contract")
-            .And.Contain("○ Request approval  +2 nested")
+            .And.Contain("◯ Request approval  +2 nested")
             .And.Contain("ADD CONTENT")
             .And.Contain("> SUBTASK")
             .And.Contain("COMMAND PALETTE")
@@ -625,7 +775,7 @@ public sealed class SpectreTerminalUiTests
             .Last(line => line.Contains("Prepare the unusually", StringComparison.Ordinal));
         var todoPane = todoLine.Split('│')[2];
 
-        todoPane.Should().Contain("○ H Prepare the unusually").And.Contain("…");
+        todoPane.Should().Contain("◯ H Prepare the unusually").And.Contain("…");
         todoPane.Should().NotContain("134416").And.NotContain("#now").And.NotContain("2026-07-08");
         output.Should().Contain("quarterly review")
             .And.Contain("meeting")
@@ -687,7 +837,7 @@ public sealed class SpectreTerminalUiTests
 
         foreach (var (priority, marker) in priorities)
         {
-            output.Should().Contain($"○ {marker} Priority {priority}");
+            output.Should().Contain($"◯ {marker} Priority {priority}");
         }
 
         output.Should().Contain("✓ M Nested task");
@@ -725,7 +875,7 @@ public sealed class SpectreTerminalUiTests
             string.Empty);
 
         var lines = RenderBrowser(view, width, height);
-        var scheduledTitle = Array.FindIndex(lines, line => line.Contains("○ H Prepare proposal", StringComparison.Ordinal));
+        var scheduledTitle = Array.FindIndex(lines, line => line.Contains("◯ H Prepare proposal", StringComparison.Ordinal));
         var nestedTitle = Array.FindIndex(lines, line => line.Contains("Nested follow-up", StringComparison.Ordinal));
 
         scheduledTitle.Should().BeGreaterThanOrEqualTo(0);
@@ -764,7 +914,7 @@ public sealed class SpectreTerminalUiTests
 
         var lines = RenderBrowser(view, width, height);
         var rootTitle = Array.FindIndex(lines, line =>
-            line.Contains("> ○ H Prepare proposal", StringComparison.Ordinal));
+            line.Contains("> ◯ H Prepare proposal", StringComparison.Ordinal));
         var nestedTitle = Array.FindIndex(lines, line =>
             line.Contains("✓ - └─ Nested follow-up", StringComparison.Ordinal));
 
@@ -1121,7 +1271,7 @@ public sealed class SpectreTerminalUiTests
             140,
             24);
         var selectedLine = Array.FindIndex(lines, line =>
-            line.Contains("> ○ - Todo 25", StringComparison.Ordinal));
+            line.Contains("> ◯ - Todo 25", StringComparison.Ordinal));
         var firstTodoContent = Array.FindIndex(lines, line =>
             line.Contains("Todo ", StringComparison.Ordinal) || line.Contains("⏳", StringComparison.Ordinal));
 
@@ -1139,7 +1289,7 @@ public sealed class SpectreTerminalUiTests
             140,
             24);
         var selectedLine = Array.FindIndex(lines, line =>
-            line.Contains("> ○ - Todo 25", StringComparison.Ordinal));
+            line.Contains("> ◯ - Todo 25", StringComparison.Ordinal));
 
         lines.Should().HaveCount(23);
         selectedLine.Should().BeGreaterThanOrEqualTo(0);

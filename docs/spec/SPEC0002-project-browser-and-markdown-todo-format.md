@@ -140,12 +140,13 @@ At 120 or more columns and at least 24 rows, show all three panes:
 ```text
 ┌ PROJECTS ──────────┬ TODOS: ALL ──────────────────────┬ DETAILS ────────────────┐
 │ > All           12 │ S P TASK             SCHEDULED  │ Milas Contract Renewal  │
-│   Client Work    7 │ ○ H Milas Contract   2026-07-15 │ PROJECT: Client Work    │
+│   @today         2 │                                  │                         │
+│   Client Work    7 │ ◯ H Milas Contract   2026-07-15 │ PROJECT: Client Work    │
 │                    │                         09:30     │ SCHEDULED: 2026-07-15   │
-│   Home           5 │ ○ M Prepare proposal -          │            09:30        │
+│   Home           5 │ ◯ M Prepare proposal -          │            09:30        │
 │ ! Missing source   │                                  │ REFERENCE: 134416       │
 │                    │ Home                             │ PRIORITY: High          │
-│                    │ ○ - Replace light    -           │                         │
+│                    │ ◯ - Replace light    -           │                         │
 │                    │                                  │                         │
 │                    │                                  │ NOTES                   │
 │                    │                                  │ • Review contract       │
@@ -173,7 +174,7 @@ restores the inspector.
 ```text
 ┌ TASKS // ALL ───────────────────────────┬ INSPECTOR ─────────────────────────────┐
 │ S P TASK                      SCHEDULED │ Milas Contract Renewal                 │
-│ ○ H Milas Contract Renewal   2026-07-15 09:30                                  │
+│ ◯ H Milas Contract Renewal   2026-07-15 09:30                                  │
 │                                        │ PRIORITY: High                        │
 ├────────────────────────────────────────┴────────────────────────────────────────┤
 │ j/k NAVIGATE  Tab PANE  l OPEN  h BACK  / FILTER  : COMMAND                    │
@@ -193,9 +194,18 @@ focuses Details in every responsive layout.
 
 ## Project and Todo Presentation
 
-The project sidebar begins with `All`, followed by valid projects, then source
-and project errors. Show the active-todo count beside `All` and each valid
-project. Prefix error entries with `!`.
+The project sidebar begins with `All` and the virtual `@today` view, followed by
+valid projects, then source and project errors. Show the active-todo count
+beside `All` and each valid project. Beside `@today`, show the active count of
+tasks scheduled for the current local date. Prefix error entries with `!`.
+
+`@today` aggregates all valid projects but includes only todos whose scheduled
+date equals today. Exclude overdue, future, and unscheduled todos. Preserve the
+visible ancestor path of a matching subtask without including unrelated tree
+branches. Keep project and section grouping, active sorting, and completed-todo
+visibility. Treat creation like `All`, requiring a configured destination
+project. Rescheduling, completing, or editing a todo so it no longer qualifies
+removes it after reload. Re-evaluate the local date on each redraw.
 
 In `All`, group active todos by project in project sort order. Within a project,
 group by heading path and preserve todo source order. In an individual project,
@@ -284,6 +294,8 @@ Markdown source order.
    or invalid sort independently falls back to source order.
 10. Every launch opens the Todos tab with the Todos pane focused, even when the
     previous session exited from Day Planner.
+11. Selecting `@today` shows only tasks scheduled for the current local date
+    across valid projects. It is not persisted and reopens as `All` after exit.
 
 ## References
 

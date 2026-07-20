@@ -3,15 +3,19 @@ using WolfTodo.Core.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Features.ProjectBrowser;
 
-public sealed class ProjectBrowserPresenter
+public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null)
 {
+    private readonly Func<DateOnly> todayProvider = todayProvider ??
+        (() => DateOnly.FromDateTime(DateTime.Today));
+
     public BrowserView CreateView(ProjectCatalog catalog, BrowserState state)
     {
+        var today = todayProvider();
         var filter = EffectiveFilter(state);
-        var projectRows = BuildProjectRows(catalog, state);
+        var projectRows = BuildProjectRows(catalog, state, today);
         var selectedProjectIndex = Math.Clamp(state.ProjectIndex, 0, Math.Max(0, projectRows.Length - 1));
         var selectedProject = projectRows[selectedProjectIndex];
-        var todoRows = BuildTodoRows(catalog, selectedProject, state);
+        var todoRows = BuildTodoRows(catalog, selectedProject, state, today);
         var selectableTodos = todoRows.Where(row => row.Todo is not null).ToArray();
         var pendingIndex = state.PendingTodoSelection is null
             ? -1
@@ -30,9 +34,15 @@ public sealed class ProjectBrowserPresenter
             ? "No projects found"
             : filter.Length > 0
                 ? $"No todos match /{filter}"
+            : selectedProject.Kind == ProjectRowKind.Today
+                ? state.ShowCompleted
+                    ? "No todos scheduled today"
+                    : HasCompletedTodos(selectedProject, catalog, today)
+                        ? "No active todos scheduled today — use :completed to show completed todos"
+                        : "No active todos scheduled today"
             : state.ShowCompleted
                 ? "No todos in this view"
-                : HasCompletedTodos(selectedProject, catalog)
+                : HasCompletedTodos(selectedProject, catalog, today)
                     ? "No active todos — use :completed to show completed todos"
                     : "No active todos";
 
@@ -52,7 +62,10 @@ public sealed class ProjectBrowserPresenter
             emptyMessage);
     }
 
-    private static ImmutableArray<ProjectRow> BuildProjectRows(ProjectCatalog catalog, BrowserState state)
+    private static ImmutableArray<ProjectRow> BuildProjectRows(
+        ProjectCatalog catalog,
+        BrowserState state,
+        DateOnly today)
     {
         var rows = new List<ProjectRow>
         {
@@ -61,7 +74,15 @@ public sealed class ProjectBrowserPresenter
                 catalog.Projects.Sum(project => CountActive(project.Todos)),
                 null,
                 null,
-                state.ProjectIndex == 0)
+                state.ProjectIndex == 0,
+                ProjectRowKind.All),
+            new(
+                "@today",
+                catalog.Projects.Sum(project => CountActiveToday(project.Todos, today)),
+                null,
+                null,
+                state.ProjectIndex == 1,
+                ProjectRowKind.Today)
         };
 
         rows.AddRange(catalog.Projects.Select((project, index) => new ProjectRow(
@@ -69,14 +90,16 @@ public sealed class ProjectBrowserPresenter
             CountActive(project.Todos),
             project,
             null,
-            state.ProjectIndex == index + 1)));
+            state.ProjectIndex == index + 2,
+            ProjectRowKind.Project)));
 
         rows.AddRange(catalog.Errors.Select((error, index) => new ProjectRow(
             error.DisplayName,
             0,
             null,
             error,
-            state.ProjectIndex == catalog.Projects.Length + index + 1)));
+            state.ProjectIndex == catalog.Projects.Length + index + 2,
+            ProjectRowKind.Error)));
 
         return [.. rows];
     }
@@ -84,7 +107,8 @@ public sealed class ProjectBrowserPresenter
     private static ImmutableArray<TodoRow> BuildTodoRows(
         ProjectCatalog catalog,
         ProjectRow selectedProject,
-        BrowserState state)
+        BrowserState state,
+        DateOnly today)
     {
         if (selectedProject.Error is not null)
         {
@@ -108,10 +132,13 @@ public sealed class ProjectBrowserPresenter
                 project.Todos,
                 state.Sort,
                 state.ShowCompleted,
-                filter);
+                filter,
+                selectedProject.Kind == ProjectRowKind.Today,
+                today);
             var visibleTodos = FlattenVisible(visibleForest).ToArray();
 
-            if (filter.Length > 0 && visibleTodos.Length == 0)
+            if ((filter.Length > 0 || selectedProject.Kind == ProjectRowKind.Today) &&
+                visibleTodos.Length == 0)
             {
                 continue;
             }
@@ -181,20 +208,30 @@ public sealed class ProjectBrowserPresenter
         IEnumerable<TodoItem> todos,
         TodoSort sort,
         bool showCompleted,
-        string filter)
+        string filter,
+        bool todayOnly,
+        DateOnly today)
     {
         var visible = ImmutableArray.CreateBuilder<VisibleTodo>();
 
         foreach (var todo in OrderTodos(todos, sort))
         {
-            var children = BuildVisibleForest(todo.Subtasks, sort, showCompleted, filter);
+            var children = BuildVisibleForest(
+                todo.Subtasks,
+                sort,
+                showCompleted,
+                filter,
+                todayOnly,
+                today);
             if (!showCompleted && todo.IsCompleted)
             {
                 visible.AddRange(children);
                 continue;
             }
 
-            if (filter.Length == 0 || MatchesFilter(todo, filter) || children.Length > 0)
+            var matchesToday = !todayOnly || todo.Schedule?.Date == today;
+            var matchesFilter = filter.Length == 0 || MatchesFilter(todo, filter);
+            if ((matchesToday && matchesFilter) || children.Length > 0)
             {
                 visible.Add(new VisibleTodo(todo, children));
             }
@@ -344,7 +381,14 @@ public sealed class ProjectBrowserPresenter
     private static int CountActive(IEnumerable<TodoItem> todos) =>
         Flatten(todos, TodoSort.Source).Count(item => !item.Todo.IsCompleted);
 
-    private static bool HasCompletedTodos(ProjectRow selectedProject, ProjectCatalog catalog)
+    private static int CountActiveToday(IEnumerable<TodoItem> todos, DateOnly today) =>
+        Flatten(todos, TodoSort.Source).Count(item =>
+            !item.Todo.IsCompleted && item.Todo.Schedule?.Date == today);
+
+    private static bool HasCompletedTodos(
+        ProjectRow selectedProject,
+        ProjectCatalog catalog,
+        DateOnly today)
     {
         var projects = selectedProject.Project is null
             ? catalog.Projects
@@ -352,7 +396,9 @@ public sealed class ProjectBrowserPresenter
 
         return projects
             .SelectMany(project => Flatten(project.Todos, TodoSort.Source))
-            .Any(item => item.Todo.IsCompleted);
+            .Any(item => item.Todo.IsCompleted &&
+                         (selectedProject.Kind != ProjectRowKind.Today ||
+                          item.Todo.Schedule?.Date == today));
     }
 
     private sealed record VisibleTodo(TodoItem Todo, ImmutableArray<VisibleTodo> Children);

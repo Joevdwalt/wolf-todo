@@ -15,7 +15,7 @@ editor or replacing unrelated project content.
 configuration compatibility. Direct notes and subtasks appear below the six
 editable task fields in one outline ordered by their Markdown source lines,
 with one cursor and a viewport that keeps the selection visible. Notes use `•`;
-open and completed subtasks use `○` and `✓`. Subtasks with descendants show
+open and completed subtasks use `◯` and `✓`. Subtasks with descendants show
 a nested-item count.
 
 Movement, open, back, create, edit, completion, removal, and save use configured

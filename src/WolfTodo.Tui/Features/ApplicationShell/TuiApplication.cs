@@ -132,7 +132,15 @@ public sealed class TuiApplication(
                         configuration.Theme);
                 }
 
-                var key = terminalUi.ReadKey();
+                var pendingKey = state.Tabs.ActiveTab == PlannerTab
+                    ? terminalUi.ReadKey(TimeSpan.FromMinutes(1))
+                    : terminalUi.ReadKey();
+                if (pendingKey is null)
+                {
+                    continue;
+                }
+
+                var key = pendingKey.Value;
                 var featureCapturesInput = state.Tabs.ActiveTab == TodosTab
                     ? state.Browser.IsFilterMode || state.Browser.IsSortMode ||
                       state.Browser.Editor is not null
@@ -692,7 +700,7 @@ public sealed class TuiApplication(
         {
             if (string.Equals(catalog.Projects[index].Path, selectedProjectPath, comparison))
             {
-                return index + 1;
+                return index + 2;
             }
         }
 
@@ -700,7 +708,7 @@ public sealed class TuiApplication(
         {
             if (string.Equals(catalog.Errors[index].Path, selectedProjectPath, comparison))
             {
-                return catalog.Projects.Length + index + 1;
+                return catalog.Projects.Length + index + 2;
             }
         }
 

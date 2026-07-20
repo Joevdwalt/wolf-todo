@@ -22,4 +22,6 @@ public interface ITerminalUi
     void ResumeAfterExternalProcess();
 
     ConsoleKeyInfo ReadKey();
+
+    ConsoleKeyInfo? ReadKey(TimeSpan timeout);
 }

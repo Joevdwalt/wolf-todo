@@ -58,6 +58,10 @@ level and recalculate their tree connectors.
 Apply the active session sort after filtering. Changing or clearing a filter
 does not reset the selected sort property or direction.
 
+When `@today` is selected, intersect the slash query with the virtual view:
+eligible todos must both match the query and be scheduled for the current local
+date. Ancestors retained for tree context do not need to match either condition.
+
 Only show project and section headings that contain matching rows. Project
 active-todo counts remain unfiltered. When no visible row matches, show
 `No todos match /<query>`.

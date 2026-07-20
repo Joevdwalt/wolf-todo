@@ -119,6 +119,28 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_redraws_the_day_planner_after_an_idle_input_timeout_without_changing_state()
+    {
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('L'),
+            Key(':'),
+            Key('q'),
+            Key(ConsoleKey.Enter))
+        {
+            TimeoutNextTimedRead = true
+        };
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.TimedReadCount.Should().BeGreaterThan(1);
+        terminal.PlannerViews.Should().HaveCountGreaterThan(2);
+        terminal.PlannerViews[1].State.Should().Be(terminal.PlannerViews[0].State);
+    }
+
+    [Fact]
     public void Run_applies_the_global_completed_command_from_the_day_planner()
     {
         var terminal = new FakeTerminal(
@@ -187,6 +209,7 @@ public sealed class TuiApplicationTests
             Key('x'),
             new ConsoleKeyInfo('\0', ConsoleKey.Tab, shift: true, alt: false, control: false),
             Key('j'),
+            Key('j'),
             Key(':'),
             Key('q'),
             Key(ConsoleKey.Enter));
@@ -195,6 +218,25 @@ public sealed class TuiApplicationTests
         application.Run();
 
         stateStore.SavedProjectPath.Should().Be("/todos/project.md");
+    }
+
+    [Fact]
+    public void Run_does_not_persist_today_as_a_project_selection()
+    {
+        var stateStore = new FakeApplicationStateStore(null);
+        var terminal = new FakeTerminal(
+            Key('x'),
+            new ConsoleKeyInfo('\0', ConsoleKey.Tab, shift: true, alt: false, control: false),
+            Key('j'),
+            Key(':'),
+            Key('q'),
+            Key(ConsoleKey.Enter));
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal, stateStore);
+
+        application.Run();
+
+        terminal.BrowserViews.Should().Contain(view => view.SelectedProjectTitle == "@today");
+        stateStore.SavedProjectPath.Should().BeNull();
     }
 
     [Fact]
@@ -575,7 +617,23 @@ public sealed class TuiApplicationTests
 
         public int ExternalResumptions { get; private set; }
 
+        public bool TimeoutNextTimedRead { get; set; }
+
+        public int TimedReadCount { get; private set; }
+
         public ConsoleKeyInfo ReadKey() => keyQueue.Dequeue();
+
+        public ConsoleKeyInfo? ReadKey(TimeSpan timeout)
+        {
+            TimedReadCount++;
+            if (TimeoutNextTimedRead)
+            {
+                TimeoutNextTimedRead = false;
+                return null;
+            }
+
+            return keyQueue.Dequeue();
+        }
 
         public void ShowBrowser(
             TabStripView tabs,

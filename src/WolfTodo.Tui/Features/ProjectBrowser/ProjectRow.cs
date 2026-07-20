@@ -7,4 +7,13 @@ public sealed record ProjectRow(
     int ActiveCount,
     TodoProject? Project,
     ProjectSourceError? Error,
-    bool IsSelected);
+    bool IsSelected,
+    ProjectRowKind Kind = ProjectRowKind.Project);
+
+public enum ProjectRowKind
+{
+    All,
+    Today,
+    Project,
+    Error
+}

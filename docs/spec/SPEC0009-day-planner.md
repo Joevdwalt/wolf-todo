@@ -15,6 +15,15 @@ Show 32 slots from 06:00 through 21:30 for the selected date. Start on today
 each launch and preserve planner state while switching tabs. Keep the selected
 slot visible on short terminals and show scheduled completed todos dimly.
 
+On today, add a logical current-time row immediately before the next half-hour
+slot. Show the exact `HH:mm` value in the time column and fill the plan column
+with `▶` followed by `─` characters in the configured bright accent. Fill the
+actual rendered cell width without wrapping. This row is timeline content: do
+not use panel borders, active-row backgrounds, intersections, or surface fills. Before 06:00 place it before the first slot; after
+21:30 place it after the last. Keep the selected slot visible when it cannot fit
+with the marker. While Planner is active, an idle one-minute input timeout
+redraws without changing application state so the line remains current.
+
 Enter or `l` on an empty slot opens a filterable picker of all open,
 unscheduled todos from valid projects. Show several candidates at once, keep
 the selection visible while scrolling, and update the list while filter input
@@ -58,6 +67,8 @@ feedback match the Todos view.
    without exceeding the terminal viewport.
 7. Planner property, content, completion, and external-editor actions use the
    same conflict-safe Markdown workflows as the Todos tab.
+8. Today's current-time row uses the highlight foreground without resembling a
+   table border, stays within the viewport budget, and advances while idle.
 
 ## References
 
