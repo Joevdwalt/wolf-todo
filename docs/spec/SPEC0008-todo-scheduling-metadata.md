@@ -16,7 +16,7 @@ every Obsidian Tasks marker. Keep the Tasks scheduled date in the metadata
 suffix:
 
 ```markdown
-- [ ] Prepare proposal ⏰ 09:30 ⏫ #work ⏳ 2026-07-15
+- [ ] Prepare proposal ⏰ 09:30 ⏱ 30m ⏫ #work ⏳ 2026-07-15
 ```
 
 The date uses `YYYY-MM-DD`. A valid standalone `⏳ YYYY-MM-DD` is an all-day
@@ -27,6 +27,11 @@ appear between them. Remove both tokens from the displayed title and expose
 them as structured schedule data. A time-only `⏰` annotation remains ordinary
 title text. Duplicate tokens and complete-looking invalid
 values are project diagnostics.
+
+An optional `⏱ <minutes>m` duration is a positive 15-minute multiple from 15m
+through 960m. It is an estimate for unscheduled and all-day tasks; for timed
+tasks it reserves consecutive Planner slots. A missing duration uses the
+configured planner default without modifying the Markdown file.
 
 Read the legacy adjacent `⏳ YYYY-MM-DD ⏰ HH:mm` order for compatibility, but
 never write it. A conflict-safe write to a legacy scheduled task normalizes the

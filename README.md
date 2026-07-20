@@ -101,6 +101,10 @@ info = "#5FA8D3"
 enabled = false
 # Required when enabled. Download this desktop OAuth client JSON from Google Cloud.
 oauth_client_file = "/absolute/path/to/google-oauth-client.json"
+
+[planner]
+# Timed tasks without an explicit ⏱ duration reserve this many minutes.
+default_duration_minutes = 30
 ```
 
 Within `[keybindings]`, only `quit` is required. Omitted bindings use the
@@ -168,9 +172,11 @@ as two stacked task slots beneath each 30-minute time label. A todo can
 be scheduled for a whole day with `⏳ YYYY-MM-DD`, or assigned to a quarter-hour
 slot with Wolf Todo's `⏰ HH:mm` time before all task markers and the
 Obsidian Tasks-compatible `⏳ YYYY-MM-DD` scheduled date, for example
-`Prepare proposal ⏰ 09:30 #work ⏳ 2026-07-15`. Enter
+`Prepare proposal ⏰ 09:30 ⏱ 30m #work ⏳ 2026-07-15`. Enter
 assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
-and `[`/`]` change days. The planner refuses occupied destination slots.
+and `[`/`]` change days. A timed task reserves consecutive slots for its
+explicit `⏱ <minutes>m` duration; tasks without one use the configurable
+30-minute default. The planner refuses occupied destination slots.
 All-day todos appear above the timeline. When Google Calendar is configured,
 all-day events and focus/status entries share that header, while timed meetings
 appear in their slots and warn on overlaps. Scheduled todos show either

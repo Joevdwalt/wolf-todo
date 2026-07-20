@@ -17,13 +17,17 @@ public sealed record TodoTaskEditorState(
     ImmutableArray<ContentItemDraft> Items,
     string? Error)
 {
-    public const int FieldCount = 6;
+    public const int FieldCount = 7;
 
     public bool IsChoosingProject => ProjectPath is null;
 
     public string ScheduledDate { get; init; } = Values.Schedule?.Date.ToString("yyyy-MM-dd") ?? string.Empty;
 
     public string ScheduledTime { get; init; } = Values.Schedule?.Time?.ToString("HH:mm") ?? string.Empty;
+
+    public string Duration => Values.Duration is null
+        ? string.Empty
+        : $"{(int)Values.Duration.Value.TotalMinutes}m";
 
     public bool ScheduleRequired { get; init; }
 
@@ -72,7 +76,8 @@ public sealed record TodoTaskEditorState(
             todo.Tags,
             todo.StartDate,
             todo.DueDate,
-            todo.Schedule),
+            todo.Schedule,
+            todo.Duration),
         identity,
         OrderedItems(todo),
         null);

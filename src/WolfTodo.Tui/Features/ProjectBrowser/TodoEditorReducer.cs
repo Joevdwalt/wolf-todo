@@ -392,6 +392,9 @@ public sealed class TodoEditorReducer
             case TodoFormField.ScheduledTime:
                 editor = editor with { ScheduledTime = ParseTimeText(value, out error) };
                 break;
+            case TodoFormField.Duration:
+                values = values with { Duration = ParseDurationText(value, out error) };
+                break;
         }
 
         return editor with { Values = values, Error = error };
@@ -431,6 +434,7 @@ public sealed class TodoEditorReducer
             TodoFormField.Tags => string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}")),
             TodoFormField.ScheduledDate => editor.ScheduledDate,
             TodoFormField.ScheduledTime => editor.ScheduledTime,
+            TodoFormField.Duration => editor.Duration,
             _ => string.Empty
         };
     }
@@ -533,6 +537,25 @@ public sealed class TodoEditorReducer
 
         error = "Time must use HH:mm on a quarter-hour from 06:00 through 21:45, or be empty.";
         return value;
+    }
+
+    private static TimeSpan? ParseDurationText(string value, out string? error)
+    {
+        error = null;
+        if (value.Length == 0)
+        {
+            return null;
+        }
+
+        var number = value.EndsWith('m') ? value[..^1] : value;
+        if (int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) &&
+            minutes is >= 15 and <= 960 && minutes % 15 == 0)
+        {
+            return TimeSpan.FromMinutes(minutes);
+        }
+
+        error = "Duration must be a 15-minute value from 15m through 960m, or be empty.";
+        return null;
     }
 
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;

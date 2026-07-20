@@ -117,7 +117,7 @@ public sealed class TuiApplication(
                     var agenda = plannerCalendarCache.GetAgenda(
                         configuration.GoogleCalendar,
                         state.Planner.SelectedDate);
-                    plannerView = plannerPresenter.CreateView(catalog, state.Planner, agenda);
+                    plannerView = plannerPresenter.CreateView(catalog, state.Planner, agenda, configuration.Planner);
                     state = state with { Planner = plannerView.State };
                     if (state.Palette.IsOpen)
                     {
@@ -457,7 +457,9 @@ public sealed class TuiApplication(
                 return PlannerFailure(state, "A schedule is required when creating from Planner.");
             }
 
-            if (IsOccupied(latestCatalog, transition.Update.Fields.Schedule, null))
+            if (IsOccupied(latestCatalog, transition.Update.Fields.Schedule,
+                    transition.Update.Fields.Duration ?? configuration.Planner.DefaultDuration,
+                    null, configuration.Planner.DefaultDuration))
             {
                 return PlannerFailure(state, "That timeslot is already occupied.");
             }
@@ -483,14 +485,17 @@ public sealed class TuiApplication(
         }
 
         if (transition.Operation == PlannerOperation.Schedule &&
-            IsOccupied(latestCatalog, schedule, transition.TodoIdentity))
+            IsOccupied(latestCatalog, schedule, expected.Duration ?? configuration.Planner.DefaultDuration,
+                transition.TodoIdentity, configuration.Planner.DefaultDuration))
         {
             return PlannerFailure(state, "That timeslot is already occupied.");
         }
 
         if (transition.Operation == PlannerOperation.Update &&
             transition.Update?.Fields.Schedule is not null &&
-            IsOccupied(latestCatalog, transition.Update.Fields.Schedule, transition.TodoIdentity))
+            IsOccupied(latestCatalog, transition.Update.Fields.Schedule,
+                transition.Update.Fields.Duration ?? configuration.Planner.DefaultDuration,
+                transition.TodoIdentity, configuration.Planner.DefaultDuration))
         {
             return PlannerFailure(state, "That timeslot is already occupied.");
         }
@@ -529,13 +534,29 @@ public sealed class TuiApplication(
     private static bool IsOccupied(
         ProjectCatalog catalog,
         TodoSchedule schedule,
-        TodoIdentity? excluded) => schedule.Time is not null && catalog.Projects
+        TimeSpan duration,
+        TodoIdentity? excluded,
+        TimeSpan defaultDuration)
+    {
+        if (schedule.Time is null ||
+            duration > new TimeOnly(22, 0).ToTimeSpan() - schedule.Time.Value.ToTimeSpan())
+        {
+            return true;
+        }
+
+        var start = schedule.Time.Value;
+        var end = start.Add(duration);
+        return catalog.Projects
         .SelectMany(project => Flatten(project.Todos).Select(todo => (project.Path, Todo: todo)))
         .Any(candidate =>
-            candidate.Todo.Schedule == schedule &&
+            candidate.Todo.Schedule?.Date == schedule.Date &&
+            candidate.Todo.Schedule.Time is not null &&
+            candidate.Todo.Schedule.Time.Value < end &&
+            candidate.Todo.Schedule.Time.Value.Add(candidate.Todo.Duration ?? defaultDuration) > start &&
             (excluded is null ||
              candidate.Path != excluded.ProjectPath ||
              candidate.Todo.SourceLine != excluded.SourceLine));
+    }
 
     private static ApplicationState PlannerSuccess(ApplicationState state, TodoSchedule? follow = null) => state with
     {
@@ -582,7 +603,12 @@ public sealed class TuiApplication(
         var expectedCatalog = catalog;
         var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
         catalog = latestCatalog;
-        var result = ApplyBrowserOperation(transition, expectedCatalog, latestCatalog, service);
+        var result = ApplyBrowserOperation(
+            transition,
+            expectedCatalog,
+            latestCatalog,
+            service,
+            configuration.Planner.DefaultDuration);
         state = state with
         {
             Browser = state.Browser with
@@ -704,7 +730,8 @@ public sealed class TuiApplication(
         BrowserTransition transition,
         ProjectCatalog expectedCatalog,
         ProjectCatalog latestCatalog,
-        ProjectTodoMutationService? service)
+        ProjectTodoMutationService? service,
+        TimeSpan defaultDuration)
     {
         if (service is null || transition.ProjectPath is null)
         {
@@ -714,7 +741,8 @@ public sealed class TuiApplication(
         if (transition.Operation == BrowserOperation.Create && transition.Update is not null)
         {
             if (transition.Update.Fields.Schedule is not null &&
-                IsOccupied(latestCatalog, transition.Update.Fields.Schedule, null))
+                IsOccupied(latestCatalog, transition.Update.Fields.Schedule,
+                    transition.Update.Fields.Duration ?? defaultDuration, null, defaultDuration))
             {
                 return TodoMutationResult.Failure("That timeslot is already occupied.");
             }
@@ -730,7 +758,9 @@ public sealed class TuiApplication(
 
         if (transition.Operation == BrowserOperation.Update &&
             transition.Update?.Fields.Schedule is not null &&
-            IsOccupied(latestCatalog, transition.Update.Fields.Schedule, transition.TodoIdentity))
+            IsOccupied(latestCatalog, transition.Update.Fields.Schedule,
+                transition.Update.Fields.Duration ?? defaultDuration,
+                transition.TodoIdentity, defaultDuration))
         {
             return TodoMutationResult.Failure("That timeslot is already occupied.");
         }

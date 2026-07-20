@@ -222,8 +222,24 @@ public sealed class SpectreTerminalUi : ITerminalUi
             {
                 var assignment = slot.Assignments[0];
                 var prefix = slot.IsSelected ? ">" : " ";
+                var isActiveAssignment = slot.IsActiveAssignment;
                 var meeting = MeetingHint(slot);
-                content = PlannerTodoLine(assignment.Todo, assignment.ProjectTitle, prefix, slot.IsSelected, meeting, theme);
+                var blockContent = PlannerTodoLine(
+                    assignment.Todo,
+                    assignment.ProjectTitle,
+                    prefix,
+                    isActiveAssignment,
+                    meeting,
+                    theme);
+                content = slot.DurationPosition is { } durationPosition
+                    ? new DurationBlockRenderable(
+                        blockContent,
+                        durationPosition,
+                        ThemeStyle(
+                            isActiveAssignment ? theme.AccentBright : theme.BorderActive,
+                            isActiveAssignment ? Decoration.Bold : Decoration.None),
+                        slot.IsSelected)
+                    : blockContent;
             }
             else if (slot.Meetings.Length > 0)
             {
@@ -238,9 +254,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 content = new Text(slot.IsSelected ? "> —" : "  —", ThemeStyle(theme.Muted, Decoration.Dim));
             }
 
+            var isActiveRow = slot.IsSelected || slot.IsActiveAssignment;
             table.AddRow(
-                slot.IsSelected ? OnSurface(time, theme.Surface2, true) : time,
-                slot.IsSelected ? OnSurface(content, theme.Surface2, true) : content);
+                isActiveRow ? OnSurface(time, theme.Surface2, true) : time,
+                isActiveRow ? OnSurface(content, theme.Surface2, true) : content);
         }
 
         for (var index = timelineRows.Count; index < availableRows; index++)
@@ -1021,6 +1038,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                     : FormatSchedule(todo.Schedule),
                 theme,
                 theme.Date);
+            AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
 
             if (todo.Notes.Length == 0 && todo.Subtasks.Length == 0)
             {
@@ -1094,6 +1112,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 : FormatSchedule(todo.Schedule),
             theme,
             theme.Date);
+        AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
 
         if (todo.Notes.Length > 0)
         {
@@ -1449,6 +1468,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
             ? schedule.Date.ToString("yyyy-MM-dd")
             : $"{schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}";
 
+    private static string? FormatDuration(TimeSpan? duration) => duration is null
+        ? null
+        : $"{(int)duration.Value.TotalMinutes}m";
+
     private static string PriorityCode(TodoPriority? priority) => priority switch
     {
         TodoPriority.Highest => "!",
@@ -1759,7 +1782,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
             ("Priority", editor.Values.Priority?.ToString() ?? string.Empty),
             ("Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
             ("Scheduled date (YYYY-MM-DD, t+1, w+1)", editor.ScheduledDate),
-            ("Scheduled time", editor.ScheduledTime)
+            ("Scheduled time", editor.ScheduledTime),
+            ("Duration", editor.Duration)
         };
 
         var rows = new List<(int? Selection, BrowserStatusLine Line)>();

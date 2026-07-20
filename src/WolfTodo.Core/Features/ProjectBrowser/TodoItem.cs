@@ -16,4 +16,6 @@ public sealed record TodoItem(
     ImmutableArray<TodoItem> Subtasks)
 {
     public TodoSchedule? Schedule { get; init; }
+
+    public TimeSpan? Duration { get; init; }
 }

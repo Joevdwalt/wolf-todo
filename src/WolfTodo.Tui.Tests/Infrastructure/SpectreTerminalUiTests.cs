@@ -182,6 +182,63 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowPlanner_renders_a_soft_rounded_duration_block_without_continuation_text()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var todo = new TodoItem(
+            1, false, null, "Deep work", TodoPriority.Medium, [], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(9, 0)),
+            Duration = TimeSpan.FromMinutes(45)
+        };
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 11 });
+        var theme = TuiThemes.Wolf with
+        {
+            Accent = new Color(1, 2, 3),
+            AccentBright = new Color(4, 5, 6),
+            BorderActive = new Color(7, 8, 9)
+        };
+        StartRecording(100, 45);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 45)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
+        var output = AnsiConsole.ExportText()[start..];
+        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+
+        output.Should().Contain("Deep work")
+            .And.Contain("╮")
+            .And.Contain("╰")
+            .And.Contain("╯")
+            .And.NotContain("╭")
+            .And.NotContain("↳");
+        StyleBefore(html, "╮").Should().Contain("#070809").And.NotContain("#040506");
+
+        var selectedView = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 12 });
+        StartRecording(100, 45);
+        new SpectreTerminalUi(() => 100, () => 45)
+            .ShowPlanner(DefaultTabs, selectedView, DefaultBindings, theme);
+
+        var selectedHtml = NormalizeHtml(AnsiConsole.ExportHtml());
+        StyleBefore(selectedHtml, "╮").Should().Contain("#040506");
+        StyleBefore(selectedHtml, "╯").Should().Contain("#040506");
+
+        var middleSelectedView = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 13 });
+        StartRecording(100, 45);
+        var middleStart = AnsiConsole.ExportText().Length;
+        new SpectreTerminalUi(() => 100, () => 45)
+            .ShowPlanner(DefaultTabs, middleSelectedView, DefaultBindings, theme);
+
+        AnsiConsole.ExportText()[middleStart..].Should().Contain("> │");
+    }
+
+    [Fact]
     public void ShowPlanner_renders_all_day_items_and_meeting_overlap_warnings()
     {
         var date = new DateOnly(2026, 7, 15);

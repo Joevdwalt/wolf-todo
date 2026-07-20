@@ -40,6 +40,8 @@ public sealed class TomlApplicationConfigurationLoader(
         "oauth_client_file"
     ];
 
+    private static readonly HashSet<string> PlannerKeys = ["default_duration_minutes"];
+
     private static readonly IReadOnlyDictionary<string, Color> NamedColors = typeof(Color)
         .GetProperties(BindingFlags.Public | BindingFlags.Static)
         .Where(property => property.PropertyType == typeof(Color))
@@ -70,11 +72,40 @@ public sealed class TomlApplicationConfigurationLoader(
         var bindings = ReadKeyBindings(document);
         var theme = ReadTheme(document);
         var googleCalendar = ReadGoogleCalendar(document);
+        var planner = ReadPlanner(document);
         return new ApplicationConfiguration(files, bindings)
         {
             Theme = theme,
-            GoogleCalendar = googleCalendar
+            GoogleCalendar = googleCalendar,
+            Planner = planner
         };
+    }
+
+    private static PlannerConfiguration ReadPlanner(TomlTable document)
+    {
+        if (!document.TryGetValue("planner", out var plannerValue))
+        {
+            return PlannerConfiguration.Default;
+        }
+
+        if (plannerValue is not TomlTable planner)
+        {
+            throw new InvalidDataException("Invalid configuration file: planner must be a TOML table.");
+        }
+
+        var unknownKey = planner.Keys.FirstOrDefault(key => !PlannerKeys.Contains(key));
+        if (unknownKey is not null)
+        {
+            throw new InvalidDataException($"Invalid configuration file: planner.{unknownKey} is not supported.");
+        }
+
+        var minutes = planner.TryGetValue("default_duration_minutes", out var value)
+            ? value is long integer && integer is >= 15 and <= 960 && integer % 15 == 0
+                ? (int)integer
+                : throw new InvalidDataException(
+                    "Invalid configuration file: planner.default_duration_minutes must be a 15-minute value from 15 through 960.")
+            : PlannerConfiguration.Default.DefaultDurationMinutes;
+        return new PlannerConfiguration(minutes);
     }
 
     private static GoogleCalendarConfiguration ReadGoogleCalendar(TomlTable document)

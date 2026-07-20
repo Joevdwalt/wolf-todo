@@ -327,6 +327,26 @@ public sealed class BrowserReducerTests
         saved.Update!.Fields.Schedule.Should().Be(new TodoSchedule(today.AddDays(7)));
     }
 
+    [Fact]
+    public void Reduce_commits_and_displays_a_duration_field()
+    {
+        var project = new TodoProject("Alpha", "/alpha.md", []);
+        var view = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("Alpha", 0, project, null, true)],
+            [], null, "Alpha", project.Path, null, string.Empty);
+        var opened = reducer.Reduce(BrowserState.Initial, Key('a'), Configuration, view);
+        var selected = opened.State with { Editor = opened.State.Editor! with { SelectedIndex = 6 } };
+        var editing = reducer.Reduce(selected, Key('e'), Configuration, view);
+        var typed = reducer.Reduce(editing.State, Key('3'), Configuration, view);
+        typed = reducer.Reduce(typed.State, Key('0'), Configuration, view);
+        typed = reducer.Reduce(typed.State, Key('m'), Configuration, view);
+        var saved = reducer.Reduce(typed.State, Key(ConsoleKey.Enter), Configuration, view);
+
+        saved.State.Editor!.Values.Duration.Should().Be(TimeSpan.FromMinutes(30));
+        saved.State.Editor.Duration.Should().Be("30m");
+    }
+
     [Theory]
     [InlineData("", "09:30", "requires a scheduled date")]
     [InlineData("2026-07-15", "09:10", "quarter-hour")]

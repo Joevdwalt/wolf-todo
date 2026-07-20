@@ -8,4 +8,15 @@ public sealed record PlannerSlotView(
     bool IsSelected)
 {
     public ImmutableArray<PlannerCalendarMeeting> Meetings { get; init; } = [];
+
+    public DurationBlockPosition? DurationPosition { get; init; }
+
+    public bool IsActiveAssignment { get; init; }
+}
+
+public enum DurationBlockPosition
+{
+    Start,
+    Middle,
+    End
 }

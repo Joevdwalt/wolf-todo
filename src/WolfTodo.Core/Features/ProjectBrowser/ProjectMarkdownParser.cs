@@ -185,6 +185,12 @@ public sealed partial class ProjectMarkdownParser
             return new TodoLineResult(null, scheduleResult.Error);
         }
 
+        var durationResult = ParseDuration(text);
+        if (durationResult.Error is not null)
+        {
+            return new TodoLineResult(null, durationResult.Error);
+        }
+
         var tags = TagPattern().Matches(text)
             .Select(match => match.Groups[1].Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -195,6 +201,7 @@ public sealed partial class ProjectMarkdownParser
         text = RemoveRecognizedToken(text, dueResult.Token);
         text = RemoveRecognizedToken(text, scheduleResult.TimeToken);
         text = RemoveRecognizedToken(text, scheduleResult.DateToken);
+        text = RemoveRecognizedToken(text, durationResult.Token);
 
         foreach (var marker in Priorities.Keys)
         {
@@ -220,7 +227,8 @@ public sealed partial class ProjectMarkdownParser
             startResult.Date,
             dueResult.Date,
             sectionPath,
-            scheduleResult.Schedule);
+            scheduleResult.Schedule,
+            durationResult.Duration);
 
         return new TodoLineResult(builder, null);
     }
@@ -305,6 +313,28 @@ public sealed partial class ProjectMarkdownParser
             null);
     }
 
+    private static DurationResult ParseDuration(string text)
+    {
+        var matches = DurationPattern().Matches(text);
+        if (matches.Count > 1)
+        {
+            return new DurationResult(null, null, "Todo contains more than one duration.");
+        }
+
+        if (matches.Count == 0)
+        {
+            return new DurationResult(null, null, null);
+        }
+
+        if (!int.TryParse(matches[0].Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) ||
+            minutes < 15 || minutes > 960 || minutes % 15 != 0)
+        {
+            return new DurationResult(null, null, "Todo duration must be a 15-minute value from 15m through 960m.");
+        }
+
+        return new DurationResult(TimeSpan.FromMinutes(minutes), matches[0].Value, null);
+    }
+
     private static string RemoveRecognizedToken(string text, string? token) =>
         token is null ? text : text.Replace(token, string.Empty, StringComparison.Ordinal);
 
@@ -339,6 +369,9 @@ public sealed partial class ProjectMarkdownParser
     [GeneratedRegex("⏳\\s+(\\d{4}-\\d{2}-\\d{2})")]
     private static partial Regex ScheduleDatePattern();
 
+    [GeneratedRegex("⏱\\s+(\\d+)m")]
+    private static partial Regex DurationPattern();
+
     [GeneratedRegex("\\s+")]
     private static partial Regex WhitespacePattern();
 
@@ -355,7 +388,8 @@ public sealed partial class ProjectMarkdownParser
         DateOnly? startDate,
         DateOnly? dueDate,
         string sectionPath,
-        TodoSchedule? schedule)
+        TodoSchedule? schedule,
+        TimeSpan? duration)
     {
         public int Indent { get; set; }
 
@@ -376,7 +410,8 @@ public sealed partial class ProjectMarkdownParser
             [.. Notes],
             [.. Subtasks.Select(subtask => subtask.Build())])
         {
-            Schedule = schedule
+            Schedule = schedule,
+            Duration = duration
         };
     }
 
@@ -391,4 +426,6 @@ public sealed partial class ProjectMarkdownParser
         string? TimeToken,
         string? DateToken,
         string? Error);
+
+    private sealed record DurationResult(TimeSpan? Duration, string? Token, string? Error);
 }

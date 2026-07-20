@@ -1,6 +1,7 @@
 using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.DayPlanner;
+using WolfTodo.Tui.Features.Configuration;
 
 namespace WolfTodo.Tui.Tests.Features.DayPlanner;
 
@@ -43,6 +44,50 @@ public sealed class DayPlannerPresenterTests
         view.CalendarAgenda.AllDayItems.Should().ContainSingle(item =>
             item.Kind == PlannerCalendarItemKind.Todo && item.Title.Contains("Submit report"));
         view.Slots.SelectMany(slot => slot.Assignments).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CreateView_marks_later_slots_as_duration_continuations()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var scheduled = Todo("Deep work") with
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(9, 0)),
+            Duration = TimeSpan.FromMinutes(45)
+        };
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [scheduled])], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 13 },
+            plannerConfiguration: PlannerConfiguration.Default);
+
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 0)).DurationPosition
+            .Should().Be(DurationBlockPosition.Start);
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 15)).DurationPosition
+            .Should().Be(DurationBlockPosition.Middle);
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 30)).DurationPosition
+            .Should().Be(DurationBlockPosition.End);
+        view.Slots.Where(slot => slot.IsActiveAssignment).Select(slot => slot.Time)
+            .Should().Equal(new TimeOnly(9, 0), new TimeOnly(9, 15), new TimeOnly(9, 30));
+        view.Slots.Count(slot => slot.IsSelected).Should().Be(1);
+        view.SelectedAssignment!.Todo.Title.Should().Be("Deep work");
+    }
+
+    [Fact]
+    public void CreateView_does_not_draw_a_duration_card_for_a_single_slot_task()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var scheduled = Todo("Quick call") with
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(9, 0)),
+            Duration = TimeSpan.FromMinutes(15)
+        };
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [scheduled])], []),
+            PlannerState.CreateInitial(date));
+
+        var slot = view.Slots.Single(candidate => candidate.Time == new TimeOnly(9, 0));
+        slot.Assignments.Should().ContainSingle().Which.Todo.Title.Should().Be("Quick call");
+        slot.DurationPosition.Should().BeNull();
     }
 
     [Fact]

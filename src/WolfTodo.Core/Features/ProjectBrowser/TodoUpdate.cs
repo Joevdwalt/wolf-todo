@@ -9,4 +9,5 @@ public sealed record TodoUpdate(
     ImmutableArray<string> Tags,
     DateOnly? StartDate,
     DateOnly? DueDate,
-    TodoSchedule? Schedule = null);
+    TodoSchedule? Schedule = null,
+    TimeSpan? Duration = null);

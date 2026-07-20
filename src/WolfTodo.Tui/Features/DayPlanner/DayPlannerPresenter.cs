@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.Configuration;
 
 namespace WolfTodo.Tui.Features.DayPlanner;
 
@@ -11,8 +12,10 @@ public sealed class DayPlannerPresenter
     public PlannerView CreateView(
         ProjectCatalog catalog,
         PlannerState state,
-        PlannerCalendarAgenda? calendarAgenda = null)
+        PlannerCalendarAgenda? calendarAgenda = null,
+        PlannerConfiguration? plannerConfiguration = null)
     {
+        var configuration = plannerConfiguration ?? PlannerConfiguration.Default;
         var agenda = calendarAgenda ?? PlannerCalendarAgenda.Disabled;
         var assignments = catalog.Projects
             .SelectMany(project => Flatten(project.Todos)
@@ -36,8 +39,7 @@ public sealed class DayPlannerPresenter
             {
                 var time = new TimeOnly(6, 0).AddMinutes(index * 15);
                 var items = assignments
-                    .Where(assignment => assignment.Todo.Schedule?.Date == state.SelectedDate &&
-                                         assignment.Todo.Schedule.Time == time)
+                    .Where(assignment => Occupies(assignment.Todo, state.SelectedDate, time, configuration.DefaultDuration))
                     .ToImmutableArray();
                 var slotEnd = time.AddMinutes(15);
                 var meetings = agenda.Meetings
@@ -45,10 +47,25 @@ public sealed class DayPlannerPresenter
                     .ToImmutableArray();
                 return new PlannerSlotView(time, items, index == slotIndex)
                 {
-                    Meetings = meetings
+                    Meetings = meetings,
+                    DurationPosition = items.Length == 1
+                        ? DurationPosition(items[0].Todo, time, configuration.DefaultDuration)
+                        : null
                 };
             })
             .ToImmutableArray();
+        var selectedIdentity = slots[slotIndex].Assignments.Length == 1
+            ? slots[slotIndex].Assignments[0].Identity
+            : null;
+        if (selectedIdentity is not null)
+        {
+            slots = slots
+                .Select(slot => slot with
+                {
+                    IsActiveAssignment = slot.Assignments.Any(assignment => assignment.Identity == selectedIdentity)
+                })
+                .ToImmutableArray();
+        }
         var projects = catalog.Projects
             .Select(project => new PlannerProjectOption(project.Title, project.Path))
             .ToImmutableArray();
@@ -75,6 +92,45 @@ public sealed class DayPlannerPresenter
             ProjectErrorCount = catalog.Errors.Length,
             CalendarAgenda = agenda with { AllDayItems = [.. agenda.AllDayItems.Concat(allDayTodos)] }
         };
+    }
+
+    private static bool Occupies(TodoItem todo, DateOnly date, TimeOnly time, TimeSpan defaultDuration)
+    {
+        var schedule = todo.Schedule;
+        if (schedule?.Date != date || schedule.Time is null)
+        {
+            return false;
+        }
+
+        var end = schedule.Time.Value.Add(todo.Duration ?? defaultDuration);
+        return time >= schedule.Time && time < end;
+    }
+
+    private static DurationBlockPosition? DurationPosition(
+        TodoItem todo,
+        TimeOnly time,
+        TimeSpan defaultDuration)
+    {
+        var start = todo.Schedule?.Time;
+        if (start is null)
+        {
+            return null;
+        }
+
+        var duration = todo.Duration ?? defaultDuration;
+        if (duration <= TimeSpan.FromMinutes(15))
+        {
+            return null;
+        }
+
+        if (time == start)
+        {
+            return DurationBlockPosition.Start;
+        }
+
+        return time.AddMinutes(15) >= start.Value.Add(duration)
+            ? DurationBlockPosition.End
+            : DurationBlockPosition.Middle;
     }
 
     private static bool Matches(PlannerAssignment assignment, string filter) =>

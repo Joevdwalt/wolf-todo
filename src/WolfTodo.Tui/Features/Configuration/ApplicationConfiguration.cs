@@ -10,6 +10,8 @@ public sealed record ApplicationConfiguration(
 
     public GoogleCalendarConfiguration GoogleCalendar { get; init; } = GoogleCalendarConfiguration.Disabled;
 
+    public PlannerConfiguration Planner { get; init; } = PlannerConfiguration.Default;
+
     public ApplicationConfiguration(ImmutableArray<string> projectFiles, string quitCommand)
         : this(projectFiles, TuiKeyBindings.CreateDefaults(quitCommand))
     {

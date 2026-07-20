@@ -171,7 +171,8 @@ public sealed partial class ProjectTodoMutationService(
                 Tags = update.Fields.Tags,
                 StartDate = update.Fields.StartDate,
                 DueDate = update.Fields.DueDate,
-                Schedule = update.Fields.Schedule
+                Schedule = update.Fields.Schedule,
+                Duration = update.Fields.Duration
             });
 
             foreach (var note in current.Notes)
@@ -342,7 +343,8 @@ public sealed partial class ProjectTodoMutationService(
                 [],
                 [])
             {
-                Schedule = update.Fields.Schedule
+                Schedule = update.Fields.Schedule,
+                Duration = update.Fields.Duration
             };
             lines.Insert(insertionIndex, $"- [ ] {SerializeBody(item)}");
             lines.InsertRange(
@@ -470,6 +472,11 @@ public sealed partial class ProjectTodoMutationService(
             parts.Add($"⏰ {todo.Schedule.Time.Value:HH:mm}");
         }
 
+        if (todo.Duration is not null)
+        {
+            parts.Add($"⏱ {(int)todo.Duration.Value.TotalMinutes}m");
+        }
+
         if (preservedMetadata is not null)
         {
             parts.Add(preservedMetadata);
@@ -525,6 +532,7 @@ public sealed partial class ProjectTodoMutationService(
         current.StartDate == expected.StartDate &&
         current.DueDate == expected.DueDate &&
         current.Schedule == expected.Schedule &&
+        current.Duration == expected.Duration &&
         current.Tags.SequenceEqual(expected.Tags, StringComparer.OrdinalIgnoreCase);
 
     private static bool SameTree(TodoItem current, TodoItem expected) =>
@@ -664,6 +672,6 @@ public sealed partial class ProjectTodoMutationService(
     [GeneratedRegex("^(\\s*)([-*+]\\s+)?(.*)$")]
     private static partial Regex NoteLinePattern();
 
-    [GeneratedRegex("(?:^|\\s)(?=(?:🔁|➕|✅|❌|🆔|⛔|🏁|⏰|🛫|⏳|📅|🔺|⏫|🔼|🔽|⏬))")]
+    [GeneratedRegex("(?:^|\\s)(?=(?:🔁|➕|✅|❌|🆔|⛔|🏁|⏰|⏱|🛫|⏳|📅|🔺|⏫|🔼|🔽|⏬))")]
     private static partial Regex PreservedTaskMetadataPattern();
 }

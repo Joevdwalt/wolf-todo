@@ -39,6 +39,25 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesPlannerRefreshCalendar(Key('r')).Should().BeTrue();
         result.Theme.Should().Be(TuiThemes.Wolf);
         result.GoogleCalendar.Should().Be(GoogleCalendarConfiguration.Disabled);
+        result.Planner.Should().Be(PlannerConfiguration.Default);
+    }
+
+    [Fact]
+    public void Load_reads_the_planner_default_duration()
+    {
+        var path = Path.GetFullPath("todo.md");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [planner]
+            default_duration_minutes = 45
+            """);
+
+        loader.Load().Planner.DefaultDurationMinutes.Should().Be(45);
     }
 
     [Fact]

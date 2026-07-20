@@ -122,6 +122,17 @@ public sealed class ProjectMarkdownParserTests
     }
 
     [Fact]
+    public void Parse_reads_an_optional_duration()
+    {
+        var result = parser.Parse(
+            "/todos/home.md",
+            "- [ ] Prepare proposal ⏰ 09:15 ⏱ 45m ⏳ 2026-07-15");
+
+        result.IsSuccess.Should().BeTrue();
+        result.Project!.Todos.Single().Duration.Should().Be(TimeSpan.FromMinutes(45));
+    }
+
+    [Fact]
     public void Parse_reads_a_standalone_scheduled_date_as_an_all_day_schedule()
     {
         var result = parser.Parse("/todos/home.md", "- [ ] Prepare proposal ⏳ 2026-07-15");

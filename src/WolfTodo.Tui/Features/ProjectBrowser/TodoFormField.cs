@@ -7,5 +7,6 @@ public enum TodoFormField
     Priority,
     Tags,
     ScheduledDate,
-    ScheduledTime
+    ScheduledTime,
+    Duration
 }
