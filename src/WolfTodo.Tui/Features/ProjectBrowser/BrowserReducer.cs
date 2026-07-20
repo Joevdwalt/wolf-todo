@@ -5,7 +5,12 @@ namespace WolfTodo.Tui.Features.ProjectBrowser;
 
 public sealed class BrowserReducer
 {
-    private readonly TodoEditorReducer todoEditorReducer = new();
+    private readonly TodoEditorReducer todoEditorReducer;
+
+    public BrowserReducer(Func<DateOnly>? todayProvider = null)
+    {
+        todoEditorReducer = new TodoEditorReducer(todayProvider);
+    }
 
     public BrowserTransition ReduceAction(
         BrowserState state,

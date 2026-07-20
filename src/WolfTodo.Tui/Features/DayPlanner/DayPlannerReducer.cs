@@ -7,7 +7,7 @@ namespace WolfTodo.Tui.Features.DayPlanner;
 public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 {
     private readonly Func<DateOnly> todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
-    private readonly TodoEditorReducer todoEditorReducer = new();
+    private readonly TodoEditorReducer todoEditorReducer = new(todayProvider);
 
     public PlannerTransition ReduceAction(PlannerState state, PlannerAction action, PlannerView view) =>
         action switch

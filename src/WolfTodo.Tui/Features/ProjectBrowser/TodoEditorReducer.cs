@@ -23,6 +23,13 @@ public sealed record TodoEditorTransition(
 
 public sealed class TodoEditorReducer
 {
+    private readonly Func<DateOnly> todayProvider;
+
+    public TodoEditorReducer(Func<DateOnly>? todayProvider = null)
+    {
+        this.todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
+    }
+
     public TodoTaskEditorState CreateEditor(
         string? projectPath,
         bool hasProjects,
@@ -151,7 +158,7 @@ public sealed class TodoEditorReducer
                 return Transition(editor with { Error = "Title is required." });
             }
 
-            var schedule = ParseSchedule(editor, out var scheduleError);
+            var schedule = ParseSchedule(editor, todayProvider(), out var scheduleError);
             if (scheduleError is not null)
             {
                 return Transition(editor with { Error = scheduleError });
@@ -204,7 +211,7 @@ public sealed class TodoEditorReducer
         return Transition(editor);
     }
 
-    private static TodoEditorTransition ReduceDraft(TodoTaskEditorState editor, ConsoleKeyInfo key)
+    private TodoEditorTransition ReduceDraft(TodoTaskEditorState editor, ConsoleKeyInfo key)
     {
         if (key.Key == ConsoleKey.Escape)
         {
@@ -279,7 +286,7 @@ public sealed class TodoEditorReducer
         return Transition(editor);
     }
 
-    private static TodoEditorTransition CommitDraft(TodoTaskEditorState editor)
+    private TodoEditorTransition CommitDraft(TodoTaskEditorState editor)
     {
         var value = editor.Draft.Trim();
         if (editor.IsAddingContent)
@@ -339,7 +346,7 @@ public sealed class TodoEditorReducer
         });
     }
 
-    private static TodoTaskEditorState CommitField(TodoTaskEditorState editor, string value)
+    private TodoTaskEditorState CommitField(TodoTaskEditorState editor, string value)
     {
         var values = editor.Values;
         string? error = null;
@@ -380,7 +387,7 @@ public sealed class TodoEditorReducer
                 };
                 break;
             case TodoFormField.ScheduledDate:
-                editor = editor with { ScheduledDate = ParseDateText(value, out error) };
+                editor = editor with { ScheduledDate = ParseDateText(value, todayProvider(), out error) };
                 break;
             case TodoFormField.ScheduledTime:
                 editor = editor with { ScheduledTime = ParseTimeText(value, out error) };
@@ -428,7 +435,7 @@ public sealed class TodoEditorReducer
         };
     }
 
-    private static TodoSchedule? ParseSchedule(TodoTaskEditorState editor, out string? error)
+    private static TodoSchedule? ParseSchedule(TodoTaskEditorState editor, DateOnly today, out string? error)
     {
         error = null;
         var hasDate = !string.IsNullOrWhiteSpace(editor.ScheduledDate);
@@ -449,14 +456,9 @@ public sealed class TodoEditorReducer
             return null;
         }
 
-        if (!DateOnly.TryParseExact(
-                editor.ScheduledDate,
-                "yyyy-MM-dd",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var date))
+        if (!DateExpression.TryParse(editor.ScheduledDate, today, out var date))
         {
-            error = "Schedule must use YYYY-MM-DD and HH:mm.";
+            error = "Schedule date must use YYYY-MM-DD, t, t+N, or w+N.";
             return null;
         }
 
@@ -491,7 +493,7 @@ public sealed class TodoEditorReducer
         return new TodoSchedule(date, time);
     }
 
-    private static string ParseDateText(string value, out string? error)
+    private static string ParseDateText(string value, DateOnly today, out string? error)
     {
         error = null;
         if (value.Length == 0)
@@ -499,17 +501,12 @@ public sealed class TodoEditorReducer
             return string.Empty;
         }
 
-        if (DateOnly.TryParseExact(
-                value,
-                "yyyy-MM-dd",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var date))
+        if (DateExpression.TryParse(value, today, out var date))
         {
             return date.ToString("yyyy-MM-dd");
         }
 
-        error = "Date must use YYYY-MM-DD or be empty.";
+        error = "Date must use YYYY-MM-DD, t, t+N, w+N, or be empty.";
         return value;
     }
 

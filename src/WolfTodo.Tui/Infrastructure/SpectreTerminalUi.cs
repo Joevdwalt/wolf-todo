@@ -1722,7 +1722,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             ("Reference", editor.Values.ExternalReference ?? string.Empty),
             ("Priority", editor.Values.Priority?.ToString() ?? string.Empty),
             ("Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
-            ("Scheduled date", editor.ScheduledDate),
+            ("Scheduled date (YYYY-MM-DD, t+1, w+1)", editor.ScheduledDate),
             ("Scheduled time", editor.ScheduledTime)
         };
 

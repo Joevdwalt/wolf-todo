@@ -301,6 +301,32 @@ public sealed class BrowserReducerTests
         saved.State.Editor.Should().NotBeNull("the application clears it after a successful write");
     }
 
+    [Fact]
+    public void Reduce_saves_a_relative_scheduled_date()
+    {
+        var today = new DateOnly(2026, 7, 20);
+        var relativeReducer = new BrowserReducer(() => today);
+        var project = new TodoProject("Alpha", "/alpha.md", []);
+        var view = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("Alpha", 0, project, null, true)],
+            [], null, "Alpha", project.Path, null, string.Empty);
+        var opened = relativeReducer.Reduce(BrowserState.Initial, Key('a'), Configuration, view);
+        var state = opened.State with
+        {
+            Editor = opened.State.Editor! with
+            {
+                Values = new TodoUpdate("New task", null, null, [], null, null),
+                ScheduledDate = "w+1"
+            }
+        };
+
+        var saved = relativeReducer.Reduce(state, Key(ConsoleKey.S, control: true), Configuration, view);
+
+        saved.Operation.Should().Be(BrowserOperation.Create);
+        saved.Update!.Fields.Schedule.Should().Be(new TodoSchedule(today.AddDays(7)));
+    }
+
     [Theory]
     [InlineData("", "09:30", "requires a scheduled date")]
     [InlineData("2026-07-15", "09:15", "half-hour")]

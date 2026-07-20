@@ -174,8 +174,10 @@ All-day todos appear above the timeline. When Google Calendar is configured,
 all-day events and focus/status entries share that header, while timed meetings
 appear in their slots and warn on overlaps. Scheduled todos show either
 `YYYY-MM-DD` or `YYYY-MM-DD HH:mm` in the adaptive `SCHEDULED` column in
-the Todos pane. The shared field editor can schedule or unschedule work, and
-`d`/`D` sort by scheduled date and time. Existing start and due annotations are
+the Todos pane. The shared field editor can schedule or unschedule work; use
+`t` for today, `t+1` for tomorrow, or `w+1` for the same weekday next week.
+These normalize to the stored ISO date. `d`/`D` sort by scheduled date and time.
+Existing start and due annotations are
 preserved in Markdown but intentionally omitted from the normal UI. The planner
 shows responsive details for the selected slot; `v` hides or
 restores them. On today, a bright, full-width `▶────` timeline row shows the exact current
