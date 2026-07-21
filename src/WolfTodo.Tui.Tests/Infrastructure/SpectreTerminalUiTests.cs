@@ -178,7 +178,9 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("06:00")
             .And.Contain("Prepare proposal")
             .And.Contain("[/] DAY")
-            .And.Contain("g TODAY");
+            .And.Contain("g/G TOP/BOTTOM")
+            .And.Contain("T TODAY")
+            .And.Contain("/ FILTER");
     }
 
     [Fact]
@@ -248,11 +250,16 @@ public sealed class SpectreTerminalUiTests
         };
         var agenda = new PlannerCalendarAgenda(
             [new PlannerCalendarAllDayItem("Company holiday", PlannerCalendarItemKind.Event)],
-            [new PlannerCalendarMeeting("Client meeting", new TimeOnly(9, 0), new TimeOnly(10, 0))],
+            [new PlannerCalendarMeeting("Client meeting", new TimeOnly(9, 0), new TimeOnly(10, 0))
+            {
+                Location = "Boardroom",
+                Attendees = ["Alice", "Bob"],
+                Description = "Quarterly customer review and next actions."
+            }],
             PlannerCalendarSyncState.Ready);
         var view = new DayPlannerPresenter().CreateView(
             new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
-            PlannerState.CreateInitial(date),
+            PlannerState.CreateInitial(date) with { SlotIndex = 12 },
             agenda);
         StartRecording(140, 24);
 
@@ -263,7 +270,12 @@ public sealed class SpectreTerminalUiTests
         output.Should().Contain("ALL DAY")
             .And.Contain("Company holiday")
             .And.Contain("Prepare proposal")
-            .And.Contain("Client meeting");
+            .And.Contain("Client meeting")
+            .And.Contain("LOCATION: Boardroom")
+            .And.Contain("ATTENDEES: Alice, Bob")
+            .And.Contain("Quarterly customer review")
+            .And.Contain("╮")
+            .And.Contain("╯");
     }
 
     [Fact]

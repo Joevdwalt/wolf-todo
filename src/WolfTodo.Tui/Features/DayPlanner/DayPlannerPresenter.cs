@@ -44,12 +44,19 @@ public sealed class DayPlannerPresenter
                 var slotEnd = time.AddMinutes(15);
                 var meetings = agenda.Meetings
                     .Where(meeting => meeting.Start < slotEnd && meeting.End > time)
+                    .OrderBy(meeting => meeting.Start)
+                    .ThenBy(meeting => meeting.End)
+                    .ThenBy(meeting => meeting.Title, StringComparer.OrdinalIgnoreCase)
                     .ToImmutableArray();
                 return new PlannerSlotView(time, items, index == slotIndex)
                 {
                     Meetings = meetings,
+                    PrimaryMeeting = meetings.FirstOrDefault(),
                     DurationPosition = items.Length == 1
                         ? DurationPosition(items[0].Todo, time, configuration.DefaultDuration)
+                        : null,
+                    MeetingDurationPosition = meetings.FirstOrDefault() is { } meeting
+                        ? MeetingDurationPosition(meeting, time)
                         : null
                 };
             })
@@ -63,6 +70,16 @@ public sealed class DayPlannerPresenter
                 .Select(slot => slot with
                 {
                     IsActiveAssignment = slot.Assignments.Any(assignment => assignment.Identity == selectedIdentity)
+                })
+                .ToImmutableArray();
+        }
+        var selectedMeetingIdentity = slots[slotIndex].PrimaryMeeting?.Identity;
+        if (selectedMeetingIdentity is not null)
+        {
+            slots = slots
+                .Select(slot => slot with
+                {
+                    IsActiveMeeting = slot.PrimaryMeeting?.Identity == selectedMeetingIdentity
                 })
                 .ToImmutableArray();
         }
@@ -129,6 +146,23 @@ public sealed class DayPlannerPresenter
         }
 
         return time.AddMinutes(15) >= start.Value.Add(duration)
+            ? DurationBlockPosition.End
+            : DurationBlockPosition.Middle;
+    }
+
+    private static DurationBlockPosition? MeetingDurationPosition(PlannerCalendarMeeting meeting, TimeOnly time)
+    {
+        if (meeting.End - meeting.Start <= TimeSpan.FromMinutes(15))
+        {
+            return null;
+        }
+
+        if (meeting.Start >= time && meeting.Start < time.AddMinutes(15))
+        {
+            return DurationBlockPosition.Start;
+        }
+
+        return time.AddMinutes(15) >= meeting.End
             ? DurationBlockPosition.End
             : DurationBlockPosition.Middle;
     }

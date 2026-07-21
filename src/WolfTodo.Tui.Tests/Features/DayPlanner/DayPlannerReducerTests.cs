@@ -18,10 +18,51 @@ public sealed class DayPlannerReducerTests
         var view = View(state);
 
         var tomorrow = reducer.Reduce(state, Key(']'), Bindings, view).State;
-        var returned = reducer.Reduce(tomorrow, Key('g'), Bindings, View(tomorrow)).State;
+        var returned = reducer.Reduce(tomorrow, Key('T'), Bindings, View(tomorrow)).State;
 
         tomorrow.SelectedDate.Should().Be(Today.AddDays(1));
         returned.SelectedDate.Should().Be(Today);
+    }
+
+    [Fact]
+    public void Reduce_jumps_to_the_first_and_last_planner_slots()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today) with { SlotIndex = 12 };
+
+        var first = reducer.Reduce(state, Key('g'), Bindings, View(state)).State;
+        var last = reducer.Reduce(first, Key('G'), Bindings, View(first)).State;
+
+        first.SlotIndex.Should().Be(0);
+        last.SlotIndex.Should().Be(DayPlannerPresenter.SlotCount - 1);
+    }
+
+    [Fact]
+    public void Reduce_opens_the_filtered_picker_from_an_empty_slot()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today);
+        var view = View(state, Todo("Available"));
+
+        var filtering = reducer.Reduce(state, Key('/'), Bindings, view).State;
+        var typed = reducer.Reduce(filtering, Key('a'), Bindings, View(filtering, Todo("Available"))).State;
+
+        filtering.Mode.Should().Be(PlannerMode.EditFilter);
+        filtering.PickerIndex.Should().Be(0);
+        typed.FilterDraft.Should().Be("a");
+    }
+
+    [Fact]
+    public void Reduce_rejects_filtering_from_an_occupied_slot()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var scheduled = Todo("Scheduled") with { Schedule = new TodoSchedule(Today, new TimeOnly(6, 0)) };
+        var state = PlannerState.CreateInitial(Today);
+
+        var result = reducer.Reduce(state, Key('/'), Bindings, View(state, scheduled));
+
+        result.State.Mode.Should().Be(PlannerMode.Browse);
+        result.State.Error.Should().Be("Select an empty timeslot to filter todos.");
     }
 
     [Fact]

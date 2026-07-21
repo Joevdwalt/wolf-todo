@@ -72,7 +72,7 @@ tab_next = ["L"]
 tab_previous = ["H"]
 planner_previous_day = ["["]
 planner_next_day = ["]"]
-planner_today = ["g"]
+planner_today = ["T"]
 planner_unschedule = ["u"]
 planner_refresh_calendar = ["r"]
 create_todo = ["a"]
@@ -174,7 +174,7 @@ slot with Wolf Todo's `⏰ HH:mm` time before all task markers and the
 Obsidian Tasks-compatible `⏳ YYYY-MM-DD` scheduled date, for example
 `Prepare proposal ⏰ 09:30 ⏱ 30m #work ⏳ 2026-07-15`. Enter
 assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
-and `[`/`]` change days. A timed task reserves consecutive slots for its
+and `[`/`]` change days, while `T` returns to today. A timed task reserves consecutive slots for its
 explicit `⏱ <minutes>m` duration; tasks without one use the configurable
 30-minute default. The planner refuses occupied destination slots.
 All-day todos appear above the timeline. When Google Calendar is configured,
@@ -223,8 +223,9 @@ remain visible with a reason; `/` searches and Enter runs the selected action.
 In the Todos tab, `v` hides or restores the detail preview for the current
 session. Opening a todo restores hidden details automatically.
 The Vim-style `g` and `G` bindings jump to the first or last item in the
-focused Projects or Todos list. Planner keeps its contextual `g` binding for
-returning to today.
+focused Projects or Todos list, or the first 06:00 and final 21:45 slots in
+Day Planner. From an empty Planner slot, `/` opens the unscheduled-todo picker
+with its filter active; `T` returns Planner to today.
 
 Use `:move-todo-project <project title>` from the Todos tab to move the
 selected todo, including its notes and nested subtasks, into the destination

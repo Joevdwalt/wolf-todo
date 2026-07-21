@@ -77,7 +77,22 @@ public sealed class GoogleCalendarAgendaProvider(string tokenDirectory) : IPlann
                 end = start.AddMinutes(30);
             }
 
-            meetings.Add(new PlannerCalendarMeeting(title, start, end));
+            var attendees = (calendarEvent.Attendees ?? [])
+                .Where(attendee => attendee.ResponseStatus != "declined")
+                .Select(attendee => string.IsNullOrWhiteSpace(attendee.DisplayName)
+                    ? attendee.Email
+                    : attendee.DisplayName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(name => name!)
+                .ToArray();
+            meetings.Add(new PlannerCalendarMeeting(title, start, end)
+            {
+                EventId = calendarEvent.Id,
+                Location = calendarEvent.Location,
+                Attendees = [.. attendees],
+                Description = calendarEvent.Description
+            });
         }
 
         return new PlannerCalendarAgenda([.. allDay], [.. meetings], PlannerCalendarSyncState.Ready);

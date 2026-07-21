@@ -23,7 +23,7 @@ events, focus time, and out-of-office entries. Date-only todos are editable
 through the normal task editor but are not slot assignments.
 
 An optional, read-only Google Calendar primary-calendar overlay may display
-timed meetings in their overlapping slots. It uses desktop OAuth configured by
+timed meetings as duration blocks spanning their overlapping slots. It uses desktop OAuth configured by
 an absolute client JSON path, stores refresh credentials in application state,
 and refreshes with the configured `r` binding. Meetings produce overlap
 warnings only; they never reserve slots or block todo assignment. The planner
@@ -43,14 +43,22 @@ Enter or `l` on an empty slot opens a filterable picker of all open,
 unscheduled todos from valid projects. Show several candidates at once, keep
 the selection visible while scrolling, and update the list while filter input
 changes. The same action on an occupied slot starts move mode. `u` unschedules,
-`[`/`]` change dates, and `g` returns to today. Esc or `h` cancels modal work.
-Occupied destinations are never replaced.
+`[`/`]` change dates, `g`/`G` jump to the first/final timeline slots, and `T`
+returns to today. `/` on an empty slot opens the same picker with its filter
+active; on an occupied slot it reports that an empty destination is required.
+Esc or `h` cancels modal work. Occupied destinations are never replaced.
 
 Show details for the selected assignment by default. Wide terminals place an
 `INSPECTOR` beside the timeline; narrower terminals show a compact `SELECTED`
 summary beneath it. Timeline assignments show compact state and priority before
 their title. `v` hides or restores details for the current session. Conflicting slots
 show a diagnostic instead of exposing an ambiguous todo.
+
+When a meeting-only slot is selected, the Inspector shows its title, time range,
+duration, location, attendees, and a short description preview. Concurrent
+meetings render the earliest as the timeline block with a `+N` marker; the
+Inspector lists the other meetings. A selected todo that overlaps a meeting
+retains its todo Inspector and shows a compact Calendar conflict field.
 
 On an occupied slot, `e` edits fields including scheduled date and time, `E` edits notes and subtasks, Ctrl+E
 opens the Markdown source in `$EDITOR`, and Space toggles completion without

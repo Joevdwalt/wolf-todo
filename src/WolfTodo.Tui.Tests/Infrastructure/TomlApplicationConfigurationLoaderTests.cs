@@ -222,6 +222,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
     [InlineData("tab_next = [\"Tab\"]", "*both*focus_next*tab_next*")]
     [InlineData("sort_mode = [\"j\"]", "*both*move_down*sort_mode*")]
     [InlineData("jump_top = [\"j\"]", "*both*move_down*jump_top*")]
+    [InlineData("planner_today = [\"g\"]", "*both*planner_today*jump_top*")]
     [InlineData("edit_todo_external = [\"e\"]", "*both*edit_todo*edit_todo_external*")]
     [InlineData("toggle_completed = \":q\"", "*quit*toggle_completed*different*")]
     public void Load_rejects_invalid_or_conflicting_bindings(string binding, string expectedMessage)

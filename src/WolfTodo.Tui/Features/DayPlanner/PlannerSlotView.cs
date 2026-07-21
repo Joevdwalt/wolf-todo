@@ -11,7 +11,13 @@ public sealed record PlannerSlotView(
 
     public DurationBlockPosition? DurationPosition { get; init; }
 
+    public PlannerCalendarMeeting? PrimaryMeeting { get; init; }
+
+    public DurationBlockPosition? MeetingDurationPosition { get; init; }
+
     public bool IsActiveAssignment { get; init; }
+
+    public bool IsActiveMeeting { get; init; }
 }
 
 public enum DurationBlockPosition

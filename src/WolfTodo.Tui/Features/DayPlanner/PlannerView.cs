@@ -28,4 +28,6 @@ public sealed record PlannerView(
 
     public PlannerAssignment? SelectedAssignment =>
         SelectedSlot.Assignments.Length == 1 ? SelectedSlot.Assignments[0] : null;
+
+    public PlannerCalendarMeeting? SelectedMeeting => SelectedSlot.PrimaryMeeting;
 }

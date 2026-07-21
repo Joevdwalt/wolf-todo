@@ -54,7 +54,7 @@ public sealed record TuiKeyBindings(
         Gestures("H"),
         Gestures("["),
         Gestures("]"),
-        Gestures("g"),
+        Gestures("T"),
         Gestures("u"),
         Gestures("r"),
         Gestures("a"),

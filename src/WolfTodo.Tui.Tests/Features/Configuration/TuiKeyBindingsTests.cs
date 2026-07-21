@@ -26,7 +26,7 @@ public sealed class TuiKeyBindingsTests
         bindings.MatchesTabPrevious(Key('H')).Should().BeTrue();
         bindings.MatchesPlannerPreviousDay(Key('[')).Should().BeTrue();
         bindings.MatchesPlannerNextDay(Key(']')).Should().BeTrue();
-        bindings.MatchesPlannerToday(Key('g')).Should().BeTrue();
+        bindings.MatchesPlannerToday(Key('T')).Should().BeTrue();
         bindings.MatchesPlannerUnschedule(Key('u')).Should().BeTrue();
         bindings.MatchesCreateTodo(Key('a')).Should().BeTrue();
         bindings.MatchesEditTodo(Key('e')).Should().BeTrue();

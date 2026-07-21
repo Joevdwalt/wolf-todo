@@ -468,11 +468,6 @@ public sealed class TomlApplicationConfigurationLoader(
             {
                 if (owners.TryGetValue(gesture, out var owner))
                 {
-                    if (CanShareGesture(owner, action.Name))
-                    {
-                        continue;
-                    }
-
                     throw new InvalidDataException(
                         $"Invalid configuration file: key gesture '{gesture.DisplayName}' is assigned to both " +
                         $"keybindings.{owner} and keybindings.{action.Name}.");
@@ -483,7 +478,4 @@ public sealed class TomlApplicationConfigurationLoader(
         }
     }
 
-    private static bool CanShareGesture(string first, string second) =>
-        (first == "planner_today" && second == "jump_top") ||
-        (first == "jump_top" && second == "planner_today");
 }

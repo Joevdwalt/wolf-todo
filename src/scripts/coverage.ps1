@@ -11,6 +11,7 @@ $repositoryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $coverageRoot = Join-Path $repositoryRoot 'artifacts/coverage'
 $rawCoverageRoot = Join-Path $coverageRoot 'raw'
 $reportRoot = Join-Path $coverageRoot 'report'
+$coverageSettings = Join-Path $PSScriptRoot 'coverage.config.xml'
 $testProjects = Get-ChildItem -Path (Join-Path $repositoryRoot 'src') -Recurse -Filter '*.Tests.csproj' |
     Where-Object { $_.FullName -notmatch '[\\/]obj[\\/]' }
 
@@ -27,7 +28,7 @@ try {
 
     foreach ($project in $testProjects) {
         $projectOutput = Join-Path $rawCoverageRoot $project.BaseName
-        dotnet test --project $project.FullName --report-trx --results-directory $projectOutput --coverage --coverage-output-format cobertura
+        dotnet test --project $project.FullName --report-trx --results-directory $projectOutput --coverage --coverage-output-format cobertura --coverage-settings $coverageSettings
 
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE

@@ -153,6 +153,28 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             return Transition(state);
         }
 
+        if (state.Mode == PlannerMode.Browse && bindings.MatchesFilterMode(key))
+        {
+            return view.SelectedSlot.Assignments.Length > 0
+                ? Transition(state with { Error = "Select an empty timeslot to filter todos." })
+                : Transition(state with
+                {
+                    Mode = PlannerMode.EditFilter,
+                    FilterDraft = state.FilterText,
+                    PickerIndex = 0,
+                    Error = null
+                });
+        }
+
+        if (bindings.MatchesJumpTop(key) || bindings.MatchesJumpBottom(key))
+        {
+            return Transition(state with
+            {
+                SlotIndex = bindings.MatchesJumpTop(key) ? 0 : DayPlannerPresenter.SlotCount - 1,
+                Error = null
+            });
+        }
+
         if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
         {
             var offset = bindings.MatchesMoveUp(key) ? -1 : 1;

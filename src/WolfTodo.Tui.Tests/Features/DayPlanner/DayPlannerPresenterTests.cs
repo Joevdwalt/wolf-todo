@@ -91,7 +91,7 @@ public sealed class DayPlannerPresenterTests
     }
 
     [Fact]
-    public void CreateView_places_calendar_meetings_in_each_overlapping_slot()
+    public void CreateView_marks_calendar_meeting_duration_blocks_and_active_slots()
     {
         var date = new DateOnly(2026, 7, 15);
         var agenda = new PlannerCalendarAgenda(
@@ -102,12 +102,65 @@ public sealed class DayPlannerPresenterTests
 
         var view = new DayPlannerPresenter().CreateView(
             new ProjectCatalog([], []),
-            PlannerState.CreateInitial(date),
+            PlannerState.CreateInitial(date) with { SlotIndex = 14 },
             agenda);
 
         view.Slots.Where(slot => slot.Time >= new TimeOnly(9, 15) && slot.Time <= new TimeOnly(10, 0))
             .Should().OnlyContain(slot => slot.Meetings.Single().Title == "Team stand-up");
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 15)).MeetingDurationPosition
+            .Should().Be(DurationBlockPosition.Start);
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 30)).MeetingDurationPosition
+            .Should().Be(DurationBlockPosition.Middle);
+        view.Slots.Single(slot => slot.Time == new TimeOnly(10, 0)).MeetingDurationPosition
+            .Should().Be(DurationBlockPosition.End);
+        view.Slots.Where(slot => slot.IsActiveMeeting).Select(slot => slot.Time)
+            .Should().Equal(new TimeOnly(9, 15), new TimeOnly(9, 30), new TimeOnly(9, 45), new TimeOnly(10, 0));
         view.Slots.Single(slot => slot.Time == new TimeOnly(10, 30)).Meetings.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CreateView_uses_the_earliest_meeting_as_the_primary_overlap_block()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var agenda = new PlannerCalendarAgenda(
+            [],
+            [
+                new PlannerCalendarMeeting("Later", new TimeOnly(9, 15), new TimeOnly(10, 0)),
+                new PlannerCalendarMeeting("Earlier", new TimeOnly(9, 0), new TimeOnly(10, 0))
+            ],
+            PlannerCalendarSyncState.Ready);
+
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 13 },
+            agenda);
+
+        var slot = view.SelectedSlot;
+        slot.Meetings.Should().HaveCount(2);
+        slot.PrimaryMeeting!.Title.Should().Be("Earlier");
+        slot.MeetingDurationPosition.Should().Be(DurationBlockPosition.Middle);
+    }
+
+    [Fact]
+    public void CreateView_starts_a_meeting_block_in_the_slot_containing_a_non_quarter_hour_start()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var agenda = new PlannerCalendarAgenda(
+            [],
+            [new PlannerCalendarMeeting("Call", new TimeOnly(9, 10), new TimeOnly(9, 40))],
+            PlannerCalendarSyncState.Ready);
+
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date),
+            agenda);
+
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 0)).MeetingDurationPosition
+            .Should().Be(DurationBlockPosition.Start);
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 15)).MeetingDurationPosition
+            .Should().Be(DurationBlockPosition.Middle);
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 30)).MeetingDurationPosition
+            .Should().Be(DurationBlockPosition.End);
     }
 
     [Fact]

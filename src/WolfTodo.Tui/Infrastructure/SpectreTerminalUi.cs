@@ -269,18 +269,31 @@ public sealed class SpectreTerminalUi : ITerminalUi
             }
             else if (slot.Meetings.Length > 0)
             {
-                content = new Text(
-                    $"{(slot.IsSelected ? ">" : " ")} MEETING {MeetingLabel(slot.Meetings[0])}" +
-                    (slot.Meetings.Length > 1 ? $" +{slot.Meetings.Length - 1}" : string.Empty),
-                    ThemeStyle(slot.IsSelected ? theme.AccentBright : theme.Info,
-                        slot.IsSelected ? Decoration.Bold : Decoration.None)).Ellipsis();
+                var meeting = slot.PrimaryMeeting!;
+                var isActiveMeeting = slot.IsActiveMeeting;
+                var prefix = slot.IsSelected ? ">" : " ";
+                var blockContent = PlannerMeetingLine(
+                    meeting,
+                    prefix,
+                    isActiveMeeting,
+                    slot.Meetings.Length - 1,
+                    theme);
+                content = slot.MeetingDurationPosition is { } durationPosition
+                    ? new DurationBlockRenderable(
+                        blockContent,
+                        durationPosition,
+                        ThemeStyle(
+                            isActiveMeeting ? theme.AccentBright : theme.Info,
+                            isActiveMeeting ? Decoration.Bold : Decoration.None),
+                        slot.IsSelected)
+                    : blockContent;
             }
             else
             {
                 content = new Text(slot.IsSelected ? "> —" : "  —", ThemeStyle(theme.Muted, Decoration.Dim));
             }
 
-            var isActiveRow = slot.IsSelected || slot.IsActiveAssignment;
+            var isActiveRow = slot.IsSelected || slot.IsActiveAssignment || slot.IsActiveMeeting;
             table.AddRow(
                 isActiveRow ? OnSurface(time, theme.Surface2, true) : time,
                 isActiveRow ? OnSurface(content, theme.Surface2, true) : content);
@@ -475,14 +488,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 PlannerMode.MoveTodo =>
                 [
                     $"MOVE TODO  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} SLOT  " +
+                    $"{Shortest(bindings.JumpTop)}/{Shortest(bindings.JumpBottom)} TOP/BOTTOM  " +
                     $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
                     $"{Shortest(bindings.Open)} PLACE  {Shortest(bindings.Back)} CANCEL"
                 ],
                 _ =>
                 [
                     $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} SLOT  " +
+                    $"{Shortest(bindings.JumpTop)}/{Shortest(bindings.JumpBottom)} TOP/BOTTOM  " +
                     $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
                     $"{Shortest(bindings.PlannerToday)} TODAY  {Shortest(bindings.Open)} ASSIGN/MOVE  " +
+                    $"{Shortest(bindings.FilterMode)} FILTER  " +
                     $"{Shortest(bindings.PlannerUnschedule)} UNSCHEDULE  " +
                     $"{Shortest(bindings.CreateTodo)} CREATE  {Shortest(bindings.EditTodo)} EDIT  " +
                     $"{Shortest(bindings.ToggleTodo)} COMPLETE  {Shortest(bindings.ToggleDetails)} DETAILS" +
@@ -1205,7 +1221,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         if (view.SelectedAssignment is null)
         {
-            return [new Text("EMPTY TIMESLOT", ThemeStyle(theme.Muted, Decoration.Dim))];
+            return view.SelectedMeeting is null
+                ? [new Text("EMPTY TIMESLOT", ThemeStyle(theme.Muted, Decoration.Dim))]
+                : PlannerMeetingDetailLines(view, theme);
         }
 
         var assignment = view.SelectedAssignment;
@@ -1237,6 +1255,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
             theme,
             theme.Date);
         AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
+        AddField(
+            lines,
+            "Calendar",
+            view.SelectedSlot.PrimaryMeeting is null
+                ? null
+                : MeetingLabel(view.SelectedSlot.PrimaryMeeting) +
+                  (view.SelectedSlot.Meetings.Length > 1 ? $" +{view.SelectedSlot.Meetings.Length - 1}" : string.Empty),
+            theme,
+            theme.Info);
 
         if (todo.Notes.Length > 0)
         {
@@ -1325,7 +1352,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         if (view.SelectedAssignment is null)
         {
-            return new Text("Empty timeslot", ThemeStyle(theme.Muted, Decoration.Dim));
+            if (view.SelectedMeeting is null)
+            {
+                return new Text("Empty timeslot", ThemeStyle(theme.Muted, Decoration.Dim));
+            }
+
+            var meeting = view.SelectedMeeting;
+            var meetingLine = new System.Text.StringBuilder();
+            AppendStyled(meetingLine, meeting.Title, theme.Info, Decoration.Bold);
+            AppendStyled(meetingLine, $"  {MeetingTimeAndDuration(meeting)}", theme.Muted, Decoration.Dim);
+            return new Markup(meetingLine.ToString()).Ellipsis();
         }
 
         var assignment = view.SelectedAssignment;
@@ -1733,6 +1769,71 @@ public sealed class SpectreTerminalUi : ITerminalUi
         AppendStyled(line, schedule, selected ? theme.AccentBright : completed ? theme.Muted : theme.Date, decoration);
         AppendStyled(line, meetingHint, theme.Warning, decoration);
         return new Markup(line.ToString());
+    }
+
+    private static IRenderable PlannerMeetingLine(
+        PlannerCalendarMeeting meeting,
+        string prefix,
+        bool selected,
+        int additionalMeetings,
+        TuiTheme theme)
+    {
+        var line = new System.Text.StringBuilder();
+        var color = selected ? theme.AccentBright : theme.Info;
+        var decoration = selected ? Decoration.Bold : Decoration.None;
+        AppendStyled(line, $"{prefix} MEETING ", color, decoration);
+        AppendStyled(line, MeetingLabel(meeting), color, decoration);
+        if (additionalMeetings > 0)
+        {
+            AppendStyled(line, $" +{additionalMeetings}", selected ? theme.AccentBright : theme.Warning, decoration);
+        }
+
+        return new Markup(line.ToString());
+    }
+
+    private static IReadOnlyList<IRenderable> PlannerMeetingDetailLines(PlannerView view, TuiTheme theme)
+    {
+        var meeting = view.SelectedMeeting!;
+        var lines = new List<IRenderable>
+        {
+            new Text(meeting.Title, ThemeStyle(theme.Info, Decoration.Bold))
+        };
+        AddField(lines, "Time", MeetingTimeAndDuration(meeting), theme, theme.Date);
+        AddField(lines, "Location", meeting.Location, theme, theme.Text);
+        AddField(
+            lines,
+            "Attendees",
+            meeting.Attendees.Length == 0 ? null : string.Join(", ", meeting.Attendees),
+            theme,
+            theme.SecondaryText);
+        AddField(lines, "Notes", MeetingDescriptionPreview(meeting.Description), theme, theme.Text);
+        if (view.SelectedSlot.Meetings.Length > 1)
+        {
+            AddField(
+                lines,
+                "Also",
+                string.Join(" · ", view.SelectedSlot.Meetings
+                    .Where(candidate => candidate.Identity != meeting.Identity)
+                    .Select(MeetingLabel)),
+                theme,
+                theme.Warning);
+        }
+
+        return lines;
+    }
+
+    private static string MeetingTimeAndDuration(PlannerCalendarMeeting meeting) =>
+        $"{meeting.Start:HH:mm}–{meeting.End:HH:mm} · {(int)(meeting.End - meeting.Start).TotalMinutes}m";
+
+    private static string? MeetingDescriptionPreview(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return null;
+        }
+
+        var normalized = string.Join(' ', description.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= 120 ? normalized : normalized[..117] + "…";
     }
 
     private static Color PriorityColor(TodoPriority? priority, TuiTheme theme) => priority switch
