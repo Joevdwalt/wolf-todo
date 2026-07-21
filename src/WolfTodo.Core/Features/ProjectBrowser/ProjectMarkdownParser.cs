@@ -85,9 +85,31 @@ public sealed partial class ProjectMarkdownParser
                 continue;
             }
 
-            if (taskStack.Count > 0 && !string.IsNullOrWhiteSpace(line))
+            if (taskStack.Count > 0)
             {
                 var indent = IndentWidth(line[..(line.Length - line.TrimStart().Length)]);
+                var current = taskStack.Peek();
+                var trimmed = line.TrimStart();
+                var isContinuation = current.Notes.Count > 0 &&
+                                     (string.IsNullOrWhiteSpace(line) || indent > current.Indent) &&
+                                     !trimmed.StartsWith("- ", StringComparison.Ordinal) &&
+                                     !trimmed.StartsWith("* ", StringComparison.Ordinal) &&
+                                     !trimmed.StartsWith("+ ", StringComparison.Ordinal);
+                if (isContinuation)
+                {
+                    var note = current.Notes[^1];
+                    current.Notes[^1] = note with
+                    {
+                        Text = note.Text + "\n" + (string.IsNullOrWhiteSpace(line) ? string.Empty : trimmed),
+                        LineCount = note.LineCount + 1
+                    };
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
 
                 while (taskStack.Count > 0 && taskStack.Peek().Indent >= indent)
                 {

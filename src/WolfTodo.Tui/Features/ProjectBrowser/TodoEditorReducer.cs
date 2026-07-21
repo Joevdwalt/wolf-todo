@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
 
 namespace WolfTodo.Tui.Features.ProjectBrowser;
@@ -49,6 +50,11 @@ public sealed class TodoEditorReducer
         if (editor.IsChoosingProject)
         {
             return ReduceProjectPicker(editor, key, bindings, projects);
+        }
+
+        if (editor.ContentTextBox is not null)
+        {
+            return ReduceContentTextBox(editor, key, bindings);
         }
 
         if (editor.Mode == TodoTaskEditorMode.Edit)
@@ -107,6 +113,18 @@ public sealed class TodoEditorReducer
 
         if (bindings.MatchesEditTodo(key) || bindings.MatchesEditTodoContent(key) || bindings.MatchesOpen(key))
         {
+            if (!editor.IsFieldSelected)
+            {
+                var selected = editor.Items[editor.SelectedContentIndex];
+                return Transition(editor with
+                {
+                    ContentTextBox = TextBoxState.Create(
+                        SelectedValue(editor),
+                        selected is ContentNoteDraft),
+                    Error = null
+                });
+            }
+
             return Transition(editor with
             {
                 Mode = TodoTaskEditorMode.Edit,
@@ -276,9 +294,9 @@ public sealed class TodoEditorReducer
         {
             return Transition(editor with
             {
-                Mode = TodoTaskEditorMode.Edit,
+                Mode = TodoTaskEditorMode.Browse,
                 IsAddingContent = true,
-                Draft = string.Empty,
+                ContentTextBox = TextBoxState.Create(string.Empty, editor.AddKind == ContentItemKind.Note),
                 Error = null
             });
         }
@@ -344,6 +362,63 @@ public sealed class TodoEditorReducer
             Draft = string.Empty,
             Error = null
         });
+    }
+
+    private TodoEditorTransition ReduceContentTextBox(
+        TodoTaskEditorState editor,
+        ConsoleKeyInfo key,
+        TuiKeyBindings bindings)
+    {
+        if (key.Key == ConsoleKey.Escape)
+        {
+            return Transition(editor with { ContentTextBox = null, IsAddingContent = false, Error = null });
+        }
+
+        if (bindings.MatchesSaveForm(key))
+        {
+            var value = editor.ContentTextBox!.Text.Trim();
+            if (value.Length == 0)
+            {
+                return Transition(editor with { Error = "Content must not be empty." });
+            }
+
+            if (editor.IsAddingContent)
+            {
+                var item = editor.AddKind == ContentItemKind.Note
+                    ? (ContentItemDraft)new ContentNoteDraft(null, value)
+                    : new ContentSubtaskDraft(null, value, false, 0);
+                var insertionIndex = editor.IsFieldSelected || editor.Items.Length == 0
+                    ? editor.Items.Length
+                    : Math.Min(editor.SelectedContentIndex + 1, editor.Items.Length);
+                editor = editor with
+                {
+                    Items = editor.Items.Insert(insertionIndex, item),
+                    SelectedIndex = TodoTaskEditorState.FieldCount + insertionIndex
+                };
+            }
+            else
+            {
+                var selected = editor.Items[editor.SelectedContentIndex];
+                var item = selected switch
+                {
+                    ContentNoteDraft note => (ContentItemDraft)(note with { Text = value }),
+                    ContentSubtaskDraft subtask => subtask with { Title = value },
+                    _ => throw new InvalidOperationException("Unsupported todo content item.")
+                };
+                editor = editor with { Items = editor.Items.SetItem(editor.SelectedContentIndex, item) };
+            }
+
+            return Transition(editor with
+            {
+                Mode = TodoTaskEditorMode.Browse,
+                ContentTextBox = null,
+                IsAddingContent = false,
+                AddKind = ContentItemKind.Note,
+                Error = null
+            });
+        }
+
+        return Transition(editor with { ContentTextBox = TextBoxReducer.Reduce(editor.ContentTextBox!, key), Error = null });
     }
 
     private TodoTaskEditorState CommitField(TodoTaskEditorState editor, string value)

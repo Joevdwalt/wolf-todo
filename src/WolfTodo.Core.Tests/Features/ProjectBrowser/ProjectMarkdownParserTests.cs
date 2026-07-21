@@ -42,6 +42,24 @@ public sealed class ProjectMarkdownParserTests
     }
 
     [Fact]
+    public void Parse_groups_indented_note_continuations_into_one_note()
+    {
+        const string markdown = """
+            - [ ] Prepare workshop
+              - First paragraph
+                Continues here
+
+                Second paragraph
+            """;
+
+        var result = parser.Parse("/todos/workshop.md", markdown);
+
+        var note = result.Project!.Todos.Single().Notes.Should().ContainSingle().Subject;
+        note.Text.Should().Be("First paragraph\nContinues here\n\nSecond paragraph");
+        note.LineCount.Should().Be(4);
+    }
+
+    [Fact]
     public void Parse_uses_filename_when_front_matter_title_is_absent()
     {
         var result = parser.Parse("/todos/home.md", "- [ ] Replace light");

@@ -65,8 +65,8 @@ Markdown todos.
   failures keep the active draft open with its error;
   successful writes close the editor and retain the selected date and slot.
 
-Root-todo deletion, project/section movement, content reordering, and multiline
-notes remain out of scope.
+Root-todo deletion, project/section movement, and content reordering remain out
+of scope.
 
 ## References
 

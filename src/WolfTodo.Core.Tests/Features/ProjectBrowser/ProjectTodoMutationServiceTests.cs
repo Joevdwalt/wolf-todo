@@ -158,6 +158,34 @@ public sealed class ProjectTodoMutationServiceTests
     }
 
     [Fact]
+    public void UpdateTask_replaces_the_full_multiline_note_block()
+    {
+        const string path = "/todos/work.md";
+        const string markdown = "- [ ] Parent\n  - old first\n    old continuation\n  - [ ] Child\n";
+        var parser = new ProjectMarkdownParser();
+        var expected = parser.Parse(path, markdown).Project!.Todos.Single();
+        var fileSystem = new WritableFileSystem(path, markdown);
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+
+        var result = service.UpdateTask(
+            path,
+            expected,
+            new TodoTaskUpdate(
+                new TodoUpdate("Parent", null, null, [], null, null),
+                new TodoContentUpdate([
+                    new TodoNoteUpdate(2, "new first\n\nnew second"),
+                    new TodoSubtaskUpdate(4, "Child", false)])));
+
+        result.Succeeded.Should().BeTrue();
+        fileSystem.Contents.Should().Be(
+            "- [ ] Parent\n" +
+            "  - new first\n" +
+            "    \n" +
+            "    new second\n" +
+            "  - [ ] Child\n");
+    }
+
+    [Fact]
     public void Create_writes_fields_and_interleaved_content_together()
     {
         const string path = "/todos/work.md";

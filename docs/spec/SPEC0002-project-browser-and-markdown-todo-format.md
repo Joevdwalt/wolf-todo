@@ -110,10 +110,12 @@ todo metadata. Report the canonical file path, source line, and reason in the
 project's error preview. A project containing malformed recognized todo
 metadata is an error project and contributes no todos to `All`.
 
-Indented non-checkbox list items and indented paragraphs belong to the parent
-todo as notes. Indented task-list items are subtasks and may nest recursively.
-Completion does not cascade between a parent and its subtasks. Preserve source
-order at every level.
+Indented non-checkbox list items belong to the parent todo as notes. A line
+indented further than that note's parent todo continues the preceding note,
+including a blank continuation line; it is exposed as one multiline note.
+Indented task-list items are subtasks and may nest recursively. Completion does
+not cascade between a parent and its subtasks. Preserve source order at every
+level.
 
 Use the canonical file path and source line as runtime identity. Do not add or
 require a persistent Wolf Todo ID.

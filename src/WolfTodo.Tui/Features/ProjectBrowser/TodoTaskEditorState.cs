@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Controls;
 
 namespace WolfTodo.Tui.Features.ProjectBrowser;
 
@@ -30,6 +31,10 @@ public sealed record TodoTaskEditorState(
         : $"{(int)Values.Duration.Value.TotalMinutes}m";
 
     public bool ScheduleRequired { get; init; }
+
+    internal TextBoxState? ContentTextBox { get; init; }
+
+    public bool IsEditingContent => ContentTextBox is not null;
 
     public int SelectableCount => FieldCount + Items.Length;
 

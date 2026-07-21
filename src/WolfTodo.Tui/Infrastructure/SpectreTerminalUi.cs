@@ -104,9 +104,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var today = todayProvider();
         var selectList = BrowserSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
+        var textBox = BrowserTextBox(view);
+        var textBoxRows = TextBoxRows(height);
         var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
         var contentHeight = Math.Max(1, AvailableContentHeight(height, statusLines.Count) -
-            (selectList is null ? 0 : SelectListControl.Height(selectList, selectRows)));
+            (selectList is not null ? SelectListControl.Height(selectList, selectRows) :
+             textBox is not null ? TextBoxControl.Height(textBox.Value.State, textBoxRows) : 0));
         WriteOperationalHeader(
             tabs,
             keyBindings,
@@ -134,6 +137,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             AnsiConsole.Write(SelectListControl.Create(selectList, theme, selectRows));
         }
+        else if (textBox is { } activeTextBox)
+        {
+            AnsiConsole.Write(TextBoxControl.Create(
+                activeTextBox.Title,
+                activeTextBox.State,
+                theme,
+                textBoxRows,
+                TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
+        }
 
         WriteStatus(statusLines, view, theme);
         EndUpdate(useSynchronizedUpdate);
@@ -160,6 +172,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var height = heightProvider();
         var selectList = PlannerSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
+        var textBox = PlannerTextBox(view);
+        var textBoxRows = TextBoxRows(height);
         WriteOperationalHeader(
             tabs,
             keyBindings,
@@ -179,7 +193,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
                              view.CommandPalette is null &&
                              view.GlobalCommand is null;
         const int tabTableStatusBorderAndCursorHeight = 8;
-        var pickerHeight = selectList is null ? 0 : SelectListControl.Height(selectList, selectRows);
+        var pickerHeight = selectList is not null ? SelectListControl.Height(selectList, selectRows) :
+            textBox is not null ? TextBoxControl.Height(textBox.Value.State, textBoxRows) : 0;
         const int compactDetailsHeight = 3;
         var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0;
         var narrowAllDayHeight = !wideDetails && allDayVisible
@@ -332,6 +347,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             AnsiConsole.Write(SelectListControl.Create(selectList, theme, selectRows));
         }
+        else if (textBox is { } activeTextBox)
+        {
+            AnsiConsole.Write(TextBoxControl.Create(
+                activeTextBox.Title,
+                activeTextBox.State,
+                theme,
+                textBoxRows,
+                TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
+        }
 
         WritePlannerStatus(status, view, theme);
         EndUpdate(useSynchronizedUpdate);
@@ -475,6 +499,27 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static int SelectListRows(int terminalHeight) => Math.Clamp(terminalHeight / 5, 3, 7);
 
+    private static int TextBoxRows(int terminalHeight) => Math.Clamp(terminalHeight / 4, 3, 8);
+
+    private static (string Title, TextBoxState State)? BrowserTextBox(BrowserView view) =>
+        view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
+
+    private static (string Title, TextBoxState State)? PlannerTextBox(PlannerView view) =>
+        view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
+
+    private static (string Title, TextBoxState State)? TodoEditorTextBox(TodoTaskEditorState editor)
+    {
+        if (editor.ContentTextBox is not { } state)
+        {
+            return null;
+        }
+
+        var title = editor.IsAddingContent
+            ? $"Add {editor.AddKind}"
+            : editor.Items[editor.SelectedContentIndex] is ContentNoteDraft ? "Edit note" : "Edit subtask";
+        return (title, state);
+    }
+
     private static SelectListView? BrowserSelectList(BrowserView view, TuiKeyBindings bindings)
     {
         if (view.CommandPalette is not null)
@@ -546,6 +591,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
         IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings)
     {
+        if (editor.IsEditingContent)
+        {
+            return null;
+        }
+
         if (editor.IsChoosingProject)
         {
             return new SelectListView(
@@ -1793,6 +1843,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
         int terminalHeight)
     {
         var width = Math.Max(1, terminalWidth - 4);
+        if (editor.IsEditingContent)
+        {
+            return DefaultStatusLines(["EDITING CONTENT"]);
+        }
+
         if (editor.IsChoosingProject)
         {
             return DefaultStatusLines(WrapStatus(

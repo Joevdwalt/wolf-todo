@@ -182,13 +182,20 @@ public sealed partial class ProjectTodoMutationService(
                     .FirstOrDefault(candidate => candidate.SourceLine == note.SourceLine);
                 if (replacement is null)
                 {
-                    removals.Add(note.SourceLine - 1);
+                    foreach (var line in Enumerable.Range(note.SourceLine - 1, note.LineCount))
+                    {
+                        removals.Add(line);
+                    }
                     continue;
                 }
 
                 replacements[note.SourceLine - 1] = ReplaceNoteText(
                     lines[note.SourceLine - 1],
-                    replacement.Text.Trim());
+                    replacement.Text);
+                foreach (var line in Enumerable.Range(note.SourceLine, note.LineCount - 1))
+                {
+                    removals.Add(line);
+                }
             }
 
             foreach (var subtask in current.Subtasks)
@@ -586,18 +593,27 @@ public sealed partial class ProjectTodoMutationService(
     private static string ReplaceNoteText(string line, string text)
     {
         var match = NoteLinePattern().Match(line);
-        return match.Success ? match.Groups[1].Value + match.Groups[2].Value + text : line;
+        return match.Success
+            ? SerializeNote(text, match.Groups[1].Value + match.Groups[2].Value, LeadingWhitespace(line) + "  ")
+            : line;
     }
 
     private static string LeadingWhitespace(string line) => line[..(line.Length - line.TrimStart().Length)];
 
     private static string SerializeContentItem(TodoContentItemUpdate item, string indent) => item switch
     {
-        TodoNoteUpdate note => $"{indent}- {note.Text.Trim()}",
+        TodoNoteUpdate note => SerializeNote(note.Text, $"{indent}- ", indent + "  "),
         TodoSubtaskUpdate subtask =>
             $"{indent}- [{(subtask.IsCompleted ? 'x' : ' ')}] {subtask.Title.Trim()}",
         _ => throw new InvalidOperationException("Unsupported todo content item.")
     };
+
+    private static string SerializeNote(string text, string prefix, string continuationIndent)
+    {
+        var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        return prefix + lines[0].Trim() + string.Concat(lines.Skip(1)
+            .Select(line => $"\n{continuationIndent}{line.TrimEnd()}"));
+    }
 
     private static TodoUpdate FieldUpdate(TodoItem todo) => new(
         todo.Title,

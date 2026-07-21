@@ -203,9 +203,11 @@ one cursor across compact field rows and a source-ordered content outline.
 Notes use `•`; open and completed subtasks use `◯` and `✓`. Use `a` to choose
 and insert content after the selected item (or append when a field is selected),
 `e` or open to edit, `d` to remove, Space to toggle a subtask, and Ctrl+S to save
-the entire task in one conflict-safe Markdown write. Removing a subtask with
-descendants requires confirmation. Space outside the editor changes the
-selected task's Markdown checkbox.
+the entire task in one conflict-safe Markdown write. Notes open in a multiline
+bottom text box: Enter inserts a line break, Ctrl+S accepts the note into the
+task draft, and Escape cancels the text edit. Removing a subtask with descendants
+requires confirmation. Space outside the editor changes the selected task's
+Markdown checkbox.
 
 Ctrl+E opens the selected todo's Markdown project at its source line in the
 terminal editor named by `$EDITOR`. Wolf Todo waits for the editor, then reloads

@@ -395,8 +395,11 @@ public sealed class BrowserReducerTests
         };
         var adding = reducer.Reduce(contentSelected, Key('a'), Configuration, view);
         var choosing = reducer.Reduce(adding.State, Key(ConsoleKey.Enter), Configuration, view);
-        var typed = reducer.Reduce(choosing.State, Key('N'), Configuration, view);
-        var accepted = reducer.Reduce(typed.State, Key(ConsoleKey.Enter), Configuration, view);
+        var typed = reducer.Reduce(choosing.State, Key('h'), Configuration, view);
+        typed = reducer.Reduce(typed.State, Key('N'), Configuration, view);
+        var newline = reducer.Reduce(typed.State, Key(ConsoleKey.Enter), Configuration, view);
+        var continued = reducer.Reduce(newline.State, Key('M'), Configuration, view);
+        var accepted = reducer.Reduce(continued.State, Key(ConsoleKey.S, control: true), Configuration, view);
         var subtask = reducer.Reduce(accepted.State, Key('j'), Configuration, view);
         var toggled = reducer.Reduce(subtask.State, Key(ConsoleKey.Spacebar), Configuration, view);
         var saved = reducer.Reduce(toggled.State, Key(ConsoleKey.S, control: true), Configuration, view);
@@ -405,7 +408,7 @@ public sealed class BrowserReducerTests
         saved.Operation.Should().Be(BrowserOperation.Update);
         saved.Update!.Content.Items.Should().HaveCount(3);
         saved.Update.Content.Items.OfType<TodoNoteUpdate>()
-            .Select(note => note.Text).Should().Equal("Existing note", "N");
+            .Select(note => note.Text).Should().Equal("Existing note", "hN\nM");
         saved.Update.Content.Items.OfType<TodoSubtaskUpdate>()
             .Should().ContainSingle().Which.IsCompleted.Should().BeTrue();
         saved.State.Editor.Should().NotBeNull("the application clears it after a successful write");
@@ -430,7 +433,7 @@ public sealed class BrowserReducerTests
         var subtaskType = reducer.Reduce(picker.State, Key('j'), Configuration, view);
         var editing = reducer.Reduce(subtaskType.State, Key('l'), Configuration, view);
         var typed = reducer.Reduce(editing.State, Key('N'), Configuration, view);
-        var accepted = reducer.Reduce(typed.State, Key(ConsoleKey.Enter), Configuration, view);
+        var accepted = reducer.Reduce(typed.State, Key(ConsoleKey.S, control: true), Configuration, view);
 
         picker.State.Editor!.Mode.Should().Be(TodoTaskEditorMode.ChooseContentType);
         subtaskType.State.Editor!.AddKind.Should().Be(ContentItemKind.Subtask);

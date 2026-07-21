@@ -22,18 +22,23 @@ Movement, open, back, create, edit, completion, removal, and save use configured
 bindings. Creating opens a two-item Note/Subtask picker controlled by configured
 move, open, and back actions; it defaults to Note. The accepted item is inserted
 after selected content; when a field is selected, it appends to the outline.
-Open and edit change the selected field or item's text. Space toggles a subtask
-and reports an error when the selection is a field or note.
+Open and edit change the selected field or item's text. Notes open in a native
+multiline text box: Enter creates a new line, Ctrl+S accepts that text into the
+task draft, and Escape cancels the text edit. Subtasks use the same text box in
+single-line mode. Space toggles a subtask and reports an error when the
+selection is a field or note.
 
 Use the shared form hierarchy: heading styling for the outline and picker
 labels, bright accent for the selection, secondary text for other items, muted
 hints and empty states, error styling for validation, and warning styling for
 destructive confirmation.
 
-Notes are non-empty single lines. New subtasks are unchecked titles; their
-other fields can be changed by opening that subtask in the same editor. Opening
-the editor on a subtask supports arbitrary nesting. Existing
-items cannot change type. Reordering and multiline notes are not supported.
+Notes are non-empty and may contain multiple lines. Their first line is stored
+as an indented Markdown list item, while each continuation line is indented
+below that item. New subtasks are unchecked titles; their other fields can be
+changed by opening that subtask in the same editor. Opening the editor on a
+subtask supports arbitrary nesting. Existing items cannot change type.
+Reordering is not supported.
 
 Removing a subtask removes its complete subtree. A subtask with nested notes or
 children requires confirmation through configured open/back gestures. Changes
@@ -58,6 +63,8 @@ permissions are preserved.
 5. Fields and ordered content can be changed in one draft; Ctrl+S performs one
    atomic write and Escape discards it.
 6. External changes or invalid ordered identities reject the save without loss.
+7. A note can be edited across multiple lines, saved into its task draft with
+   Ctrl+S, and cancelled with Escape without changing that draft.
 
 ## References
 
