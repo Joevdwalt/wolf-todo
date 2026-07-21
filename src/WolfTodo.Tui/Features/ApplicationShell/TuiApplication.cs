@@ -538,8 +538,12 @@ public sealed class TuiApplication(
         TodoIdentity? excluded,
         TimeSpan defaultDuration)
     {
-        if (schedule.Time is null ||
-            duration > new TimeOnly(22, 0).ToTimeSpan() - schedule.Time.Value.ToTimeSpan())
+        if (schedule.Time is null)
+        {
+            return false;
+        }
+
+        if (duration > new TimeOnly(22, 0).ToTimeSpan() - schedule.Time.Value.ToTimeSpan())
         {
             return true;
         }

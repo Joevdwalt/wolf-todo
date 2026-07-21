@@ -478,6 +478,72 @@ public sealed class TuiApplicationTests
             view.State.Editor.Error == "That timeslot is already occupied.");
     }
 
+    [Fact]
+    public void Run_allows_an_all_day_schedule_on_a_day_with_timed_todos()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today);
+        var original =
+            $"# Work\n\n- [ ] Unscheduled\n- [ ] Timed ⏳ {date:yyyy-MM-dd} ⏰ 09:30\n";
+        var fileSystem = new MutableProjectFileSystem("/todos/project.md", original);
+        var keys = new List<ConsoleKeyInfo>
+        {
+            Key('x'), Key('e'),
+            Key('j'), Key('j'), Key('j'), Key('j'), Key('l')
+        };
+        keys.AddRange(date.ToString("yyyy-MM-dd").Select(Key));
+        keys.AddRange([
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.S, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter)
+        ]);
+        var terminal = new FakeTerminal([.. keys]);
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain($"- [ ] Unscheduled ⏳ {date:yyyy-MM-dd}")
+            .And.NotContain("Unscheduled ⏰");
+        terminal.BrowserViews.Any(view =>
+            view.State.Editor is not null && view.State.Editor.Error == "That timeslot is already occupied.")
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public void Run_allows_changing_a_planned_todo_to_an_all_day_schedule()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today);
+        var original =
+            $"# Work\n\n- [ ] Planned ⏳ {date:yyyy-MM-dd} ⏰ 06:00\n- [ ] Timed ⏳ {date:yyyy-MM-dd} ⏰ 09:30\n";
+        var fileSystem = new MutableProjectFileSystem("/todos/project.md", original);
+        var keys = new List<ConsoleKeyInfo>
+        {
+            Key('x'), Key('L'), Key('e'),
+            Key('j'), Key('j'), Key('j'), Key('j'), Key('j'), Key('l')
+        };
+        keys.AddRange(Enumerable.Repeat(Key(ConsoleKey.Backspace), 5));
+        keys.AddRange([
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.S, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter)
+        ]);
+        var terminal = new FakeTerminal([.. keys]);
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain($"- [ ] Planned ⏳ {date:yyyy-MM-dd}")
+            .And.NotContain("Planned ⏰");
+        terminal.PlannerViews.Any(view =>
+            view.State.Editor is not null && view.State.Editor.Error == "That timeslot is already occupied.")
+            .Should().BeFalse();
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal,
