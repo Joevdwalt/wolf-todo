@@ -3,6 +3,7 @@ using Spectre.Console;
 using Spectre.Console.Rendering;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Splash;
@@ -101,8 +102,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var height = heightProvider();
         var compact = width < 80 || height < 18;
         var today = todayProvider();
+        var selectList = BrowserSelectList(view, keyBindings);
+        var selectRows = SelectListRows(height);
         var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
-        var contentHeight = AvailableContentHeight(height, statusLines.Count);
+        var contentHeight = Math.Max(1, AvailableContentHeight(height, statusLines.Count) -
+            (selectList is null ? 0 : SelectListControl.Height(selectList, selectRows)));
         WriteOperationalHeader(
             tabs,
             keyBindings,
@@ -124,6 +128,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
         else
         {
             WriteNarrow(view, width, contentHeight, theme, today);
+        }
+
+        if (selectList is not null)
+        {
+            AnsiConsole.Write(SelectListControl.Create(selectList, theme, selectRows));
         }
 
         WriteStatus(statusLines, view, theme);
@@ -149,6 +158,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         var width = widthProvider();
         var height = heightProvider();
+        var selectList = PlannerSelectList(view, keyBindings);
+        var selectRows = SelectListRows(height);
         WriteOperationalHeader(
             tabs,
             keyBindings,
@@ -160,7 +171,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             view.ProjectErrorCount);
         var status = PlannerStatus(view, keyBindings, width, height);
         var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
-        var pickerRows = pickerVisible ? Math.Clamp(height / 5, 3, 7) : 0;
+        var pickerRows = pickerVisible ? selectRows : 0;
         var wideDetails = view.State.ShowDetails && width >= 120;
         var compactDetails = view.State.ShowDetails && !wideDetails &&
                              view.State.Mode == PlannerMode.Browse &&
@@ -168,7 +179,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                              view.CommandPalette is null &&
                              view.GlobalCommand is null;
         const int tabTableStatusBorderAndCursorHeight = 8;
-        var pickerHeight = pickerVisible ? pickerRows + 2 : 0;
+        var pickerHeight = selectList is null ? 0 : SelectListControl.Height(selectList, selectRows);
         const int compactDetailsHeight = 3;
         var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0;
         var narrowAllDayHeight = !wideDetails && allDayVisible
@@ -317,9 +328,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
             }
         }
 
-        if (view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter)
+        if (selectList is not null)
         {
-            WritePlannerPicker(view, theme, width, pickerRows);
+            AnsiConsole.Write(SelectListControl.Create(selectList, theme, selectRows));
         }
 
         WritePlannerStatus(status, view, theme);
@@ -401,8 +412,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         IReadOnlyList<string> status;
         if (view.CommandPalette is not null)
         {
-            return DefaultStatusLines(
-                CommandPaletteStatus(view.CommandPalette, bindings, terminalWidth, terminalHeight));
+            return DefaultStatusLines([CommandPaletteFooter(bindings)]);
         }
 
         if (view.State.Editor is not null)
@@ -437,13 +447,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             status = view.State.Mode switch
             {
-                PlannerMode.EditFilter => [$"/{view.State.FilterDraft}"],
-                PlannerMode.ChooseTodo =>
-                [
-                    $"CHOOSE TODO  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
-                    $"{Shortest(bindings.Open)} ASSIGN  {Shortest(bindings.FilterMode)} FILTER  " +
-                    $"{Shortest(bindings.Back)} CANCEL"
-                ],
+                PlannerMode.EditFilter or PlannerMode.ChooseTodo => [PlannerPickerFooter(bindings)],
                 PlannerMode.MoveTodo =>
                 [
                     $"MOVE TODO  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} SLOT  " +
@@ -469,6 +473,120 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return DefaultStatusLines(status.SelectMany(line => WrapStatus(line, statusWidth)));
     }
 
+    private static int SelectListRows(int terminalHeight) => Math.Clamp(terminalHeight / 5, 3, 7);
+
+    private static SelectListView? BrowserSelectList(BrowserView view, TuiKeyBindings bindings)
+    {
+        if (view.CommandPalette is not null)
+        {
+            return CommandPaletteSelectList(view.CommandPalette, bindings);
+        }
+
+        return view.State.Editor is null
+            ? null
+            : TodoEditorSelectList(
+                view.State.Editor,
+                view.Projects
+                    .Where(project => project.Project is not null)
+                    .Select(project => new TodoEditorProjectOption(project.Title, project.Project!.Path))
+                    .ToArray(),
+                bindings);
+    }
+
+    private static SelectListView? PlannerSelectList(PlannerView view, TuiKeyBindings bindings)
+    {
+        if (view.CommandPalette is not null)
+        {
+            return CommandPaletteSelectList(view.CommandPalette, bindings);
+        }
+
+        if (view.State.Editor is not null)
+        {
+            return TodoEditorSelectList(
+                view.State.Editor,
+                view.Projects.Select(project => new TodoEditorProjectOption(project.Title, project.Path)).ToArray(),
+                bindings);
+        }
+
+        if (view.State.Mode is not (PlannerMode.ChooseTodo or PlannerMode.EditFilter))
+        {
+            return null;
+        }
+
+        var searchText = view.State.Mode == PlannerMode.EditFilter
+            ? view.State.FilterDraft
+            : view.State.FilterText.Length == 0 ? null : view.State.FilterText;
+        return new SelectListView(
+            "Unscheduled todos",
+            view.PickerTodos
+                .Select(todo => new SelectOption(todo.Todo.Title, $"[{todo.ProjectTitle}]"))
+                .ToArray(),
+            view.State.PickerIndex,
+            searchText,
+            "No open unscheduled todos",
+            PlannerPickerFooter(bindings),
+            view.State.Error);
+    }
+
+    private static SelectListView CommandPaletteSelectList(CommandPaletteView palette, TuiKeyBindings bindings) =>
+        new(
+            "Command palette",
+            palette.Items.Select(item => new SelectOption(
+                $"{item.Group}: {item.Label}",
+                $"[{item.Binding}]" + (item.IsEnabled ? string.Empty : $" — {item.DisabledReason}"),
+                item.IsEnabled)).ToArray(),
+            palette.SelectedIndex,
+            palette.State.IsSearching ? palette.State.Query : null,
+            "No matching actions",
+            CommandPaletteFooter(bindings),
+            palette.State.Error);
+
+    private static SelectListView? TodoEditorSelectList(
+        TodoTaskEditorState editor,
+        IReadOnlyList<TodoEditorProjectOption> projects,
+        TuiKeyBindings bindings)
+    {
+        if (editor.IsChoosingProject)
+        {
+            return new SelectListView(
+                "Choose project",
+                projects.Select(project => new SelectOption(project.Title)).ToArray(),
+                editor.ProjectPickerIndex,
+                null,
+                "No valid projects",
+                $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+                $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
+                editor.Error);
+        }
+
+        if (editor.Mode != TodoTaskEditorMode.ChooseContentType)
+        {
+            return null;
+        }
+
+        return new SelectListView(
+            "Add content",
+            Enum.GetValues<ContentItemKind>()
+                .Select(kind => new SelectOption(kind.ToString().ToUpperInvariant()))
+                .ToArray(),
+            (int)editor.AddKind,
+            null,
+            "No content types available",
+            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+            $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
+            editor.Error);
+    }
+
+    private static string CommandPaletteFooter(TuiKeyBindings bindings) =>
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+        $"{Shortest(bindings.FilterMode)} SEARCH  {Shortest(bindings.Open)} RUN  " +
+        $"{Shortest(bindings.Back)} CLOSE";
+
+    private static string PlannerPickerFooter(TuiKeyBindings bindings) =>
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+        $"{Shortest(bindings.Open)} ASSIGN  {Shortest(bindings.FilterMode)} FILTER  " +
+        $"{Shortest(bindings.Back)} CANCEL";
+
     private static string CalendarStatus(PlannerCalendarAgenda agenda) => agenda.SyncState switch
     {
         PlannerCalendarSyncState.Syncing => "SYNCING",
@@ -478,50 +596,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
         PlannerCalendarSyncState.Offline => "OFFLINE",
         _ => string.Empty
     };
-
-    private static void WritePlannerPicker(PlannerView view, TuiTheme theme, int width, int visibleRows)
-    {
-        var lines = new List<IRenderable>();
-        if (view.PickerTodos.Length == 0)
-        {
-            lines.Add(new Text("No open unscheduled todos", ThemeStyle(theme.Muted, Decoration.Dim)));
-        }
-        else
-        {
-            var start = Math.Clamp(
-                view.State.PickerIndex - visibleRows + 1,
-                0,
-                Math.Max(0, view.PickerTodos.Length - visibleRows));
-            foreach (var (todo, index) in view.PickerTodos
-                         .Skip(start)
-                         .Take(visibleRows)
-                         .Select((todo, index) => (todo, index + start)))
-            {
-                var selected = index == view.State.PickerIndex;
-                lines.Add(new Text(
-                    $"{(selected ? ">" : " ")} {todo.Todo.Title}  [{todo.ProjectTitle}]",
-                    ThemeStyle(
-                        selected ? theme.AccentBright : theme.Text,
-                        selected ? Decoration.Bold : Decoration.None)).Ellipsis());
-            }
-        }
-
-        while (lines.Count < visibleRows)
-        {
-            lines.Add(new Text(string.Empty));
-        }
-
-        WriteSurface(
-            new Panel(new Rows(lines))
-            {
-                Header = new PanelHeader("UNSCHEDULED TODOS"),
-                Border = BoxBorder.Square,
-                BorderStyle = ThemeStyle(theme.BorderActive),
-                Expand = true
-            },
-            theme.Surface2,
-            true);
-    }
 
     private static void WritePlannerStatus(
         IReadOnlyList<BrowserStatusLine> lines,
@@ -1646,11 +1720,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
     {
         if (view.CommandPalette is not null)
         {
-            return DefaultStatusLines(CommandPaletteStatus(
-                view.CommandPalette,
-                keyBindings,
-                terminalWidth,
-                terminalHeight));
+            return DefaultStatusLines([CommandPaletteFooter(keyBindings)]);
         }
 
         if (view.GlobalCommand is not null)
@@ -1725,36 +1795,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var width = Math.Max(1, terminalWidth - 4);
         if (editor.IsChoosingProject)
         {
-            var title = projects.Count == 0
-                ? "No valid projects"
-                : projects[Math.Clamp(editor.ProjectPickerIndex, 0, projects.Count - 1)].Title;
             return DefaultStatusLines(WrapStatus(
-                $"CHOOSE PROJECT: {title}  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+                $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
                 $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
                 width));
         }
 
         if (editor.Mode == TodoTaskEditorMode.ChooseContentType)
         {
-            var pickerLines = new List<BrowserStatusLine>
-            {
-                new("ADD CONTENT", BrowserStatusRole.FormLabel)
-            };
-            foreach (var kind in Enum.GetValues<ContentItemKind>())
-            {
-                pickerLines.Add(new BrowserStatusLine(
-                    $"{(editor.AddKind == kind ? ">" : " ")} {kind.ToString().ToUpperInvariant()}",
-                    editor.AddKind == kind
-                        ? BrowserStatusRole.FormActiveValue
-                        : BrowserStatusRole.FormValue));
-            }
-
-            pickerLines.AddRange(ContentStatusLines(
+            return ContentStatusLines(
                 $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
                 $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
                 width,
-                BrowserStatusRole.FormHint));
-            return pickerLines;
+                BrowserStatusRole.FormHint);
         }
 
         if (editor.Mode == TodoTaskEditorMode.ConfirmRemoval)
@@ -1836,44 +1889,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
             width,
             editor.Error is null ? BrowserStatusRole.FormHint : BrowserStatusRole.FormError));
         return lines;
-    }
-
-    private static IReadOnlyList<string> CommandPaletteStatus(
-        CommandPaletteView palette,
-        TuiKeyBindings bindings,
-        int terminalWidth,
-        int terminalHeight)
-    {
-        var width = Math.Max(1, terminalWidth - 4);
-        var visibleRows = Math.Max(1, Math.Min(7, terminalHeight - 13));
-        var start = Math.Clamp(
-            palette.SelectedIndex - visibleRows + 1,
-            0,
-            Math.Max(0, palette.Items.Length - visibleRows));
-        var lines = new List<string>
-        {
-            palette.State.IsSearching ? $"COMMAND PALETTE // /{palette.State.Query}_" : "COMMAND PALETTE"
-        };
-        if (palette.Items.Length == 0)
-        {
-            lines.Add("  NO MATCHING ACTIONS");
-        }
-        else
-        {
-            for (var index = start; index < Math.Min(palette.Items.Length, start + visibleRows); index++)
-            {
-                var item = palette.Items[index];
-                var marker = index == palette.SelectedIndex ? ">" : " ";
-                var unavailable = item.IsEnabled ? string.Empty : $" — {item.DisabledReason}";
-                lines.Add($"{marker} {item.Group}: {item.Label}  [{item.Binding}]{unavailable}");
-            }
-        }
-
-        lines.Add(palette.State.Error ??
-            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
-            $"{Shortest(bindings.FilterMode)} SEARCH  {Shortest(bindings.Open)} RUN  " +
-            $"{Shortest(bindings.Back)} CLOSE");
-        return lines.SelectMany(line => WrapStatus(line, width)).ToArray();
     }
 
     private static BrowserStatusLine TaskEditorFieldLine(

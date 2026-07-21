@@ -606,7 +606,7 @@ public sealed class SpectreTerminalUiTests
                 new ContentSubtaskDraft(3, "Request approval", false, 2)
             ]
         };
-        var paletteState = CommandPaletteState.Closed with { IsOpen = true };
+        var paletteState = CommandPaletteState.Closed with { IsOpen = true, IsSearching = true, Query = "edit" };
         var palette = new CommandPaletteView(
             paletteState,
             [new CommandPaletteItem(
@@ -645,6 +645,16 @@ public sealed class SpectreTerminalUiTests
             view with { CommandPalette = palette },
             DefaultBindings,
             TuiThemes.Wolf);
+        var project = new TodoProject("Work", "/todos/work.md", []);
+        terminal.ShowBrowser(
+            DefaultTabs,
+            view with
+            {
+                Projects = [new ProjectRow("Work", 0, project, null, true)],
+                State = view.State with { Editor = TodoTaskEditorState.Create(null, true) }
+            },
+            DefaultBindings,
+            TuiThemes.Wolf);
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("EDIT TASK // Parent")
@@ -653,7 +663,10 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("ADD CONTENT")
             .And.Contain("> SUBTASK")
             .And.Contain("COMMAND PALETTE")
-            .And.Contain("Edit todo");
+            .And.Contain("Edit todo")
+            .And.Contain("/edit_")
+            .And.Contain("CHOOSE PROJECT")
+            .And.Contain("> Work");
     }
 
     [Theory]
