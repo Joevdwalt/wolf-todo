@@ -53,7 +53,7 @@ public sealed class DayPlannerReducerTests
     }
 
     [Fact]
-    public void Reduce_rejects_filtering_from_an_occupied_slot()
+    public void Reduce_allows_filtering_from_an_occupied_slot_for_overlapping_work()
     {
         var reducer = new DayPlannerReducer(() => Today);
         var scheduled = Todo("Scheduled") with { Schedule = new TodoSchedule(Today, new TimeOnly(6, 0)) };
@@ -61,8 +61,8 @@ public sealed class DayPlannerReducerTests
 
         var result = reducer.Reduce(state, Key('/'), Bindings, View(state, scheduled));
 
-        result.State.Mode.Should().Be(PlannerMode.Browse);
-        result.State.Error.Should().Be("Select an empty timeslot to filter todos.");
+        result.State.Mode.Should().Be(PlannerMode.EditFilter);
+        result.State.Error.Should().BeNull();
     }
 
     [Fact]

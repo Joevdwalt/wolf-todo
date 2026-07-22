@@ -112,6 +112,60 @@ public sealed class ProjectBrowserPresenterTests
     }
 
     [Fact]
+    public void CreateView_adds_saved_query_items_and_applies_their_query_and_order()
+    {
+        var today = new DateOnly(2026, 7, 22);
+        SavedTodoQuery.TryParse("scheduled:t-1", out var query, out _).Should().BeTrue();
+        var savedView = new SavedSidebarView(
+            "@yesterday",
+            query,
+            new TodoSort(TodoSortProperty.Schedule, TodoSortDirection.Descending));
+        var catalog = new ProjectCatalog(
+            [Project(
+                "Alpha",
+                ScheduledTodo("Yesterday early", today.AddDays(-1), 8),
+                ScheduledTodo("Today", today, 9),
+                ScheduledTodo("Yesterday late", today.AddDays(-1), 16),
+                ScheduledTodo("Yesterday done", today.AddDays(-1), 12, completed: true))],
+            []);
+        var state = BrowserState.Initial with { ProjectIndex = 2 };
+        var queryPresenter = new ProjectBrowserPresenter(() => today);
+
+        var hidden = queryPresenter.CreateView(catalog, state, [savedView]);
+        var shown = queryPresenter.CreateView(catalog, state with { ShowCompleted = true }, [savedView]);
+
+        hidden.Projects.Select(row => row.Title).Should().Equal("All", "@today", "@yesterday", "Alpha");
+        hidden.Projects[2].Kind.Should().Be(ProjectRowKind.SavedQuery);
+        hidden.Projects[2].ActiveCount.Should().Be(2);
+        hidden.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Yesterday late", "Yesterday early");
+        shown.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Yesterday late", "Yesterday early", "Yesterday done");
+    }
+
+    [Fact]
+    public void CreateView_intersects_a_saved_query_with_the_live_slash_filter()
+    {
+        var today = new DateOnly(2026, 7, 22);
+        SavedTodoQuery.TryParse("scheduled:t-1", out var query, out _).Should().BeTrue();
+        var savedView = new SavedSidebarView("@yesterday", query, TodoSort.Source);
+        var catalog = new ProjectCatalog(
+            [Project(
+                "Alpha",
+                ScheduledTodo("Call supplier", today.AddDays(-1), 8),
+                ScheduledTodo("Write report", today.AddDays(-1), 9))],
+            []);
+
+        var result = new ProjectBrowserPresenter(() => today).CreateView(
+            catalog,
+            BrowserState.Initial with { ProjectIndex = 2, FilterText = "report" },
+            [savedView]);
+
+        result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Write report");
+    }
+
+    [Fact]
     public void CreateView_groups_all_projects_and_hides_completed_todos()
     {
         var catalog = new ProjectCatalog(

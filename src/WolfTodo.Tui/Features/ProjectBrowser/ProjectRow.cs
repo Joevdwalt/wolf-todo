@@ -8,12 +8,14 @@ public sealed record ProjectRow(
     TodoProject? Project,
     ProjectSourceError? Error,
     bool IsSelected,
-    ProjectRowKind Kind = ProjectRowKind.Project);
+    ProjectRowKind Kind = ProjectRowKind.Project,
+    SavedSidebarView? SavedView = null);
 
 public enum ProjectRowKind
 {
     All,
     Today,
+    SavedQuery,
     Project,
     Error
 }

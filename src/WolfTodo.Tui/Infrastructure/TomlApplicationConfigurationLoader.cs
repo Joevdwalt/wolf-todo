@@ -4,6 +4,7 @@ using Spectre.Console;
 using Tomlyn;
 using Tomlyn.Model;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Infrastructure;
 
@@ -73,12 +74,116 @@ public sealed class TomlApplicationConfigurationLoader(
         var theme = ReadTheme(document);
         var googleCalendar = ReadGoogleCalendar(document);
         var planner = ReadPlanner(document);
+        var sidebarItems = ReadSidebarItems(document);
         return new ApplicationConfiguration(files, bindings)
         {
             Theme = theme,
             GoogleCalendar = googleCalendar,
-            Planner = planner
+            Planner = planner,
+            SidebarItems = sidebarItems
         };
+    }
+
+    private static ImmutableArray<SavedSidebarView> ReadSidebarItems(TomlTable document)
+    {
+        if (!document.TryGetValue("sidebar", out var sidebarValue))
+        {
+            return [];
+        }
+
+        if (sidebarValue is not TomlTable sidebar)
+        {
+            throw new InvalidDataException("Invalid configuration file: sidebar must be a TOML table.");
+        }
+
+        var unknownSidebarKey = sidebar.Keys.FirstOrDefault(key => key != "items");
+        if (unknownSidebarKey is not null)
+        {
+            throw new InvalidDataException($"Invalid configuration file: sidebar.{unknownSidebarKey} is not supported.");
+        }
+
+        if (!sidebar.TryGetValue("items", out var itemsValue) || itemsValue is not TomlTableArray items)
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: sidebar.items must be declared using [[sidebar.items]].");
+        }
+
+        var result = ImmutableArray.CreateBuilder<SavedSidebarView>();
+        var titles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "All", "@today" };
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index];
+            var unknownItemKey = item.Keys.FirstOrDefault(key => key is not ("title" or "query" or "order"));
+            if (unknownItemKey is not null)
+            {
+                throw new InvalidDataException(
+                    $"Invalid configuration file: sidebar.items[{index}].{unknownItemKey} is not supported.");
+            }
+
+            var title = RequiredText(item, "title", index);
+            if (!titles.Add(title))
+            {
+                throw new InvalidDataException(
+                    $"Invalid configuration file: sidebar item title '{title}' is duplicated or reserved.");
+            }
+
+            var queryText = RequiredText(item, "query", index);
+            if (!SavedTodoQuery.TryParse(queryText, out var query, out var queryError))
+            {
+                throw new InvalidDataException(
+                    $"Invalid configuration file: sidebar.items[{index}].query {queryError}.");
+            }
+
+            var orderText = RequiredText(item, "order", index);
+            if (!TryParseOrder(orderText, out var order))
+            {
+                throw new InvalidDataException(
+                    $"Invalid configuration file: sidebar.items[{index}].order must be source, name, scheduled, tags, file, or priority followed by asc or desc.");
+            }
+
+            result.Add(new SavedSidebarView(title, query, order));
+        }
+
+        return result.ToImmutable();
+    }
+
+    private static string RequiredText(TomlTable item, string key, int index)
+    {
+        if (!item.TryGetValue(key, out var value) || value is not string text || string.IsNullOrWhiteSpace(text))
+        {
+            throw new InvalidDataException(
+                $"Invalid configuration file: sidebar.items[{index}].{key} must be non-empty text.");
+        }
+
+        return text.Trim();
+    }
+
+    private static bool TryParseOrder(string value, out TodoSort order)
+    {
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var property = parts.FirstOrDefault()?.ToLowerInvariant() switch
+        {
+            "source" => TodoSortProperty.Source,
+            "name" => TodoSortProperty.Name,
+            "schedule" or "scheduled" or "date" => TodoSortProperty.Schedule,
+            "tag" or "tags" => TodoSortProperty.Tags,
+            "file" => TodoSortProperty.File,
+            "priority" => TodoSortProperty.Priority,
+            _ => (TodoSortProperty?)null
+        };
+        var direction = parts.Length == 1 || string.Equals(parts[1], "asc", StringComparison.OrdinalIgnoreCase)
+            ? TodoSortDirection.Ascending
+            : string.Equals(parts[1], "desc", StringComparison.OrdinalIgnoreCase)
+                ? TodoSortDirection.Descending
+                : (TodoSortDirection?)null;
+        if (parts.Length > 2 || property is null || direction is null)
+        {
+            order = TodoSort.Source;
+            return false;
+        }
+
+        order = new TodoSort(property.Value, direction.Value);
+        return true;
     }
 
     private static PlannerConfiguration ReadPlanner(TomlTable document)

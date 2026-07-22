@@ -26,8 +26,12 @@ public sealed record PlannerView(
     public PlannerAssignment? SelectedPickerTodo =>
         PickerTodos.Length == 0 ? null : PickerTodos[Math.Clamp(State.PickerIndex, 0, PickerTodos.Length - 1)];
 
-    public PlannerAssignment? SelectedAssignment =>
-        SelectedSlot.Assignments.Length == 1 ? SelectedSlot.Assignments[0] : null;
+    // The timeline deliberately selects its first stable branch when items overlap.
+    public PlannerTimelineItemView? SelectedItem =>
+        SelectedSlot.Items.FirstOrDefault(item => item.IsSelected) ??
+        SelectedSlot.Items.FirstOrDefault();
 
-    public PlannerCalendarMeeting? SelectedMeeting => SelectedSlot.PrimaryMeeting;
+    public PlannerAssignment? SelectedAssignment => SelectedItem?.Assignment;
+
+    public PlannerCalendarMeeting? SelectedMeeting => SelectedItem?.Meeting;
 }

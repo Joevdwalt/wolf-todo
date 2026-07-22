@@ -15,9 +15,10 @@ internal sealed class TimelineMarkerRenderable(Style style) : IRenderable
             yield break;
         }
 
-        yield return new Segment(
-            $"▶{new string('─', maxWidth - 1)}",
-            style,
-            null);
+        var label = "┣━━ NOW ";
+        var text = maxWidth <= label.Length
+            ? label[..maxWidth]
+            : label + new string('━', maxWidth - label.Length);
+        yield return new Segment(text, style, null);
     }
 }

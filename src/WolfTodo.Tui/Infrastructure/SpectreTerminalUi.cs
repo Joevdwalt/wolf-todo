@@ -214,10 +214,10 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var table = new Table().SquareBorder().Expand();
         table.BorderStyle = ThemeStyle(theme.BorderActive);
         table.AddColumn(new TableColumn(new Text(
-            view.State.SelectedDate.ToString("ddd yyyy-MM-dd"),
+            "TIME",
             ThemeStyle(theme.Heading, Decoration.Bold)))
         {
-            Width = 14,
+            Width = 8,
             NoWrap = true
         });
         table.AddColumn(new TableColumn(new Text("PLAN", ThemeStyle(theme.Accent, Decoration.Bold))));
@@ -226,80 +226,26 @@ public sealed class SpectreTerminalUi : ITerminalUi
             if (row is PlannerNowTimelineRow marker)
             {
                 table.AddRow(
-                    new Text(marker.Time.ToString("HH:mm"), ThemeStyle(theme.AccentBright, Decoration.Bold)),
+                    new Text(marker.Time.ToString("HH:mm").PadLeft(5), ThemeStyle(theme.AccentBright, Decoration.Bold)),
                     new TimelineMarkerRenderable(
                         ThemeStyle(theme.AccentBright, Decoration.Bold)));
                 continue;
             }
 
             var slot = ((PlannerSlotTimelineRow)row).Slot;
-            var selectedColor = slot.IsSelected ? theme.AccentBright : theme.Date;
-            var time = new Text(
-                slot.Time.Minute is 0 or 30 ? slot.Time.ToString("HH:mm") : string.Empty,
-                ThemeStyle(selectedColor, slot.IsSelected ? Decoration.Bold : Decoration.None));
-            IRenderable content;
-            if (slot.Assignments.Length > 1)
+            foreach (var renderRow in PlannerTimelineRenderModel.ForSlot(slot))
             {
-                content = new Text(
-                    $"! {slot.Assignments.Length} conflicting assignments",
-                    ThemeStyle(theme.Error, Decoration.Bold));
+                var time = PlannerTimeRulerLine(renderRow, theme);
+                var content = PlannerTimelineRenderLine(renderRow, theme);
+                var isActiveRow = renderRow.IsActive || renderRow.IsPrimaryActive ||
+                                  renderRow.IsSelected || (slot.IsSelected && renderRow.IsEmpty);
+                table.AddRow(
+                    isActiveRow ? OnSurface(time, theme.Surface2, true) : time,
+                    isActiveRow ? OnSurface(content, theme.Surface2, true) : content);
             }
-            else if (slot.Assignments.Length == 1)
-            {
-                var assignment = slot.Assignments[0];
-                var prefix = slot.IsSelected ? ">" : " ";
-                var isActiveAssignment = slot.IsActiveAssignment;
-                var meeting = MeetingHint(slot);
-                var blockContent = PlannerTodoLine(
-                    assignment.Todo,
-                    assignment.ProjectTitle,
-                    prefix,
-                    isActiveAssignment,
-                    meeting,
-                    theme);
-                content = slot.DurationPosition is { } durationPosition
-                    ? new DurationBlockRenderable(
-                        blockContent,
-                        durationPosition,
-                        ThemeStyle(
-                            isActiveAssignment ? theme.AccentBright : theme.BorderActive,
-                            isActiveAssignment ? Decoration.Bold : Decoration.None),
-                        slot.IsSelected)
-                    : blockContent;
-            }
-            else if (slot.Meetings.Length > 0)
-            {
-                var meeting = slot.PrimaryMeeting!;
-                var isActiveMeeting = slot.IsActiveMeeting;
-                var prefix = slot.IsSelected ? ">" : " ";
-                var blockContent = PlannerMeetingLine(
-                    meeting,
-                    prefix,
-                    isActiveMeeting,
-                    slot.Meetings.Length - 1,
-                    theme);
-                content = slot.MeetingDurationPosition is { } durationPosition
-                    ? new DurationBlockRenderable(
-                        blockContent,
-                        durationPosition,
-                        ThemeStyle(
-                            isActiveMeeting ? theme.AccentBright : theme.Info,
-                            isActiveMeeting ? Decoration.Bold : Decoration.None),
-                        slot.IsSelected)
-                    : blockContent;
-            }
-            else
-            {
-                content = new Text(slot.IsSelected ? "> —" : "  —", ThemeStyle(theme.Muted, Decoration.Dim));
-            }
-
-            var isActiveRow = slot.IsSelected || slot.IsActiveAssignment || slot.IsActiveMeeting;
-            table.AddRow(
-                isActiveRow ? OnSurface(time, theme.Surface2, true) : time,
-                isActiveRow ? OnSurface(content, theme.Surface2, true) : content);
         }
 
-        for (var index = timelineRows.Count; index < availableRows; index++)
+        for (var index = PlannerTimelineHeight(timelineRows); index < availableRows; index++)
         {
             table.AddEmptyRow();
         }
@@ -409,7 +355,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             rows.Add(new PlannerNowTimelineRow(currentTime));
         }
 
-        if (rows.Count <= availableRows)
+        if (PlannerTimelineHeight(rows) <= availableRows)
         {
             return rows;
         }
@@ -421,24 +367,57 @@ public sealed class SpectreTerminalUi : ITerminalUi
             selectedRow = Math.Clamp(selectedIndex, 0, rows.Count - 1);
         }
 
-        var start = Math.Clamp(selectedRow - availableRows + 1, 0, rows.Count - availableRows);
-        var markerRow = rows.FindIndex(row => row is PlannerNowTimelineRow);
-        if (markerRow >= 0 && Math.Abs(markerRow - selectedRow) < availableRows)
+        var start = selectedRow;
+        var usedRows = TimelineRowHeight(rows[selectedRow]);
+        while (start > 0 && usedRows + TimelineRowHeight(rows[start - 1]) <= availableRows)
         {
-            if (markerRow < start)
-            {
-                start = markerRow;
-            }
-            else if (markerRow >= start + availableRows)
-            {
-                start = markerRow - availableRows + 1;
-            }
-
-            start = Math.Clamp(start, 0, rows.Count - availableRows);
+            start--;
+            usedRows += TimelineRowHeight(rows[start]);
         }
 
-        return rows.Skip(start).Take(availableRows).ToArray();
+        var end = selectedRow + 1;
+        while (end < rows.Count && usedRows + TimelineRowHeight(rows[end]) <= availableRows)
+        {
+            usedRows += TimelineRowHeight(rows[end]);
+            end++;
+        }
+
+        var markerRow = rows.FindIndex(row => row is PlannerNowTimelineRow);
+        if (markerRow >= 0)
+        {
+            var requiredStart = Math.Min(selectedRow, markerRow);
+            var requiredEnd = Math.Max(selectedRow, markerRow) + 1;
+            var requiredHeight = PlannerTimelineHeight(rows.Skip(requiredStart).Take(requiredEnd - requiredStart));
+            if (requiredHeight <= availableRows)
+            {
+                start = requiredStart;
+                end = requiredEnd;
+                usedRows = requiredHeight;
+                while (start > 0 && usedRows + TimelineRowHeight(rows[start - 1]) <= availableRows)
+                {
+                    start--;
+                    usedRows += TimelineRowHeight(rows[start]);
+                }
+
+                while (end < rows.Count && usedRows + TimelineRowHeight(rows[end]) <= availableRows)
+                {
+                    usedRows += TimelineRowHeight(rows[end]);
+                    end++;
+                }
+            }
+        }
+
+        return rows.Skip(start).Take(end - start).ToArray();
     }
+
+    private static int PlannerTimelineHeight(IEnumerable<PlannerTimelineRow> rows) =>
+        rows.Sum(TimelineRowHeight);
+
+    private static int TimelineRowHeight(PlannerTimelineRow row) => row switch
+    {
+        PlannerSlotTimelineRow slot => PlannerTimelineRenderModel.ForSlot(slot.Slot).Count,
+        _ => 1
+    };
 
     private static IReadOnlyList<BrowserStatusLine> PlannerStatus(
         PlannerView view,
@@ -1058,7 +1037,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             var line = new System.Text.StringBuilder();
             var rowColor = row.IsSelected
                 ? theme.AccentBright
-                : row.Kind == ProjectRowKind.Today ? theme.Date : theme.Text;
+                : row.Kind is ProjectRowKind.Today or ProjectRowKind.SavedQuery ? theme.Date : theme.Text;
             AppendStyled(
                 line,
                 row.IsSelected ? ">" : " ",
@@ -1209,6 +1188,36 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static IReadOnlyList<IRenderable> PlannerDetailLines(PlannerView view, TuiTheme theme)
     {
+        if (view.State.Mode == PlannerMode.MoveTodo && view.State.MovingTodo is { } movingIdentity)
+        {
+            var moving = view.Slots
+                .SelectMany(slot => slot.Assignments)
+                .FirstOrDefault(assignment => assignment.Identity == movingIdentity);
+            if (moving is not null)
+            {
+                var start = moving.Todo.Schedule?.Time;
+                var duration = moving.Todo.Duration;
+                var destination = view.SelectedSlot.Time;
+                var destinationEnd = duration is { } value ? destination.Add(value) : destination;
+                var current = start is null
+                    ? "Unscheduled"
+                    : duration is { } currentDuration
+                        ? $"{start:HH:mm}–{start.Value.Add(currentDuration):HH:mm}"
+                        : start.Value.ToString("HH:mm");
+                var target = duration is null
+                    ? destination.ToString("HH:mm")
+                    : $"{destination:HH:mm}–{destinationEnd:HH:mm}";
+                return
+                [
+                    new Text("MOVE TASK", ThemeStyle(theme.AccentBright, Decoration.Bold)),
+                    new Text($"Task: {moving.Todo.Title}", ThemeStyle(theme.Text)),
+                    new Text($"Current: {current}", ThemeStyle(theme.Date)),
+                    new Text($"Destination: {target}", ThemeStyle(theme.Date)),
+                    new Text($"Duration: {FormatDuration(duration) ?? "Instant"}", ThemeStyle(theme.Info))
+                ];
+            }
+        }
+
         if (view.SelectedSlot.Assignments.Length > 1)
         {
             return
@@ -1258,9 +1267,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
         AddField(
             lines,
             "Calendar",
-            view.SelectedSlot.PrimaryMeeting is null
+            view.SelectedSlot.Meetings.FirstOrDefault() is null
                 ? null
-                : MeetingLabel(view.SelectedSlot.PrimaryMeeting) +
+                : MeetingLabel(view.SelectedSlot.Meetings[0]) +
                   (view.SelectedSlot.Meetings.Length > 1 ? $" +{view.SelectedSlot.Meetings.Length - 1}" : string.Empty),
             theme,
             theme.Info);
@@ -1734,6 +1743,62 @@ public sealed class SpectreTerminalUi : ITerminalUi
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
         AppendStyled(line, schedule, todo.IsCompleted ? theme.Muted : theme.Date,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        return new Markup(line.ToString());
+    }
+
+    private static IRenderable PlannerTimeRulerLine(PlannerTimelineRenderRow row, TuiTheme theme)
+    {
+        var text = row.IsMinorTimeTick ? row.TimeTickGlyph.PadLeft(5) : row.TimeLabel.PadLeft(5);
+        return new Text(
+            text,
+            ThemeStyle(
+                row.IsSelected ? theme.AccentBright : row.IsMinorTimeTick ? theme.Muted : theme.Date,
+                row.IsSelected ? Decoration.Bold : row.IsMinorTimeTick ? Decoration.Dim : Decoration.None));
+    }
+
+    private static IRenderable PlannerTimelineRenderLine(PlannerTimelineRenderRow row, TuiTheme theme)
+    {
+        var selected = row.IsSelected;
+        var active = row.IsActive;
+        var primaryActive = row.IsPrimaryActive;
+        var completed = row.ItemType == PlannerItemType.Task && row.StatusGlyph == "✓";
+        var color = active ? theme.AccentBright : completed ? theme.Muted :
+            row.ItemType == PlannerItemType.Task ? theme.Text : row.ItemType is null ? theme.Muted : theme.Info;
+        var decoration = active ? Decoration.Bold : completed || row.IsEmpty ? Decoration.Dim : Decoration.None;
+        var line = new System.Text.StringBuilder();
+        AppendStyled(
+            line,
+            row.PrimaryBranchGlyph,
+            row.IsPrimarySelected || primaryActive || selected ? theme.AccentBright : row.IsEmpty ? theme.Muted : theme.BorderActive,
+            row.IsPrimarySelected || primaryActive ? Decoration.Bold : decoration);
+        if (row.SecondaryPrefix.Length > 0)
+        {
+            AppendStyled(line, "  " + row.SecondaryPrefix + "  ", theme.BorderActive, decoration);
+        }
+        else if (row.ActivityBranchGlyph.Length > 0 && row.PrimaryBranchGlyph.Length > 0)
+        {
+            AppendStyled(line, "  ", color, decoration);
+        }
+
+        if (row.IsEmpty)
+        {
+            return new Markup(line.ToString());
+        }
+
+        AppendStyled(line, row.ActivityBranchGlyph + " ", color, decoration);
+        if (row.StatusGlyph.Length > 0)
+        {
+            var glyphColor = row.ItemType == PlannerItemType.Task && !completed
+                ? active ? theme.AccentBright : theme.Accent
+                : color;
+            AppendStyled(line, row.StatusGlyph + " ", glyphColor, decoration);
+            AppendStyled(line, row.Title, color, decoration);
+            if (row.Metadata.Length > 0)
+            {
+                AppendStyled(line, " " + row.Metadata, active ? theme.AccentBright : theme.Muted, decoration);
+            }
+        }
+
         return new Markup(line.ToString());
     }
 

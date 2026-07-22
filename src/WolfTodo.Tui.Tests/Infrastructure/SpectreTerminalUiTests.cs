@@ -184,7 +184,7 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
-    public void ShowPlanner_renders_a_soft_rounded_duration_block_without_continuation_text()
+    public void ShowPlanner_renders_a_simple_duration_tree_with_continuation_and_end()
     {
         var date = new DateOnly(2026, 7, 15);
         var todo = new TodoItem(
@@ -200,7 +200,8 @@ public sealed class SpectreTerminalUiTests
         {
             Accent = new Color(1, 2, 3),
             AccentBright = new Color(4, 5, 6),
-            BorderActive = new Color(7, 8, 9)
+            BorderActive = new Color(7, 8, 9),
+            Surface2 = new Color(10, 11, 12)
         };
         StartRecording(100, 45);
         var start = AnsiConsole.ExportText().Length;
@@ -211,12 +212,13 @@ public sealed class SpectreTerminalUiTests
         var html = NormalizeHtml(AnsiConsole.ExportHtml());
 
         output.Should().Contain("Deep work")
-            .And.Contain("╮")
-            .And.Contain("╰")
-            .And.Contain("╯")
-            .And.NotContain("╭")
+            .And.Contain("├─ ○ Deep work")
+            .And.Contain("│")
+            .And.Contain("└─")
+            .And.NotContain("╮")
+            .And.NotContain("╯")
             .And.NotContain("↳");
-        StyleBefore(html, "╮").Should().Contain("#070809").And.NotContain("#040506");
+        StyleBefore(html, "├─").Should().NotBeNullOrEmpty();
 
         var selectedView = new DayPlannerPresenter().CreateView(
             new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
@@ -226,8 +228,9 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(DefaultTabs, selectedView, DefaultBindings, theme);
 
         var selectedHtml = NormalizeHtml(AnsiConsole.ExportHtml());
-        StyleBefore(selectedHtml, "╮").Should().Contain("#040506");
-        StyleBefore(selectedHtml, "╯").Should().Contain("#040506");
+        StyleBefore(selectedHtml, "├▶").Should().Contain("#040506");
+        StyleBefore(selectedHtml, "└─").Should().NotBeNullOrEmpty();
+        selectedHtml.Should().Contain("#0a0b0c");
 
         var middleSelectedView = new DayPlannerPresenter().CreateView(
             new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
@@ -237,7 +240,9 @@ public sealed class SpectreTerminalUiTests
         new SpectreTerminalUi(() => 100, () => 45)
             .ShowPlanner(DefaultTabs, middleSelectedView, DefaultBindings, theme);
 
-        AnsiConsole.ExportText()[middleStart..].Should().Contain("> │");
+        var middleOutput = AnsiConsole.ExportText()[middleStart..];
+        middleOutput.Should().Contain("├▶");
+        middleOutput.Split("├▶", StringSplitOptions.None).Length.Should().Be(2);
     }
 
     [Fact]
@@ -274,8 +279,8 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("LOCATION: Boardroom")
             .And.Contain("ATTENDEES: Alice, Bob")
             .And.Contain("Quarterly customer review")
-            .And.Contain("╮")
-            .And.Contain("╯");
+            .And.Contain("├▶ ◆ Client meeting")
+            .And.Contain("│");
     }
 
     [Fact]
@@ -332,8 +337,8 @@ public sealed class SpectreTerminalUiTests
         var cells = markerLine.Split('│');
         var planCell = cells[^2].Trim();
 
-        planCell.Should().StartWith("▶");
-        planCell[1..].Should().NotBeEmpty().And.MatchRegex("^─+$");
+        planCell.Should().StartWith("┣━━ NOW ");
+        planCell.Should().Contain("━");
         planCell.Length.Should().Be(cells[^2].Length - 2);
         StyleBefore(html, "14:23").Should().Contain("#010203").And.NotContain("#040506");
         html.Should().Contain("#070809");
@@ -363,7 +368,7 @@ public sealed class SpectreTerminalUiTests
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         var markerIndex = Array.FindIndex(lines, line => line.Contains($"{hour:00}:{minute:00}"));
         var slotIndex = Array.FindIndex(lines, line =>
-            line.Contains(adjacentSlot) && line.Contains('—'));
+            line.Contains(adjacentSlot) && !line.Contains("NOW", StringComparison.Ordinal));
 
         markerIndex.Should().BeGreaterThanOrEqualTo(0);
         slotIndex.Should().BeGreaterThanOrEqualTo(0);
@@ -513,7 +518,7 @@ public sealed class SpectreTerminalUiTests
         var html = NormalizeHtml(AnsiConsole.ExportHtml());
         var text = AnsiConsole.ExportText()[textStart..];
 
-        text.Should().Contain("REF-TIMED - Timed task  [Work] #timed")
+        text.Should().Contain("Timed task")
             .And.Contain("REF-ALLDAY - All-day task  [Work]")
             .And.Contain("#allday")
             .And.Contain("INSPECTOR")

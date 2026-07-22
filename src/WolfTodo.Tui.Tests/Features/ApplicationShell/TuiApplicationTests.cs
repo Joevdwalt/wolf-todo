@@ -346,7 +346,7 @@ public sealed class TuiApplicationTests
         application.Run();
 
         fileSystem.Contents.Should().Contain("- [ ] Planned")
-            .And.Contain($"⏰ 06:00 ⏳ {DateOnly.FromDateTime(DateTime.Today):yyyy-MM-dd}");
+            .And.Contain($"⏰ 06:00 ⏱ 30m ⏳ {DateOnly.FromDateTime(DateTime.Today):yyyy-MM-dd}");
         terminal.PlannerViews.Should().Contain(view => view.State.Editor != null);
         terminal.PlannerViews.Last().SelectedAssignment!.Todo.Title.Should().Be("Planned");
     }
@@ -444,7 +444,7 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
-    public void Run_rejects_an_occupied_schedule_and_keeps_the_browser_form_open()
+    public void Run_allows_an_overlapping_schedule_from_the_browser_form()
     {
         var date = DateOnly.FromDateTime(DateTime.Today);
         var original =
@@ -472,10 +472,7 @@ public sealed class TuiApplicationTests
 
         application.Run();
 
-        fileSystem.Contents.Should().Be(original);
-        terminal.BrowserViews.Should().Contain(view =>
-            view.State.Editor != null &&
-            view.State.Editor.Error == "That timeslot is already occupied.");
+        fileSystem.Contents.Should().Contain($"Unscheduled ⏰ 09:30 ⏳ {date:yyyy-MM-dd}");
     }
 
     [Fact]

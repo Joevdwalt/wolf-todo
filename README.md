@@ -52,6 +52,11 @@ files = [
   "/absolute/path/to/project-two.md"
 ]
 
+[[sidebar.items]]
+title = "@yesterday"
+query = "scheduled:t-1"
+order = "scheduled asc"
+
 [keybindings]
 quit = ":q"
 toggle_completed = ":completed"
@@ -103,7 +108,7 @@ enabled = false
 oauth_client_file = "/absolute/path/to/google-oauth-client.json"
 
 [planner]
-# Timed tasks without an explicit ⏱ duration reserve this many minutes.
+# New tasks created from Day Planner receive this explicit ⏱ duration.
 default_duration_minutes = 30
 ```
 
@@ -160,6 +165,18 @@ keeps project grouping and the active sort, and combines with the `/` filter.
 Completed scheduled tasks remain controlled by `:completed`. Because `@today`
 is a temporary view, closing there reopens `All` on the next launch.
 
+Additional virtual views can be declared with `[[sidebar.items]]`. Each item
+requires a unique `title`, an AND-combined `query`, and an `order`. Query terms
+use `field:value` syntax. Supported fields are `scheduled`, `tag`, `project`,
+`text`, and `priority`. Scheduled values accept ISO dates and the editor's
+relative expressions (`t`, `t-1`, `t+1`, `w+1`) plus `<`, `<=`, `>`, and `>=`;
+for example `scheduled:<t` finds overdue work. Orders are `source`, `name`,
+`scheduled`, `tags`, `file`, or `priority`, optionally followed by `asc` or
+`desc`. Saved views appear below `@today`, aggregate all projects, retain tree
+context, combine with the live `/` filter, and continue to use `:completed` for
+completed visibility. Relative dates are reevaluated against the current local
+date whenever the view is drawn.
+
 The interface uses a shared operational-console design across Todos and Day
 Planner: a responsive context header, square panels, uppercase structural
 labels, adaptive task columns, and configurable semantic foreground and surface
@@ -175,8 +192,10 @@ Obsidian Tasks-compatible `⏳ YYYY-MM-DD` scheduled date, for example
 `Prepare proposal ⏰ 09:30 ⏱ 30m #work ⏳ 2026-07-15`. Enter
 assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
 and `[`/`]` change days, while `T` returns to today. A timed task reserves consecutive slots for its
-explicit `⏱ <minutes>m` duration; tasks without one use the configurable
-30-minute default. The planner refuses occupied destination slots.
+explicit `⏱ <minutes>m` duration; tasks without one are instantaneous. The
+planner's default duration is prefilled only for new tasks created there.
+Timed tasks and calendar items may overlap; each is shown as a stable timeline
+branch.
 All-day todos appear above the timeline. When Google Calendar is configured,
 all-day events and focus/status entries share that header, while timed meetings
 appear in their slots and warn on overlaps. Scheduled todos show either

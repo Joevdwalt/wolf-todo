@@ -197,7 +197,7 @@ focuses Details in every responsive layout.
 ## Project and Todo Presentation
 
 The project sidebar begins with `All` and the virtual `@today` view, followed by
-valid projects, then source and project errors. Show the active-todo count
+configured saved-query views, valid projects, then source and project errors. Show the active-todo count
 beside `All` and each valid project. Beside `@today`, show the active count of
 tasks scheduled for the current local date. Prefix error entries with `!`.
 
@@ -208,6 +208,9 @@ branches. Keep project and section grouping, active sorting, and completed-todo
 visibility. Treat creation like `All`, requiring a configured destination
 project. Rescheduling, completing, or editing a todo so it no longer qualifies
 removes it after reload. Re-evaluate the local date on each redraw.
+
+Configured saved-query views follow the same aggregate-view behavior and are
+defined by [SPEC0014](SPEC0014-configurable-sidebar-queries.md).
 
 In `All`, group active todos by project in project sort order. Within a project,
 group by heading path and preserve todo source order. In an individual project,

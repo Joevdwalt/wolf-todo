@@ -48,7 +48,8 @@ public sealed record TodoTaskEditorState(
         string? projectPath,
         bool hasProjects,
         TodoSchedule? schedule = null,
-        bool scheduleRequired = false) => new(
+        bool scheduleRequired = false,
+        TimeSpan? duration = null) => new(
         true,
         projectPath,
         0,
@@ -57,7 +58,7 @@ public sealed record TodoTaskEditorState(
         ContentItemKind.Note,
         false,
         string.Empty,
-        new TodoUpdate(string.Empty, null, null, [], null, null, schedule),
+        new TodoUpdate(string.Empty, null, null, [], null, null, schedule, duration),
         null,
         [],
         hasProjects ? null : "No valid projects are available.")

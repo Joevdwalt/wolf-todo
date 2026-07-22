@@ -9,7 +9,11 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
     private readonly Func<DateOnly> todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
     private readonly TodoEditorReducer todoEditorReducer = new(todayProvider);
 
-    public PlannerTransition ReduceAction(PlannerState state, PlannerAction action, PlannerView view) =>
+    public PlannerTransition ReduceAction(
+        PlannerState state,
+        PlannerAction action,
+        PlannerView view,
+        TimeSpan? defaultDuration = null) =>
         action switch
         {
             PlannerAction.PreviousDay => Transition(state with
@@ -23,13 +27,9 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 Error = null
             }),
             PlannerAction.Today => Transition(state with { SelectedDate = todayProvider(), Error = null }),
-            PlannerAction.Create when view.SelectedSlot.Assignments.Length > 0 => Transition(state with
-            {
-                Error = "That timeslot is already occupied."
-            }),
             PlannerAction.Create when view.Projects.Length > 0 => Transition(state with
             {
-                Editor = todoEditorReducer.CreateEditor(null, true, SelectedSchedule(state), true),
+                Editor = todoEditorReducer.CreateEditor(null, true, SelectedSchedule(state), true, defaultDuration),
                 Error = null
             }),
             PlannerAction.Create => Transition(state with { Error = "No valid projects are available." }),
@@ -61,22 +61,16 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 {
                     Error = SelectionError(view)
                 }),
-            PlannerAction.Unschedule when view.SelectedSlot.Assignments.Length == 1 =>
+            PlannerAction.Unschedule when view.SelectedAssignment is not null =>
                 new PlannerTransition(
                     state with { Error = null },
                     PlannerOperation.Unschedule,
-                    view.SelectedSlot.Assignments[0].Identity),
+                    view.SelectedAssignment.Identity),
             PlannerAction.Unschedule => Transition(state with
             {
-                Error = view.SelectedSlot.Assignments.Length > 1
-                    ? "Resolve this conflicting timeslot before unscheduling."
-                    : "No todo is assigned to this timeslot."
+                Error = "No todo is selected at this timeslot."
             }),
-            PlannerAction.AssignOrMove when view.SelectedSlot.Assignments.Length > 1 => Transition(state with
-            {
-                Error = "This timeslot contains conflicting assignments."
-            }),
-            PlannerAction.AssignOrMove when view.SelectedSlot.Assignments.Length == 0 => Transition(state with
+            PlannerAction.AssignOrMove when view.SelectedAssignment is null => Transition(state with
             {
                 Mode = PlannerMode.ChooseTodo,
                 PickerIndex = 0,
@@ -85,7 +79,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             PlannerAction.AssignOrMove => Transition(state with
             {
                 Mode = PlannerMode.MoveTodo,
-                MovingTodo = view.SelectedSlot.Assignments[0].Identity,
+                MovingTodo = view.SelectedAssignment.Identity,
                 Error = null
             }),
             _ => Transition(state)
@@ -95,7 +89,8 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         PlannerState state,
         ConsoleKeyInfo key,
         TuiKeyBindings bindings,
-        PlannerView view)
+        PlannerView view,
+        TimeSpan? defaultDuration = null)
     {
         if (state.Editor is not null)
         {
@@ -155,9 +150,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesFilterMode(key))
         {
-            return view.SelectedSlot.Assignments.Length > 0
-                ? Transition(state with { Error = "Select an empty timeslot to filter todos." })
-                : Transition(state with
+            return Transition(state with
                 {
                     Mode = PlannerMode.EditFilter,
                     FilterDraft = state.FilterText,
@@ -239,11 +232,6 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
         if (state.Mode == PlannerMode.MoveTodo && bindings.MatchesOpen(key))
         {
-            if (view.SelectedSlot.Assignments.Length > 0)
-            {
-                return Transition(state with { Error = "That timeslot is already occupied." });
-            }
-
             return new PlannerTransition(
                 state with { Mode = PlannerMode.Browse, Error = null },
                 PlannerOperation.Schedule,
@@ -252,48 +240,39 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesPlannerUnschedule(key))
         {
-            if (view.SelectedSlot.Assignments.Length != 1)
+            if (view.SelectedAssignment is null)
             {
                 return Transition(state with
                 {
-                    Error = view.SelectedSlot.Assignments.Length > 1
-                        ? "Resolve this conflicting timeslot before unscheduling."
-                        : "No todo is assigned to this timeslot."
+                    Error = "No todo is selected at this timeslot."
                 });
             }
 
             return new PlannerTransition(
                 state with { Error = null },
                 PlannerOperation.Unschedule,
-                view.SelectedSlot.Assignments[0].Identity);
+                view.SelectedAssignment.Identity);
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesCreateTodo(key))
         {
-            return view.SelectedSlot.Assignments.Length > 0
-                ? Transition(state with { Error = "That timeslot is already occupied." })
-                : view.Projects.Length == 0
+            return view.Projects.Length == 0
                 ? Transition(state with { Error = "No valid projects are available." })
                 : Transition(state with
                 {
-                    Editor = todoEditorReducer.CreateEditor(null, true, SelectedSchedule(state), true),
+                    Editor = todoEditorReducer.CreateEditor(null, true, SelectedSchedule(state), true, defaultDuration),
                     Error = null
                 });
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesOpen(key))
         {
-            if (view.SelectedSlot.Assignments.Length > 1)
-            {
-                return Transition(state with { Error = "This timeslot contains conflicting assignments." });
-            }
-
-            return view.SelectedSlot.Assignments.Length == 0
+            return view.SelectedAssignment is null
                 ? Transition(state with { Mode = PlannerMode.ChooseTodo, PickerIndex = 0, Error = null })
                 : Transition(state with
                 {
                     Mode = PlannerMode.MoveTodo,
-                    MovingTodo = view.SelectedSlot.Assignments[0].Identity,
+                    MovingTodo = view.SelectedAssignment.Identity,
                     Error = null
                 });
         }

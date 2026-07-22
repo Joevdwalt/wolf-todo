@@ -39,7 +39,7 @@ public sealed class DayPlannerPresenter
             {
                 var time = new TimeOnly(6, 0).AddMinutes(index * 15);
                 var items = assignments
-                    .Where(assignment => Occupies(assignment.Todo, state.SelectedDate, time, configuration.DefaultDuration))
+                    .Where(assignment => Occupies(assignment.Todo, state.SelectedDate, time))
                     .ToImmutableArray();
                 var slotEnd = time.AddMinutes(15);
                 var meetings = agenda.Meetings
@@ -48,38 +48,35 @@ public sealed class DayPlannerPresenter
                     .ThenBy(meeting => meeting.End)
                     .ThenBy(meeting => meeting.Title, StringComparer.OrdinalIgnoreCase)
                     .ToImmutableArray();
+                var timelineItems = items
+                    .OrderBy(assignment => assignment.ProjectTitle, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(assignment => assignment.Todo.Title, NaturalStringComparer.Instance)
+                    .ThenBy(assignment => assignment.Todo.SourceLine)
+                    .Select(assignment => TaskItem(assignment, time))
+                    .Concat(meetings.Select(meeting => MeetingItem(meeting, time)))
+                    .ToImmutableArray();
                 return new PlannerSlotView(time, items, index == slotIndex)
                 {
-                    Meetings = meetings,
-                    PrimaryMeeting = meetings.FirstOrDefault(),
-                    DurationPosition = items.Length == 1
-                        ? DurationPosition(items[0].Todo, time, configuration.DefaultDuration)
-                        : null,
-                    MeetingDurationPosition = meetings.FirstOrDefault() is { } meeting
-                        ? MeetingDurationPosition(meeting, time)
-                        : null
+                    Items = timelineItems,
+                    Meetings = meetings
                 };
             })
             .ToImmutableArray();
-        var selectedIdentity = slots[slotIndex].Assignments.Length == 1
-            ? slots[slotIndex].Assignments[0].Identity
-            : null;
-        if (selectedIdentity is not null)
+        var selectedItemIdentity = slots[slotIndex].Items.FirstOrDefault()?.Identity;
+        if (selectedItemIdentity is not null)
         {
             slots = slots
-                .Select(slot => slot with
+                .Select((slot, index) => slot with
                 {
-                    IsActiveAssignment = slot.Assignments.Any(assignment => assignment.Identity == selectedIdentity)
-                })
-                .ToImmutableArray();
-        }
-        var selectedMeetingIdentity = slots[slotIndex].PrimaryMeeting?.Identity;
-        if (selectedMeetingIdentity is not null)
-        {
-            slots = slots
-                .Select(slot => slot with
-                {
-                    IsActiveMeeting = slot.PrimaryMeeting?.Identity == selectedMeetingIdentity
+                    // The cursor belongs to the active slot, not every row of a
+                    // duration item which happens to share the same identity.
+                    // The active identity remains highlighted across its whole
+                    // duration so the user can follow it through the timeline.
+                    Items = [.. slot.Items.Select(item => item with
+                    {
+                        IsSelected = index == slotIndex && item.Identity == selectedItemIdentity,
+                        IsActive = item.Identity == selectedItemIdentity
+                    })],
                 })
                 .ToImmutableArray();
         }
@@ -111,7 +108,7 @@ public sealed class DayPlannerPresenter
         };
     }
 
-    private static bool Occupies(TodoItem todo, DateOnly date, TimeOnly time, TimeSpan defaultDuration)
+    private static bool Occupies(TodoItem todo, DateOnly date, TimeOnly time)
     {
         var schedule = todo.Schedule;
         if (schedule?.Date != date || schedule.Time is null)
@@ -119,52 +116,65 @@ public sealed class DayPlannerPresenter
             return false;
         }
 
-        var end = schedule.Time.Value.Add(todo.Duration ?? defaultDuration);
-        return time >= schedule.Time && time < end;
+        return todo.Duration is null
+            ? time == schedule.Time
+            : time >= schedule.Time && time < schedule.Time.Value.Add(todo.Duration.Value);
     }
 
-    private static DurationBlockPosition? DurationPosition(
-        TodoItem todo,
-        TimeOnly time,
-        TimeSpan defaultDuration)
+    private static PlannerTimelineItemView TaskItem(PlannerAssignment assignment, TimeOnly time)
     {
-        var start = todo.Schedule?.Time;
-        if (start is null)
+        var todo = assignment.Todo;
+        var start = todo.Schedule!.Time!.Value;
+        var duration = todo.Duration;
+        var end = duration is null ? start : start.Add(duration.Value);
+        return new PlannerTimelineItemView(
+            PlannerItemType.Task,
+            $"task:{assignment.Identity.ProjectPath}:{assignment.Identity.SourceLine}",
+            todo.Title,
+            start,
+            end,
+            duration is null ? PlannerTimeShape.Instant : PlannerTimeShape.Duration,
+            IntervalState(start, end, duration, time),
+            todo.IsCompleted,
+            false,
+            assignment);
+    }
+
+    private static PlannerTimelineItemView MeetingItem(PlannerCalendarMeeting meeting, TimeOnly time)
+    {
+        var itemType = meeting.Attendees.Length > 0 ? PlannerItemType.Meeting : PlannerItemType.CalendarEvent;
+        return new PlannerTimelineItemView(
+            itemType,
+            $"calendar:{meeting.Identity}",
+            meeting.Title,
+            meeting.Start,
+            meeting.End,
+            PlannerTimeShape.Duration,
+            IntervalState(meeting.Start, meeting.End, meeting.End - meeting.Start, time),
+            false,
+            false,
+            null,
+            meeting);
+    }
+
+    private static PlannerIntervalState IntervalState(TimeOnly start, TimeOnly end, TimeSpan? duration, TimeOnly time)
+    {
+        if (duration is null)
         {
-            return null;
+            return PlannerIntervalState.Instant;
         }
 
-        var duration = todo.Duration ?? defaultDuration;
         if (duration <= TimeSpan.FromMinutes(15))
         {
-            return null;
+            return PlannerIntervalState.StartAndEnd;
         }
 
-        if (time == start)
+        if (start >= time && start < time.AddMinutes(15))
         {
-            return DurationBlockPosition.Start;
+            return PlannerIntervalState.Start;
         }
 
-        return time.AddMinutes(15) >= start.Value.Add(duration)
-            ? DurationBlockPosition.End
-            : DurationBlockPosition.Middle;
-    }
-
-    private static DurationBlockPosition? MeetingDurationPosition(PlannerCalendarMeeting meeting, TimeOnly time)
-    {
-        if (meeting.End - meeting.Start <= TimeSpan.FromMinutes(15))
-        {
-            return null;
-        }
-
-        if (meeting.Start >= time && meeting.Start < time.AddMinutes(15))
-        {
-            return DurationBlockPosition.Start;
-        }
-
-        return time.AddMinutes(15) >= meeting.End
-            ? DurationBlockPosition.End
-            : DurationBlockPosition.Middle;
+        return time.AddMinutes(15) >= end ? PlannerIntervalState.End : PlannerIntervalState.Continue;
     }
 
     private static bool Matches(PlannerAssignment assignment, string filter) =>

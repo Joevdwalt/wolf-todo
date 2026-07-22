@@ -35,8 +35,9 @@ public sealed class TodoEditorReducer
         string? projectPath,
         bool hasProjects,
         TodoSchedule? schedule = null,
-        bool scheduleRequired = false) =>
-        TodoTaskEditorState.Create(projectPath, hasProjects, schedule, scheduleRequired);
+        bool scheduleRequired = false,
+        TimeSpan? duration = null) =>
+        TodoTaskEditorState.Create(projectPath, hasProjects, schedule, scheduleRequired, duration);
 
     public TodoTaskEditorState EditEditor(TodoItem todo, TodoIdentity identity) =>
         TodoTaskEditorState.Edit(todo, identity);

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Spectre.Console;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Infrastructure;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
@@ -58,6 +59,52 @@ public sealed class TomlApplicationConfigurationLoaderTests
             """);
 
         loader.Load().Planner.DefaultDurationMinutes.Should().Be(45);
+    }
+
+    [Fact]
+    public void Load_reads_saved_sidebar_queries_and_order()
+    {
+        var path = Path.GetFullPath("todo.md");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [[sidebar.items]]
+            title = "@yesterday"
+            query = "scheduled:t-1"
+            order = "scheduled desc"
+            """);
+
+        var item = loader.Load().SidebarItems.Should().ContainSingle().Subject;
+
+        item.Title.Should().Be("@yesterday");
+        item.Query.Source.Should().Be("scheduled:t-1");
+        item.Order.Should().Be(new TodoSort(TodoSortProperty.Schedule, TodoSortDirection.Descending));
+    }
+
+    [Theory]
+    [InlineData("title = \"@today\"\nquery = \"scheduled:t-1\"\norder = \"scheduled asc\"", "*duplicated or reserved*")]
+    [InlineData("title = \"@bad\"\nquery = \"due:t-1\"\norder = \"scheduled asc\"", "*query*field*not supported*")]
+    [InlineData("title = \"@bad\"\nquery = \"scheduled:t-1\"\norder = \"random\"", "*order must be*")]
+    public void Load_rejects_invalid_saved_sidebar_items(string item, string expectedMessage)
+    {
+        var path = Path.GetFullPath("todo.md");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [[sidebar.items]]
+            {{item}}
+            """);
+
+        loader.Invoking(candidate => candidate.Load())
+            .Should().Throw<InvalidDataException>().WithMessage(expectedMessage);
     }
 
     [Fact]

@@ -64,7 +64,7 @@ public sealed class TuiApplication(
         var catalog = catalogLoader.Load(configuration.ProjectFiles);
         var session = applicationStateStore.Load();
         var selectedProjectPath = session.SelectedProjectPath;
-        var initialProjectIndex = FindProjectIndex(catalog, selectedProjectPath);
+        var initialProjectIndex = FindProjectIndex(catalog, selectedProjectPath, configuration.SidebarItems.Length);
         var browserState = BrowserState.Initial with
         {
             ProjectIndex = initialProjectIndex,
@@ -91,7 +91,7 @@ public sealed class TuiApplication(
                 CommandPaletteView? paletteView = null;
                 if (state.Tabs.ActiveTab == TodosTab)
                 {
-                    browserView = browserPresenter.CreateView(catalog, state.Browser);
+                    browserView = browserPresenter.CreateView(catalog, state.Browser, configuration.SidebarItems);
                     state = state with { Browser = browserView.State };
                     selectedProjectPath = browserView.SelectedProjectPath;
                     if (state.Palette.IsOpen)
@@ -313,7 +313,8 @@ public sealed class TuiApplication(
                         var transition = plannerReducer.ReduceAction(
                             state.Planner,
                             plannerAction.Value,
-                            plannerView!);
+                            plannerView!,
+                            configuration.Planner.DefaultDuration);
                         state = ApplyPlannerTransition(
                             state,
                             transition,
@@ -359,7 +360,8 @@ public sealed class TuiApplication(
                         state.Planner,
                         key,
                         configuration.KeyBindings,
-                        plannerView!);
+                        plannerView!,
+                        configuration.Planner.DefaultDuration);
                     state = ApplyPlannerTransition(
                         state,
                         transition,
@@ -457,13 +459,6 @@ public sealed class TuiApplication(
                 return PlannerFailure(state, "A schedule is required when creating from Planner.");
             }
 
-            if (IsOccupied(latestCatalog, transition.Update.Fields.Schedule,
-                    transition.Update.Fields.Duration ?? configuration.Planner.DefaultDuration,
-                    null, configuration.Planner.DefaultDuration))
-            {
-                return PlannerFailure(state, "That timeslot is already occupied.");
-            }
-
             var created = service.Create(transition.ProjectPath, transition.Update);
             if (!created.Succeeded)
             {
@@ -482,22 +477,6 @@ public sealed class TuiApplication(
         if (expected is null)
         {
             return PlannerFailure(state, "The selected todo cannot be found.");
-        }
-
-        if (transition.Operation == PlannerOperation.Schedule &&
-            IsOccupied(latestCatalog, schedule, expected.Duration ?? configuration.Planner.DefaultDuration,
-                transition.TodoIdentity, configuration.Planner.DefaultDuration))
-        {
-            return PlannerFailure(state, "That timeslot is already occupied.");
-        }
-
-        if (transition.Operation == PlannerOperation.Update &&
-            transition.Update?.Fields.Schedule is not null &&
-            IsOccupied(latestCatalog, transition.Update.Fields.Schedule,
-                transition.Update.Fields.Duration ?? configuration.Planner.DefaultDuration,
-                transition.TodoIdentity, configuration.Planner.DefaultDuration))
-        {
-            return PlannerFailure(state, "That timeslot is already occupied.");
         }
 
         var result = transition.Operation switch
@@ -744,13 +723,6 @@ public sealed class TuiApplication(
 
         if (transition.Operation == BrowserOperation.Create && transition.Update is not null)
         {
-            if (transition.Update.Fields.Schedule is not null &&
-                IsOccupied(latestCatalog, transition.Update.Fields.Schedule,
-                    transition.Update.Fields.Duration ?? defaultDuration, null, defaultDuration))
-            {
-                return TodoMutationResult.Failure("That timeslot is already occupied.");
-            }
-
             return service.Create(transition.ProjectPath, transition.Update);
         }
 
@@ -758,15 +730,6 @@ public sealed class TuiApplication(
         if (expected is null)
         {
             return TodoMutationResult.Failure("The selected todo cannot be found.");
-        }
-
-        if (transition.Operation == BrowserOperation.Update &&
-            transition.Update?.Fields.Schedule is not null &&
-            IsOccupied(latestCatalog, transition.Update.Fields.Schedule,
-                transition.Update.Fields.Duration ?? defaultDuration,
-                transition.TodoIdentity, defaultDuration))
-        {
-            return TodoMutationResult.Failure("That timeslot is already occupied.");
         }
 
         return transition.Operation switch
@@ -804,7 +767,10 @@ public sealed class TuiApplication(
         }
     }
 
-    private static int FindProjectIndex(ProjectCatalog catalog, string? selectedProjectPath)
+    private static int FindProjectIndex(
+        ProjectCatalog catalog,
+        string? selectedProjectPath,
+        int savedSidebarItemCount)
     {
         if (selectedProjectPath is null)
         {
@@ -819,7 +785,7 @@ public sealed class TuiApplication(
         {
             if (string.Equals(catalog.Projects[index].Path, selectedProjectPath, comparison))
             {
-                return index + 2;
+                return index + savedSidebarItemCount + 2;
             }
         }
 
@@ -827,7 +793,7 @@ public sealed class TuiApplication(
         {
             if (string.Equals(catalog.Errors[index].Path, selectedProjectPath, comparison))
             {
-                return catalog.Projects.Length + index + 2;
+                return catalog.Projects.Length + savedSidebarItemCount + index + 2;
             }
         }
 
