@@ -16,6 +16,75 @@ public sealed partial class ProjectTodoMutationService(
     public TodoMutationResult SetCompleted(string path, TodoItem expected, bool isCompleted) =>
         MutateExisting(path, expected, todo => Serialize(todo with { IsCompleted = isCompleted }));
 
+    public TodoMutationResult RollOverdueToDate(
+        string path,
+        TodoProject expected,
+        DateOnly targetDate)
+    {
+        try
+        {
+            var expectedTodos = Flatten(expected.Todos)
+                .Where(todo => !todo.IsCompleted && todo.Schedule?.Date < targetDate)
+                .ToArray();
+            if (expectedTodos.Length == 0)
+            {
+                return TodoMutationResult.Failure(
+                    "The selected project has no incomplete overdue tasks.");
+            }
+
+            var contents = fileSystem.ReadAllText(path);
+            var parsed = parser.Parse(path, contents);
+            if (parsed.Project is null)
+            {
+                return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
+            }
+
+            var currentTodos = Flatten(parsed.Project.Todos)
+                .Where(todo => !todo.IsCompleted && todo.Schedule?.Date < targetDate)
+                .ToArray();
+            var expectedByLine = expectedTodos.ToDictionary(todo => todo.SourceLine);
+            if (currentTodos.Length != expectedTodos.Length ||
+                currentTodos.Any(todo =>
+                    !expectedByLine.TryGetValue(todo.SourceLine, out var expectedTodo) ||
+                    !SameTarget(todo, expectedTodo)))
+            {
+                return TodoMutationResult.Failure(
+                    "The project changed on disk. Reload it before rolling tasks to today.");
+            }
+
+            var newline = DetectNewline(contents);
+            var finalNewline = contents.EndsWith('\n');
+            var lines = SplitLines(contents);
+            foreach (var todo in currentTodos)
+            {
+                var lineIndex = todo.SourceLine - 1;
+                if (lineIndex < 0 || lineIndex >= lines.Count)
+                {
+                    return TodoMutationResult.Failure(
+                        "An overdue todo no longer exists at its original source line.");
+                }
+
+                var prefix = TaskPrefixPattern().Match(lines[lineIndex]);
+                if (!prefix.Success)
+                {
+                    return TodoMutationResult.Failure(
+                        "An overdue todo source line is no longer a Markdown task.");
+                }
+
+                var schedule = todo.Schedule! with { Date = targetDate };
+                lines[lineIndex] = prefix.Groups[1].Value + Serialize(todo with { Schedule = schedule });
+            }
+
+            Write(path, lines, newline, finalNewline);
+            return TodoMutationResult.Success();
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return TodoMutationResult.Failure($"Cannot update project: {exception.Message}");
+        }
+    }
+
     public TodoMutationResult Move(string sourcePath, string destinationPath, TodoItem expected)
     {
         if (string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))

@@ -1,12 +1,16 @@
 using System.Collections.Immutable;
+using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Features.ApplicationShell;
 
-public sealed class ApplicationActionCatalog
+public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = null)
 {
+    private readonly Func<DateOnly> todayProvider = todayProvider ??
+        (() => DateOnly.FromDateTime(DateTime.Today));
+
     public ImmutableArray<CommandPaletteItem> Create(
         bool browserActive,
         BrowserView? browser,
@@ -16,32 +20,38 @@ public sealed class ApplicationActionCatalog
         var browserReason = browserActive ? null : "Available in the Todos tab.";
         var plannerReason = browserActive ? "Available in the Day Planner tab." : null;
         var selectedReason = browserReason ?? (browser?.SelectedTodo is null ? "Select a todo first." : null);
+        var selectedProject = browser?.Projects.FirstOrDefault(project => project.IsSelected)?.Project;
+        var rollReason = browserReason ?? (selectedProject is null
+            ? "Select a project first."
+            : Flatten(selectedProject.Todos).Any(todo =>
+                !todo.IsCompleted && todo.Schedule?.Date < todayProvider())
+                ? null
+                : "The selected project has no incomplete overdue tasks.");
         var browserCreateReason = browserReason ??
             (browser!.Projects.Any(project => project.Project is not null)
                 ? null
                 : "No valid projects are available.");
-        var plannerCreateReason = plannerReason ?? planner!.SelectedSlot.Assignments.Length switch
-        {
-            > 0 => "Select an empty timeslot first.",
-            _ when planner.Projects.Length == 0 => "No valid projects are available.",
-            _ => null
-        };
-        var plannerSelectedReason = plannerReason ?? planner!.SelectedSlot.Assignments.Length switch
-        {
-            0 => "No todo is assigned to this timeslot.",
-            > 1 => "Resolve the conflicting timeslot first.",
-            _ => null
-        };
-        var plannerAssignReason = plannerReason ??
-            (planner!.SelectedSlot.Assignments.Length > 1
+        var readOnlyAllDay = planner?.State.Focus == PlannerFocus.AllDay &&
+                             planner.SelectedAllDayItem is not null &&
+                             planner.SelectedAllDayAssignment is null;
+        var plannerCreateReason = plannerReason ?? (planner!.Projects.Length == 0
+            ? "No valid projects are available."
+            : null);
+        var plannerSelectedReason = plannerReason ?? (readOnlyAllDay
+            ? "Calendar all-day items are read-only."
+            : planner!.SelectedFocusedAssignment is not null
+                ? null
+                : planner.State.Focus == PlannerFocus.AllDay
+                    ? "No todo is selected in All Day."
+                    : planner.SelectedSlot.Assignments.Length > 1
+                        ? "Resolve the conflicting timeslot first."
+                        : "No todo is assigned to this timeslot.");
+        var plannerAssignReason = plannerReason ?? (readOnlyAllDay
+            ? "Calendar all-day items are read-only."
+            : planner!.State.Focus == PlannerFocus.Timeline && planner.SelectedSlot.Assignments.Length > 1
                 ? "Resolve the conflicting timeslot first."
                 : null);
-        var plannerUnscheduleReason = plannerReason ?? planner!.SelectedSlot.Assignments.Length switch
-        {
-            0 => "No todo is assigned to this timeslot.",
-            > 1 => "Resolve the conflicting timeslot first.",
-            _ => null
-        };
+        var plannerUnscheduleReason = plannerSelectedReason;
         return
         [
             Item(ApplicationActionId.Exit, "Application", "Quit", "Exit Wolf Todo",
@@ -64,6 +74,9 @@ public sealed class ApplicationActionCatalog
                 "Open the Markdown source at the selected todo", Shortest(bindings.EditTodoExternal), selectedReason),
             Item(ApplicationActionId.BrowserToggleCompleted, "Todos", "Toggle selected todo",
                 "Change the selected checkbox", Shortest(bindings.ToggleTodo), selectedReason),
+            Item(ApplicationActionId.BrowserRollProjectToday, "Todos", "Roll project to today",
+                "Move incomplete overdue tasks in the selected project to today",
+                Shortest(bindings.RollProjectToday), rollReason),
             Item(ApplicationActionId.BrowserToggleDetails, "Todos",
                 browser?.State.ShowDetails == false ? "Show details" : "Hide details",
                 "Show or hide the selected todo preview", Shortest(bindings.ToggleDetails), browserReason),
@@ -81,11 +94,11 @@ public sealed class ApplicationActionCatalog
                 "Connect to or refresh the primary Google Calendar", Shortest(bindings.PlannerRefreshCalendar),
                 plannerReason),
             Item(ApplicationActionId.PlannerAssignOrMove, "Planner", "Assign or move todo",
-                "Use the selected timeslot", Shortest(bindings.Open), plannerAssignReason),
+                "Use the selected planner destination", Shortest(bindings.Open), plannerAssignReason),
             Item(ApplicationActionId.PlannerUnschedule, "Planner", "Unschedule todo",
                 "Remove the selected assignment", Shortest(bindings.PlannerUnschedule), plannerUnscheduleReason),
             Item(ApplicationActionId.PlannerCreate, "Planner", "Create scheduled todo",
-                "Create a todo in the selected slot", Shortest(bindings.CreateTodo), plannerCreateReason),
+                "Create a todo in the selected planner destination", Shortest(bindings.CreateTodo), plannerCreateReason),
             Item(ApplicationActionId.PlannerEdit, "Planner", "Edit todo",
                 "Edit fields, notes, and subtasks in one dialog", Shortest(bindings.EditTodo), plannerSelectedReason),
             Item(ApplicationActionId.PlannerEditExternal, "Planner", "Edit in $EDITOR",
@@ -110,4 +123,16 @@ public sealed class ApplicationActionCatalog
 
     private static string Shortest(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>
         TuiKeyBindings.ShortestDisplayName(gestures);
+
+    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
+    {
+        foreach (var todo in todos)
+        {
+            yield return todo;
+            foreach (var subtask in Flatten(todo.Subtasks))
+            {
+                yield return subtask;
+            }
+        }
+    }
 }

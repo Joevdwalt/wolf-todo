@@ -14,6 +14,12 @@ public sealed record PlannerState(
 {
     public bool ShowDetails { get; init; } = true;
 
+    public PlannerFocus Focus { get; init; } = PlannerFocus.Timeline;
+
+    public int AllDayIndex { get; init; }
+
+    public TodoIdentity? PendingAllDaySelection { get; init; }
+
     public TodoTaskEditorState? Editor { get; init; }
 
     public static PlannerState CreateInitial(DateOnly today) => new(

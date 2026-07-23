@@ -264,6 +264,73 @@ public sealed class BrowserReducerTests
     }
 
     [Fact]
+    public void Reduce_rolls_the_selected_project_to_today_with_the_configured_binding()
+    {
+        var today = new DateOnly(2026, 7, 23);
+        var reducer = new BrowserReducer(() => today);
+        var todo = new TodoItem(
+            4, false, null, "Overdue", null, [], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(today.AddDays(-1), new TimeOnly(9, 30))
+        };
+        var identity = new TodoIdentity("/alpha.md", todo.SourceLine);
+        var project = new TodoProject("Alpha", identity.ProjectPath, [todo]);
+        var view = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("Alpha", 1, project, null, true)],
+            [new TodoRow(null, todo, [], true, identity)],
+            todo,
+            project.Title,
+            project.Path,
+            null,
+            string.Empty);
+
+        var result = reducer.Reduce(BrowserState.Initial, Key('R'), Configuration, view);
+
+        result.Operation.Should().Be(BrowserOperation.RollProjectToday);
+        result.ProjectPath.Should().Be(project.Path);
+        result.TodoIdentity.Should().Be(identity);
+        result.State.PendingTodoSelection.Should().Be(identity);
+    }
+
+    [Fact]
+    public void Reduce_rejects_project_rollover_from_an_aggregate_view()
+    {
+        var result = new BrowserReducer(() => new DateOnly(2026, 7, 23))
+            .ReduceAction(BrowserState.Initial, BrowserAction.RollProjectToday, EmptyView());
+
+        result.Operation.Should().Be(BrowserOperation.None);
+        result.State.Error.Should().Contain("Select a project");
+    }
+
+    [Fact]
+    public void Reduce_reports_when_the_selected_project_has_no_overdue_tasks()
+    {
+        var today = new DateOnly(2026, 7, 23);
+        var todo = new TodoItem(
+            1, false, null, "Today", null, [], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(today)
+        };
+        var project = new TodoProject("Alpha", "/alpha.md", [todo]);
+        var view = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("Alpha", 1, project, null, true)],
+            [],
+            null,
+            project.Title,
+            project.Path,
+            null,
+            string.Empty);
+
+        var result = new BrowserReducer(() => today)
+            .ReduceAction(BrowserState.Initial, BrowserAction.RollProjectToday, view);
+
+        result.Operation.Should().Be(BrowserOperation.None);
+        result.State.Error.Should().Contain("no incomplete overdue tasks");
+    }
+
+    [Fact]
     public void Reduce_opens_and_saves_a_create_form_for_an_individual_project()
     {
         var project = new TodoProject("Alpha", "/alpha.md", []);

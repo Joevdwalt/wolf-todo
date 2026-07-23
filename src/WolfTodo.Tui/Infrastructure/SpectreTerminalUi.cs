@@ -186,8 +186,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var status = PlannerStatus(view, keyBindings, width, height);
         var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
         var pickerRows = pickerVisible ? selectRows : 0;
-        var wideDetails = view.State.ShowDetails && width >= 120;
-        var compactDetails = view.State.ShowDetails && !wideDetails &&
+        var wideLayout = width >= 120;
+        var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
+                            view.State.Focus == PlannerFocus.AllDay;
+        var showAllDayPanel = allDayVisible || (wideLayout && view.State.ShowDetails);
+        var wideSidePanels = wideLayout && (view.State.ShowDetails || showAllDayPanel);
+        var compactDetails = view.State.ShowDetails && !wideSidePanels &&
                              view.State.Mode == PlannerMode.Browse &&
                              view.State.Editor is null &&
                              view.CommandPalette is null &&
@@ -196,8 +200,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var pickerHeight = selectList is not null ? SelectListControl.Height(selectList, selectRows) :
             textBox is not null ? TextBoxControl.Height(textBox.Value.State, textBoxRows) : 0;
         const int compactDetailsHeight = 3;
-        var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0;
-        var narrowAllDayHeight = !wideDetails && allDayVisible
+        var narrowAllDayHeight = !wideSidePanels && showAllDayPanel
             ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
             : 0;
         var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
@@ -210,7 +213,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             availableRows,
             view.State.SelectedDate,
             now);
-        var timelineWidth = wideDetails ? Math.Max(40, (width * 2 / 3) - 2) : width;
+        var timelineWidth = wideSidePanels ? Math.Max(40, (width * 2 / 3) - 2) : width;
         var table = new Table().SquareBorder().Expand();
         table.BorderStyle = ThemeStyle(theme.BorderActive);
         table.AddColumn(new TableColumn(new Text(
@@ -250,26 +253,38 @@ public sealed class SpectreTerminalUi : ITerminalUi
             table.AddEmptyRow();
         }
 
-        if (wideDetails)
+        if (wideSidePanels)
         {
             var detailWidth = Math.Max(28, width - timelineWidth - 4);
             const int inspectorContentHeight = 10;
-            var allDayContentHeight = Math.Max(1, availableRows - inspectorContentHeight - 2);
+            var allDayContentHeight = Math.Max(
+                1,
+                availableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
+            var sidePanels = new List<IRenderable>();
+            if (view.State.ShowDetails)
+            {
+                sidePanels.Add(PlannerPanel(
+                    "INSPECTOR",
+                    FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
+                    theme));
+            }
+
+            if (showAllDayPanel)
+            {
+                sidePanels.Add(PlannerPanel(
+                    "ALL DAY",
+                    AllDayAgendaLines(view, theme, allDayContentHeight),
+                    theme,
+                    view.State.Focus == PlannerFocus.AllDay));
+            }
+
             var shell = new Table().NoBorder().Collapse().HideHeaders();
             shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
             shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
             shell.AddRow(
                 table,
                 OnSurface(
-                    new Rows(
-                        PlannerPanel(
-                            "INSPECTOR",
-                            FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
-                            theme),
-                        PlannerPanel(
-                            "ALL DAY",
-                            AllDayAgendaLines(view, theme, allDayContentHeight),
-                            theme)),
+                    new Rows(sidePanels),
                     theme.Surface2,
                     true));
             WriteSurface(shell, theme.Surface, true);
@@ -296,7 +311,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
                     PlannerPanel(
                         "ALL DAY",
                         AllDayAgendaLines(view, theme, Math.Max(1, narrowAllDayHeight - 2)),
-                        theme),
+                        theme,
+                        view.State.Focus == PlannerFocus.AllDay),
                     theme.Surface2,
                     true);
             }
@@ -466,14 +482,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 PlannerMode.EditFilter or PlannerMode.ChooseTodo => [PlannerPickerFooter(bindings)],
                 PlannerMode.MoveTodo =>
                 [
-                    $"MOVE TODO  {Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} SLOT  " +
+                    $"MOVE TODO  {Shortest(bindings.FocusNext)} PANE  " +
+                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} ITEM  " +
                     $"{Shortest(bindings.JumpTop)}/{Shortest(bindings.JumpBottom)} TOP/BOTTOM  " +
                     $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
                     $"{Shortest(bindings.Open)} PLACE  {Shortest(bindings.Back)} CANCEL"
                 ],
                 _ =>
                 [
-                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} SLOT  " +
+                    $"{Shortest(bindings.FocusNext)} PANE  " +
+                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} ITEM  " +
                     $"{Shortest(bindings.JumpTop)}/{Shortest(bindings.JumpBottom)} TOP/BOTTOM  " +
                     $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
                     $"{Shortest(bindings.PlannerToday)} TODAY  {Shortest(bindings.Open)} ASSIGN/MOVE  " +
@@ -1192,30 +1210,42 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             var moving = view.Slots
                 .SelectMany(slot => slot.Assignments)
+                .Concat(view.CalendarAgenda.AllDayItems
+                    .Where(item => item.Assignment is not null)
+                    .Select(item => item.Assignment!))
                 .FirstOrDefault(assignment => assignment.Identity == movingIdentity);
             if (moving is not null)
             {
-                var start = moving.Todo.Schedule?.Time;
+                var schedule = moving.Todo.Schedule;
                 var duration = moving.Todo.Duration;
-                var destination = view.SelectedSlot.Time;
-                var destinationEnd = duration is { } value ? destination.Add(value) : destination;
-                var current = start is null
+                var destination = view.State.Focus == PlannerFocus.AllDay
+                    ? $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY"
+                    : duration is { } destinationDuration
+                        ? $"{view.State.SelectedDate:yyyy-MM-dd} " +
+                          $"{view.SelectedSlot.Time:HH:mm}–{view.SelectedSlot.Time.Add(destinationDuration):HH:mm}"
+                        : $"{view.State.SelectedDate:yyyy-MM-dd} {view.SelectedSlot.Time:HH:mm}";
+                var current = schedule is null
                     ? "Unscheduled"
-                    : duration is { } currentDuration
-                        ? $"{start:HH:mm}–{start.Value.Add(currentDuration):HH:mm}"
-                        : start.Value.ToString("HH:mm");
-                var target = duration is null
-                    ? destination.ToString("HH:mm")
-                    : $"{destination:HH:mm}–{destinationEnd:HH:mm}";
+                    : schedule.Time is null
+                        ? $"{schedule.Date:yyyy-MM-dd} · ALL DAY"
+                        : duration is { } currentDuration
+                            ? $"{schedule.Date:yyyy-MM-dd} " +
+                              $"{schedule.Time:HH:mm}–{schedule.Time.Value.Add(currentDuration):HH:mm}"
+                            : $"{schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}";
                 return
                 [
                     new Text("MOVE TASK", ThemeStyle(theme.AccentBright, Decoration.Bold)),
                     new Text($"Task: {moving.Todo.Title}", ThemeStyle(theme.Text)),
                     new Text($"Current: {current}", ThemeStyle(theme.Date)),
-                    new Text($"Destination: {target}", ThemeStyle(theme.Date)),
+                    new Text($"Destination: {destination}", ThemeStyle(theme.Date)),
                     new Text($"Duration: {FormatDuration(duration) ?? "Instant"}", ThemeStyle(theme.Info))
                 ];
             }
+        }
+
+        if (view.State.Focus == PlannerFocus.AllDay)
+        {
+            return PlannerAllDayDetailLines(view, theme);
         }
 
         if (view.SelectedSlot.Assignments.Length > 1)
@@ -1297,6 +1327,57 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return lines;
     }
 
+    private static IReadOnlyList<IRenderable> PlannerAllDayDetailLines(PlannerView view, TuiTheme theme)
+    {
+        var item = view.SelectedAllDayItem;
+        if (item is null)
+        {
+            return
+            [
+                new Text("EMPTY ALL DAY", ThemeStyle(theme.Muted, Decoration.Dim)),
+                new Text("Press Enter to assign an existing todo or a to create one.", ThemeStyle(theme.Muted))
+            ];
+        }
+
+        if (item.Assignment is { } assignment)
+        {
+            var todo = assignment.Todo;
+            var lines = new List<IRenderable>
+            {
+                new Text(todo.Title, ThemeStyle(theme.Heading, Decoration.Bold))
+            };
+            AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
+            AddField(lines, "Scheduled", $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY", theme, theme.Date);
+            AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
+            AddField(lines, "Priority", todo.Priority?.ToString(), theme, PriorityColor(todo.Priority, theme));
+            AddField(
+                lines,
+                "Tags",
+                todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
+                theme,
+                theme.Tag);
+            AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
+            return lines;
+        }
+
+        var calendarLines = new List<IRenderable>
+        {
+            new Text(item.Title, ThemeStyle(theme.Info, Decoration.Bold))
+        };
+        AddField(lines: calendarLines, "Type", AllDayKindLabel(item.Kind), theme, theme.Info);
+        AddField(lines: calendarLines, "Scheduled", $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY", theme, theme.Date);
+        AddField(lines: calendarLines, "Location", item.Location, theme, theme.Text);
+        AddField(
+            calendarLines,
+            "Attendees",
+            item.Attendees.Length == 0 ? null : string.Join(", ", item.Attendees),
+            theme,
+            theme.SecondaryText);
+        AddField(lines: calendarLines, "Notes", MeetingDescriptionPreview(item.Description), theme, theme.Text);
+        calendarLines.Add(new Text("READ-ONLY CALENDAR ITEM", ThemeStyle(theme.Muted, Decoration.Dim)));
+        return calendarLines;
+    }
+
     private static IReadOnlyList<IRenderable> AllDayAgendaLines(
         PlannerView view,
         TuiTheme theme,
@@ -1304,26 +1385,39 @@ public sealed class SpectreTerminalUi : ITerminalUi
     {
         if (view.CalendarAgenda.AllDayItems.Length == 0)
         {
-            return [new Text("NO ALL-DAY ITEMS", ThemeStyle(theme.Muted, Decoration.Dim))];
+            return view.State.Focus == PlannerFocus.AllDay
+                ? [new Text("> — ADD ALL-DAY TASK", ThemeStyle(theme.AccentBright, Decoration.Bold))]
+                : [new Text("NO ALL-DAY ITEMS", ThemeStyle(theme.Muted, Decoration.Dim))];
         }
 
-        var lines = view.CalendarAgenda.AllDayItems.Select(item =>
+        var lines = view.CalendarAgenda.AllDayItems.Select((item, index) =>
         {
+            var selected = view.State.Focus == PlannerFocus.AllDay && index == view.State.AllDayIndex;
             if (item.Todo is not null)
             {
-                return PlannerTodoLine(item.Todo, item.ProjectTitle, "•", false, string.Empty, theme);
+                return PlannerTodoLine(
+                    item.Todo,
+                    item.ProjectTitle,
+                    selected ? ">" : " ",
+                    selected,
+                    string.Empty,
+                    theme);
             }
 
-            var color = item.IsCompleted ? theme.Muted :
+            var color = selected ? theme.AccentBright : item.IsCompleted ? theme.Muted :
                 item.Kind == PlannerCalendarItemKind.Todo ? theme.Text : theme.Info;
-            return (IRenderable)new Text($"• {item.Title}", ThemeStyle(
+            return (IRenderable)new Text($"{(selected ? ">" : " ")} ◆ {item.Title}", ThemeStyle(
                 color,
-                item.IsCompleted ? Decoration.Dim : Decoration.None)).Ellipsis();
+                selected ? Decoration.Bold : item.IsCompleted ? Decoration.Dim : Decoration.None)).Ellipsis();
         }).ToArray();
-        return FitLines(lines, contentHeight, 0);
+        return FitLines(lines, contentHeight, view.State.AllDayIndex);
     }
 
-    private static Panel PlannerPanel(string header, IReadOnlyList<IRenderable> lines, TuiTheme theme)
+    private static Panel PlannerPanel(
+        string header,
+        IReadOnlyList<IRenderable> lines,
+        TuiTheme theme,
+        bool active = false)
     {
         var styledHeader = new System.Text.StringBuilder();
         AppendStyled(styledHeader, header, theme.AccentBright, Decoration.Bold);
@@ -1331,7 +1425,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             Header = new PanelHeader(styledHeader.ToString()),
             Border = BoxBorder.Square,
-            BorderStyle = ThemeStyle(theme.BorderActive),
+            BorderStyle = ThemeStyle(active ? theme.AccentBright : theme.BorderActive),
             Expand = true
         };
         return panel;
@@ -1352,6 +1446,22 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static IRenderable PlannerCompactDetail(PlannerView view, TuiTheme theme)
     {
+        if (view.State.Focus == PlannerFocus.AllDay)
+        {
+            var item = view.SelectedAllDayItem;
+            if (item is null)
+            {
+                return new Text("Empty all-day schedule", ThemeStyle(theme.Muted, Decoration.Dim));
+            }
+
+            var label = item.Assignment is null
+                ? $"{item.Title}  ·  {AllDayKindLabel(item.Kind)}  ·  READ ONLY"
+                : $"{item.Title}  ·  {item.ProjectTitle}  ·  ALL DAY";
+            return new Text(
+                label,
+                ThemeStyle(item.Assignment is null ? theme.Info : theme.Heading, Decoration.Bold)).Ellipsis();
+        }
+
         if (view.SelectedSlot.Assignments.Length > 1)
         {
             return new Text(
@@ -1393,6 +1503,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
             Decoration.Dim);
         return new Markup(line.ToString()).Ellipsis();
     }
+
+    private static string AllDayKindLabel(PlannerCalendarItemKind kind) => kind switch
+    {
+        PlannerCalendarItemKind.FocusTime => "Focus time",
+        PlannerCalendarItemKind.OutOfOffice => "Out of office",
+        PlannerCalendarItemKind.Todo => "Todo",
+        _ => "Calendar event"
+    };
 
     private static IRenderable CreateContent(IReadOnlyList<IRenderable> lines)
     {

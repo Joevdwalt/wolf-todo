@@ -16,6 +16,13 @@ panel. The palette lists Application, Todos, and Planner actions with their
 resolved command or shortest configured gesture. Unavailable actions remain
 visible with a reason and cannot execute.
 
+Colon-command mode completes command names with Tab. A unique case-insensitive
+prefix expands to its full command; repeated Tab presses cycle ambiguous
+matches in stable alphabetical order. Typing, backspacing, submitting, or
+cancelling resets the completion cycle. The catalog includes configured shell
+commands and built-in commands such as `:move-todo-project` and
+`:roll-today`.
+
 The Todos details action is labeled `Hide details` or `Show details` from the
 current browser state and executes the same semantic toggle as its binding.
 The palette also exposes typed `Jump to top` and `Jump to bottom` Todos actions
@@ -37,6 +44,8 @@ the application tab strip remains visible on supported short terminals.
 3. Disabled actions remain visible and explain why they cannot run.
 4. Displayed commands and gestures reflect configuration overrides.
 5. Palette rendering never scrolls the application tabs off the screen.
+6. Tab completion expands unique prefixes, cycles ambiguous commands, and
+   includes configured command names.
 
 ## References
 

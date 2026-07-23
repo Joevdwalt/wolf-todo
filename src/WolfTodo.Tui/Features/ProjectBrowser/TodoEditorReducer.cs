@@ -35,9 +35,9 @@ public sealed class TodoEditorReducer
         string? projectPath,
         bool hasProjects,
         TodoSchedule? schedule = null,
-        bool scheduleRequired = false,
+        TodoScheduleRequirement scheduleRequirement = TodoScheduleRequirement.None,
         TimeSpan? duration = null) =>
-        TodoTaskEditorState.Create(projectPath, hasProjects, schedule, scheduleRequired, duration);
+        TodoTaskEditorState.Create(projectPath, hasProjects, schedule, scheduleRequirement, duration);
 
     public TodoTaskEditorState EditEditor(TodoItem todo, TodoIdentity identity) =>
         TodoTaskEditorState.Edit(todo, identity);
@@ -522,9 +522,11 @@ public sealed class TodoEditorReducer
         var hasTime = !string.IsNullOrWhiteSpace(editor.ScheduledTime);
         if (!hasDate && !hasTime)
         {
-            if (editor.ScheduleRequired)
+            if (editor.ScheduleRequirement != TodoScheduleRequirement.None)
             {
-                error = "A scheduled date and time are required.";
+                error = editor.ScheduleRequirement == TodoScheduleRequirement.Date
+                    ? "A scheduled date is required."
+                    : "A scheduled date and time are required.";
             }
 
             return null;
@@ -544,7 +546,7 @@ public sealed class TodoEditorReducer
 
         if (!hasTime)
         {
-            if (editor.ScheduleRequired)
+            if (editor.ScheduleRequirement == TodoScheduleRequirement.DateAndTime)
             {
                 error = "A scheduled date and time are required.";
                 return null;

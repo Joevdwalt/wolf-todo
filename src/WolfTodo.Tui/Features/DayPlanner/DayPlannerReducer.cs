@@ -29,7 +29,12 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             PlannerAction.Today => Transition(state with { SelectedDate = todayProvider(), Error = null }),
             PlannerAction.Create when view.Projects.Length > 0 => Transition(state with
             {
-                Editor = todoEditorReducer.CreateEditor(null, true, SelectedSchedule(state), true, defaultDuration),
+                Editor = todoEditorReducer.CreateEditor(
+                    null,
+                    true,
+                    SelectedSchedule(state),
+                    ScheduleRequirement(state),
+                    defaultDuration),
                 Error = null
             }),
             PlannerAction.Create => Transition(state with { Error = "No valid projects are available." }),
@@ -38,39 +43,43 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 ShowDetails = !state.ShowDetails,
                 Error = null
             }),
-            PlannerAction.Edit when view.SelectedAssignment is not null =>
+            PlannerAction.Edit when view.SelectedFocusedAssignment is not null =>
                 Transition(state with
             {
                 Editor = todoEditorReducer.EditEditor(
-                    view.SelectedAssignment.Todo,
-                    view.SelectedAssignment.Identity),
+                    view.SelectedFocusedAssignment.Todo,
+                    view.SelectedFocusedAssignment.Identity),
                 Error = null
             }),
-            PlannerAction.EditExternal when view.SelectedAssignment is not null => new PlannerTransition(
+            PlannerAction.EditExternal when view.SelectedFocusedAssignment is not null => new PlannerTransition(
                 state with { Error = null },
                 PlannerOperation.EditExternal,
-                view.SelectedAssignment.Identity,
-                view.SelectedAssignment.ProjectPath),
-            PlannerAction.ToggleCompleted when view.SelectedAssignment is not null => new PlannerTransition(
+                view.SelectedFocusedAssignment.Identity,
+                view.SelectedFocusedAssignment.ProjectPath),
+            PlannerAction.ToggleCompleted when view.SelectedFocusedAssignment is not null => new PlannerTransition(
                 state with { Error = null },
                 PlannerOperation.ToggleCompleted,
-                view.SelectedAssignment.Identity,
-                view.SelectedAssignment.ProjectPath),
+                view.SelectedFocusedAssignment.Identity,
+                view.SelectedFocusedAssignment.ProjectPath),
             PlannerAction.Edit or PlannerAction.EditExternal or
                 PlannerAction.ToggleCompleted => Transition(state with
                 {
                     Error = SelectionError(view)
                 }),
-            PlannerAction.Unschedule when view.SelectedAssignment is not null =>
+            PlannerAction.Unschedule when view.SelectedFocusedAssignment is not null =>
                 new PlannerTransition(
                     state with { Error = null },
                     PlannerOperation.Unschedule,
-                    view.SelectedAssignment.Identity),
+                    view.SelectedFocusedAssignment.Identity),
             PlannerAction.Unschedule => Transition(state with
             {
-                Error = "No todo is selected at this timeslot."
+                Error = SelectionError(view)
             }),
-            PlannerAction.AssignOrMove when view.SelectedAssignment is null => Transition(state with
+            PlannerAction.AssignOrMove when IsReadOnlyAllDaySelection(view) => Transition(state with
+            {
+                Error = "Calendar all-day items are read-only."
+            }),
+            PlannerAction.AssignOrMove when view.SelectedFocusedAssignment is null => Transition(state with
             {
                 Mode = PlannerMode.ChooseTodo,
                 PickerIndex = 0,
@@ -79,7 +88,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             PlannerAction.AssignOrMove => Transition(state with
             {
                 Mode = PlannerMode.MoveTodo,
-                MovingTodo = view.SelectedAssignment.Identity,
+                MovingTodo = view.SelectedFocusedAssignment.Identity,
                 Error = null
             }),
             _ => Transition(state)
@@ -115,6 +124,16 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             return Transition(state with { Mode = PlannerMode.Browse, MovingTodo = null, Error = null });
         }
 
+        if (state.Mode is PlannerMode.Browse or PlannerMode.MoveTodo &&
+            (bindings.MatchesFocusNext(key) || bindings.MatchesFocusPrevious(key)))
+        {
+            return Transition(state with
+            {
+                Focus = state.Focus == PlannerFocus.Timeline ? PlannerFocus.AllDay : PlannerFocus.Timeline,
+                Error = null
+            });
+        }
+
         if (state.Mode == PlannerMode.ChooseTodo)
         {
             if (bindings.MatchesFilterMode(key))
@@ -142,7 +161,8 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 return new PlannerTransition(
                     state with { Mode = PlannerMode.Browse, Error = null },
                     PlannerOperation.Schedule,
-                    view.SelectedPickerTodo.Identity);
+                    view.SelectedPickerTodo.Identity,
+                    ScheduleTarget: ScheduleTarget(state));
             }
 
             return Transition(state);
@@ -163,7 +183,12 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         {
             return Transition(state with
             {
-                SlotIndex = bindings.MatchesJumpTop(key) ? 0 : DayPlannerPresenter.SlotCount - 1,
+                SlotIndex = state.Focus == PlannerFocus.Timeline
+                    ? bindings.MatchesJumpTop(key) ? 0 : DayPlannerPresenter.SlotCount - 1
+                    : state.SlotIndex,
+                AllDayIndex = state.Focus == PlannerFocus.AllDay
+                    ? bindings.MatchesJumpTop(key) ? 0 : Math.Max(0, view.CalendarAgenda.AllDayItems.Length - 1)
+                    : state.AllDayIndex,
                 Error = null
             });
         }
@@ -173,7 +198,12 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
             return Transition(state with
             {
-                SlotIndex = MoveIndex(state.SlotIndex, offset, DayPlannerPresenter.SlotCount),
+                SlotIndex = state.Focus == PlannerFocus.Timeline
+                    ? MoveIndex(state.SlotIndex, offset, DayPlannerPresenter.SlotCount)
+                    : state.SlotIndex,
+                AllDayIndex = state.Focus == PlannerFocus.AllDay
+                    ? MoveIndex(state.AllDayIndex, offset, view.CalendarAgenda.AllDayItems.Length)
+                    : state.AllDayIndex,
                 Error = null
             });
         }
@@ -196,38 +226,38 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesEditTodoExternal(key))
         {
-            return view.SelectedAssignment is null
+            return view.SelectedFocusedAssignment is null
                 ? Transition(state with { Error = SelectionError(view) })
                 : new PlannerTransition(
                     state with { Error = null },
                     PlannerOperation.EditExternal,
-                    view.SelectedAssignment.Identity,
-                    view.SelectedAssignment.ProjectPath);
+                    view.SelectedFocusedAssignment.Identity,
+                    view.SelectedFocusedAssignment.ProjectPath);
         }
 
         if (state.Mode == PlannerMode.Browse &&
             (bindings.MatchesEditTodo(key) || bindings.MatchesEditTodoContent(key)))
         {
-            return view.SelectedAssignment is null
+            return view.SelectedFocusedAssignment is null
                 ? Transition(state with { Error = SelectionError(view) })
                 : Transition(state with
                 {
                     Editor = todoEditorReducer.EditEditor(
-                        view.SelectedAssignment.Todo,
-                        view.SelectedAssignment.Identity),
+                        view.SelectedFocusedAssignment.Todo,
+                        view.SelectedFocusedAssignment.Identity),
                     Error = null
                 });
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesToggleTodo(key))
         {
-            return view.SelectedAssignment is null
+            return view.SelectedFocusedAssignment is null
                 ? Transition(state with { Error = SelectionError(view) })
                 : new PlannerTransition(
                     state with { Error = null },
                     PlannerOperation.ToggleCompleted,
-                    view.SelectedAssignment.Identity,
-                    view.SelectedAssignment.ProjectPath);
+                    view.SelectedFocusedAssignment.Identity,
+                    view.SelectedFocusedAssignment.ProjectPath);
         }
 
         if (state.Mode == PlannerMode.MoveTodo && bindings.MatchesOpen(key))
@@ -235,23 +265,24 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             return new PlannerTransition(
                 state with { Mode = PlannerMode.Browse, Error = null },
                 PlannerOperation.Schedule,
-                state.MovingTodo);
+                state.MovingTodo,
+                ScheduleTarget: ScheduleTarget(state));
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesPlannerUnschedule(key))
         {
-            if (view.SelectedAssignment is null)
+            if (view.SelectedFocusedAssignment is null)
             {
                 return Transition(state with
                 {
-                    Error = "No todo is selected at this timeslot."
+                    Error = SelectionError(view)
                 });
             }
 
             return new PlannerTransition(
                 state with { Error = null },
                 PlannerOperation.Unschedule,
-                view.SelectedAssignment.Identity);
+                view.SelectedFocusedAssignment.Identity);
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesCreateTodo(key))
@@ -260,19 +291,29 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 ? Transition(state with { Error = "No valid projects are available." })
                 : Transition(state with
                 {
-                    Editor = todoEditorReducer.CreateEditor(null, true, SelectedSchedule(state), true, defaultDuration),
+                    Editor = todoEditorReducer.CreateEditor(
+                        null,
+                        true,
+                        SelectedSchedule(state),
+                        ScheduleRequirement(state),
+                        defaultDuration),
                     Error = null
                 });
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesOpen(key))
         {
-            return view.SelectedAssignment is null
+            if (IsReadOnlyAllDaySelection(view))
+            {
+                return Transition(state with { Error = "Calendar all-day items are read-only." });
+            }
+
+            return view.SelectedFocusedAssignment is null
                 ? Transition(state with { Mode = PlannerMode.ChooseTodo, PickerIndex = 0, Error = null })
                 : Transition(state with
                 {
                     Mode = PlannerMode.MoveTodo,
-                    MovingTodo = view.SelectedAssignment.Identity,
+                    MovingTodo = view.SelectedFocusedAssignment.Identity,
                     Error = null
                 });
         }
@@ -322,9 +363,20 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
     private static int MoveIndex(int current, int offset, int count) =>
         count == 0 ? 0 : Math.Clamp(current + offset, 0, count - 1);
 
-    private static TodoSchedule SelectedSchedule(PlannerState state) => new(
-        state.SelectedDate,
-        new TimeOnly(6, 0).AddMinutes(state.SlotIndex * 15));
+    private static TodoSchedule SelectedSchedule(PlannerState state) =>
+        state.Focus == PlannerFocus.AllDay
+            ? new TodoSchedule(state.SelectedDate)
+            : new TodoSchedule(
+                state.SelectedDate,
+                new TimeOnly(6, 0).AddMinutes(state.SlotIndex * 15));
+
+    private static TodoScheduleRequirement ScheduleRequirement(PlannerState state) =>
+        state.Focus == PlannerFocus.AllDay
+            ? TodoScheduleRequirement.Date
+            : TodoScheduleRequirement.DateAndTime;
+
+    private static PlannerScheduleTarget ScheduleTarget(PlannerState state) =>
+        state.Focus == PlannerFocus.AllDay ? PlannerScheduleTarget.AllDay : PlannerScheduleTarget.Timeline;
 
     private static PlannerTransition ApplyEditorTransition(
         PlannerState state,
@@ -345,9 +397,18 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             transition.Update);
 
     private static string SelectionError(PlannerView view) =>
-        view.SelectedSlot.Assignments.Length > 1
+        IsReadOnlyAllDaySelection(view)
+            ? "Calendar all-day items are read-only."
+            : view.State.Focus == PlannerFocus.AllDay
+                ? "No todo is selected in All Day."
+            : view.SelectedSlot.Assignments.Length > 1
             ? "Resolve this conflicting timeslot before editing."
             : "No todo is assigned to this timeslot.";
+
+    private static bool IsReadOnlyAllDaySelection(PlannerView view) =>
+        view.State.Focus == PlannerFocus.AllDay &&
+        view.SelectedAllDayItem is not null &&
+        view.SelectedAllDayAssignment is null;
 
     private static PlannerTransition Transition(PlannerState state) =>
         new(state, PlannerOperation.None, null);

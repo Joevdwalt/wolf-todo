@@ -30,6 +30,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesEditTodoContent(Key('E')).Should().BeTrue();
         result.KeyBindings.MatchesEditTodoExternal(Key(ConsoleKey.E, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesToggleDetails(Key('v')).Should().BeTrue();
+        result.KeyBindings.MatchesRollProjectToday(Key('R')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeTrue();
         result.KeyBindings.MatchesMoveUp(Key(ConsoleKey.UpArrow)).Should().BeTrue();
         result.KeyBindings.MatchesJumpTop(Key('g')).Should().BeTrue();
@@ -239,6 +240,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
             edit_todo_content = ["Ctrl+E"]
             edit_todo_external = ["Ctrl+X"]
             toggle_details = ["Ctrl+V"]
+            roll_project_today = ["Ctrl+R"]
             """);
 
         var result = loader.Load();
@@ -249,6 +251,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesEditTodoContent(Key(ConsoleKey.E, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesEditTodoExternal(Key(ConsoleKey.X, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesToggleDetails(Key(ConsoleKey.V, control: true)).Should().BeTrue();
+        result.KeyBindings.MatchesRollProjectToday(Key(ConsoleKey.R, control: true)).Should().BeTrue();
+        result.KeyBindings.MatchesRollProjectToday(Key('R')).Should().BeFalse();
         result.KeyBindings.MatchesMoveDown(Key('n')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeFalse();
         result.KeyBindings.MatchesMoveDown(Key(ConsoleKey.J, control: true)).Should().BeTrue();
@@ -272,6 +276,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
     [InlineData("planner_today = [\"g\"]", "*both*planner_today*jump_top*")]
     [InlineData("edit_todo_external = [\"e\"]", "*both*edit_todo*edit_todo_external*")]
     [InlineData("toggle_completed = \":q\"", "*quit*toggle_completed*different*")]
+    [InlineData("help = \":roll-today\"", "*built-in commands*")]
+    [InlineData("roll_project_today = [\"G\"]", "*both*roll_project_today*jump_bottom*")]
     public void Load_rejects_invalid_or_conflicting_bindings(string binding, string expectedMessage)
     {
         var path = Path.GetFullPath("todo.md");

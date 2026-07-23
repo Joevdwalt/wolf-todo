@@ -3,6 +3,7 @@ using System.Reflection;
 using Spectre.Console;
 using Tomlyn;
 using Tomlyn.Model;
+using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 
@@ -444,6 +445,8 @@ public sealed class TomlApplicationConfigurationLoader(
             ToggleTodo = ReadGestures(keybindings, "toggle_todo", defaults.ToggleTodo),
             ToggleDetails = ReadGestures(
                 keybindings, "toggle_details", defaults.ToggleDetails),
+            RollProjectToday = ReadGestures(
+                keybindings, "roll_project_today", defaults.RollProjectToday),
             RemoveContent = ReadGestures(
                 keybindings, "remove_content", defaults.RemoveContent),
             SaveForm = ReadGestures(keybindings, "save_form", defaults.SaveForm)
@@ -523,14 +526,18 @@ public sealed class TomlApplicationConfigurationLoader(
         {
             (Name: "quit", Value: bindings.QuitCommand),
             (Name: "toggle_completed", Value: bindings.ToggleCompletedCommand),
-            (Name: "help", Value: bindings.HelpCommand)
+            (Name: "help", Value: bindings.HelpCommand),
+            (Name: "move_todo_project", Value: ApplicationCommandCatalog.MoveTodoProject),
+            (Name: "roll_today", Value: ApplicationCommandCatalog.RollToday)
         };
-        var duplicate = commands.GroupBy(command => command.Value).FirstOrDefault(group => group.Count() > 1);
+        var duplicate = commands
+            .GroupBy(command => command.Value, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
         if (duplicate is not null)
         {
             throw new InvalidDataException(
                 "Invalid configuration file: keybindings.quit, keybindings.toggle_completed, " +
-                "and keybindings.help must be different.");
+                "and keybindings.help must be different from each other and built-in commands.");
         }
     }
 
@@ -561,6 +568,7 @@ public sealed class TomlApplicationConfigurationLoader(
             ("edit_todo_external", bindings.EditTodoExternal),
             ("toggle_todo", bindings.ToggleTodo),
             ("toggle_details", bindings.ToggleDetails),
+            ("roll_project_today", bindings.RollProjectToday),
             ("remove_content", bindings.RemoveContent),
             ("jump_top", bindings.JumpTop),
             ("jump_bottom", bindings.JumpBottom)

@@ -159,6 +159,33 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_completes_and_executes_roll_today_for_the_selected_project()
+    {
+        var today = new DateOnly(2026, 7, 23);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Timed ⏰ 09:30 ⏳ 2026-07-20\n- [x] Done ⏳ 2026-07-19\n");
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(':'), Key('r'), Key('o'), Key('l'), Key('l'),
+            Key(ConsoleKey.Tab), Key(ConsoleKey.Enter),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            new FakeApplicationStateStore("/todos/project.md"),
+            projectFileSystem: fileSystem,
+            todayProvider: () => today);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.BrowserViews.Should().Contain(view => view.GlobalCommand == ":roll-today");
+        fileSystem.Contents.Should().Contain("Timed ⏰ 09:30 ⏳ 2026-07-23");
+        fileSystem.Contents.Should().Contain("Done ⏳ 2026-07-19");
+    }
+
+    [Fact]
     public void Run_opens_the_global_palette_and_executes_its_selected_action()
     {
         var terminal = new FakeTerminal(Key('x'), Key('?'), Key(ConsoleKey.Enter));
@@ -541,12 +568,105 @@ public sealed class TuiApplicationTests
             .Should().BeFalse();
     }
 
+    [Fact]
+    public void Run_assigns_an_unscheduled_todo_to_all_day_from_the_planner_pane()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Available\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('L'), Key(ConsoleKey.Tab),
+            Key(ConsoleKey.Enter), Key(ConsoleKey.Enter),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain($"- [ ] Available ⏳ {date:yyyy-MM-dd}")
+            .And.NotContain("Available ⏰");
+        var final = terminal.PlannerViews.Last();
+        final.State.Focus.Should().Be(PlannerFocus.AllDay);
+        final.SelectedAllDayAssignment!.Todo.Title.Should().Be("Available");
+    }
+
+    [Fact]
+    public void Run_creates_a_date_only_todo_from_the_all_day_pane()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n## Inbox\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('L'), Key(ConsoleKey.Tab), Key('a'),
+            Key(ConsoleKey.Enter), Key(ConsoleKey.Enter),
+            Key('A'), Key('l'), Key('l'), Key('d'), Key('a'), Key('y'),
+            Key(ConsoleKey.Enter), Key(ConsoleKey.S, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain($"- [ ] Allday ⏱ 30m ⏳ {date:yyyy-MM-dd}")
+            .And.NotContain("Allday ⏰");
+    }
+
+    [Fact]
+    public void Run_moves_a_timed_todo_to_all_day_without_clearing_its_duration()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            $"# Work\n\n- [ ] Deep work ⏰ 06:00 ⏱ 60m ⏳ {date:yyyy-MM-dd}\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('L'), Key(ConsoleKey.Enter),
+            Key(ConsoleKey.Tab), Key(ConsoleKey.Enter),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain($"Deep work ⏱ 60m ⏳ {date:yyyy-MM-dd}")
+            .And.NotContain("Deep work ⏰");
+    }
+
+    [Fact]
+    public void Run_moves_an_all_day_todo_to_a_timeline_slot_without_clearing_its_duration()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            $"# Work\n\n- [ ] Deep work ⏱ 60m ⏳ {date:yyyy-MM-dd}\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('L'), Key(ConsoleKey.Tab), Key(ConsoleKey.Enter),
+            Key(ConsoleKey.Tab), Key('j'), Key(ConsoleKey.Enter),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain($"Deep work ⏰ 06:15 ⏱ 60m ⏳ {date:yyyy-MM-dd}");
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal,
         IApplicationStateStore? applicationStateStore = null,
         IExternalEditorLauncher? externalEditorLauncher = null,
-        IProjectFileSystem? projectFileSystem = null)
+        IProjectFileSystem? projectFileSystem = null,
+        Func<DateOnly>? todayProvider = null)
     {
         var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
         var parser = new ProjectMarkdownParser();
@@ -559,11 +679,12 @@ public sealed class TuiApplicationTests
             new ApplicationInputRouter(),
             new TabHostPresenter(),
             new TabHostReducer(),
-            new ProjectBrowserPresenter(),
-            new BrowserReducer(),
+            new ProjectBrowserPresenter(todayProvider),
+            new BrowserReducer(todayProvider),
             "wolf",
             mutationService: new ProjectTodoMutationService(fileSystem, parser),
-            externalEditorLauncher: externalEditorLauncher);
+            externalEditorLauncher: externalEditorLauncher,
+            todayProvider: todayProvider);
     }
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem1, false, false, false);

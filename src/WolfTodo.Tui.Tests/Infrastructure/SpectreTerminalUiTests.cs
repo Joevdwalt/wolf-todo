@@ -284,6 +284,49 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowPlanner_renders_all_day_focus_selection_and_calendar_details()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var agenda = new PlannerCalendarAgenda(
+            [new PlannerCalendarAllDayItem("Company holiday", PlannerCalendarItemKind.Event)
+            {
+                Location = "Cape Town",
+                Description = "Office closed"
+            }],
+            [],
+            PlannerCalendarSyncState.Ready);
+        var state = PlannerState.CreateInitial(date) with { Focus = PlannerFocus.AllDay };
+        var view = new DayPlannerPresenter().CreateView(new ProjectCatalog([], []), state, agenda);
+        StartRecording(140, 24);
+
+        new SpectreTerminalUi(() => 140, () => 24)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText();
+
+        output.Should().Contain("> ◆ Company holiday")
+            .And.Contain("TYPE: Calendar event")
+            .And.Contain("LOCATION: Cape Town")
+            .And.Contain("NOTES: Office closed")
+            .And.Contain("READ-ONLY CALENDAR ITEM")
+            .And.Contain("Tab PANE");
+    }
+
+    [Fact]
+    public void ShowPlanner_exposes_an_empty_all_day_insertion_target_on_narrow_terminals()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date) with { Focus = PlannerFocus.AllDay });
+        StartRecording(90, 24);
+
+        new SpectreTerminalUi(() => 90, () => 24)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+
+        AnsiConsole.ExportText().Should().Contain("> — ADD ALL-DAY TASK");
+    }
+
+    [Fact]
     public void ShowPlanner_applies_canvas_workspace_overlay_and_active_roles()
     {
         var date = new DateOnly(2026, 7, 15);

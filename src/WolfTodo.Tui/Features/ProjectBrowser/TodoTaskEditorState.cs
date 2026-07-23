@@ -30,7 +30,7 @@ public sealed record TodoTaskEditorState(
         ? string.Empty
         : $"{(int)Values.Duration.Value.TotalMinutes}m";
 
-    public bool ScheduleRequired { get; init; }
+    public TodoScheduleRequirement ScheduleRequirement { get; init; }
 
     internal TextBoxState? ContentTextBox { get; init; }
 
@@ -48,7 +48,7 @@ public sealed record TodoTaskEditorState(
         string? projectPath,
         bool hasProjects,
         TodoSchedule? schedule = null,
-        bool scheduleRequired = false,
+        TodoScheduleRequirement scheduleRequirement = TodoScheduleRequirement.None,
         TimeSpan? duration = null) => new(
         true,
         projectPath,
@@ -63,7 +63,7 @@ public sealed record TodoTaskEditorState(
         [],
         hasProjects ? null : "No valid projects are available.")
     {
-        ScheduleRequired = scheduleRequired
+        ScheduleRequirement = scheduleRequirement
     };
 
     public static TodoTaskEditorState Edit(TodoItem todo, TodoIdentity identity) => new(
@@ -120,6 +120,13 @@ public enum TodoTaskEditorMode
     ChooseContentType,
     Edit,
     ConfirmRemoval
+}
+
+public enum TodoScheduleRequirement
+{
+    None,
+    Date,
+    DateAndTime
 }
 
 public enum ContentItemKind

@@ -87,6 +87,7 @@ edit_todo_content = ["E"]
 edit_todo_external = ["Ctrl+E"]
 toggle_todo = ["Spacebar"]
 toggle_details = ["v"]
+roll_project_today = ["R"]
 remove_content = ["d"]
 save_form = ["Ctrl+S"]
 
@@ -196,24 +197,31 @@ explicit `⏱ <minutes>m` duration; tasks without one are instantaneous. The
 planner's default duration is prefilled only for new tasks created there.
 Timed tasks and calendar items may overlap; each is shown as a stable timeline
 branch.
-All-day todos appear above the timeline. When Google Calendar is configured,
-all-day events and focus/status entries share that header, while timed meetings
-appear in their slots and warn on overlaps. Scheduled todos show either
+All-day todos appear in a separate `ALL DAY` pane. Use the configured pane
+bindings (`Tab`/`Shift+Tab` by default) to switch between it and the timeline,
+then use `j`/`k` and `g`/`G` to navigate. Enter assigns an unscheduled todo when
+the pane is empty or moves the selected all-day todo; `/` opens the filtered
+picker to add another, and `a` creates a date-only task. Timed and all-day tasks
+can be moved between panes without losing their duration. When Google Calendar
+is configured, all-day events and focus/status entries are selectable for
+Inspector details but remain read-only, while timed meetings appear in their
+slots and warn on overlaps. Scheduled todos show either
 `YYYY-MM-DD` or `YYYY-MM-DD HH:mm` in the adaptive `SCHEDULED` column in
 the Todos pane. The shared field editor can schedule or unschedule work; use
 `t` for today, `t+1` for tomorrow, or `w+1` for the same weekday next week.
 These normalize to the stored ISO date. `d`/`D` sort by scheduled date and time.
 Existing start and due annotations are
 preserved in Markdown but intentionally omitted from the normal UI. The planner
-shows responsive details for the selected slot; `v` hides or
-restores them. On today, a bright, full-width `▶────` timeline row shows the exact current
+shows responsive details for the selected planner item; `v` hides or
+restores the Inspector without disabling the all-day pane. On today, a bright, full-width `▶────` timeline row shows the exact current
 time and refreshes once per idle minute without borrowing the panel-border
 style. Its unscheduled-todo picker shows several filterable candidates.
 On an occupied slot, `e` or `E`, Ctrl+E, and Space provide the same task editing,
 external editing, and completion actions as the Todos tab. Creating with `a`
 uses the complete task editor, pre-fills the selected slot, and
-requires a schedule. Rescheduling from the Planner editor follows the task to
-its new date and slot.
+requires a schedule. Timeline creation requires date and time; all-day creation
+requires only the date. Rescheduling from the Planner editor follows the task
+to its new date and planner pane.
 
 In the Todos tab, `a` creates a todo under the chosen project's `## Inbox`.
 `e` opens one task editor for title, reference, priority, tags, schedule, notes,
@@ -237,6 +245,14 @@ contain an executable name or path without additional arguments.
 Command mode belongs to the application shell: `:q`, `:completed`, and unknown
 command feedback work from either Todos or Day Planner. An active feature
 picker, filter, move, or edit form receives input before global commands.
+While command mode is active, Tab completes a unique command prefix and cycles
+ambiguous matches. In the Todos tab, `:roll-today` changes every incomplete
+todo in the selected project whose scheduled date is before today to the
+current local date. Scheduled times and other metadata are preserved, nested
+subtasks are included, and the project is written atomically. The same action
+is available through the command palette and the configured
+`roll_project_today` binding (`R` by default). Select a concrete project first;
+aggregate and saved views cannot be rolled.
 `?` or `:help` opens the global searchable command palette. Disabled actions
 remain visible with a reason; `/` searches and Enter runs the selected action.
 In the Todos tab, `v` hides or restores the detail preview for the current

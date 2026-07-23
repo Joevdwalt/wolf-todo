@@ -55,14 +55,19 @@ public sealed class DayPlannerPresenter
                     .Select(assignment => TaskItem(assignment, time))
                     .Concat(meetings.Select(meeting => MeetingItem(meeting, time)))
                     .ToImmutableArray();
-                return new PlannerSlotView(time, items, index == slotIndex)
+                return new PlannerSlotView(
+                    time,
+                    items,
+                    state.Focus == PlannerFocus.Timeline && index == slotIndex)
                 {
                     Items = timelineItems,
                     Meetings = meetings
                 };
             })
             .ToImmutableArray();
-        var selectedItemIdentity = slots[slotIndex].Items.FirstOrDefault()?.Identity;
+        var selectedItemIdentity = state.Focus == PlannerFocus.Timeline
+            ? slots[slotIndex].Items.FirstOrDefault()?.Identity
+            : null;
         if (selectedItemIdentity is not null)
         {
             slots = slots
@@ -91,12 +96,26 @@ public sealed class DayPlannerPresenter
                 PlannerCalendarItemKind.Todo,
                 assignment.Todo.IsCompleted,
                 assignment.Todo,
-                assignment.ProjectTitle));
+                assignment.ProjectTitle)
+            {
+                Assignment = assignment
+            });
+        var allDayItems = agenda.AllDayItems.Concat(allDayTodos).ToImmutableArray();
+        var pendingAllDayIndex = state.PendingAllDaySelection is null
+            ? -1
+            : Array.FindIndex(
+                allDayItems.ToArray(),
+                item => item.Assignment?.Identity == state.PendingAllDaySelection);
+        var allDayIndex = pendingAllDayIndex >= 0
+            ? pendingAllDayIndex
+            : Math.Clamp(state.AllDayIndex, 0, Math.Max(0, allDayItems.Length - 1));
         return new PlannerView(
             state with
             {
                 SlotIndex = slotIndex,
-                PickerIndex = pickerIndex
+                PickerIndex = pickerIndex,
+                AllDayIndex = allDayIndex,
+                PendingAllDaySelection = null
             },
             slots,
             picker,
@@ -104,7 +123,7 @@ public sealed class DayPlannerPresenter
         {
             OpenTodoCount = assignments.Count(assignment => !assignment.Todo.IsCompleted),
             ProjectErrorCount = catalog.Errors.Length,
-            CalendarAgenda = agenda with { AllDayItems = [.. agenda.AllDayItems.Concat(allDayTodos)] }
+            CalendarAgenda = agenda with { AllDayItems = allDayItems }
         };
     }
 

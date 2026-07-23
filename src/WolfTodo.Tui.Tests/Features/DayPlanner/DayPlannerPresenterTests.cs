@@ -2,6 +2,7 @@ using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Tests.Features.DayPlanner;
 
@@ -43,7 +44,31 @@ public sealed class DayPlannerPresenterTests
 
         view.CalendarAgenda.AllDayItems.Should().ContainSingle(item =>
             item.Kind == PlannerCalendarItemKind.Todo && item.Title.Contains("Submit report"));
+        view.CalendarAgenda.AllDayItems[0].Assignment.Should().NotBeNull();
         view.Slots.SelectMany(slot => slot.Assignments).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CreateView_selects_all_day_items_by_focus_and_pending_identity()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var first = Todo("First") with { Schedule = new TodoSchedule(date) };
+        var second = Todo("Second") with { SourceLine = 2, Schedule = new TodoSchedule(date) };
+        var pending = new TodoIdentity("/todos/work.md", 2);
+        var state = PlannerState.CreateInitial(date) with
+        {
+            Focus = PlannerFocus.AllDay,
+            PendingAllDaySelection = pending
+        };
+
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [first, second])], []),
+            state);
+
+        view.SelectedAllDayAssignment!.Todo.Title.Should().Be("Second");
+        view.State.AllDayIndex.Should().Be(1);
+        view.State.PendingAllDaySelection.Should().BeNull();
+        view.Slots.Should().OnlyContain(slot => !slot.IsSelected);
     }
 
     [Fact]

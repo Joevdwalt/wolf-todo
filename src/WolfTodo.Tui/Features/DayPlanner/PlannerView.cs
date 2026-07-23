@@ -33,5 +33,15 @@ public sealed record PlannerView(
 
     public PlannerAssignment? SelectedAssignment => SelectedItem?.Assignment;
 
+    public PlannerCalendarAllDayItem? SelectedAllDayItem => CalendarAgenda.AllDayItems.Length == 0
+        ? null
+        : CalendarAgenda.AllDayItems[Math.Clamp(State.AllDayIndex, 0, CalendarAgenda.AllDayItems.Length - 1)];
+
+    public PlannerAssignment? SelectedAllDayAssignment => SelectedAllDayItem?.Assignment;
+
+    public PlannerAssignment? SelectedFocusedAssignment => State.Focus == PlannerFocus.AllDay
+        ? SelectedAllDayAssignment
+        : SelectedAssignment;
+
     public PlannerCalendarMeeting? SelectedMeeting => SelectedItem?.Meeting;
 }

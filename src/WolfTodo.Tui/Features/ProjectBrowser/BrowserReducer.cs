@@ -6,10 +6,13 @@ namespace WolfTodo.Tui.Features.ProjectBrowser;
 public sealed class BrowserReducer
 {
     private readonly TodoEditorReducer todoEditorReducer;
+    private readonly Func<DateOnly> todayProvider;
 
     public BrowserReducer(Func<DateOnly>? todayProvider = null)
     {
-        todoEditorReducer = new TodoEditorReducer(todayProvider);
+        this.todayProvider = todayProvider ??
+            (() => DateOnly.FromDateTime(DateTime.Today));
+        todoEditorReducer = new TodoEditorReducer(this.todayProvider);
     }
 
     public BrowserTransition ReduceAction(
@@ -45,6 +48,7 @@ public sealed class BrowserReducer
                     BrowserOperation.ToggleCompleted,
                     view.SelectedTodoIdentity.ProjectPath,
                     view.SelectedTodoIdentity),
+            BrowserAction.RollProjectToday => RollProjectToday(state, view),
             BrowserAction.ToggleDetails => ToggleDetails(state),
             BrowserAction.JumpTop => Jump(state, view, false),
             BrowserAction.JumpBottom => Jump(state, view, true),
@@ -148,6 +152,11 @@ public sealed class BrowserReducer
                 BrowserOperation.ToggleCompleted,
                 view.SelectedTodoIdentity.ProjectPath,
                 view.SelectedTodoIdentity);
+        }
+
+        if (bindings.MatchesRollProjectToday(key))
+        {
+            return RollProjectToday(state, view);
         }
 
         if (bindings.MatchesToggleDetails(key))
@@ -332,6 +341,50 @@ public sealed class BrowserReducer
             : BrowserFocus.Details,
         Error = null
     });
+
+    private BrowserTransition RollProjectToday(BrowserState state, BrowserView view)
+    {
+        var project = view.Projects.FirstOrDefault(row => row.IsSelected)?.Project;
+        if (project is null)
+        {
+            return Transition(state with
+            {
+                Error = "Select a project before rolling tasks to today."
+            });
+        }
+
+        var today = todayProvider();
+        if (!Flatten(project.Todos).Any(todo =>
+                !todo.IsCompleted && todo.Schedule?.Date < today))
+        {
+            return Transition(state with
+            {
+                Error = "The selected project has no incomplete overdue tasks."
+            });
+        }
+
+        return new BrowserTransition(
+            state with
+            {
+                PendingTodoSelection = view.SelectedTodoIdentity,
+                Error = null
+            },
+            BrowserOperation.RollProjectToday,
+            project.Path,
+            view.SelectedTodoIdentity);
+    }
+
+    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
+    {
+        foreach (var todo in todos)
+        {
+            yield return todo;
+            foreach (var subtask in Flatten(todo.Subtasks))
+            {
+                yield return subtask;
+            }
+        }
+    }
 
     private static BrowserTransition Jump(BrowserState state, BrowserView view, bool bottom) =>
         state.Focus == BrowserFocus.Projects

@@ -6,6 +6,85 @@ namespace WolfTodo.Core.Tests.Features.ProjectBrowser;
 public sealed class ProjectTodoMutationServiceTests
 {
     [Fact]
+    public void RollOverdueToDate_updates_incomplete_root_and_nested_tasks_in_one_write()
+    {
+        const string path = "/todos/work.md";
+        const string markdown =
+            "## Work\r\n\r\n" +
+            "- [ ] Timed ⏰ 09:30 ⏱ 30m #work ⏳ 2026-07-20\r\n" +
+            "  - [ ] Nested ⏳ 2026-07-21\r\n" +
+            "- [x] Completed ⏳ 2026-07-20\r\n" +
+            "- [ ] Today ⏳ 2026-07-23\r\n" +
+            "- [ ] Future ⏳ 2026-07-24\r\n" +
+            "- [ ] Unscheduled\r\n";
+        var parser = new ProjectMarkdownParser();
+        var expected = parser.Parse(path, markdown).Project!;
+        var fileSystem = new WritableFileSystem(path, markdown);
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+
+        var result = service.RollOverdueToDate(
+            path,
+            expected,
+            new DateOnly(2026, 7, 23));
+
+        result.Succeeded.Should().BeTrue();
+        result.SourceLine.Should().BeNull();
+        fileSystem.WriteCount.Should().Be(1);
+        fileSystem.Contents.Should().Be(
+            "## Work\r\n\r\n" +
+            "- [ ] Timed ⏰ 09:30 ⏱ 30m #work ⏳ 2026-07-23\r\n" +
+            "  - [ ] Nested ⏳ 2026-07-23\r\n" +
+            "- [x] Completed ⏳ 2026-07-20\r\n" +
+            "- [ ] Today ⏳ 2026-07-23\r\n" +
+            "- [ ] Future ⏳ 2026-07-24\r\n" +
+            "- [ ] Unscheduled\r\n");
+    }
+
+    [Fact]
+    public void RollOverdueToDate_refuses_a_changed_eligible_set_without_writing()
+    {
+        const string path = "/todos/work.md";
+        const string original = "- [ ] Original ⏳ 2026-07-20\n";
+        const string changed =
+            "- [ ] Original ⏳ 2026-07-20\n" +
+            "- [ ] Added externally ⏳ 2026-07-21\n";
+        var parser = new ProjectMarkdownParser();
+        var expected = parser.Parse(path, original).Project!;
+        var fileSystem = new WritableFileSystem(path, changed);
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+
+        var result = service.RollOverdueToDate(
+            path,
+            expected,
+            new DateOnly(2026, 7, 23));
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("changed on disk");
+        fileSystem.WriteCount.Should().Be(0);
+        fileSystem.Contents.Should().Be(changed);
+    }
+
+    [Fact]
+    public void RollOverdueToDate_reports_when_no_tasks_are_eligible()
+    {
+        const string path = "/todos/work.md";
+        const string markdown = "- [ ] Today ⏳ 2026-07-23\n";
+        var parser = new ProjectMarkdownParser();
+        var expected = parser.Parse(path, markdown).Project!;
+        var fileSystem = new WritableFileSystem(path, markdown);
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+
+        var result = service.RollOverdueToDate(
+            path,
+            expected,
+            new DateOnly(2026, 7, 23));
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("no incomplete overdue tasks");
+        fileSystem.WriteCount.Should().Be(0);
+    }
+
+    [Fact]
     public void SetSchedule_updates_only_the_target_line_and_preserves_newlines()
     {
         const string path = "/todos/work.md";

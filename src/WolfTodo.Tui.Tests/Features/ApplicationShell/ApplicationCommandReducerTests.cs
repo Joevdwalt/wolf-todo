@@ -51,6 +51,59 @@ public sealed class ApplicationCommandReducerTests
     }
 
     [Fact]
+    public void Reduce_completes_a_unique_command_prefix_with_tab()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":roll", null),
+            Key(ConsoleKey.Tab),
+            Bindings);
+
+        result.State.Value.Should().Be(":roll-today");
+        result.State.CompletionSeed.Should().BeNull();
+    }
+
+    [Fact]
+    public void Reduce_cycles_ambiguous_command_completions_and_resets_after_typing()
+    {
+        var state = new ApplicationCommandState(true, ":", null);
+
+        var first = reducer.Reduce(state, Key(ConsoleKey.Tab), Bindings);
+        var second = reducer.Reduce(first.State, Key(ConsoleKey.Tab), Bindings);
+        var typed = reducer.Reduce(second.State, Key('x'), Bindings);
+
+        first.State.Value.Should().Be(":completed");
+        second.State.Value.Should().Be(":help");
+        typed.State.Value.Should().Be(":helpx");
+        typed.State.CompletionSeed.Should().BeNull();
+        typed.State.CompletionIndex.Should().Be(-1);
+    }
+
+    [Fact]
+    public void Reduce_completes_configured_commands()
+    {
+        var bindings = Bindings with { ToggleCompletedCommand = ":done" };
+
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":do", null),
+            Key(ConsoleKey.Tab),
+            bindings);
+
+        result.State.Value.Should().Be(":done");
+    }
+
+    [Fact]
+    public void Reduce_submits_the_roll_today_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":roll-today", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.RollProjectToday);
+        result.State.Should().Be(ApplicationCommandState.Initial);
+    }
+
+    [Fact]
     public void Reduce_parses_a_project_title_for_the_move_todo_command()
     {
         var result = reducer.Reduce(

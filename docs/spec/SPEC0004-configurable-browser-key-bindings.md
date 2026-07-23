@@ -24,6 +24,7 @@ the existing keyboard interaction and command syntax.
   dialog.
 - `?` opens the global command palette.
 - `v` hides or shows the Todos detail preview.
+- `R` rolls incomplete overdue tasks in the selected project to today.
 - `:completed` toggles completed todos and the required configured quit command
   exits the application.
 - `[`/`]` change planner dates, `g` selects today, and `u` unschedules.
@@ -36,7 +37,8 @@ Configured arrays replace the defaults for their action. A custom command-mode
 gesture still opens a colon-prefixed command prompt.
 
 While command or filter mode is active, Enter submits, Esc cancels, and
-Backspace edits. Printable navigation bindings are entered as text instead of
+Backspace edits. Tab completes and cycles command names while command mode is
+active. Printable navigation bindings are entered as text instead of
 triggering browser navigation. Application-tab bindings are also ignored while
 either input mode is active. The sort dialog also captures input and prevents
 application-tab switching until an option is chosen or Esc cancels it.
@@ -75,6 +77,8 @@ the configured filter gesture as its edit hint.
 12. Browser `g` and Planner `g` may coexist because they are handled in
     disjoint views; conflicting browser actions still fail startup.
 13. The configured external-editor gesture replaces Ctrl+E, appears in the
+    command palette, and participates in browser gesture conflict validation.
+14. The configured project-rollover gesture replaces `R`, appears in the
     command palette, and participates in browser gesture conflict validation.
 
 ## References

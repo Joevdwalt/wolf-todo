@@ -12,6 +12,7 @@ public enum ApplicationActionId
     BrowserEdit,
     BrowserEditExternal,
     BrowserToggleCompleted,
+    BrowserRollProjectToday,
     BrowserToggleDetails,
     BrowserJumpTop,
     BrowserJumpBottom,

@@ -46,6 +46,13 @@ Markdown todos.
   source identity. Validation, stale targets, and I/O failures remain visible
   without discarding external content or the active form. Schedule writes also
   reject slots occupied by another configured todo.
+- `:roll-today`, the command-palette action, and the configured
+  `roll_project_today` binding update every incomplete todo in the selected
+  concrete project whose scheduled date is before the current local date.
+  Include nested subtasks, preserve scheduled times and other metadata, and
+  leave completed, unscheduled, current-day, and future todos unchanged.
+  Revalidate the complete eligible set and apply it in one atomic project
+  write; stale content aborts the rollover without partial changes.
 - Within the editor, `a` opens a configured-binding picker for a note or
   subtask. It inserts after selected content or appends when a field is selected.
   Add, edit, remove, field, schedule, and subtask completion changes are written

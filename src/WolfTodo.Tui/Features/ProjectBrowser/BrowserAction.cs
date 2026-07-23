@@ -8,6 +8,7 @@ public enum BrowserAction
     Edit,
     EditExternal,
     ToggleCompleted,
+    RollProjectToday,
     ToggleDetails,
     JumpTop,
     JumpBottom

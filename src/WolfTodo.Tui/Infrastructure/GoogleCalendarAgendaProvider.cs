@@ -62,9 +62,16 @@ public sealed class GoogleCalendarAgendaProvider(string tokenDirectory) : IPlann
 
             var title = string.IsNullOrWhiteSpace(calendarEvent.Summary) ? "Busy" : calendarEvent.Summary;
             var kind = ItemKind(calendarEvent.EventType);
+            var attendees = AttendeeNames(calendarEvent);
             if (calendarEvent.Start?.DateTimeDateTimeOffset is null || kind != PlannerCalendarItemKind.Event)
             {
-                allDay.Add(new PlannerCalendarAllDayItem(title, kind));
+                allDay.Add(new PlannerCalendarAllDayItem(title, kind)
+                {
+                    EventId = calendarEvent.Id,
+                    Location = calendarEvent.Location,
+                    Attendees = [.. attendees],
+                    Description = calendarEvent.Description
+                });
                 continue;
             }
 
@@ -77,15 +84,6 @@ public sealed class GoogleCalendarAgendaProvider(string tokenDirectory) : IPlann
                 end = start.AddMinutes(30);
             }
 
-            var attendees = (calendarEvent.Attendees ?? [])
-                .Where(attendee => attendee.ResponseStatus != "declined")
-                .Select(attendee => string.IsNullOrWhiteSpace(attendee.DisplayName)
-                    ? attendee.Email
-                    : attendee.DisplayName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(name => name!)
-                .ToArray();
             meetings.Add(new PlannerCalendarMeeting(title, start, end)
             {
                 EventId = calendarEvent.Id,
@@ -97,6 +95,16 @@ public sealed class GoogleCalendarAgendaProvider(string tokenDirectory) : IPlann
 
         return new PlannerCalendarAgenda([.. allDay], [.. meetings], PlannerCalendarSyncState.Ready);
     }
+
+    private static string[] AttendeeNames(Event calendarEvent) =>
+        [.. (calendarEvent.Attendees ?? [])
+            .Where(attendee => attendee.ResponseStatus != "declined")
+            .Select(attendee => string.IsNullOrWhiteSpace(attendee.DisplayName)
+                ? attendee.Email
+                : attendee.DisplayName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(name => name!)];
 
     private static bool IsDeclined(Event calendarEvent) =>
         calendarEvent.Attendees?.Any(attendee => attendee.Self == true && attendee.ResponseStatus == "declined") == true;

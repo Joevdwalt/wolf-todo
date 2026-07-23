@@ -17,10 +17,25 @@ shows only `:00` and `:30` labels. Start on today
 each launch and preserve planner state while switching tabs. Keep the selected
 slot visible on short terminals and show scheduled completed todos dimly.
 
-Show a single all-day strip above the timeline when it has content. It contains
-date-only Wolf Todo schedules and, when configured, Google Calendar all-day
-events, focus time, and out-of-office entries. Date-only todos are editable
-through the normal task editor but are not slot assignments.
+Show a separate `ALL DAY` pane containing date-only Wolf Todo schedules and,
+when configured, Google Calendar all-day events, focus time, and out-of-office
+entries. `Tab`/`Shift+Tab` use the configured pane bindings to move focus
+between the timeline and all-day pane. Within the focused pane, `j`/`k` and
+`g`/`G` navigate items. Show an insertion target when the all-day pane is empty,
+including on narrow terminals.
+
+Enter or `l` on an empty all-day pane opens the unscheduled-todo picker. On a
+selected all-day todo it starts move mode; `/` always opens the filtered picker
+so multiple date-only todos can be assigned. `a` creates a task requiring a
+date but not a time. Edit, external edit, completion, and unscheduling work as
+they do for timeline todos. Move mode may switch panes: an all-day destination
+writes a date-only schedule, while a timeline destination writes date and time.
+Moving between them preserves duration and never performs an occupancy check
+for the date-only destination.
+
+Google Calendar all-day items are selectable and expose available type,
+location, attendee, and description details in the Inspector. They are
+read-only; mutation actions show a clear error.
 
 An optional, read-only Google Calendar primary-calendar overlay may display
 timed meetings as duration blocks spanning their overlapping slots. It uses desktop OAuth configured by
@@ -44,14 +59,14 @@ unscheduled todos from valid projects. Show several candidates at once, keep
 the selection visible while scrolling, and update the list while filter input
 changes. The same action on an occupied slot starts move mode. `u` unschedules,
 `[`/`]` change dates, `g`/`G` jump to the first/final timeline slots, and `T`
-returns to today. `/` on an empty slot opens the same picker with its filter
-active; on an occupied slot it reports that an empty destination is required.
-Esc or `h` cancels modal work. Occupied destinations are never replaced.
+returns to today. `/` opens the same picker with its filter active and permits
+intentional overlapping work. Esc or `h` cancels modal work.
 
 Show details for the selected assignment by default. Wide terminals place an
 `INSPECTOR` beside the timeline; narrower terminals show a compact `SELECTED`
 summary beneath it. Timeline assignments show compact state and priority before
-their title. `v` hides or restores details for the current session. Conflicting slots
+their title. `v` hides or restores only the Inspector for the current session;
+the functional all-day pane remains accessible. Conflicting slots
 show a diagnostic instead of exposing an ambiguous todo.
 
 When a meeting-only slot is selected, the Inspector shows its title, time range,
@@ -64,6 +79,7 @@ On an occupied slot, `e` edits fields including scheduled date and time, `E` edi
 opens the Markdown source in `$EDITOR`, and Space toggles completion without
 removing the schedule. `a` on an empty slot uses the same complete field form
 as the Todos tab, pre-fills the selected date and time, and requires both values.
+Creation from the all-day pane pre-fills only the required date.
 After rescheduling through the field editor, Planner follows the todo to its new
 date and slot. Clearing both schedule fields on an existing todo unschedules it.
 
@@ -92,10 +108,12 @@ feedback match the Todos view.
    same conflict-safe Markdown workflows as the Todos tab.
 8. Today's current-time row uses the highlight foreground without resembling a
    table border, stays within the viewport budget, and advances while idle.
-9. Date-only schedules and calendar all-day items fit in the all-day header
-   without reducing access to the selected timeline slot.
+9. Date-only schedules and calendar all-day items remain navigable in their
+   separate pane without removing access to the selected timeline slot.
 10. Calendar overlap warnings and failed calendar refreshes never block normal
     Markdown todo scheduling.
+11. Todos move between timed and all-day destinations without losing duration,
+    and multiple todos may share one all-day destination.
 
 ## References
 

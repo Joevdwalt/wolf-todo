@@ -27,7 +27,8 @@ public sealed class TuiApplication(
     CommandPalettePresenter? palettePresenter = null,
     ApplicationActionCatalog? actionCatalog = null,
     IExternalEditorLauncher? externalEditorLauncher = null,
-    PlannerCalendarAgendaCache? plannerCalendarCache = null)
+    PlannerCalendarAgendaCache? plannerCalendarCache = null,
+    Func<DateOnly>? todayProvider = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -42,7 +43,10 @@ public sealed class TuiApplication(
     private readonly ApplicationCommandReducer commandReducer = commandReducer ?? new ApplicationCommandReducer();
     private readonly CommandPaletteReducer paletteReducer = paletteReducer ?? new CommandPaletteReducer();
     private readonly CommandPalettePresenter palettePresenter = palettePresenter ?? new CommandPalettePresenter();
-    private readonly ApplicationActionCatalog actionCatalog = actionCatalog ?? new ApplicationActionCatalog();
+    private readonly Func<DateOnly> todayProvider = todayProvider ??
+        (() => DateOnly.FromDateTime(DateTime.Today));
+    private readonly ApplicationActionCatalog actionCatalog = actionCatalog ??
+        new ApplicationActionCatalog(todayProvider);
     private readonly IExternalEditorLauncher? externalEditorLauncher = externalEditorLauncher;
     private readonly PlannerCalendarAgendaCache plannerCalendarCache = plannerCalendarCache ??
         new PlannerCalendarAgendaCache(new DisabledPlannerCalendarAgendaProvider());
@@ -73,7 +77,7 @@ public sealed class TuiApplication(
         };
         var state = new ApplicationState(TabHostState.CreateInitial(Tabs), browserState)
         {
-            Planner = PlannerState.CreateInitial(DateOnly.FromDateTime(DateTime.Today))
+            Planner = PlannerState.CreateInitial(todayProvider())
         };
         terminalUi.SetCursorVisible(false);
 
@@ -200,6 +204,33 @@ public sealed class TuiApplication(
                             mutationService);
                     }
 
+                    if (commandTransition.Operation == ApplicationCommandOperation.RollProjectToday)
+                    {
+                        if (state.Tabs.ActiveTab != TodosTab || browserView is null)
+                        {
+                            state = state with
+                            {
+                                Command = state.Command with
+                                {
+                                    Error = "Open Todos and select a project before rolling tasks to today."
+                                }
+                            };
+                        }
+                        else
+                        {
+                            var transition = browserReducer.ReduceAction(
+                                state.Browser,
+                                BrowserAction.RollProjectToday,
+                                browserView);
+                            state = ApplyBrowserTransition(
+                                state,
+                                transition,
+                                ref catalog,
+                                configuration,
+                                mutationService);
+                        }
+                    }
+
                     continue;
                 }
 
@@ -264,6 +295,7 @@ public sealed class TuiApplication(
                             ApplicationActionId.BrowserEdit => BrowserAction.Edit,
                             ApplicationActionId.BrowserEditExternal => BrowserAction.EditExternal,
                             ApplicationActionId.BrowserToggleCompleted => BrowserAction.ToggleCompleted,
+                            ApplicationActionId.BrowserRollProjectToday => BrowserAction.RollProjectToday,
                             ApplicationActionId.BrowserToggleDetails => BrowserAction.ToggleDetails,
                             ApplicationActionId.BrowserJumpTop => BrowserAction.JumpTop,
                             ApplicationActionId.BrowserJumpBottom => BrowserAction.JumpBottom,
@@ -443,9 +475,11 @@ public sealed class TuiApplication(
         var expected = FindTodo(catalog, transition.TodoIdentity);
         var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
         catalog = latestCatalog;
-        var schedule = new TodoSchedule(
-            state.Planner.SelectedDate,
-            new TimeOnly(6, 0).AddMinutes(state.Planner.SlotIndex * 15));
+        var schedule = transition.ScheduleTarget == PlannerScheduleTarget.AllDay
+            ? new TodoSchedule(state.Planner.SelectedDate)
+            : new TodoSchedule(
+                state.Planner.SelectedDate,
+                new TimeOnly(6, 0).AddMinutes(state.Planner.SlotIndex * 15));
 
         if (transition.Operation == PlannerOperation.Create)
         {
@@ -466,7 +500,12 @@ public sealed class TuiApplication(
             }
 
             catalog = catalogLoader.Load(configuration.ProjectFiles);
-            return PlannerSuccess(state, transition.Update.Fields.Schedule);
+            return PlannerSuccess(
+                state,
+                transition.Update.Fields.Schedule,
+                created.SourceLine is { } createdLine
+                    ? new TodoIdentity(transition.ProjectPath, createdLine)
+                    : null);
         }
 
         if (transition.TodoIdentity is null)
@@ -505,9 +544,16 @@ public sealed class TuiApplication(
         }
 
         catalog = catalogLoader.Load(configuration.ProjectFiles);
+        var followedSchedule = transition.Operation switch
+        {
+            PlannerOperation.Schedule => schedule,
+            PlannerOperation.Update => transition.Update?.Fields.Schedule,
+            _ => null
+        };
         return PlannerSuccess(
             state,
-            transition.Operation == PlannerOperation.Update ? transition.Update?.Fields.Schedule : null);
+            followedSchedule,
+            followedSchedule is null ? null : transition.TodoIdentity);
     }
 
     private static bool IsOccupied(
@@ -541,14 +587,21 @@ public sealed class TuiApplication(
              candidate.Todo.SourceLine != excluded.SourceLine));
     }
 
-    private static ApplicationState PlannerSuccess(ApplicationState state, TodoSchedule? follow = null) => state with
+    private static ApplicationState PlannerSuccess(
+        ApplicationState state,
+        TodoSchedule? follow = null,
+        TodoIdentity? followIdentity = null) => state with
     {
         Planner = state.Planner with
         {
             SelectedDate = follow?.Date ?? state.Planner.SelectedDate,
+            Focus = follow is null
+                ? state.Planner.Focus
+                : follow.Time is null ? PlannerFocus.AllDay : PlannerFocus.Timeline,
             SlotIndex = follow?.Time is { } time
                 ? ((time.Hour - 6) * 4) + (time.Minute / 15)
                 : state.Planner.SlotIndex,
+            PendingAllDaySelection = follow?.Time is null ? followIdentity : null,
             Mode = PlannerMode.Browse,
             MovingTodo = null,
             Editor = null,
@@ -589,9 +642,8 @@ public sealed class TuiApplication(
         var result = ApplyBrowserOperation(
             transition,
             expectedCatalog,
-            latestCatalog,
             service,
-            configuration.Planner.DefaultDuration);
+            todayProvider());
         state = state with
         {
             Browser = state.Browser with
@@ -605,7 +657,9 @@ public sealed class TuiApplication(
                 PendingTodoSelection = result.Succeeded && result.SourceLine is not null &&
                                        transition.ProjectPath is not null
                     ? new TodoIdentity(transition.ProjectPath, result.SourceLine.Value)
-                    : null
+                    : result.Succeeded && transition.Operation == BrowserOperation.RollProjectToday
+                        ? transition.TodoIdentity
+                        : null
             }
         };
         if (result.Succeeded)
@@ -712,9 +766,8 @@ public sealed class TuiApplication(
     private static TodoMutationResult ApplyBrowserOperation(
         BrowserTransition transition,
         ProjectCatalog expectedCatalog,
-        ProjectCatalog latestCatalog,
         ProjectTodoMutationService? service,
-        TimeSpan defaultDuration)
+        DateOnly today)
     {
         if (service is null || transition.ProjectPath is null)
         {
@@ -724,6 +777,15 @@ public sealed class TuiApplication(
         if (transition.Operation == BrowserOperation.Create && transition.Update is not null)
         {
             return service.Create(transition.ProjectPath, transition.Update);
+        }
+
+        if (transition.Operation == BrowserOperation.RollProjectToday)
+        {
+            var expectedProject = expectedCatalog.Projects.FirstOrDefault(
+                project => project.Path == transition.ProjectPath);
+            return expectedProject is null
+                ? TodoMutationResult.Failure("The selected project cannot be found.")
+                : service.RollOverdueToDate(transition.ProjectPath, expectedProject, today);
         }
 
         var expected = FindTodo(expectedCatalog, transition.TodoIdentity);

@@ -115,6 +115,38 @@ public sealed class CommandPaletteReducerTests
     }
 
     [Fact]
+    public void ActionCatalog_enables_project_rollover_only_for_a_project_with_overdue_tasks()
+    {
+        var today = new DateOnly(2026, 7, 23);
+        var overdue = new TodoItem(
+            1, false, null, "Overdue", null, [], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(today.AddDays(-1))
+        };
+        var project = new TodoProject("Work", "/work.md", [overdue]);
+        var browser = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow(project.Title, 1, project, null, true)],
+            [],
+            null,
+            project.Title,
+            project.Path,
+            null,
+            string.Empty);
+        var catalog = new ApplicationActionCatalog(() => today);
+
+        var enabled = catalog.Create(true, browser, null, Bindings)
+            .Single(item => item.Action == ApplicationActionId.BrowserRollProjectToday);
+        var disabled = catalog.Create(true, BrowserView(BrowserState.Initial), null, Bindings)
+            .Single(item => item.Action == ApplicationActionId.BrowserRollProjectToday);
+
+        enabled.IsEnabled.Should().BeTrue();
+        enabled.Binding.Should().Be("R");
+        disabled.IsEnabled.Should().BeFalse();
+        disabled.DisabledReason.Should().Contain("Select a project");
+    }
+
+    [Fact]
     public void ActionCatalog_enables_planner_editing_actions_for_an_occupied_slot()
     {
         var date = new DateOnly(2026, 7, 15);
