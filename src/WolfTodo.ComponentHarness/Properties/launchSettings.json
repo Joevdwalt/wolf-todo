@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Task edit dialog": {
+      "commandName": "Project",
+      "commandLineArgs": "dialog"
+    }
+  }
+}

@@ -2124,6 +2124,33 @@ public sealed class SpectreTerminalUi : ITerminalUi
         IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings,
         int terminalWidth,
+        int terminalHeight) =>
+        TodoTaskEditorDialog.Create(editor, bindings, terminalWidth, terminalHeight).Lines
+            .Select(line => new BrowserStatusLine(
+                line.Text,
+                line.Role switch
+                {
+                    TodoTaskEditorDialogRole.Label => BrowserStatusRole.FormLabel,
+                    TodoTaskEditorDialogRole.Value => BrowserStatusRole.FormValue,
+                    TodoTaskEditorDialogRole.ActiveValue => BrowserStatusRole.FormActiveValue,
+                    TodoTaskEditorDialogRole.Placeholder => BrowserStatusRole.FormPlaceholder,
+                    TodoTaskEditorDialogRole.Hint => BrowserStatusRole.FormHint,
+                    TodoTaskEditorDialogRole.Error => BrowserStatusRole.FormError,
+                    TodoTaskEditorDialogRole.Warning => BrowserStatusRole.ContentWarning,
+                    _ => BrowserStatusRole.Default
+                }))
+            .ToArray();
+
+    /*
+     * Kept temporarily below as reference while migrating the status shell.
+     * The production path above now delegates all task-editor layout to
+     * TodoTaskEditorDialog, which is also rendered by the component harness.
+     */
+    private static IReadOnlyList<BrowserStatusLine> LegacyTodoTaskEditorStatus(
+        TodoTaskEditorState editor,
+        IReadOnlyList<TodoEditorProjectOption> projects,
+        TuiKeyBindings bindings,
+        int terminalWidth,
         int terminalHeight)
     {
         var width = Math.Max(1, terminalWidth - 4);

@@ -30,3 +30,7 @@ tasks:
     desc: Run the Wolf Todo command-line interface.
     cmds:
       - pwsh -NoProfile -File src/scripts/run-cli.ps1
+  component:dialog:
+    desc: Run the task edit-dialog component sandbox in Debug mode.
+    cmds:
+      - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- dialog

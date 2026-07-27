@@ -38,6 +38,21 @@ operations. Do not use repository scripts directly as the normal workflow.
 
 ## Running the TUI
 
+## Component sandboxes
+
+Reusable terminal controls can be run without loading project Markdown or
+starting the full application. The task edit dialog has a rich interactive
+fixture:
+
+```text
+task component:dialog
+```
+
+The sandbox uses the same dialog renderer and editor reducer as the TUI, but
+captures save actions in memory and never writes files. To debug it in an IDE,
+set `WolfTodo.ComponentHarness` as the startup project and use its `Task edit
+dialog` launch profile.
+
 Create the global `config.toml` before starting the TUI:
 
 - Linux: `$XDG_CONFIG_HOME/wtodo/config.toml`, or
