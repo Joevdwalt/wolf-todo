@@ -42,6 +42,22 @@ public sealed class ProjectMarkdownParserTests
     }
 
     [Fact]
+    public void Parse_reads_parenthesized_external_references_and_legacy_reference_prefixes()
+    {
+        const string markdown = """
+            - [ ] (ABC-123) Parenthesized reference
+            - [ ] LEGACY-7 - Legacy reference
+            """;
+
+        var result = parser.Parse("/todos/references.md", markdown);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Project!.Todos.Select(todo => (todo.ExternalReference, todo.Title)).Should().Equal(
+            ("ABC-123", "Parenthesized reference"),
+            ("LEGACY-7", "Legacy reference"));
+    }
+
+    [Fact]
     public void Parse_groups_indented_note_continuations_into_one_note()
     {
         const string markdown = """

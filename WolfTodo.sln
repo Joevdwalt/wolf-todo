@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WolfTodo.Core.Tests", "src\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WolfTodo.Cli.Tests", "src\WolfTodo.Cli.Tests\WolfTodo.Cli.Tests.csproj", "{0A61B27E-E875-4FA6-BF76-95B6EB66C35A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WolfTodo.ComponentHarness", "src\WolfTodo.ComponentHarness\WolfTodo.ComponentHarness.csproj", "{BC4BB4F1-7AC2-4C66-9B07-EA50D61E54C8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -44,5 +46,9 @@ Global
 		{0A61B27E-E875-4FA6-BF76-95B6EB66C35A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0A61B27E-E875-4FA6-BF76-95B6EB66C35A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0A61B27E-E875-4FA6-BF76-95B6EB66C35A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BC4BB4F1-7AC2-4C66-9B07-EA50D61E54C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BC4BB4F1-7AC2-4C66-9B07-EA50D61E54C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BC4BB4F1-7AC2-4C66-9B07-EA50D61E54C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BC4BB4F1-7AC2-4C66-9B07-EA50D61E54C8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

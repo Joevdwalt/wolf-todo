@@ -58,6 +58,11 @@ public sealed class TodoEditorReducer
             return ReduceContentTextBox(editor, key, bindings);
         }
 
+        if (editor.FieldTextBox is not null)
+        {
+            return ReduceFieldTextBox(editor, key);
+        }
+
         if (editor.Mode == TodoTaskEditorMode.Edit)
         {
             return ReduceDraft(editor, key);
@@ -119,7 +124,7 @@ public sealed class TodoEditorReducer
                 var selected = editor.Items[editor.SelectedContentIndex];
                 return Transition(editor with
                 {
-                    ContentTextBox = TextBoxState.Create(
+                    ContentTextBox = MultilineTextBoxState.Create(
                         SelectedValue(editor),
                         selected is ContentNoteDraft),
                     Error = null
@@ -131,6 +136,7 @@ public sealed class TodoEditorReducer
                 Mode = TodoTaskEditorMode.Edit,
                 IsAddingContent = false,
                 Draft = SelectedValue(editor),
+                FieldTextBox = TextBox.Create(FieldLabel(editor.SelectedField), true, SelectedValue(editor), isActive: true),
                 Error = null
             });
         }
@@ -263,6 +269,38 @@ public sealed class TodoEditorReducer
             : Transition(editor with { Draft = editor.Draft + key.KeyChar, Error = null });
     }
 
+    private TodoEditorTransition ReduceFieldTextBox(TodoTaskEditorState editor, ConsoleKeyInfo key)
+    {
+        var transition = TextBox.Reduce(editor.FieldTextBox!, key);
+        if (transition.Outcome == TextBoxOutcome.Cancelled)
+        {
+            return Transition(editor with
+            {
+                Mode = TodoTaskEditorMode.Browse,
+                FieldTextBox = null,
+                Error = null
+            });
+        }
+
+        if (transition.Outcome == TextBoxOutcome.Accepted)
+        {
+            var updated = CommitField(editor, transition.State!.Text.Trim());
+            if (updated.Error is not null)
+            {
+                return Transition(updated with { FieldTextBox = transition.State, Mode = TodoTaskEditorMode.Edit });
+            }
+
+            return Transition(updated with
+            {
+                Mode = TodoTaskEditorMode.Browse,
+                FieldTextBox = null,
+                Error = null
+            });
+        }
+
+        return Transition(editor with { FieldTextBox = transition.State, Error = null });
+    }
+
     private static TodoEditorTransition ReduceContentTypePicker(
         TodoTaskEditorState editor,
         ConsoleKeyInfo key,
@@ -297,7 +335,7 @@ public sealed class TodoEditorReducer
             {
                 Mode = TodoTaskEditorMode.Browse,
                 IsAddingContent = true,
-                ContentTextBox = TextBoxState.Create(string.Empty, editor.AddKind == ContentItemKind.Note),
+                ContentTextBox = MultilineTextBoxState.Create(string.Empty, editor.AddKind == ContentItemKind.Note),
                 Error = null
             });
         }
@@ -419,7 +457,7 @@ public sealed class TodoEditorReducer
             });
         }
 
-        return Transition(editor with { ContentTextBox = TextBoxReducer.Reduce(editor.ContentTextBox!, key), Error = null });
+        return Transition(editor with { ContentTextBox = MultilineTextBoxReducer.Reduce(editor.ContentTextBox!, key), Error = null });
     }
 
     private TodoTaskEditorState CommitField(TodoTaskEditorState editor, string value)
@@ -514,6 +552,18 @@ public sealed class TodoEditorReducer
             _ => string.Empty
         };
     }
+
+    private static string FieldLabel(TodoFormField field) => field switch
+    {
+        TodoFormField.Title => "Title",
+        TodoFormField.Reference => "Reference",
+        TodoFormField.Priority => "Priority",
+        TodoFormField.Tags => "Tags",
+        TodoFormField.ScheduledDate => "Scheduled date (YYYY-MM-DD, t+1, w+1)",
+        TodoFormField.ScheduledTime => "Scheduled time",
+        TodoFormField.Duration => "Duration",
+        _ => throw new ArgumentOutOfRangeException(nameof(field))
+    };
 
     private static TodoSchedule? ParseSchedule(TodoTaskEditorState editor, DateOnly today, out string? error)
     {

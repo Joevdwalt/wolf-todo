@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "Task edit dialog": {
+      "commandName": "Project",
+      "commandLineArgs": "dialog"
+    },
+    "Text box edit": {
+      "commandName": "Project",
+      "commandLineArgs": "textbox:edit"
+    },
+    "Text box readonly": {
+      "commandName": "Project",
+      "commandLineArgs": "textbox:readonly"
+    }
+  }
+}

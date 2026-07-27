@@ -30,3 +30,19 @@ tasks:
     desc: Run the Wolf Todo command-line interface.
     cmds:
       - pwsh -NoProfile -File src/scripts/run-cli.ps1
+  component:dialog:
+    desc: Run the task edit-dialog component sandbox in Debug mode.
+    cmds:
+      - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- dialog
+  component:textbox:
+    desc: Run the editable generic text-box component sandbox in Debug mode.
+    cmds:
+      - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- textbox:edit
+  component:textbox:edit:
+    desc: Run the editable generic text-box component sandbox in Debug mode.
+    cmds:
+      - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- textbox:edit
+  component:textbox:readonly:
+    desc: Run the read-only generic text-box component sandbox in Debug mode.
+    cmds:
+      - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- textbox:readonly

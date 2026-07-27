@@ -14,6 +14,8 @@ namespace WolfTodo.Tui.Infrastructure;
 
 public sealed class SpectreTerminalUi : ITerminalUi
 {
+    private const int TodoSelectionLookAheadRows = 10;
+
     private const string OpenTodoGlyph = "◯";
     private const string CompletedTodoGlyph = "✓";
 
@@ -105,11 +107,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var selectList = BrowserSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
         var textBox = BrowserTextBox(view);
+        var editorDialog = view.State.Editor is { } editor
+            ? TodoTaskEditorDialog.Create(
+                editor,
+                keyBindings,
+                width,
+                height)
+            : null;
         var textBoxRows = TextBoxRows(height);
         var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
-        var contentHeight = Math.Max(1, AvailableContentHeight(height, statusLines.Count) -
+        var contentHeight = Math.Max(1, AvailableContentHeight(height, DialogContentHeight(editorDialog) ?? statusLines.Count) -
             (selectList is not null ? SelectListControl.Height(selectList, selectRows) :
-             textBox is not null ? TextBoxControl.Height(textBox.Value.State, textBoxRows) : 0));
+             textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) : 0));
         WriteOperationalHeader(
             tabs,
             keyBindings,
@@ -120,17 +129,20 @@ public sealed class SpectreTerminalUi : ITerminalUi
             view.Projects.FirstOrDefault()?.ActiveCount ?? 0,
             view.Projects.Count(project => project.Error is not null));
 
-        if (width >= 120 && height >= 24)
+        if (editorDialog is null || contentHeight > 1)
         {
-            WriteWide(view, width, contentHeight, theme, today);
-        }
-        else if (width >= 80 && height >= 18)
-        {
-            WriteMedium(view, width, contentHeight, theme, today);
-        }
-        else
-        {
-            WriteNarrow(view, width, contentHeight, theme, today);
+            if (width >= 120 && height >= 24)
+            {
+                WriteWide(view, width, contentHeight, theme, today);
+            }
+            else if (width >= 80 && height >= 18)
+            {
+                WriteMedium(view, width, contentHeight, theme, today);
+            }
+            else
+            {
+                WriteNarrow(view, width, contentHeight, theme, today);
+            }
         }
 
         if (selectList is not null)
@@ -139,15 +151,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
         else if (textBox is { } activeTextBox)
         {
-            AnsiConsole.Write(TextBoxControl.Create(
+            AnsiConsole.Write(MultilineTextBoxControl.Create(
                 activeTextBox.Title,
                 activeTextBox.State,
                 theme,
                 textBoxRows,
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
-
-        WriteStatus(statusLines, view, theme);
+        WriteStatus(statusLines, view, theme, editorDialog);
         EndUpdate(useSynchronizedUpdate);
     }
 
@@ -173,6 +184,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var selectList = PlannerSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
         var textBox = PlannerTextBox(view);
+        var editorDialog = view.State.Editor is { } editor
+            ? TodoTaskEditorDialog.Create(
+                editor,
+                keyBindings,
+                width,
+                height)
+            : null;
         var textBoxRows = TextBoxRows(height);
         WriteOperationalHeader(
             tabs,
@@ -185,7 +203,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
             view.ProjectErrorCount);
         var status = PlannerStatus(view, keyBindings, width, height);
         var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
-        var pickerRows = pickerVisible ? selectRows : 0;
         var wideLayout = width >= 120;
         var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
                             view.State.Focus == PlannerFocus.AllDay;
@@ -198,14 +215,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
                              view.GlobalCommand is null;
         const int tabTableStatusBorderAndCursorHeight = 8;
         var pickerHeight = selectList is not null ? SelectListControl.Height(selectList, selectRows) :
-            textBox is not null ? TextBoxControl.Height(textBox.Value.State, textBoxRows) : 0;
+            textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) : 0;
         const int compactDetailsHeight = 3;
         var narrowAllDayHeight = !wideSidePanels && showAllDayPanel
             ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
             : 0;
         var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
                              (compactDetails ? compactDetailsHeight : 0) + narrowAllDayHeight;
-        var availableRows = Math.Max(1, height - status.Count - reservedHeight);
+        var availableRows = Math.Max(1, height - (DialogContentHeight(editorDialog) ?? status.Count) - reservedHeight);
         var now = nowProvider();
         var timelineRows = WindowPlannerTimeline(
             view.Slots,
@@ -253,68 +270,71 @@ public sealed class SpectreTerminalUi : ITerminalUi
             table.AddEmptyRow();
         }
 
-        if (wideSidePanels)
+        if (editorDialog is null || availableRows > 1)
         {
-            var detailWidth = Math.Max(28, width - timelineWidth - 4);
-            const int inspectorContentHeight = 10;
-            var allDayContentHeight = Math.Max(
-                1,
-                availableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
-            var sidePanels = new List<IRenderable>();
-            if (view.State.ShowDetails)
+            if (wideSidePanels)
             {
-                sidePanels.Add(PlannerPanel(
-                    "INSPECTOR",
-                    FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
-                    theme));
-            }
+                var detailWidth = Math.Max(28, width - timelineWidth - 4);
+                const int inspectorContentHeight = 10;
+                var allDayContentHeight = Math.Max(
+                    1,
+                    availableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
+                var sidePanels = new List<IRenderable>();
+                if (view.State.ShowDetails)
+                {
+                    sidePanels.Add(PlannerPanel(
+                        "INSPECTOR",
+                        FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
+                        theme));
+                }
 
-            if (showAllDayPanel)
-            {
-                sidePanels.Add(PlannerPanel(
-                    "ALL DAY",
-                    AllDayAgendaLines(view, theme, allDayContentHeight),
-                    theme,
-                    view.State.Focus == PlannerFocus.AllDay));
-            }
-
-            var shell = new Table().NoBorder().Collapse().HideHeaders();
-            shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
-            shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
-            shell.AddRow(
-                table,
-                OnSurface(
-                    new Rows(sidePanels),
-                    theme.Surface2,
-                    true));
-            WriteSurface(shell, theme.Surface, true);
-        }
-        else
-        {
-            WriteSurface(table, theme.Surface, true);
-            if (compactDetails)
-            {
-                WriteSurface(
-                    new Panel(PlannerCompactDetail(view, theme))
-                    {
-                        Header = new PanelHeader("SELECTED"),
-                        Border = BoxBorder.Square,
-                        BorderStyle = ThemeStyle(theme.Border),
-                        Expand = true
-                    },
-                    theme.Surface2,
-                    true);
-            }
-            if (narrowAllDayHeight > 0)
-            {
-                WriteSurface(
-                    PlannerPanel(
+                if (showAllDayPanel)
+                {
+                    sidePanels.Add(PlannerPanel(
                         "ALL DAY",
-                        AllDayAgendaLines(view, theme, Math.Max(1, narrowAllDayHeight - 2)),
+                        AllDayAgendaLines(view, theme, allDayContentHeight),
                         theme,
-                        view.State.Focus == PlannerFocus.AllDay),
-                    theme.Surface2,
-                    true);
+                        view.State.Focus == PlannerFocus.AllDay));
+                }
+
+                var shell = new Table().NoBorder().Collapse().HideHeaders();
+                shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
+                shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
+                shell.AddRow(
+                    table,
+                    OnSurface(
+                        new Rows(sidePanels),
+                        theme.Surface2,
+                        true));
+                WriteSurface(shell, theme.Surface, true);
+            }
+            else
+            {
+                WriteSurface(table, theme.Surface, true);
+                if (compactDetails)
+                {
+                    WriteSurface(
+                        new Panel(PlannerCompactDetail(view, theme))
+                        {
+                            Header = new PanelHeader("SELECTED"),
+                            Border = BoxBorder.Square,
+                            BorderStyle = ThemeStyle(theme.Border),
+                            Expand = true
+                        },
+                        theme.Surface2,
+                        true);
+                }
+                if (narrowAllDayHeight > 0)
+                {
+                    WriteSurface(
+                        PlannerPanel(
+                            "ALL DAY",
+                            AllDayAgendaLines(view, theme, Math.Max(1, narrowAllDayHeight - 2)),
+                            theme,
+                            view.State.Focus == PlannerFocus.AllDay),
+                        theme.Surface2,
+                        true);
+                }
             }
         }
 
@@ -324,15 +344,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
         else if (textBox is { } activeTextBox)
         {
-            AnsiConsole.Write(TextBoxControl.Create(
+            AnsiConsole.Write(MultilineTextBoxControl.Create(
                 activeTextBox.Title,
                 activeTextBox.State,
                 theme,
                 textBoxRows,
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
-
-        WritePlannerStatus(status, view, theme);
+        WritePlannerStatus(status, view, theme, editorDialog);
         EndUpdate(useSynchronizedUpdate);
     }
 
@@ -514,13 +533,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static int TextBoxRows(int terminalHeight) => Math.Clamp(terminalHeight / 4, 3, 8);
 
-    private static (string Title, TextBoxState State)? BrowserTextBox(BrowserView view) =>
+    private static (string Title, MultilineTextBoxState State)? BrowserTextBox(BrowserView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
-    private static (string Title, TextBoxState State)? PlannerTextBox(PlannerView view) =>
+    private static (string Title, MultilineTextBoxState State)? PlannerTextBox(PlannerView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
-    private static (string Title, TextBoxState State)? TodoEditorTextBox(TodoTaskEditorState editor)
+    private static (string Title, MultilineTextBoxState State)? TodoEditorTextBox(TodoTaskEditorState editor)
     {
         if (editor.ContentTextBox is not { } state)
         {
@@ -663,8 +682,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static void WritePlannerStatus(
         IReadOnlyList<BrowserStatusLine> lines,
         PlannerView view,
-        TuiTheme theme)
+        TuiTheme theme,
+        TodoTaskEditorDialogView? editorDialog = null)
     {
+        if (editorDialog is not null)
+        {
+            WriteSurface(TodoTaskEditorDialog.CreateRenderable(editorDialog, theme), theme.Surface2, true);
+            return;
+        }
+
         var defaultStyle = view.GlobalError is not null || view.State.Error is not null ||
                     view.CommandPalette?.State.Error is not null
             ? ThemeStyle(theme.Error, Decoration.Bold)
@@ -1523,6 +1549,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return Math.Max(1, terminalHeight - tabTableStatusBorderAndCursorHeight - statusLineCount);
     }
 
+    private static int? DialogContentHeight(TodoTaskEditorDialogView? dialog) =>
+        dialog is null ? null : dialog.Height - 2;
+
     private static IReadOnlyList<IRenderable> FitLines(
         IReadOnlyList<IRenderable> lines,
         int contentHeight,
@@ -1578,6 +1607,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var start = selectedIndex;
         var end = selectedIndex;
         var usedHeight = selected.Lines.Count;
+
+        var rowsBelowSelection = selected.Lines.Count - 1;
+        while (end + 1 < groups.Length &&
+               rowsBelowSelection < TodoSelectionLookAheadRows &&
+               usedHeight + groups[end + 1].Lines.Count <= availableHeight)
+        {
+            end++;
+            usedHeight += groups[end].Lines.Count;
+            rowsBelowSelection += groups[end].Lines.Count;
+        }
+
         while (start > 0 && usedHeight + groups[start - 1].Lines.Count <= availableHeight)
         {
             start--;
@@ -2124,6 +2164,33 @@ public sealed class SpectreTerminalUi : ITerminalUi
         IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings,
         int terminalWidth,
+        int terminalHeight) =>
+        TodoTaskEditorDialog.Create(editor, bindings, terminalWidth, terminalHeight).Lines
+            .Select(line => new BrowserStatusLine(
+                line.Text,
+                line.Role switch
+                {
+                    TodoTaskEditorDialogRole.Label => BrowserStatusRole.FormLabel,
+                    TodoTaskEditorDialogRole.Value => BrowserStatusRole.FormValue,
+                    TodoTaskEditorDialogRole.ActiveValue => BrowserStatusRole.FormActiveValue,
+                    TodoTaskEditorDialogRole.Placeholder => BrowserStatusRole.FormPlaceholder,
+                    TodoTaskEditorDialogRole.Hint => BrowserStatusRole.FormHint,
+                    TodoTaskEditorDialogRole.Error => BrowserStatusRole.FormError,
+                    TodoTaskEditorDialogRole.Warning => BrowserStatusRole.ContentWarning,
+                    _ => BrowserStatusRole.Default
+                }))
+            .ToArray();
+
+    /*
+     * Kept temporarily below as reference while migrating the status shell.
+     * The production path above now delegates all task-editor layout to
+     * TodoTaskEditorDialog, which is also rendered by the component harness.
+     */
+    private static IReadOnlyList<BrowserStatusLine> LegacyTodoTaskEditorStatus(
+        TodoTaskEditorState editor,
+        IReadOnlyList<TodoEditorProjectOption> projects,
+        TuiKeyBindings bindings,
+        int terminalWidth,
         int terminalHeight)
     {
         var width = Math.Max(1, terminalWidth - 4);
@@ -2312,8 +2379,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static IReadOnlyList<BrowserStatusLine> DefaultStatusLines(IEnumerable<string> lines) =>
         lines.Select(line => new BrowserStatusLine(line)).ToArray();
 
-    private static void WriteStatus(IReadOnlyList<BrowserStatusLine> lines, BrowserView view, TuiTheme theme)
+    private static void WriteStatus(
+        IReadOnlyList<BrowserStatusLine> lines,
+        BrowserView view,
+        TuiTheme theme,
+        TodoTaskEditorDialogView? editorDialog = null)
     {
+        if (editorDialog is not null)
+        {
+            WriteSurface(TodoTaskEditorDialog.CreateRenderable(editorDialog, theme), theme.Surface2, true);
+            return;
+        }
+
         var defaultStyle = view.State switch
         {
             _ when view.GlobalError is not null || view.CommandPalette?.State.Error is not null =>

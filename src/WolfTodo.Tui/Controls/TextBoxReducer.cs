@@ -1,8 +1,8 @@
 namespace WolfTodo.Tui.Controls;
 
-internal static class TextBoxReducer
+internal static class MultilineTextBoxReducer
 {
-    public static TextBoxState Reduce(TextBoxState state, ConsoleKeyInfo key)
+    public static MultilineTextBoxState Reduce(MultilineTextBoxState state, ConsoleKeyInfo key)
     {
         var cursor = state.ClampedCursor;
         return key.Key switch
@@ -28,7 +28,7 @@ internal static class TextBoxReducer
         };
     }
 
-    private static TextBoxState Insert(TextBoxState state, string value)
+    private static MultilineTextBoxState Insert(MultilineTextBoxState state, string value)
     {
         var cursor = state.ClampedCursor;
         return state with

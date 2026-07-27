@@ -4,11 +4,11 @@ using WolfTodo.Tui.Features.Configuration;
 
 namespace WolfTodo.Tui.Controls;
 
-internal static class TextBoxControl
+internal static class MultilineTextBoxControl
 {
-    public static int Height(TextBoxState state, int maxRows) => Math.Max(1, maxRows) + 3;
+    public static int Height(MultilineTextBoxState state, int maxRows) => Math.Max(1, maxRows) + 3;
 
-    public static IRenderable Create(string title, TextBoxState state, TuiTheme theme, int maxRows, string saveBinding)
+    public static IRenderable Create(string title, MultilineTextBoxState state, TuiTheme theme, int maxRows, string saveBinding)
     {
         var lines = state.Text.Split('\n');
         var cursorLine = state.Text[..state.ClampedCursor].Count(character => character == '\n');

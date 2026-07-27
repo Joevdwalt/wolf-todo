@@ -169,7 +169,11 @@ public sealed partial class ProjectMarkdownParser
     private static TodoLineResult ParseTodoLine(int sourceLine, string status, string text, string?[] headings)
     {
         var externalReference = default(string);
-        var referenceMatch = ReferencePattern().Match(text);
+        var referenceMatch = ParenthesizedReferencePattern().Match(text);
+        if (!referenceMatch.Success)
+        {
+            referenceMatch = LegacyReferencePattern().Match(text);
+        }
 
         if (referenceMatch.Success)
         {
@@ -373,8 +377,11 @@ public sealed partial class ProjectMarkdownParser
     [GeneratedRegex("^(\\s*)[-*+]\\s+\\[([ xX])\\]\\s*(.*)$")]
     private static partial Regex TaskPattern();
 
+    [GeneratedRegex("^\\(([A-Za-z0-9][A-Za-z0-9._/-]*)\\)\\s+")]
+    private static partial Regex ParenthesizedReferencePattern();
+
     [GeneratedRegex("^([A-Za-z0-9][A-Za-z0-9._/-]*)\\s+-\\s+")]
-    private static partial Regex ReferencePattern();
+    private static partial Regex LegacyReferencePattern();
 
     [GeneratedRegex("(?<![\\p{L}\\p{N}_])#([\\p{L}\\p{N}_/-]+)")]
     private static partial Regex TagPattern();

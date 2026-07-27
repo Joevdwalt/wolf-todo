@@ -414,6 +414,58 @@ public sealed class BrowserReducerTests
         saved.State.Editor.Duration.Should().Be("30m");
     }
 
+    [Fact]
+    public void Reduce_edits_the_task_title_through_the_dedicated_title_editor()
+    {
+        var identity = new TodoIdentity("/alpha.md", 1);
+        var view = SelectedView(identity, new TodoItem(
+            1, false, null, "Original title", null, [], null, null, string.Empty, [], []));
+        var opened = reducer.Reduce(BrowserState.Initial, Key('e'), Configuration, view);
+        var editing = reducer.Reduce(opened.State, Key('e'), Configuration, view);
+        var movedToStart = reducer.Reduce(editing.State, Key(ConsoleKey.Home), Configuration, view);
+        var typed = reducer.Reduce(movedToStart.State, Key('!'), Configuration, view);
+        var accepted = reducer.Reduce(typed.State, Key(ConsoleKey.Enter), Configuration, view);
+
+        accepted.State.Editor!.Values.Title.Should().Be("!Original title");
+        accepted.State.Editor.Mode.Should().Be(TodoTaskEditorMode.Browse);
+    }
+
+    [Fact]
+    public void Reduce_edits_and_clears_the_reference_through_the_dedicated_textbox()
+    {
+        var identity = new TodoIdentity("/alpha.md", 1);
+        var view = SelectedView(identity, new TodoItem(
+            1, false, "REF-1", "Original title", null, [], null, null, string.Empty, [], []));
+        var opened = reducer.Reduce(BrowserState.Initial, Key('e'), Configuration, view);
+        var reference = reducer.Reduce(opened.State, Key('j'), Configuration, view);
+        var editing = reducer.Reduce(reference.State, Key('e'), Configuration, view);
+        var cleared = reducer.Reduce(editing.State, Key(ConsoleKey.Backspace), Configuration, view);
+        cleared = reducer.Reduce(cleared.State, Key(ConsoleKey.Backspace), Configuration, view);
+        cleared = reducer.Reduce(cleared.State, Key(ConsoleKey.Backspace), Configuration, view);
+        cleared = reducer.Reduce(cleared.State, Key(ConsoleKey.Backspace), Configuration, view);
+        cleared = reducer.Reduce(cleared.State, Key(ConsoleKey.Backspace), Configuration, view);
+        var accepted = reducer.Reduce(cleared.State, Key(ConsoleKey.Enter), Configuration, view);
+
+        accepted.State.Editor!.Values.ExternalReference.Should().BeNull();
+        accepted.State.Editor.Mode.Should().Be(TodoTaskEditorMode.Browse);
+    }
+
+    [Fact]
+    public void Reduce_keeps_the_title_editor_open_when_an_empty_title_is_accepted()
+    {
+        var project = new TodoProject("Alpha", "/alpha.md", []);
+        var view = new BrowserView(
+            BrowserState.Initial,
+            [new ProjectRow("Alpha", 0, project, null, true)],
+            [], null, "Alpha", project.Path, null, string.Empty);
+        var opened = reducer.Reduce(BrowserState.Initial, Key('a'), Configuration, view);
+        var editing = reducer.Reduce(opened.State, Key('e'), Configuration, view);
+        var accepted = reducer.Reduce(editing.State, Key(ConsoleKey.Enter), Configuration, view);
+
+        accepted.State.Editor!.Mode.Should().Be(TodoTaskEditorMode.Edit);
+        accepted.State.Editor.Error.Should().Be("Title is required.");
+    }
+
     [Theory]
     [InlineData("", "09:30", "requires a scheduled date")]
     [InlineData("2026-07-15", "09:10", "quarter-hour")]
