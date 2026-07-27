@@ -58,14 +58,9 @@ public sealed class TodoEditorReducer
             return ReduceContentTextBox(editor, key, bindings);
         }
 
-        if (editor.TitleTextBox is not null)
+        if (editor.FieldTextBox is not null)
         {
-            return ReduceTitleTextBox(editor, key);
-        }
-
-        if (editor.ReferenceTextBox is not null)
-        {
-            return ReduceReferenceTextBox(editor, key);
+            return ReduceFieldTextBox(editor, key);
         }
 
         if (editor.Mode == TodoTaskEditorMode.Edit)
@@ -136,39 +131,12 @@ public sealed class TodoEditorReducer
                 });
             }
 
-            if (editor.SelectedField == TodoFormField.Title)
-            {
-                return Transition(editor with
-                {
-                    Mode = TodoTaskEditorMode.Edit,
-                    IsAddingContent = false,
-                    Draft = string.Empty,
-                    TitleTextBox = TextBox.Create("Title", true, editor.Values.Title, isActive: true),
-                    Error = null
-                });
-            }
-
-            if (editor.SelectedField == TodoFormField.Reference)
-            {
-                return Transition(editor with
-                {
-                    Mode = TodoTaskEditorMode.Edit,
-                    IsAddingContent = false,
-                    Draft = string.Empty,
-                    ReferenceTextBox = TextBox.Create(
-                        "Reference",
-                        true,
-                        editor.Values.ExternalReference ?? string.Empty,
-                        isActive: true),
-                    Error = null
-                });
-            }
-
             return Transition(editor with
             {
                 Mode = TodoTaskEditorMode.Edit,
                 IsAddingContent = false,
                 Draft = SelectedValue(editor),
+                FieldTextBox = TextBox.Create(FieldLabel(editor.SelectedField), true, SelectedValue(editor), isActive: true),
                 Error = null
             });
         }
@@ -301,64 +269,36 @@ public sealed class TodoEditorReducer
             : Transition(editor with { Draft = editor.Draft + key.KeyChar, Error = null });
     }
 
-    private static TodoEditorTransition ReduceTitleTextBox(TodoTaskEditorState editor, ConsoleKeyInfo key)
+    private TodoEditorTransition ReduceFieldTextBox(TodoTaskEditorState editor, ConsoleKeyInfo key)
     {
-        var transition = TextBox.Reduce(editor.TitleTextBox!, key);
+        var transition = TextBox.Reduce(editor.FieldTextBox!, key);
         if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
             return Transition(editor with
             {
                 Mode = TodoTaskEditorMode.Browse,
-                TitleTextBox = null,
+                FieldTextBox = null,
                 Error = null
             });
         }
 
         if (transition.Outcome == TextBoxOutcome.Accepted)
         {
-            var title = transition.State!.Text.Trim();
-            if (title.Length == 0)
+            var updated = CommitField(editor, transition.State!.Text.Trim());
+            if (updated.Error is not null)
             {
-                return Transition(editor with { Error = "Title is required." });
+                return Transition(updated with { FieldTextBox = transition.State, Mode = TodoTaskEditorMode.Edit });
             }
 
-            return Transition(editor with
+            return Transition(updated with
             {
                 Mode = TodoTaskEditorMode.Browse,
-                TitleTextBox = null,
-                Values = editor.Values with { Title = title },
+                FieldTextBox = null,
                 Error = null
             });
         }
 
-        return Transition(editor with { TitleTextBox = transition.State, Error = null });
-    }
-
-    private static TodoEditorTransition ReduceReferenceTextBox(TodoTaskEditorState editor, ConsoleKeyInfo key)
-    {
-        var transition = TextBox.Reduce(editor.ReferenceTextBox!, key);
-        if (transition.Outcome == TextBoxOutcome.Cancelled)
-        {
-            return Transition(editor with
-            {
-                Mode = TodoTaskEditorMode.Browse,
-                ReferenceTextBox = null,
-                Error = null
-            });
-        }
-
-        if (transition.Outcome == TextBoxOutcome.Accepted)
-        {
-            return Transition(editor with
-            {
-                Mode = TodoTaskEditorMode.Browse,
-                ReferenceTextBox = null,
-                Values = editor.Values with { ExternalReference = NullIfEmpty(transition.State!.Text.Trim()) },
-                Error = null
-            });
-        }
-
-        return Transition(editor with { ReferenceTextBox = transition.State, Error = null });
+        return Transition(editor with { FieldTextBox = transition.State, Error = null });
     }
 
     private static TodoEditorTransition ReduceContentTypePicker(
@@ -612,6 +552,18 @@ public sealed class TodoEditorReducer
             _ => string.Empty
         };
     }
+
+    private static string FieldLabel(TodoFormField field) => field switch
+    {
+        TodoFormField.Title => "Title",
+        TodoFormField.Reference => "Reference",
+        TodoFormField.Priority => "Priority",
+        TodoFormField.Tags => "Tags",
+        TodoFormField.ScheduledDate => "Scheduled date (YYYY-MM-DD, t+1, w+1)",
+        TodoFormField.ScheduledTime => "Scheduled time",
+        TodoFormField.Duration => "Duration",
+        _ => throw new ArgumentOutOfRangeException(nameof(field))
+    };
 
     private static TodoSchedule? ParseSchedule(TodoTaskEditorState editor, DateOnly today, out string? error)
     {

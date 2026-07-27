@@ -16,12 +16,11 @@ public sealed class TodoTaskEditorDialogTests
         var view = TodoTaskEditorDialog.Create(Editor(), Bindings, 100, 30);
 
         view.Lines.Select(line => line.Text).Should().Contain(line => line.Contains("EDIT TASK // Prepare workshop"))
-            .And.Contain(line => line.Contains("> TAGS", StringComparison.Ordinal))
-            .And.Contain(line => line.Contains("#client #workshop", StringComparison.Ordinal))
             .And.Contain(line => line.Contains("Confirm attendees", StringComparison.Ordinal))
             .And.Contain(line => line.Contains("Draft the agenda", StringComparison.Ordinal));
-        view.Lines.Single(line => line.Text.Contains("> TAGS", StringComparison.Ordinal)).Role
-            .Should().Be(TodoTaskEditorDialogRole.ActiveValue);
+        var tags = view.TextBoxes!.Single(textBox => textBox.Label == "Tags");
+        tags.Text.Should().Be("#client #workshop");
+        tags.IsActive.Should().BeTrue();
     }
 
     [Fact]
@@ -61,10 +60,9 @@ public sealed class TodoTaskEditorDialogTests
 
         var view = TodoTaskEditorDialog.Create(editing, Bindings, 80, 24);
 
-        view.TitleTextBox.Should().NotBeNull();
-        view.TitleTextBox!.Label.Should().Be("Title");
-        view.TitleTextBox!.Edit.Should().BeTrue();
-        view.TitleTextBox.IsActive.Should().BeTrue();
+        var title = view.TextBoxes!.Single(textBox => textBox.Label == "Title");
+        title.Edit.Should().BeTrue();
+        title.IsActive.Should().BeTrue();
         view.Lines.Should().ContainSingle(line =>
             line.Text == "Enter ACCEPT  Esc CANCEL" &&
             line.Role == TodoTaskEditorDialogRole.Hint);
@@ -76,10 +74,9 @@ public sealed class TodoTaskEditorDialogTests
     {
         var view = TodoTaskEditorDialog.Create(Editor() with { SelectedIndex = (int)TodoFormField.Title }, Bindings, 80, 24);
 
-        view.TitleTextBox.Should().NotBeNull();
-        view.TitleTextBox!.Label.Should().Be("Title");
-        view.TitleTextBox!.Edit.Should().BeFalse();
-        view.TitleTextBox.IsActive.Should().BeTrue();
+        var title = view.TextBoxes!.Single(textBox => textBox.Label == "Title");
+        title.Edit.Should().BeFalse();
+        title.IsActive.Should().BeTrue();
         view.Lines.Should().NotContain(line => line.Text.Contains("TITLE", StringComparison.Ordinal));
     }
 
@@ -92,13 +89,28 @@ public sealed class TodoTaskEditorDialogTests
         var editing = reducer.Reduce(editor, Key('e'), Bindings, []).State!;
         var editView = TodoTaskEditorDialog.Create(editing, Bindings, 80, 24);
 
-        browseView.ReferenceTextBox.Should().NotBeNull();
-        browseView.ReferenceTextBox!.Label.Should().Be("Reference");
-        browseView.ReferenceTextBox.Edit.Should().BeFalse();
-        browseView.ReferenceTextBox.IsActive.Should().BeTrue();
-        editView.ReferenceTextBox.Should().NotBeNull();
-        editView.ReferenceTextBox!.Edit.Should().BeTrue();
+        var browseReference = browseView.TextBoxes!.Single(textBox => textBox.Label == "Reference");
+        var editReference = editView.TextBoxes!.Single(textBox => textBox.Label == "Reference");
+        browseReference.Edit.Should().BeFalse();
+        browseReference.IsActive.Should().BeTrue();
+        editReference.Edit.Should().BeTrue();
         editView.Lines.Should().NotContain(line => line.Text.Contains("REFERENCE", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Create_scrolls_field_textboxes_to_keep_the_selected_field_visible()
+    {
+        var editor = Editor() with { SelectedIndex = (int)TodoFormField.Duration };
+
+        var view = TodoTaskEditorDialog.Create(editor, Bindings, 80, 24);
+
+        view.TextBoxes.Should().HaveCount(4);
+        view.TextBoxes!.Select(textBox => textBox.Label).Should().Equal(
+            "Tags",
+            "Scheduled date (YYYY-MM-DD, t+1, w+1)",
+            "Scheduled time",
+            "Duration");
+        view.TextBoxes.Single(textBox => textBox.Label == "Duration").IsActive.Should().BeTrue();
     }
 
     private static TodoTaskEditorState Editor()

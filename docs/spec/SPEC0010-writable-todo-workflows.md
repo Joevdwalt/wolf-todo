@@ -23,9 +23,9 @@ Markdown todos.
 - Spacebar toggles the selected Markdown checkbox. `:completed` continues to
   control completed-todo visibility only.
 - The bottom editor uses configured movement and open/back gestures and one
-  cursor across the title and reference textboxes, five compact field rows, and the ordered content outline. Ctrl+S
-  saves; cancellation performs no write. A field row places label and value on
-  one physical line:
+  cursor across seven field textboxes and the ordered content outline. Ctrl+S
+  saves; cancellation performs no write. Every task field uses the same
+  textbox presentation:
 
   ```text
   Title
@@ -36,23 +36,23 @@ Markdown todos.
   ╭──────────────────╮
   │EXT-42            │
   ╰──────────────────╯
-    PRIORITY         —
+  Priority
+  ╭──────────────────╮
+  │—                 │
+  ╰──────────────────╯
     CONTENT
     • Review current contract
   ```
 
-  Title and Reference are always shown as textboxes: they are read-only while
-  browsing and editable when opened. The Reference textbox contains the bare
-  identifier; Markdown writes it as `(REFERENCE) ` before the task title. The
-  remaining fields use one physical line. Use `—`
-  for empty committed values and `_` as the compact-field text-entry cursor.
-  A
-  viewport keeps the selected row visible on shorter terminals, truncating
-  long values with an ellipsis. Explicitly wrap hints and validation errors so
-  the status panel remains within the terminal viewport. Use the configured theme hierarchy:
-  bold headings for labels, ordinary text for inactive values, bold accent for
-  the selected value, dim muted styling for placeholders and hints, and bold
-  error styling for validation failures.
+  Textboxes are read-only while browsing and editable when opened. The
+  Reference textbox contains the bare identifier; Markdown writes it as
+  `(REFERENCE) ` before the task title. Empty values display as `—`. A field
+  viewport keeps the selected textbox visible on shorter terminals; moving
+  through the fields scrolls that viewport. Explicitly wrap hints and
+  validation errors so the status panel remains within the terminal viewport.
+  Use the configured theme hierarchy: white labels and active text, subdued
+  white read-only text, dim muted styling for hints, and bold error styling for
+  validation failures.
 - Successful changes reload the catalog and restore selection to the resulting
   source identity. Validation, stale targets, and I/O failures remain visible
   without discarding external content or the active form. Schedule writes also

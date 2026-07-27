@@ -34,9 +34,7 @@ public sealed record TodoTaskEditorState(
 
     internal MultilineTextBoxState? ContentTextBox { get; init; }
 
-    internal TextBoxState? TitleTextBox { get; init; }
-
-    internal TextBoxState? ReferenceTextBox { get; init; }
+    internal TextBoxState? FieldTextBox { get; init; }
 
     public bool IsEditingContent => ContentTextBox is not null;
 

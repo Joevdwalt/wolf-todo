@@ -48,11 +48,15 @@ public static class TodoTaskEditorDialog
         int width,
         int terminalHeight)
     {
+        var textBoxes = VisibleTextBoxes(editor, terminalHeight);
         var rows = FormRows(editor, width);
         var lines = new List<TodoTaskEditorDialogLine> { FormHeading(editor, width) };
-        lines.AddRange(VisibleRows(rows, editor.SelectedIndex, terminalHeight - (2 * (TextBox.Height - 1))));
+        lines.AddRange(VisibleRows(
+            rows,
+            editor.SelectedIndex,
+            terminalHeight - (textBoxes.Count * TextBox.Height) - 6));
         lines.AddRange(MessageLines(FormMessage(editor, bindings, width), width, editor.Error));
-        return new(lines, TitleTextBox(editor), ReferenceTextBox(editor), Math.Max(3, width));
+        return new(lines, textBoxes, Math.Max(3, width));
     }
 
     private static TodoTaskEditorDialogView ProjectPickerView(TuiKeyBindings bindings, int width) =>
@@ -90,36 +94,67 @@ public static class TodoTaskEditorDialog
         TodoTaskEditorState editor,
         int width)
     {
-        var rows = FieldValues(editor)
-            .Select(field => ((int?)field.Index, FieldLine(editor, field.Index, field.Label, field.Value, width)))
-            .ToList();
+        var rows = new List<(int? Selection, TodoTaskEditorDialogLine Line)>();
         rows.Add((null, new("  CONTENT", TodoTaskEditorDialogRole.Label)));
         AddContentRows(rows, editor, width);
         return rows;
     }
 
-    private static IReadOnlyList<(int Index, string Label, string Value)> FieldValues(TodoTaskEditorState editor) =>
-    [
-        ((int)TodoFormField.Priority, "Priority", editor.Values.Priority?.ToString() ?? string.Empty),
-        ((int)TodoFormField.Tags, "Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
-        ((int)TodoFormField.ScheduledDate, "Scheduled date (YYYY-MM-DD, t+1, w+1)", editor.ScheduledDate),
-        ((int)TodoFormField.ScheduledTime, "Scheduled time", editor.ScheduledTime),
-        ((int)TodoFormField.Duration, "Duration", editor.Duration)
-    ];
+    private static IReadOnlyList<TextBoxState> VisibleTextBoxes(TodoTaskEditorState editor, int terminalHeight)
+    {
+        if (!editor.IsFieldSelected)
+        {
+            return [];
+        }
 
-    private static TextBoxState TitleTextBox(TodoTaskEditorState editor) =>
-        editor.TitleTextBox ?? TextBox.Create(
-            "Title",
-            editable: false,
-            editor.Values.Title,
-            isActive: editor.SelectedField == TodoFormField.Title);
+        var fields = FieldTextBoxes(editor);
+        var maxVisible = Math.Clamp((terminalHeight - 8) / TextBox.Height, 1, fields.Count);
+        var selected = editor.SelectedIndex;
+        var start = Math.Clamp(selected - maxVisible + 1, 0, fields.Count - maxVisible);
+        return fields.Skip(start).Take(maxVisible).ToArray();
+    }
 
-    private static TextBoxState ReferenceTextBox(TodoTaskEditorState editor) =>
-        editor.ReferenceTextBox ?? TextBox.Create(
-            "Reference",
-            editable: false,
-            editor.Values.ExternalReference ?? string.Empty,
-            isActive: editor.SelectedField == TodoFormField.Reference);
+    private static IReadOnlyList<TextBoxState> FieldTextBoxes(TodoTaskEditorState editor) =>
+        Enum.GetValues<TodoFormField>().Select(field =>
+        {
+            if (editor.FieldTextBox is { } active && field == editor.SelectedField)
+            {
+                return active;
+            }
+
+            return TextBox.Create(FieldLabel(field), editable: false, DisplayValue(editor, field),
+                isActive: field == editor.SelectedField);
+        }).ToArray();
+
+    private static string DisplayValue(TodoTaskEditorState editor, TodoFormField field)
+    {
+        var value = FieldValue(editor, field);
+        return value.Length == 0 ? "—" : value;
+    }
+
+    private static string FieldLabel(TodoFormField field) => field switch
+    {
+        TodoFormField.Title => "Title",
+        TodoFormField.Reference => "Reference",
+        TodoFormField.Priority => "Priority",
+        TodoFormField.Tags => "Tags",
+        TodoFormField.ScheduledDate => "Scheduled date (YYYY-MM-DD, t+1, w+1)",
+        TodoFormField.ScheduledTime => "Scheduled time",
+        TodoFormField.Duration => "Duration",
+        _ => throw new ArgumentOutOfRangeException(nameof(field))
+    };
+
+    private static string FieldValue(TodoTaskEditorState editor, TodoFormField field) => field switch
+    {
+        TodoFormField.Title => editor.Values.Title,
+        TodoFormField.Reference => editor.Values.ExternalReference ?? string.Empty,
+        TodoFormField.Priority => editor.Values.Priority?.ToString() ?? string.Empty,
+        TodoFormField.Tags => string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}")),
+        TodoFormField.ScheduledDate => editor.ScheduledDate,
+        TodoFormField.ScheduledTime => editor.ScheduledTime,
+        TodoFormField.Duration => editor.Duration,
+        _ => string.Empty
+    };
 
     private static void AddContentRows(
         ICollection<(int? Selection, TodoTaskEditorDialogLine Line)> rows,
@@ -152,10 +187,10 @@ public static class TodoTaskEditorDialog
     private static IEnumerable<TodoTaskEditorDialogLine> VisibleRows(
         IReadOnlyList<(int? Selection, TodoTaskEditorDialogLine Line)> rows,
         int selectedIndex,
-        int terminalHeight)
+        int maximumRows)
     {
         var selectedRow = Math.Max(0, rows.ToList().FindIndex(row => row.Selection == selectedIndex));
-        var visibleRows = Math.Max(1, Math.Min(12, terminalHeight - 12));
+        var visibleRows = Math.Max(1, Math.Min(12, maximumRows));
         var start = Math.Clamp(selectedRow - visibleRows + 1, 0, Math.Max(0, rows.Count - visibleRows));
         return rows.Skip(start).Take(visibleRows).Select(row => row.Line);
     }
@@ -188,14 +223,8 @@ public static class TodoTaskEditorDialog
         var rows = view.Lines
             .Select(line => (IRenderable)new Text(line.Text, Style(line.Role, theme)))
             .ToList();
-        if (view.TitleTextBox is not null)
-        {
-            rows.Insert(1, TextBox.CreateRenderable(view.TitleTextBox, theme, view.TitleTextBoxWidth));
-        }
-        if (view.ReferenceTextBox is not null)
-        {
-            rows.Insert(2, TextBox.CreateRenderable(view.ReferenceTextBox, theme, view.TitleTextBoxWidth));
-        }
+        rows.InsertRange(Math.Min(1, rows.Count), (view.TextBoxes ?? [])
+            .Select(textBox => TextBox.CreateRenderable(textBox, theme, view.TextBoxWidth)));
 
         return new Panel(new Rows(rows))
         {
@@ -213,27 +242,6 @@ public static class TodoTaskEditorDialog
 
     private static TodoTaskEditorDialogView Active(string value, int width) =>
         new(Wrap(value, width).Select(line => new TodoTaskEditorDialogLine(line, TodoTaskEditorDialogRole.ActiveValue)).ToArray());
-
-    private static TodoTaskEditorDialogLine FieldLine(
-        TodoTaskEditorState editor,
-        int index,
-        string label,
-        string value,
-        int width)
-    {
-        var selected = editor.SelectedIndex == index;
-        var labelWidth = Math.Min(16, Math.Max(6, width / 3));
-        var prefix = $"{(selected ? ">" : " ")} {FitColumn(label.ToUpperInvariant(), labelWidth)} ";
-        var display = editor.Mode == TodoTaskEditorMode.Edit && selected
-                ? editor.Draft + "_"
-            : string.IsNullOrEmpty(value) ? "—" : value;
-        var role = selected
-            ? TodoTaskEditorDialogRole.ActiveValue
-            : string.IsNullOrEmpty(value)
-                ? TodoTaskEditorDialogRole.Placeholder
-                : TodoTaskEditorDialogRole.Value;
-        return new(prefix + Truncate(display, Math.Max(1, width - prefix.Length)), role);
-    }
 
     private static string ContentLine(ContentItemDraft item, bool selected, int width, string? valueOverride)
     {
@@ -294,22 +302,16 @@ public static class TodoTaskEditorDialog
         return lines;
     }
 
-    private static string FitColumn(string value, int width) =>
-        value.Length <= width ? value.PadRight(width) : Truncate(value, width);
-
     private static string Truncate(string value, int width) =>
         value.Length <= width ? value : width <= 1 ? value[..width] : value[..(width - 1)] + "…";
 }
 
 public sealed record TodoTaskEditorDialogView(
     IReadOnlyList<TodoTaskEditorDialogLine> Lines,
-    TextBoxState? TitleTextBox = null,
-    TextBoxState? ReferenceTextBox = null,
-    int TitleTextBoxWidth = 3)
+    IReadOnlyList<TextBoxState>? TextBoxes = null,
+    int TextBoxWidth = 3)
 {
-    public int Height => Lines.Count + 2 +
-        (TitleTextBox is null ? 0 : TextBox.Height) +
-        (ReferenceTextBox is null ? 0 : TextBox.Height);
+    public int Height => Lines.Count + 2 + ((TextBoxes?.Count ?? 0) * TextBox.Height);
 }
 
 public sealed record TodoTaskEditorDialogLine(string Text, TodoTaskEditorDialogRole Role);

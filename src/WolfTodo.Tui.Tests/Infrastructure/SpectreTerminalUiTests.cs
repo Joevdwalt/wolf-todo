@@ -630,8 +630,8 @@ public sealed class SpectreTerminalUiTests
         lines.Should().HaveCountLessThanOrEqualTo(23);
         lines[0].Should().Contain("[TODOS]");
         lines.Should().Contain(line => line.Contains("Reference", StringComparison.Ordinal));
-        lines.Should().Contain(line => line.Contains("SCHEDULED DATE", StringComparison.Ordinal));
-        lines.Should().Contain(line => line.Contains("SCHEDULED TIME", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("Priority", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("Tags", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -772,18 +772,19 @@ public sealed class SpectreTerminalUiTests
         var status = lines[StatusPanelTop(lines)..];
         var title = Array.FindIndex(status, line => line.Contains("Title", StringComparison.Ordinal));
         var reference = Array.FindIndex(status, line => line.Contains("Reference", StringComparison.Ordinal));
-        var priority = Array.FindIndex(status, line => line.Contains("PRIORITY", StringComparison.Ordinal));
+        var priority = Array.FindIndex(status, line => line.Contains("Priority", StringComparison.Ordinal));
 
         lines.Should().HaveCountLessThanOrEqualTo(23);
         lines[0].Should().Contain("[TODOS]");
         status[title].Should().Contain("Title");
         status[title + 2].Should().Contain("Renew contract");
         status[reference + 2].Should().Contain("EXT-42");
-        status[priority].Should().Contain("—");
-        status.Should().Contain(line => line.Contains("TAGS", StringComparison.Ordinal));
+        status[priority].Should().Contain("Priority");
+        status[priority + 2].Should().Contain("—");
+        status.Should().Contain(line => line.Contains("Tags", StringComparison.Ordinal));
         status.Should().Contain(line => line.Contains("#work #now", StringComparison.Ordinal));
-        status.Should().Contain(line => line.Contains("SCHEDULED DATE", StringComparison.Ordinal));
-        status.Should().Contain(line => line.Contains("SCHEDULED TIME", StringComparison.Ordinal));
+        status.Should().NotContain(line => line.Contains("Scheduled date", StringComparison.Ordinal));
+        status.Should().NotContain(line => line.Contains("Scheduled time", StringComparison.Ordinal));
         status.Should().NotContain(line => line.Contains("START DATE", StringComparison.Ordinal));
         status.Should().NotContain(line => line.Contains("DUE DATE", StringComparison.Ordinal));
     }
