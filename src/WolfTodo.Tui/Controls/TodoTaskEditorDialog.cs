@@ -110,6 +110,7 @@ public static class TodoTaskEditorDialog
 
     private static TextBoxState TitleTextBox(TodoTaskEditorState editor) =>
         editor.TitleTextBox ?? TextBox.Create(
+            "Title",
             editable: false,
             editor.Values.Title,
             isActive: editor.SelectedField == TodoFormField.Title);
@@ -183,7 +184,7 @@ public static class TodoTaskEditorDialog
             .ToList();
         if (view.TitleTextBox is not null)
         {
-            rows.Insert(1, TextBox.CreateRenderable("Title", view.TitleTextBox, theme, view.TitleTextBoxWidth));
+            rows.Insert(1, TextBox.CreateRenderable(view.TitleTextBox, theme, view.TitleTextBoxWidth));
         }
 
         return new Panel(new Rows(rows))

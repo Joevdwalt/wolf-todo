@@ -138,7 +138,7 @@ public sealed class TodoEditorReducer
                     Mode = TodoTaskEditorMode.Edit,
                     IsAddingContent = false,
                     Draft = string.Empty,
-                    TitleTextBox = TextBox.Create(true, editor.Values.Title, isActive: true),
+                    TitleTextBox = TextBox.Create("Title", true, editor.Values.Title, isActive: true),
                     Error = null
                 });
             }

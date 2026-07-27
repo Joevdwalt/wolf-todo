@@ -62,6 +62,7 @@ public sealed class TodoTaskEditorDialogTests
         var view = TodoTaskEditorDialog.Create(editing, Bindings, 80, 24);
 
         view.TitleTextBox.Should().NotBeNull();
+        view.TitleTextBox!.Label.Should().Be("Title");
         view.TitleTextBox!.Edit.Should().BeTrue();
         view.TitleTextBox.IsActive.Should().BeTrue();
         view.Lines.Should().ContainSingle(line =>
@@ -76,6 +77,7 @@ public sealed class TodoTaskEditorDialogTests
         var view = TodoTaskEditorDialog.Create(Editor() with { SelectedIndex = (int)TodoFormField.Title }, Bindings, 80, 24);
 
         view.TitleTextBox.Should().NotBeNull();
+        view.TitleTextBox!.Label.Should().Be("Title");
         view.TitleTextBox!.Edit.Should().BeFalse();
         view.TitleTextBox.IsActive.Should().BeTrue();
         view.Lines.Should().NotContain(line => line.Text.Contains("TITLE", StringComparison.Ordinal));

@@ -64,7 +64,7 @@ static int RunDialog()
 
 static int RunTextBox(bool editable)
 {
-    var state = TextBox.Create(editable, "Prepare customer workshop", isActive: editable);
+    var state = TextBox.Create("Title", editable, "Prepare customer workshop", isActive: editable);
     var message = editable
         ? "Sandbox only — accepted titles are kept in memory."
         : "Read-only fixture — text input is ignored.";
@@ -78,7 +78,7 @@ static int RunTextBox(bool editable)
                 new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
             new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
             new Text(string.Empty),
-            TextBox.CreateRenderable("Title", state, TuiThemes.Wolf, Math.Max(20, 20)),
+            TextBox.CreateRenderable(state, TuiThemes.Wolf, Math.Max(20, 20)),
             new Text(editable ? "Enter ACCEPT  Esc CANCEL" : "Esc CLOSE", new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)));
         AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
 
@@ -97,7 +97,7 @@ static int RunTextBox(bool editable)
         if (transition.Outcome == TextBoxOutcome.Accepted)
         {
             message = $"Sandbox captured '{transition.State!.Text.Trim()}'; fixture reset.";
-            state = TextBox.Create(editable, "Prepare customer workshop", isActive: editable);
+            state = TextBox.Create("Title", editable, "Prepare customer workshop", isActive: editable);
             continue;
         }
 

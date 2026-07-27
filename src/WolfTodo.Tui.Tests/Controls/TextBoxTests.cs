@@ -10,7 +10,7 @@ public sealed class TextBoxTests
     [Fact]
     public void Reduce_edits_at_the_cursor()
     {
-        var state = TextBox.Create(editable: true, "Plan review");
+        var state = TextBox.Create("Task name", editable: true, "Plan review");
 
         state = TextBox.Reduce(state, Key(ConsoleKey.Home)).State!;
         state = TextBox.Reduce(state, Key('A')).State!;
@@ -24,7 +24,7 @@ public sealed class TextBoxTests
     [Fact]
     public void Reduce_accepts_and_cancels_without_mutating_the_original_state()
     {
-        var state = TextBox.Create(editable: true, "Prepare workshop");
+        var state = TextBox.Create("Task name", editable: true, "Prepare workshop");
 
         var accepted = TextBox.Reduce(state, Key(ConsoleKey.Enter));
         var cancelled = TextBox.Reduce(state, Key(ConsoleKey.Escape));
@@ -38,7 +38,7 @@ public sealed class TextBoxTests
     [Fact]
     public void DisplayText_keeps_the_cursor_visible_when_the_value_exceeds_the_box_width()
     {
-        var state = TextBox.Create(editable: true, "Prepare workshop");
+        var state = TextBox.Create("Task name", editable: true, "Prepare workshop");
 
         TextBox.DisplayText(state, 6).Should().Be("kshop ");
     }
@@ -46,7 +46,7 @@ public sealed class TextBoxTests
     [Fact]
     public void Reduce_ignores_all_input_when_the_textbox_is_read_only()
     {
-        var state = TextBox.Create(editable: false, "Prepare workshop");
+        var state = TextBox.Create("Task name", editable: false, "Prepare workshop");
 
         var typed = TextBox.Reduce(state, Key('x'));
         var accepted = TextBox.Reduce(state, Key(ConsoleKey.Enter));
@@ -63,7 +63,7 @@ public sealed class TextBoxTests
     [Fact]
     public void DisplayText_hides_the_cursor_when_the_textbox_is_read_only()
     {
-        var state = TextBox.Create(editable: false, "Prepare workshop");
+        var state = TextBox.Create("Task name", editable: false, "Prepare workshop");
 
         TextBox.DisplayText(state, 10).Should().Be("Prepare wo");
     }
@@ -71,7 +71,7 @@ public sealed class TextBoxTests
     [Fact]
     public void CreateRenderable_builds_a_label_and_rounded_input_box()
     {
-        var renderable = TextBox.CreateRenderable("Title", TextBox.Create(editable: true, "Plan"), TuiThemes.Wolf, 20);
+        var renderable = TextBox.CreateRenderable(TextBox.Create("Task name", editable: true, "Plan"), TuiThemes.Wolf, 20);
 
         renderable.Should().BeOfType<Rows>();
     }
@@ -79,13 +79,14 @@ public sealed class TextBoxTests
     [Fact]
     public void Create_records_the_active_state_independently_from_editability()
     {
-        var activeReadOnly = TextBox.Create(editable: false, "Plan", isActive: true);
-        var inactiveEditable = TextBox.Create(editable: true, "Plan");
+        var activeReadOnly = TextBox.Create("Task name", editable: false, "Plan", isActive: true);
+        var inactiveEditable = TextBox.Create("Task name", editable: true, "Plan");
 
         activeReadOnly.Edit.Should().BeFalse();
         activeReadOnly.IsActive.Should().BeTrue();
         inactiveEditable.Edit.Should().BeTrue();
         inactiveEditable.IsActive.Should().BeFalse();
+        activeReadOnly.Label.Should().Be("Task name");
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);

@@ -844,7 +844,7 @@ public sealed class SpectreTerminalUiTests
         var filterHtml = NormalizeHtml(AnsiConsole.ExportHtml());
         StyleBefore(formHtml, "content").Should().Contain("#333333").And.Contain("font-weight: bold");
         StyleBefore(formHtml, "inactive-42").Should().Contain("#111111");
-        StyleBefore(formHtml, "title").Should().Contain("#333333").And.Contain("font-weight: bold");
+        StyleBefore(formHtml, "title").Should().Contain("#ffffff").And.Contain("font-weight: bold");
         formHtml.Should().Contain("#ffffff");
         StyleBefore(formHtml, "—").Should().Contain("#2d343b").And.Contain("#162433");
         StyleBefore(formHtml, "j/k").Should().Contain("#2d343b").And.Contain("#162433");
