@@ -145,8 +145,10 @@ public static class TodoTaskEditorDialog
         var selected = editor.SelectedIndex == index;
         var labelWidth = Math.Min(16, Math.Max(6, width / 3));
         var prefix = $"{(selected ? ">" : " ")} {FitColumn(label.ToUpperInvariant(), labelWidth)} ";
-        var display = editor.Mode == TodoTaskEditorMode.Edit && selected
-            ? editor.Draft + "_"
+        var display = editor.TitleEditor is not null && selected && index == (int)TodoFormField.Title
+            ? TodoTitleEditor.DisplayText(editor.TitleEditor)
+            : editor.Mode == TodoTaskEditorMode.Edit && selected
+                ? editor.Draft + "_"
             : string.IsNullOrEmpty(value) ? "—" : value;
         var role = selected
             ? TodoTaskEditorDialogRole.ActiveValue

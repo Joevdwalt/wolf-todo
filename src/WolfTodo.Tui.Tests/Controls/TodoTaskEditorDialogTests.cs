@@ -52,6 +52,20 @@ public sealed class TodoTaskEditorDialogTests
             line.Role == TodoTaskEditorDialogRole.Warning);
     }
 
+    [Fact]
+    public void Create_renders_the_dedicated_title_editor_when_the_title_is_being_edited()
+    {
+        var reducer = new TodoEditorReducer();
+        var editor = Editor() with { SelectedIndex = (int)TodoFormField.Title };
+        var editing = reducer.Reduce(editor, Key('e'), Bindings, []).State!;
+
+        var view = TodoTaskEditorDialog.Create(editing, Bindings, 80, 24);
+
+        view.Lines.Should().Contain(line =>
+            line.Text.Contains("> TITLE", StringComparison.Ordinal) &&
+            line.Text.Contains("Prepare workshop_", StringComparison.Ordinal));
+    }
+
     private static TodoTaskEditorState Editor()
     {
         var todo = new TodoItem(
@@ -67,4 +81,6 @@ public sealed class TodoTaskEditorDialogTests
             SelectedIndex = (int)TodoFormField.Tags
         };
     }
+
+    private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem2, false, false, false);
 }

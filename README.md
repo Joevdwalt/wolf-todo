@@ -46,12 +46,13 @@ fixture:
 
 ```text
 task component:dialog
+task component:titleeditor
 ```
 
 The sandbox uses the same dialog renderer and editor reducer as the TUI, but
 captures save actions in memory and never writes files. To debug it in an IDE,
 set `WolfTodo.ComponentHarness` as the startup project and use its `Task edit
-dialog` launch profile.
+dialog` or `Task title editor` launch profile.
 
 Create the global `config.toml` before starting the TUI:
 

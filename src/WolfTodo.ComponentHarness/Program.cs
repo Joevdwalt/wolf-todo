@@ -4,17 +4,11 @@ using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 
-if (args.Length != 1 || !string.Equals(args[0], "dialog", StringComparison.OrdinalIgnoreCase))
+if (args.Length != 1)
 {
-    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness dialog");
+    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|titleeditor>");
     return 2;
 }
-
-var bindings = TuiKeyBindings.CreateDefaults(":q");
-var projects = new[] { new TodoEditorProjectOption("Client work", "/fixtures/client-work.md") };
-var reducer = new TodoEditorReducer(() => new DateOnly(2026, 7, 27));
-var editor = DialogFixture.Create();
-var message = "Sandbox only — Markdown files are never changed.";
 
 Console.CancelKeyPress += (_, eventArgs) =>
 {
@@ -22,36 +16,89 @@ Console.CancelKeyPress += (_, eventArgs) =>
     Environment.Exit(0);
 };
 
-while (true)
+return args[0].ToLowerInvariant() switch
 {
-    AnsiConsole.Clear();
-    var view = TodoTaskEditorDialog.Create(editor, bindings, Console.WindowWidth, Console.WindowHeight);
-    var content = new Rows(
-        new Text("WOLF TODO COMPONENTS // TASK EDIT DIALOG", new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
-        new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
-        new Text(string.Empty),
-        TodoTaskEditorDialog.CreateRenderable(view, TuiThemes.Wolf));
-    AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
+    "dialog" => RunDialog(),
+    "titleeditor" => RunTitleEditor(),
+    _ => InvalidScenario()
+};
 
-    var key = Console.ReadKey(intercept: true);
-    var transition = reducer.Reduce(editor, key, bindings, projects);
-    if (transition.State is null)
+static int RunDialog()
+{
+    var bindings = TuiKeyBindings.CreateDefaults(":q");
+    var projects = new[] { new TodoEditorProjectOption("Client work", "/fixtures/client-work.md") };
+    var reducer = new TodoEditorReducer(() => new DateOnly(2026, 7, 27));
+    var editor = DialogFixture.Create();
+    var message = "Sandbox only — Markdown files are never changed.";
+
+    while (true)
     {
-        break;
-    }
+        AnsiConsole.Clear();
+        var view = TodoTaskEditorDialog.Create(editor, bindings, Console.WindowWidth, Console.WindowHeight);
+        var content = new Rows(
+            new Text("WOLF TODO COMPONENTS // TASK EDIT DIALOG", new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
+            new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
+            new Text(string.Empty),
+            TodoTaskEditorDialog.CreateRenderable(view, TuiThemes.Wolf));
+        AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
 
-    if (transition.Operation is TodoEditorOperation.Create or TodoEditorOperation.Update)
-    {
-        editor = DialogFixture.Create();
-        message = $"Sandbox captured {transition.Operation.ToString().ToLowerInvariant()}; fixture reset.";
-        continue;
-    }
+        var key = Console.ReadKey(intercept: true);
+        var transition = reducer.Reduce(editor, key, bindings, projects);
+        if (transition.State is null)
+        {
+            return 0;
+        }
 
-    editor = transition.State;
-    message = "Sandbox only — Markdown files are never changed.";
+        if (transition.Operation is TodoEditorOperation.Create or TodoEditorOperation.Update)
+        {
+            editor = DialogFixture.Create();
+            message = $"Sandbox captured {transition.Operation.ToString().ToLowerInvariant()}; fixture reset.";
+            continue;
+        }
+
+        editor = transition.State;
+        message = "Sandbox only — Markdown files are never changed.";
+    }
 }
 
-return 0;
+static int RunTitleEditor()
+{
+    var state = TodoTitleEditor.Create("Prepare customer workshop");
+    var message = "Sandbox only — accepted titles are kept in memory.";
+
+    while (true)
+    {
+        AnsiConsole.Clear();
+        var content = new Rows(
+            new Text("WOLF TODO COMPONENTS // TASK TITLE EDITOR", new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
+            new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
+            new Text(string.Empty),
+            TodoTitleEditor.CreateRenderable(state, TuiThemes.Wolf));
+        AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
+
+        var transition = TodoTitleEditor.Reduce(state, Console.ReadKey(intercept: true));
+        if (transition.Outcome == TodoTitleEditorOutcome.Cancelled)
+        {
+            return 0;
+        }
+
+        if (transition.Outcome == TodoTitleEditorOutcome.Accepted)
+        {
+            message = $"Sandbox captured '{transition.State!.Text.Trim()}'; fixture reset.";
+            state = TodoTitleEditor.Create("Prepare customer workshop");
+            continue;
+        }
+
+        state = transition.State!;
+        message = "Sandbox only — accepted titles are kept in memory.";
+    }
+}
+
+static int InvalidScenario()
+{
+    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|titleeditor>");
+    return 2;
+}
 
 internal static class DialogFixture
 {

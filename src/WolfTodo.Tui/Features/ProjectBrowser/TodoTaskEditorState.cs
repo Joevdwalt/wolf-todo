@@ -34,6 +34,8 @@ public sealed record TodoTaskEditorState(
 
     internal TextBoxState? ContentTextBox { get; init; }
 
+    internal TodoTitleEditorState? TitleEditor { get; init; }
+
     public bool IsEditingContent => ContentTextBox is not null;
 
     public int SelectableCount => FieldCount + Items.Length;

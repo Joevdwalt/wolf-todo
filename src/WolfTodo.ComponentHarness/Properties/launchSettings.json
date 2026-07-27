@@ -3,6 +3,10 @@
     "Task edit dialog": {
       "commandName": "Project",
       "commandLineArgs": "dialog"
+    },
+    "Task title editor": {
+      "commandName": "Project",
+      "commandLineArgs": "titleeditor"
     }
   }
 }

@@ -34,3 +34,7 @@ tasks:
     desc: Run the task edit-dialog component sandbox in Debug mode.
     cmds:
       - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- dialog
+  component:titleeditor:
+    desc: Run the task title-editor component sandbox in Debug mode.
+    cmds:
+      - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- titleeditor

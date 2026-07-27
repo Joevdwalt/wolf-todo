@@ -58,6 +58,11 @@ public sealed class TodoEditorReducer
             return ReduceContentTextBox(editor, key, bindings);
         }
 
+        if (editor.TitleEditor is not null)
+        {
+            return ReduceTitleEditor(editor, key);
+        }
+
         if (editor.Mode == TodoTaskEditorMode.Edit)
         {
             return ReduceDraft(editor, key);
@@ -122,6 +127,18 @@ public sealed class TodoEditorReducer
                     ContentTextBox = TextBoxState.Create(
                         SelectedValue(editor),
                         selected is ContentNoteDraft),
+                    Error = null
+                });
+            }
+
+            if (editor.SelectedField == TodoFormField.Title)
+            {
+                return Transition(editor with
+                {
+                    Mode = TodoTaskEditorMode.Edit,
+                    IsAddingContent = false,
+                    Draft = string.Empty,
+                    TitleEditor = TodoTitleEditor.Create(editor.Values.Title),
                     Error = null
                 });
             }
@@ -261,6 +278,39 @@ public sealed class TodoEditorReducer
         return char.IsControl(key.KeyChar)
             ? Transition(editor)
             : Transition(editor with { Draft = editor.Draft + key.KeyChar, Error = null });
+    }
+
+    private static TodoEditorTransition ReduceTitleEditor(TodoTaskEditorState editor, ConsoleKeyInfo key)
+    {
+        var transition = TodoTitleEditor.Reduce(editor.TitleEditor!, key);
+        if (transition.Outcome == TodoTitleEditorOutcome.Cancelled)
+        {
+            return Transition(editor with
+            {
+                Mode = TodoTaskEditorMode.Browse,
+                TitleEditor = null,
+                Error = null
+            });
+        }
+
+        if (transition.Outcome == TodoTitleEditorOutcome.Accepted)
+        {
+            var title = transition.State!.Text.Trim();
+            if (title.Length == 0)
+            {
+                return Transition(editor with { Error = "Title is required." });
+            }
+
+            return Transition(editor with
+            {
+                Mode = TodoTaskEditorMode.Browse,
+                TitleEditor = null,
+                Values = editor.Values with { Title = title },
+                Error = null
+            });
+        }
+
+        return Transition(editor with { TitleEditor = transition.State, Error = null });
     }
 
     private static TodoEditorTransition ReduceContentTypePicker(
