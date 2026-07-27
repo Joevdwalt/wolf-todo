@@ -64,7 +64,7 @@ static int RunDialog()
 
 static int RunTextBox(bool editable)
 {
-    var state = TextBox.Create(editable, "Prepare customer workshop");
+    var state = TextBox.Create(editable, "Prepare customer workshop", isActive: editable);
     var message = editable
         ? "Sandbox only — accepted titles are kept in memory."
         : "Read-only fixture — text input is ignored.";
@@ -97,7 +97,7 @@ static int RunTextBox(bool editable)
         if (transition.Outcome == TextBoxOutcome.Accepted)
         {
             message = $"Sandbox captured '{transition.State!.Text.Trim()}'; fixture reset.";
-            state = TextBox.Create(editable, "Prepare customer workshop");
+            state = TextBox.Create(editable, "Prepare customer workshop", isActive: editable);
             continue;
         }
 

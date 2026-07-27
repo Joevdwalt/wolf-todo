@@ -76,6 +76,18 @@ public sealed class TextBoxTests
         renderable.Should().BeOfType<Rows>();
     }
 
+    [Fact]
+    public void Create_records_the_active_state_independently_from_editability()
+    {
+        var activeReadOnly = TextBox.Create(editable: false, "Plan", isActive: true);
+        var inactiveEditable = TextBox.Create(editable: true, "Plan");
+
+        activeReadOnly.Edit.Should().BeFalse();
+        activeReadOnly.IsActive.Should().BeTrue();
+        inactiveEditable.Edit.Should().BeTrue();
+        inactiveEditable.IsActive.Should().BeFalse();
+    }
+
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem2, false, false, false);

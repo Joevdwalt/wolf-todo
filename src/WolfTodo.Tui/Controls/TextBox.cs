@@ -11,7 +11,7 @@ public static class TextBox
 {
     public static int Height => 4;
 
-    public static TextBoxState Create(bool editable, string text) => new(editable, text, text.Length);
+    public static TextBoxState Create(bool editable, string text, bool isActive = false) => new(editable, text, text.Length, isActive);
 
     public static TextBoxTransition Reduce(TextBoxState state, ConsoleKeyInfo key)
     {
@@ -69,7 +69,7 @@ public static class TextBox
             new Panel(input)
             {
                 Border = BoxBorder.Rounded,
-                BorderStyle = new Style(theme.BorderActive),
+                BorderStyle = new Style(state.IsActive ? Color.White : theme.BorderActive),
                 Padding = new Padding(0),
                 Width = outerWidth,
                 Expand = false
@@ -90,7 +90,8 @@ public static class TextBox
 
     private static IRenderable CreateInputRenderable(TextBoxState state, TuiTheme theme, int width)
     {
-        var textStyle = new Style(theme.AccentBright, decoration: Decoration.Bold);
+        var textColor = state.IsActive ? Color.White : theme.AccentBright;
+        var textStyle = new Style(textColor, decoration: Decoration.Bold);
         if (!state.Edit)
         {
             return new Text(DisplayText(state, width), textStyle);
@@ -100,7 +101,7 @@ public static class TextBox
         return new Columns(
         [
             new Text(display.Before, textStyle),
-            new Text(display.Cursor, new Style(theme.Background, theme.AccentBright, Decoration.Bold)),
+            new Text(display.Cursor, new Style(theme.Background, textColor, Decoration.Bold)),
             new Text(display.After.PadRight(Math.Max(0, width - display.Before.Length - display.Cursor.Length - display.After.Length)), textStyle)
         ])
         {
@@ -126,7 +127,7 @@ public static class TextBox
 
 internal sealed record EditableTextDisplay(string Before, string Cursor, string After);
 
-public sealed record TextBoxState(bool editing, string Text, int Cursor)
+public sealed record TextBoxState(bool editing, string Text, int Cursor, bool IsActive = false)
 {
     public int ClampedCursor => Math.Clamp(Cursor, 0, Text.Length);
     public bool Edit => editing;
