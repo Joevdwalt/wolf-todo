@@ -83,6 +83,24 @@ public sealed class TodoTaskEditorDialogTests
         view.Lines.Should().NotContain(line => line.Text.Contains("TITLE", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Create_embeds_a_reference_textbox_while_browsing_and_editing()
+    {
+        var reducer = new TodoEditorReducer();
+        var editor = Editor() with { SelectedIndex = (int)TodoFormField.Reference };
+        var browseView = TodoTaskEditorDialog.Create(editor, Bindings, 80, 24);
+        var editing = reducer.Reduce(editor, Key('e'), Bindings, []).State!;
+        var editView = TodoTaskEditorDialog.Create(editing, Bindings, 80, 24);
+
+        browseView.ReferenceTextBox.Should().NotBeNull();
+        browseView.ReferenceTextBox!.Label.Should().Be("Reference");
+        browseView.ReferenceTextBox.Edit.Should().BeFalse();
+        browseView.ReferenceTextBox.IsActive.Should().BeTrue();
+        editView.ReferenceTextBox.Should().NotBeNull();
+        editView.ReferenceTextBox!.Edit.Should().BeTrue();
+        editView.Lines.Should().NotContain(line => line.Text.Contains("REFERENCE", StringComparison.Ordinal));
+    }
+
     private static TodoTaskEditorState Editor()
     {
         var todo = new TodoItem(

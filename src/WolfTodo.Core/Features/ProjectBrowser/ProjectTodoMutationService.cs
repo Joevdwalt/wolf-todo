@@ -535,7 +535,7 @@ public sealed partial class ProjectTodoMutationService(
         var parts = new List<string>();
         if (todo.ExternalReference is not null)
         {
-            parts.Add($"{todo.ExternalReference} -");
+            parts.Add($"({todo.ExternalReference})");
         }
 
         var (description, preservedMetadata) = SplitTitleMetadata(todo.Title);

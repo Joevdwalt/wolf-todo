@@ -50,9 +50,9 @@ public static class TodoTaskEditorDialog
     {
         var rows = FormRows(editor, width);
         var lines = new List<TodoTaskEditorDialogLine> { FormHeading(editor, width) };
-        lines.AddRange(VisibleRows(rows, editor.SelectedIndex, terminalHeight - (TextBox.Height - 1)));
+        lines.AddRange(VisibleRows(rows, editor.SelectedIndex, terminalHeight - (2 * (TextBox.Height - 1))));
         lines.AddRange(MessageLines(FormMessage(editor, bindings, width), width, editor.Error));
-        return new(lines, TitleTextBox(editor), Math.Max(3, width));
+        return new(lines, TitleTextBox(editor), ReferenceTextBox(editor), Math.Max(3, width));
     }
 
     private static TodoTaskEditorDialogView ProjectPickerView(TuiKeyBindings bindings, int width) =>
@@ -100,7 +100,6 @@ public static class TodoTaskEditorDialog
 
     private static IReadOnlyList<(int Index, string Label, string Value)> FieldValues(TodoTaskEditorState editor) =>
     [
-        ((int)TodoFormField.Reference, "Reference", editor.Values.ExternalReference ?? string.Empty),
         ((int)TodoFormField.Priority, "Priority", editor.Values.Priority?.ToString() ?? string.Empty),
         ((int)TodoFormField.Tags, "Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
         ((int)TodoFormField.ScheduledDate, "Scheduled date (YYYY-MM-DD, t+1, w+1)", editor.ScheduledDate),
@@ -114,6 +113,13 @@ public static class TodoTaskEditorDialog
             editable: false,
             editor.Values.Title,
             isActive: editor.SelectedField == TodoFormField.Title);
+
+    private static TextBoxState ReferenceTextBox(TodoTaskEditorState editor) =>
+        editor.ReferenceTextBox ?? TextBox.Create(
+            "Reference",
+            editable: false,
+            editor.Values.ExternalReference ?? string.Empty,
+            isActive: editor.SelectedField == TodoFormField.Reference);
 
     private static void AddContentRows(
         ICollection<(int? Selection, TodoTaskEditorDialogLine Line)> rows,
@@ -185,6 +191,10 @@ public static class TodoTaskEditorDialog
         if (view.TitleTextBox is not null)
         {
             rows.Insert(1, TextBox.CreateRenderable(view.TitleTextBox, theme, view.TitleTextBoxWidth));
+        }
+        if (view.ReferenceTextBox is not null)
+        {
+            rows.Insert(2, TextBox.CreateRenderable(view.ReferenceTextBox, theme, view.TitleTextBoxWidth));
         }
 
         return new Panel(new Rows(rows))
@@ -294,9 +304,12 @@ public static class TodoTaskEditorDialog
 public sealed record TodoTaskEditorDialogView(
     IReadOnlyList<TodoTaskEditorDialogLine> Lines,
     TextBoxState? TitleTextBox = null,
+    TextBoxState? ReferenceTextBox = null,
     int TitleTextBoxWidth = 3)
 {
-    public int Height => Lines.Count + 2 + (TitleTextBox is null ? 0 : TextBox.Height);
+    public int Height => Lines.Count + 2 +
+        (TitleTextBox is null ? 0 : TextBox.Height) +
+        (ReferenceTextBox is null ? 0 : TextBox.Height);
 }
 
 public sealed record TodoTaskEditorDialogLine(string Text, TodoTaskEditorDialogRole Role);

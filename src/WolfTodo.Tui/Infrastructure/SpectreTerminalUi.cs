@@ -127,17 +127,20 @@ public sealed class SpectreTerminalUi : ITerminalUi
             view.Projects.FirstOrDefault()?.ActiveCount ?? 0,
             view.Projects.Count(project => project.Error is not null));
 
-        if (width >= 120 && height >= 24)
+        if (editorDialog is null || contentHeight > 1)
         {
-            WriteWide(view, width, contentHeight, theme, today);
-        }
-        else if (width >= 80 && height >= 18)
-        {
-            WriteMedium(view, width, contentHeight, theme, today);
-        }
-        else
-        {
-            WriteNarrow(view, width, contentHeight, theme, today);
+            if (width >= 120 && height >= 24)
+            {
+                WriteWide(view, width, contentHeight, theme, today);
+            }
+            else if (width >= 80 && height >= 18)
+            {
+                WriteMedium(view, width, contentHeight, theme, today);
+            }
+            else
+            {
+                WriteNarrow(view, width, contentHeight, theme, today);
+            }
         }
 
         if (selectList is not null)
@@ -265,68 +268,71 @@ public sealed class SpectreTerminalUi : ITerminalUi
             table.AddEmptyRow();
         }
 
-        if (wideSidePanels)
+        if (editorDialog is null || availableRows > 1)
         {
-            var detailWidth = Math.Max(28, width - timelineWidth - 4);
-            const int inspectorContentHeight = 10;
-            var allDayContentHeight = Math.Max(
-                1,
-                availableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
-            var sidePanels = new List<IRenderable>();
-            if (view.State.ShowDetails)
+            if (wideSidePanels)
             {
-                sidePanels.Add(PlannerPanel(
-                    "INSPECTOR",
-                    FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
-                    theme));
-            }
+                var detailWidth = Math.Max(28, width - timelineWidth - 4);
+                const int inspectorContentHeight = 10;
+                var allDayContentHeight = Math.Max(
+                    1,
+                    availableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
+                var sidePanels = new List<IRenderable>();
+                if (view.State.ShowDetails)
+                {
+                    sidePanels.Add(PlannerPanel(
+                        "INSPECTOR",
+                        FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
+                        theme));
+                }
 
-            if (showAllDayPanel)
-            {
-                sidePanels.Add(PlannerPanel(
-                    "ALL DAY",
-                    AllDayAgendaLines(view, theme, allDayContentHeight),
-                    theme,
-                    view.State.Focus == PlannerFocus.AllDay));
-            }
-
-            var shell = new Table().NoBorder().Collapse().HideHeaders();
-            shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
-            shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
-            shell.AddRow(
-                table,
-                OnSurface(
-                    new Rows(sidePanels),
-                    theme.Surface2,
-                    true));
-            WriteSurface(shell, theme.Surface, true);
-        }
-        else
-        {
-            WriteSurface(table, theme.Surface, true);
-            if (compactDetails)
-            {
-                WriteSurface(
-                    new Panel(PlannerCompactDetail(view, theme))
-                    {
-                        Header = new PanelHeader("SELECTED"),
-                        Border = BoxBorder.Square,
-                        BorderStyle = ThemeStyle(theme.Border),
-                        Expand = true
-                    },
-                    theme.Surface2,
-                    true);
-            }
-            if (narrowAllDayHeight > 0)
-            {
-                WriteSurface(
-                    PlannerPanel(
+                if (showAllDayPanel)
+                {
+                    sidePanels.Add(PlannerPanel(
                         "ALL DAY",
-                        AllDayAgendaLines(view, theme, Math.Max(1, narrowAllDayHeight - 2)),
+                        AllDayAgendaLines(view, theme, allDayContentHeight),
                         theme,
-                        view.State.Focus == PlannerFocus.AllDay),
-                    theme.Surface2,
-                    true);
+                        view.State.Focus == PlannerFocus.AllDay));
+                }
+
+                var shell = new Table().NoBorder().Collapse().HideHeaders();
+                shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
+                shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
+                shell.AddRow(
+                    table,
+                    OnSurface(
+                        new Rows(sidePanels),
+                        theme.Surface2,
+                        true));
+                WriteSurface(shell, theme.Surface, true);
+            }
+            else
+            {
+                WriteSurface(table, theme.Surface, true);
+                if (compactDetails)
+                {
+                    WriteSurface(
+                        new Panel(PlannerCompactDetail(view, theme))
+                        {
+                            Header = new PanelHeader("SELECTED"),
+                            Border = BoxBorder.Square,
+                            BorderStyle = ThemeStyle(theme.Border),
+                            Expand = true
+                        },
+                        theme.Surface2,
+                        true);
+                }
+                if (narrowAllDayHeight > 0)
+                {
+                    WriteSurface(
+                        PlannerPanel(
+                            "ALL DAY",
+                            AllDayAgendaLines(view, theme, Math.Max(1, narrowAllDayHeight - 2)),
+                            theme,
+                            view.State.Focus == PlannerFocus.AllDay),
+                        theme.Surface2,
+                        true);
+                }
             }
         }
 

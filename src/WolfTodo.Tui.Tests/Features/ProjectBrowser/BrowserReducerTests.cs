@@ -431,6 +431,26 @@ public sealed class BrowserReducerTests
     }
 
     [Fact]
+    public void Reduce_edits_and_clears_the_reference_through_the_dedicated_textbox()
+    {
+        var identity = new TodoIdentity("/alpha.md", 1);
+        var view = SelectedView(identity, new TodoItem(
+            1, false, "REF-1", "Original title", null, [], null, null, string.Empty, [], []));
+        var opened = reducer.Reduce(BrowserState.Initial, Key('e'), Configuration, view);
+        var reference = reducer.Reduce(opened.State, Key('j'), Configuration, view);
+        var editing = reducer.Reduce(reference.State, Key('e'), Configuration, view);
+        var cleared = reducer.Reduce(editing.State, Key(ConsoleKey.Backspace), Configuration, view);
+        cleared = reducer.Reduce(cleared.State, Key(ConsoleKey.Backspace), Configuration, view);
+        cleared = reducer.Reduce(cleared.State, Key(ConsoleKey.Backspace), Configuration, view);
+        cleared = reducer.Reduce(cleared.State, Key(ConsoleKey.Backspace), Configuration, view);
+        cleared = reducer.Reduce(cleared.State, Key(ConsoleKey.Backspace), Configuration, view);
+        var accepted = reducer.Reduce(cleared.State, Key(ConsoleKey.Enter), Configuration, view);
+
+        accepted.State.Editor!.Values.ExternalReference.Should().BeNull();
+        accepted.State.Editor.Mode.Should().Be(TodoTaskEditorMode.Browse);
+    }
+
+    [Fact]
     public void Reduce_keeps_the_title_editor_open_when_an_empty_title_is_accepted()
     {
         var project = new TodoProject("Alpha", "/alpha.md", []);

@@ -57,7 +57,7 @@ as completed. Other checkbox characters are not supported in this version.
 The task line has this logical structure:
 
 ```text
-- [status] [external-reference - ]title [priority] [tags] [start-date] [due-date]
+- [status] [(external-reference) ]title [priority] [tags] [start-date] [due-date]
 ```
 
 Example:
@@ -65,16 +65,19 @@ Example:
 ```markdown
 ## Renewals
 
-- [ ] 134416 - Milas Contract Renewal ⏫ #now 🛫 2026-07-08 📅 2026-07-31
+- [ ] (134416) Milas Contract Renewal ⏫ #now 🛫 2026-07-08 📅 2026-07-31
   - Review current contract
   - Update proposal costing
   - [ ] Confirm outstanding issues
 ```
 
-The optional external reference appears first and ends with ` - `. It may
+The optional external reference appears first, enclosed in parentheses, and is
+followed by one space. It may
 contain ASCII letters, digits, `.`, `_`, `/`, or `-`, must begin with a letter
 or digit, and may not contain whitespace. Examples include `134416` and
 `ABC-123`. It is a reference to another system, not a stable Wolf Todo ID.
+The parser also accepts legacy `ABC-123 - Task title` lines, but writes the
+parenthesized form whenever the task is created or updated.
 
 Recognize this Obsidian Tasks-compatible metadata subset:
 

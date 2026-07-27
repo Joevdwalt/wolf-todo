@@ -230,10 +230,11 @@ public sealed class ProjectTodoMutationServiceTests
         result.Succeeded.Should().BeTrue();
         fileSystem.WriteCount.Should().Be(1);
         fileSystem.Contents.Should().Be(
-            "- [ ] EXT-7 - Renamed ⏫ #now\n" +
+            "- [ ] (EXT-7) Renamed ⏫ #now\n" +
             "  - updated note\n" +
             "  - inserted note\n" +
             "  - [x] Changed child\n");
+        parser.Parse(path, fileSystem.Contents).Project!.Todos.Single().ExternalReference.Should().Be("EXT-7");
     }
 
     [Fact]

@@ -63,6 +63,11 @@ public sealed class TodoEditorReducer
             return ReduceTitleTextBox(editor, key);
         }
 
+        if (editor.ReferenceTextBox is not null)
+        {
+            return ReduceReferenceTextBox(editor, key);
+        }
+
         if (editor.Mode == TodoTaskEditorMode.Edit)
         {
             return ReduceDraft(editor, key);
@@ -139,6 +144,22 @@ public sealed class TodoEditorReducer
                     IsAddingContent = false,
                     Draft = string.Empty,
                     TitleTextBox = TextBox.Create("Title", true, editor.Values.Title, isActive: true),
+                    Error = null
+                });
+            }
+
+            if (editor.SelectedField == TodoFormField.Reference)
+            {
+                return Transition(editor with
+                {
+                    Mode = TodoTaskEditorMode.Edit,
+                    IsAddingContent = false,
+                    Draft = string.Empty,
+                    ReferenceTextBox = TextBox.Create(
+                        "Reference",
+                        true,
+                        editor.Values.ExternalReference ?? string.Empty,
+                        isActive: true),
                     Error = null
                 });
             }
@@ -311,6 +332,33 @@ public sealed class TodoEditorReducer
         }
 
         return Transition(editor with { TitleTextBox = transition.State, Error = null });
+    }
+
+    private static TodoEditorTransition ReduceReferenceTextBox(TodoTaskEditorState editor, ConsoleKeyInfo key)
+    {
+        var transition = TextBox.Reduce(editor.ReferenceTextBox!, key);
+        if (transition.Outcome == TextBoxOutcome.Cancelled)
+        {
+            return Transition(editor with
+            {
+                Mode = TodoTaskEditorMode.Browse,
+                ReferenceTextBox = null,
+                Error = null
+            });
+        }
+
+        if (transition.Outcome == TextBoxOutcome.Accepted)
+        {
+            return Transition(editor with
+            {
+                Mode = TodoTaskEditorMode.Browse,
+                ReferenceTextBox = null,
+                Values = editor.Values with { ExternalReference = NullIfEmpty(transition.State!.Text.Trim()) },
+                Error = null
+            });
+        }
+
+        return Transition(editor with { ReferenceTextBox = transition.State, Error = null });
     }
 
     private static TodoEditorTransition ReduceContentTypePicker(

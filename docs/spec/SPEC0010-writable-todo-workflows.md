@@ -23,7 +23,7 @@ Markdown todos.
 - Spacebar toggles the selected Markdown checkbox. `:completed` continues to
   control completed-todo visibility only.
 - The bottom editor uses configured movement and open/back gestures and one
-  cursor across the title textbox, six compact field rows, and the ordered content outline. Ctrl+S
+  cursor across the title and reference textboxes, five compact field rows, and the ordered content outline. Ctrl+S
   saves; cancellation performs no write. A field row places label and value on
   one physical line:
 
@@ -32,14 +32,19 @@ Markdown todos.
   ╭──────────────────╮
   │Renew contract    │
   ╰──────────────────╯
-    REFERENCE        EXT-42
+  Reference
+  ╭──────────────────╮
+  │EXT-42            │
+  ╰──────────────────╯
     PRIORITY         —
     CONTENT
     • Review current contract
   ```
 
-  The title is always shown as a textbox: it is read-only while browsing and
-  editable when opened. The remaining fields use one physical line. Use `—`
+  Title and Reference are always shown as textboxes: they are read-only while
+  browsing and editable when opened. The Reference textbox contains the bare
+  identifier; Markdown writes it as `(REFERENCE) ` before the task title. The
+  remaining fields use one physical line. Use `—`
   for empty committed values and `_` as the compact-field text-entry cursor.
   A
   viewport keeps the selected row visible on shorter terminals, truncating
