@@ -1,6 +1,6 @@
 namespace WolfTodo.Tui.Controls;
 
-internal sealed record SelectListView(
+public sealed record SelectListView(
     string Title,
     IReadOnlyList<SelectOption> Options,
     int SelectedIndex,

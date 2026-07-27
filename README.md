@@ -49,12 +49,15 @@ task component:dialog
 task component:textbox
 task component:textbox:edit
 task component:textbox:readonly
+task component:multiline
+task component:select-list
 ```
 
 The sandbox uses the same dialog renderer and editor reducer as the TUI, but
 captures save actions in memory and never writes files. To debug it in an IDE,
 set `WolfTodo.ComponentHarness` as the startup project and use its `Task edit
-dialog`, `Text box edit`, or `Text box readonly` launch profile.
+dialog`, `Text box edit`, `Text box readonly`, `Multiline text box`, or
+`Select list` launch profile.
 
 Create the global `config.toml` before starting the TUI:
 

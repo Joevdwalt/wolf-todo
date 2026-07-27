@@ -60,7 +60,7 @@ public sealed class TodoEditorReducer
 
         if (editor.FieldTextBox is not null)
         {
-            return ReduceFieldTextBox(editor, key);
+            return ReduceFieldTextBox(editor, key, bindings);
         }
 
         if (editor.Mode == TodoTaskEditorMode.Edit)
@@ -125,6 +125,7 @@ public sealed class TodoEditorReducer
                 return Transition(editor with
                 {
                     ContentTextBox = MultilineTextBoxState.Create(
+                        ContentTextBoxLabel(editor),
                         SelectedValue(editor),
                         selected is ContentNoteDraft),
                     Error = null
@@ -206,34 +207,32 @@ public sealed class TodoEditorReducer
         TuiKeyBindings bindings,
         IReadOnlyList<TodoEditorProjectOption> projects)
     {
-        if (bindings.MatchesBack(key))
-        {
-            return new TodoEditorTransition(null);
-        }
+        var transition = SelectList.Default.Reduce(
+            new SelectListView(
+                "Choose project",
+                projects.Select(project => new SelectOption(project.Title)).ToArray(),
+                editor.ProjectPickerIndex,
+                null,
+                "No projects available.",
+                string.Empty),
+            key,
+            bindings);
 
-        if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
+        return transition.Outcome switch
         {
-            var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
-            return Transition(editor with
+            SelectListOutcome.Cancelled => new TodoEditorTransition(null),
+            SelectListOutcome.SelectionChanged => Transition(editor with
             {
-                ProjectPickerIndex = Math.Clamp(
-                    editor.ProjectPickerIndex + offset,
-                    0,
-                    Math.Max(0, projects.Count - 1)),
+                ProjectPickerIndex = transition.State!.SelectedIndex,
                 Error = null
-            });
-        }
-
-        if (bindings.MatchesOpen(key) && projects.Count > 0)
-        {
-            return Transition(editor with
+            }),
+            SelectListOutcome.Accepted => Transition(editor with
             {
-                ProjectPath = projects[editor.ProjectPickerIndex].Path,
+                ProjectPath = projects[transition.State!.ClampedSelectedIndex].Path,
                 Error = null
-            });
-        }
-
-        return Transition(editor);
+            }),
+            _ => Transition(editor)
+        };
     }
 
     private TodoEditorTransition ReduceDraft(TodoTaskEditorState editor, ConsoleKeyInfo key)
@@ -269,9 +268,12 @@ public sealed class TodoEditorReducer
             : Transition(editor with { Draft = editor.Draft + key.KeyChar, Error = null });
     }
 
-    private TodoEditorTransition ReduceFieldTextBox(TodoTaskEditorState editor, ConsoleKeyInfo key)
+    private TodoEditorTransition ReduceFieldTextBox(
+        TodoTaskEditorState editor,
+        ConsoleKeyInfo key,
+        TuiKeyBindings bindings)
     {
-        var transition = TextBox.Reduce(editor.FieldTextBox!, key);
+        var transition = TextBox.Default.Reduce(editor.FieldTextBox!, key, bindings);
         if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
             return Transition(editor with
@@ -306,41 +308,43 @@ public sealed class TodoEditorReducer
         ConsoleKeyInfo key,
         TuiKeyBindings bindings)
     {
-        if (bindings.MatchesBack(key))
+        var options = Enum.GetValues<ContentItemKind>();
+        var transition = SelectList.Default.Reduce(
+            new SelectListView(
+                "Add content",
+                options.Select(kind => new SelectOption(kind.ToString())).ToArray(),
+                (int)editor.AddKind,
+                null,
+                "No content types available.",
+                string.Empty),
+            key,
+            bindings);
+
+        return transition.Outcome switch
         {
-            return Transition(editor with
+            SelectListOutcome.Cancelled => Transition(editor with
             {
                 Mode = TodoTaskEditorMode.Browse,
                 AddKind = ContentItemKind.Note,
                 Error = null
-            });
-        }
-
-        if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
-        {
-            var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
-            return Transition(editor with
+            }),
+            SelectListOutcome.SelectionChanged => Transition(editor with
             {
-                AddKind = (ContentItemKind)Math.Clamp(
-                    (int)editor.AddKind + offset,
-                    0,
-                    Enum.GetValues<ContentItemKind>().Length - 1),
+                AddKind = options[transition.State!.ClampedSelectedIndex],
                 Error = null
-            });
-        }
-
-        if (bindings.MatchesOpen(key))
-        {
-            return Transition(editor with
+            }),
+            SelectListOutcome.Accepted => Transition(editor with
             {
                 Mode = TodoTaskEditorMode.Browse,
                 IsAddingContent = true,
-                ContentTextBox = MultilineTextBoxState.Create(string.Empty, editor.AddKind == ContentItemKind.Note),
+                ContentTextBox = MultilineTextBoxState.Create(
+                    $"Add {options[transition.State!.ClampedSelectedIndex]}",
+                    string.Empty,
+                    options[transition.State.ClampedSelectedIndex] == ContentItemKind.Note),
                 Error = null
-            });
-        }
-
-        return Transition(editor);
+            }),
+            _ => Transition(editor)
+        };
     }
 
     private TodoEditorTransition CommitDraft(TodoTaskEditorState editor)
@@ -408,12 +412,13 @@ public sealed class TodoEditorReducer
         ConsoleKeyInfo key,
         TuiKeyBindings bindings)
     {
-        if (key.Key == ConsoleKey.Escape)
+        var transition = MultilineTextBox.Default.Reduce(editor.ContentTextBox!, key, bindings);
+        if (transition.Outcome == MultilineTextBoxOutcome.Cancelled)
         {
             return Transition(editor with { ContentTextBox = null, IsAddingContent = false, Error = null });
         }
 
-        if (bindings.MatchesSaveForm(key))
+        if (transition.Outcome == MultilineTextBoxOutcome.Accepted)
         {
             var value = editor.ContentTextBox!.Text.Trim();
             if (value.Length == 0)
@@ -457,7 +462,7 @@ public sealed class TodoEditorReducer
             });
         }
 
-        return Transition(editor with { ContentTextBox = MultilineTextBoxReducer.Reduce(editor.ContentTextBox!, key), Error = null });
+        return Transition(editor with { ContentTextBox = transition.State, Error = null });
     }
 
     private TodoTaskEditorState CommitField(TodoTaskEditorState editor, string value)
@@ -552,6 +557,9 @@ public sealed class TodoEditorReducer
             _ => string.Empty
         };
     }
+
+    private static string ContentTextBoxLabel(TodoTaskEditorState editor) =>
+        editor.Items[editor.SelectedContentIndex] is ContentNoteDraft ? "Edit note" : "Edit subtask";
 
     private static string FieldLabel(TodoFormField field) => field switch
     {

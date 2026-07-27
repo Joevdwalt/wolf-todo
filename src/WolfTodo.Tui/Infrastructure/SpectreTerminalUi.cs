@@ -117,8 +117,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var textBoxRows = TextBoxRows(height);
         var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
         var contentHeight = Math.Max(1, AvailableContentHeight(height, DialogContentHeight(editorDialog) ?? statusLines.Count) -
-            (selectList is not null ? SelectListControl.Height(selectList, selectRows) :
-             textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) : 0));
+            (selectList is not null ? SelectList.Default.Measure(
+                 selectList,
+                 new TuiComponentConstraints(width, selectRows)) :
+             textBox is not null ? MultilineTextBox.Default.Measure(
+                 textBox,
+                 new TuiComponentConstraints(width, textBoxRows)) : 0));
         WriteOperationalHeader(
             tabs,
             keyBindings,
@@ -147,15 +151,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         if (selectList is not null)
         {
-            AnsiConsole.Write(SelectListControl.Create(selectList, theme, selectRows));
+            AnsiConsole.Write(SelectList.Default.Render(
+                selectList,
+                theme,
+                new TuiComponentConstraints(width, selectRows)));
         }
         else if (textBox is { } activeTextBox)
         {
-            AnsiConsole.Write(MultilineTextBoxControl.Create(
-                activeTextBox.Title,
-                activeTextBox.State,
+            AnsiConsole.Write(MultilineTextBox.Default.Render(
+                activeTextBox,
                 theme,
-                textBoxRows,
+                new TuiComponentConstraints(width, textBoxRows),
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
         WriteStatus(statusLines, view, theme, editorDialog);
@@ -214,8 +220,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
                              view.CommandPalette is null &&
                              view.GlobalCommand is null;
         const int tabTableStatusBorderAndCursorHeight = 8;
-        var pickerHeight = selectList is not null ? SelectListControl.Height(selectList, selectRows) :
-            textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) : 0;
+        var pickerHeight = selectList is not null ? SelectList.Default.Measure(
+            selectList,
+            new TuiComponentConstraints(width, selectRows)) :
+            textBox is not null ? MultilineTextBox.Default.Measure(
+                textBox,
+                new TuiComponentConstraints(width, textBoxRows)) : 0;
         const int compactDetailsHeight = 3;
         var narrowAllDayHeight = !wideSidePanels && showAllDayPanel
             ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
@@ -340,15 +350,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
         if (selectList is not null)
         {
-            AnsiConsole.Write(SelectListControl.Create(selectList, theme, selectRows));
+            AnsiConsole.Write(SelectList.Default.Render(
+                selectList,
+                theme,
+                new TuiComponentConstraints(width, selectRows)));
         }
         else if (textBox is { } activeTextBox)
         {
-            AnsiConsole.Write(MultilineTextBoxControl.Create(
-                activeTextBox.Title,
-                activeTextBox.State,
+            AnsiConsole.Write(MultilineTextBox.Default.Render(
+                activeTextBox,
                 theme,
-                textBoxRows,
+                new TuiComponentConstraints(width, textBoxRows),
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
         WritePlannerStatus(status, view, theme, editorDialog);
@@ -533,24 +545,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static int TextBoxRows(int terminalHeight) => Math.Clamp(terminalHeight / 4, 3, 8);
 
-    private static (string Title, MultilineTextBoxState State)? BrowserTextBox(BrowserView view) =>
+    private static MultilineTextBoxState? BrowserTextBox(BrowserView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
-    private static (string Title, MultilineTextBoxState State)? PlannerTextBox(PlannerView view) =>
+    private static MultilineTextBoxState? PlannerTextBox(PlannerView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
-    private static (string Title, MultilineTextBoxState State)? TodoEditorTextBox(TodoTaskEditorState editor)
-    {
-        if (editor.ContentTextBox is not { } state)
-        {
-            return null;
-        }
-
-        var title = editor.IsAddingContent
-            ? $"Add {editor.AddKind}"
-            : editor.Items[editor.SelectedContentIndex] is ContentNoteDraft ? "Edit note" : "Edit subtask";
-        return (title, state);
-    }
+    private static MultilineTextBoxState? TodoEditorTextBox(TodoTaskEditorState editor) => editor.ContentTextBox;
 
     private static SelectListView? BrowserSelectList(BrowserView view, TuiKeyBindings bindings)
     {

@@ -4,15 +4,23 @@ using WolfTodo.Tui.Features.Configuration;
 
 namespace WolfTodo.Tui.Controls;
 
-internal static class MultilineTextBoxControl
+public sealed partial class MultilineTextBox
 {
-    public static int Height(MultilineTextBoxState state, int maxRows) => Math.Max(1, maxRows) + 3;
+    public int Measure(MultilineTextBoxState state, TuiComponentConstraints constraints) =>
+        constraints.ClampedMaxRows + 3;
 
-    public static IRenderable Create(string title, MultilineTextBoxState state, TuiTheme theme, int maxRows, string saveBinding)
+    public IRenderable Render(MultilineTextBoxState state, TuiTheme theme, TuiComponentConstraints constraints) =>
+        Render(state, theme, constraints, "Ctrl+S");
+
+    public IRenderable Render(
+        MultilineTextBoxState state,
+        TuiTheme theme,
+        TuiComponentConstraints constraints,
+        string saveBinding)
     {
         var lines = state.Text.Split('\n');
         var cursorLine = state.Text[..state.ClampedCursor].Count(character => character == '\n');
-        var visibleRows = Math.Max(1, maxRows);
+        var visibleRows = constraints.ClampedMaxRows;
         var start = Math.Clamp(cursorLine - visibleRows + 1, 0, Math.Max(0, lines.Length - visibleRows));
         var renderLines = new List<IRenderable>();
         for (var index = start; index < Math.Min(lines.Length, start + visibleRows); index++)
@@ -38,6 +46,6 @@ internal static class MultilineTextBoxControl
         }
 
         renderLines.Add(new Text($"{saveBinding} SAVE TEXT  Esc CANCEL", new Style(theme.Muted, decoration: Decoration.Dim)));
-        return TuiControlPanel.Create(title, new Rows(renderLines), theme);
+        return TuiControlPanel.Create(state.Label, new Rows(renderLines), theme);
     }
 }

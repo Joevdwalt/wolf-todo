@@ -11,6 +11,14 @@
     "Text box readonly": {
       "commandName": "Project",
       "commandLineArgs": "textbox:readonly"
+    },
+    "Multiline text box": {
+      "commandName": "Project",
+      "commandLineArgs": "multiline"
+    },
+    "Select list": {
+      "commandName": "Project",
+      "commandLineArgs": "select-list"
     }
   }
 }

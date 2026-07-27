@@ -7,18 +7,23 @@ namespace WolfTodo.Tui.Controls;
 /// <summary>
 /// A reusable, single-line terminal text box with cursor-aware editing.
 /// </summary>
-public static class TextBox
+public sealed class TextBox : ITuiComponent<TextBoxState, TextBoxOutcome>
 {
+    public static TextBox Default { get; } = new();
+
     public static int Height => 4;
 
     public static TextBoxState Create(string label, bool editable, string text, bool isActive = false) =>
         new(label, editable, text, text.Length, isActive);
 
-    public static TextBoxTransition Reduce(TextBoxState state, ConsoleKeyInfo key)
+    public TuiComponentTransition<TextBoxState, TextBoxOutcome> Reduce(
+        TextBoxState state,
+        ConsoleKeyInfo key,
+        TuiKeyBindings bindings)
     {
         if (!state.Edit)
         {
-            return new(state);
+            return new(state, TextBoxOutcome.Editing);
         }
 
         var cursor = state.ClampedCursor;
@@ -54,12 +59,14 @@ public static class TextBox
             },
             _ => state
         };
-        return new(next);
+        return new(next, TextBoxOutcome.Editing);
     }
 
-    public static IRenderable CreateRenderable(TextBoxState state, TuiTheme theme, int width)
+    public int Measure(TextBoxState state, TuiComponentConstraints constraints) => Height;
+
+    public IRenderable Render(TextBoxState state, TuiTheme theme, TuiComponentConstraints constraints)
     {
-        var outerWidth = Math.Max(3, width);
+        var outerWidth = Math.Max(3, constraints.ClampedWidth);
         var contentWidth = outerWidth - 2;
         var input = CreateInputRenderable(state, theme, contentWidth);
         return new Rows(
@@ -75,6 +82,15 @@ public static class TextBox
                 Width = outerWidth,
                 Expand = false
             });
+    }
+
+    public static IRenderable CreateRenderable(TextBoxState state, TuiTheme theme, int width) =>
+        Default.Render(state, theme, new TuiComponentConstraints(width, Height));
+
+    public static TextBoxTransition Reduce(TextBoxState state, ConsoleKeyInfo key)
+    {
+        var transition = Default.Reduce(state, key, TuiKeyBindings.CreateDefaults(":q"));
+        return new(transition.State, transition.Outcome);
     }
 
     public static string DisplayText(TextBoxState state, int width)

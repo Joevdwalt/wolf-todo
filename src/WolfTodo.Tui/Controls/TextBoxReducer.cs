@@ -1,8 +1,30 @@
+using WolfTodo.Tui.Features.Configuration;
+
 namespace WolfTodo.Tui.Controls;
 
-internal static class MultilineTextBoxReducer
+public sealed partial class MultilineTextBox : ITuiComponent<MultilineTextBoxState, MultilineTextBoxOutcome>
 {
-    public static MultilineTextBoxState Reduce(MultilineTextBoxState state, ConsoleKeyInfo key)
+    public static MultilineTextBox Default { get; } = new();
+
+    public TuiComponentTransition<MultilineTextBoxState, MultilineTextBoxOutcome> Reduce(
+        MultilineTextBoxState state,
+        ConsoleKeyInfo key,
+        TuiKeyBindings bindings)
+    {
+        if (key.Key == ConsoleKey.Escape)
+        {
+            return new(null, MultilineTextBoxOutcome.Cancelled);
+        }
+
+        if (bindings.MatchesSaveForm(key))
+        {
+            return new(state, MultilineTextBoxOutcome.Accepted);
+        }
+
+        return new(ReduceEditing(state, key), MultilineTextBoxOutcome.Editing);
+    }
+
+    internal static MultilineTextBoxState ReduceEditing(MultilineTextBoxState state, ConsoleKeyInfo key)
     {
         var cursor = state.ClampedCursor;
         return key.Key switch
@@ -71,4 +93,11 @@ internal static class MultilineTextBoxReducer
         var nextStart = end + 1;
         return Math.Min(nextStart + column, LineEnd(text, nextStart));
     }
+}
+
+public enum MultilineTextBoxOutcome
+{
+    Editing,
+    Accepted,
+    Cancelled
 }
