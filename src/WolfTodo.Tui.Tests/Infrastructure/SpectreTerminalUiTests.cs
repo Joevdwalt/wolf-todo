@@ -1478,6 +1478,30 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowBrowser_scrolls_the_todo_window_before_the_selected_todo_reaches_its_bottom_edge()
+    {
+        var lines = RenderBrowser(ViewWithTodoCount(25, BrowserFocus.Todos, selectedIndex: 5), 140, 24);
+
+        lines.Should().Contain(line => line.Contains("> ◯ - Todo 6", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("Todo 16", StringComparison.Ordinal));
+        lines.Should().NotContain(line => line.Contains("Todo 1 ", StringComparison.Ordinal));
+        lines.Should().NotContain(line => line.Contains("Todo 2 ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ShowBrowser_counts_tag_rows_when_reserving_todo_look_ahead()
+    {
+        var lines = RenderBrowser(
+            ViewWithTodoCount(25, BrowserFocus.Todos, selectedIndex: 5, tagged: true),
+            140,
+            24);
+
+        lines.Should().Contain(line => line.Contains("> ◯ - Todo 6", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("Todo 11", StringComparison.Ordinal));
+        lines.Should().NotContain(line => line.Contains("Todo 1 ", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ShowBrowser_keeps_a_selected_todo_and_its_schedule_together_in_the_visible_window()
     {
         var lines = RenderBrowser(

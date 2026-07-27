@@ -14,6 +14,8 @@ namespace WolfTodo.Tui.Infrastructure;
 
 public sealed class SpectreTerminalUi : ITerminalUi
 {
+    private const int TodoSelectionLookAheadRows = 10;
+
     private const string OpenTodoGlyph = "◯";
     private const string CompletedTodoGlyph = "✓";
 
@@ -1605,6 +1607,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var start = selectedIndex;
         var end = selectedIndex;
         var usedHeight = selected.Lines.Count;
+
+        var rowsBelowSelection = selected.Lines.Count - 1;
+        while (end + 1 < groups.Length &&
+               rowsBelowSelection < TodoSelectionLookAheadRows &&
+               usedHeight + groups[end + 1].Lines.Count <= availableHeight)
+        {
+            end++;
+            usedHeight += groups[end].Lines.Count;
+            rowsBelowSelection += groups[end].Lines.Count;
+        }
+
         while (start > 0 && usedHeight + groups[start - 1].Lines.Count <= availableHeight)
         {
             start--;
