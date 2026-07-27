@@ -73,7 +73,15 @@ static int RunTitleEditor()
             new Text("WOLF TODO COMPONENTS // TASK TITLE EDITOR", new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
             new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
             new Text(string.Empty),
-            TodoTitleEditor.CreateRenderable(state, TuiThemes.Wolf));
+            new Panel(new Rows(
+                TodoTitleEditor.CreateRenderable(state, TuiThemes.Wolf),
+                new Text("Enter ACCEPT  Esc CANCEL", new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim))))
+            {
+                Header = new PanelHeader("EDIT TASK TITLE"),
+                Border = BoxBorder.Square,
+                BorderStyle = new Style(TuiThemes.Wolf.BorderActive),
+                Expand = true
+            });
         AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
 
         var transition = TodoTitleEditor.Reduce(state, Console.ReadKey(intercept: true));

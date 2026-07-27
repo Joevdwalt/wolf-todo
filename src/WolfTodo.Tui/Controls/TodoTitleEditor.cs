@@ -56,12 +56,7 @@ public static class TodoTitleEditor
     }
 
     public static IRenderable CreateRenderable(TodoTitleEditorState state, TuiTheme theme) =>
-        TuiControlPanel.Create(
-            "EDIT TASK TITLE",
-            new Rows(
-                new Text(DisplayText(state), new Style(theme.AccentBright, decoration: Decoration.Bold)),
-                new Text("Enter ACCEPT  Esc CANCEL", new Style(theme.Muted, decoration: Decoration.Dim))),
-            theme);
+        new Text(DisplayText(state), new Style(theme.AccentBright, decoration: Decoration.Bold));
 }
 
 public sealed record TodoTitleEditorState(string Text, int Cursor)

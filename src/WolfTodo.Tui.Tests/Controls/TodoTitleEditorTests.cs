@@ -1,5 +1,7 @@
 using FluentAssertions;
+using Spectre.Console;
 using WolfTodo.Tui.Controls;
+using WolfTodo.Tui.Features.Configuration;
 
 namespace WolfTodo.Tui.Tests.Controls;
 
@@ -42,6 +44,14 @@ public sealed class TodoTitleEditorTests
 
         result.Outcome.Should().Be(TodoTitleEditorOutcome.Editing);
         result.State.Should().Be(state);
+    }
+
+    [Fact]
+    public void CreateRenderable_returns_only_the_textbox_renderable()
+    {
+        var renderable = TodoTitleEditor.CreateRenderable(TodoTitleEditor.Create("Plan"), TuiThemes.Wolf);
+
+        renderable.Should().BeOfType<Text>();
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
