@@ -19,104 +19,160 @@ public static class TodoTaskEditorDialog
         int terminalHeight)
     {
         var width = Math.Max(1, terminalWidth - 4);
+        return CreateModeView(editor, bindings, width) ?? CreateFormView(editor, bindings, width, terminalHeight);
+    }
+
+    private static TodoTaskEditorDialogView? CreateModeView(
+        TodoTaskEditorState editor,
+        TuiKeyBindings bindings,
+        int width)
+    {
         if (editor.IsEditingContent)
         {
             return new([new("EDITING CONTENT", TodoTaskEditorDialogRole.Hint)]);
         }
 
-        if (editor.IsChoosingProject)
+        if (editor.TitleTextBox is not null)
         {
-            return new(Wrap(
-                $"{Key(bindings.MoveDown)}/{Key(bindings.MoveUp)} MOVE  " +
-                $"{Key(bindings.Open)} SELECT  {Key(bindings.Back)} CANCEL",
-                width).Select(line => new TodoTaskEditorDialogLine(line, TodoTaskEditorDialogRole.Hint)).ToArray());
+            return MessageView(editor.Error ?? "Enter ACCEPT  Esc CANCEL", width,
+                editor.Error is null ? TodoTaskEditorDialogRole.Hint : TodoTaskEditorDialogRole.Error);
         }
 
-        if (editor.Mode == TodoTaskEditorMode.ChooseContentType)
+        return editor.Mode switch
         {
-            return Hint(
-                $"{Key(bindings.MoveDown)}/{Key(bindings.MoveUp)} MOVE  " +
-                $"{Key(bindings.Open)} SELECT  {Key(bindings.Back)} CANCEL",
-                width);
-        }
-
-        if (editor.Mode == TodoTaskEditorMode.ConfirmRemoval)
-        {
-            var selected = (ContentSubtaskDraft)editor.Items[editor.SelectedContentIndex];
-            return Warning(
-                $"REMOVE '{selected.Title}' AND {selected.DescendantCount} NESTED ITEM(S)?  " +
-                $"{Key(bindings.Open)} CONFIRM  {Key(bindings.Back)} CANCEL",
-                width);
-        }
-
-        if (editor.Mode == TodoTaskEditorMode.Edit && editor.IsAddingContent)
-        {
-            return Active(
-                $"ADD {editor.AddKind.ToString().ToUpperInvariant()}: {editor.Draft}_  Enter ACCEPT  Esc CANCEL",
-                width);
-        }
-
-        var fields = new[]
-        {
-            ("Title", editor.Values.Title),
-            ("Reference", editor.Values.ExternalReference ?? string.Empty),
-            ("Priority", editor.Values.Priority?.ToString() ?? string.Empty),
-            ("Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
-            ("Scheduled date (YYYY-MM-DD, t+1, w+1)", editor.ScheduledDate),
-            ("Scheduled time", editor.ScheduledTime),
-            ("Duration", editor.Duration)
+            _ when editor.IsChoosingProject => ProjectPickerView(bindings, width),
+            TodoTaskEditorMode.ChooseContentType => ContentTypePickerView(bindings, width),
+            TodoTaskEditorMode.ConfirmRemoval => RemovalConfirmationView(editor, bindings, width),
+            TodoTaskEditorMode.Edit when editor.IsAddingContent => AddContentView(editor, width),
+            _ => null
         };
+    }
 
-        var rows = new List<(int? Selection, TodoTaskEditorDialogLine Line)>();
-        for (var index = 0; index < fields.Length; index++)
-        {
-            rows.Add((index, FieldLine(editor, index, fields[index].Item1, fields[index].Item2, width)));
-        }
+    private static TodoTaskEditorDialogView CreateFormView(
+        TodoTaskEditorState editor,
+        TuiKeyBindings bindings,
+        int width,
+        int terminalHeight)
+    {
+        var rows = FormRows(editor, width);
+        var lines = new List<TodoTaskEditorDialogLine> { FormHeading(editor, width) };
+        lines.AddRange(VisibleRows(rows, editor.SelectedIndex, terminalHeight));
+        lines.AddRange(MessageLines(FormMessage(editor, bindings), width, editor.Error));
+        return new(lines);
+    }
 
+    private static TodoTaskEditorDialogView ProjectPickerView(TuiKeyBindings bindings, int width) =>
+        MessageView(
+            $"{Key(bindings.MoveDown)}/{Key(bindings.MoveUp)} MOVE  " +
+            $"{Key(bindings.Open)} SELECT  {Key(bindings.Back)} CANCEL",
+            width,
+            TodoTaskEditorDialogRole.Hint);
+
+    private static TodoTaskEditorDialogView ContentTypePickerView(TuiKeyBindings bindings, int width) =>
+        Hint(
+            $"{Key(bindings.MoveDown)}/{Key(bindings.MoveUp)} MOVE  " +
+            $"{Key(bindings.Open)} SELECT  {Key(bindings.Back)} CANCEL",
+            width);
+
+    private static TodoTaskEditorDialogView RemovalConfirmationView(
+        TodoTaskEditorState editor,
+        TuiKeyBindings bindings,
+        int width)
+    {
+        var selected = (ContentSubtaskDraft)editor.Items[editor.SelectedContentIndex];
+        return Warning(
+            $"REMOVE '{selected.Title}' AND {selected.DescendantCount} NESTED ITEM(S)?  " +
+            $"{Key(bindings.Open)} CONFIRM  {Key(bindings.Back)} CANCEL",
+            width);
+    }
+
+    private static TodoTaskEditorDialogView AddContentView(TodoTaskEditorState editor, int width) =>
+        Active($"ADD {editor.AddKind.ToString().ToUpperInvariant()}: {editor.Draft}_  Enter ACCEPT  Esc CANCEL", width);
+
+    private static TodoTaskEditorDialogView MessageView(string message, int width, TodoTaskEditorDialogRole role) =>
+        new(MessageLines(message, width, role).ToArray());
+
+    private static IReadOnlyList<(int? Selection, TodoTaskEditorDialogLine Line)> FormRows(
+        TodoTaskEditorState editor,
+        int width)
+    {
+        var rows = FieldValues(editor)
+            .Select((field, index) => ((int?)index, FieldLine(editor, index, field.Label, field.Value, width)))
+            .ToList();
         rows.Add((null, new("  CONTENT", TodoTaskEditorDialogRole.Label)));
+        AddContentRows(rows, editor, width);
+        return rows;
+    }
+
+    private static IReadOnlyList<(string Label, string Value)> FieldValues(TodoTaskEditorState editor) =>
+    [
+        ("Title", editor.Values.Title),
+        ("Reference", editor.Values.ExternalReference ?? string.Empty),
+        ("Priority", editor.Values.Priority?.ToString() ?? string.Empty),
+        ("Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
+        ("Scheduled date (YYYY-MM-DD, t+1, w+1)", editor.ScheduledDate),
+        ("Scheduled time", editor.ScheduledTime),
+        ("Duration", editor.Duration)
+    ];
+
+    private static void AddContentRows(
+        ICollection<(int? Selection, TodoTaskEditorDialogLine Line)> rows,
+        TodoTaskEditorState editor,
+        int width)
+    {
         if (editor.Items.Length == 0)
         {
             rows.Add((null, new("    — No notes or subtasks", TodoTaskEditorDialogRole.Placeholder)));
-        }
-        else
-        {
-            for (var index = 0; index < editor.Items.Length; index++)
-            {
-                var selection = TodoTaskEditorState.FieldCount + index;
-                var selected = selection == editor.SelectedIndex;
-                rows.Add((selection, new(
-                    ContentLine(
-                        editor.Items[index],
-                        selected,
-                        width,
-                        editor.Mode == TodoTaskEditorMode.Edit && selected ? editor.Draft + "_" : null),
-                    selected ? TodoTaskEditorDialogRole.ActiveValue : TodoTaskEditorDialogRole.Value)));
-            }
+            return;
         }
 
-        var selectedRow = Math.Max(0, rows.FindIndex(row => row.Selection == editor.SelectedIndex));
+        for (var index = 0; index < editor.Items.Length; index++)
+        {
+            var selection = TodoTaskEditorState.FieldCount + index;
+            var selected = selection == editor.SelectedIndex;
+            var draft = editor.Mode == TodoTaskEditorMode.Edit && selected ? editor.Draft + "_" : null;
+            rows.Add((selection, new(
+                ContentLine(editor.Items[index], selected, width, draft),
+                selected ? TodoTaskEditorDialogRole.ActiveValue : TodoTaskEditorDialogRole.Value)));
+        }
+    }
+
+    private static TodoTaskEditorDialogLine FormHeading(TodoTaskEditorState editor, int width) =>
+        new(Truncate(
+            $"{(editor.IsCreate ? "CREATE" : "EDIT")} TASK // " +
+            $"{(editor.Values.Title.Length == 0 ? "NEW TODO" : editor.Values.Title)}",
+            width), TodoTaskEditorDialogRole.Label);
+
+    private static IEnumerable<TodoTaskEditorDialogLine> VisibleRows(
+        IReadOnlyList<(int? Selection, TodoTaskEditorDialogLine Line)> rows,
+        int selectedIndex,
+        int terminalHeight)
+    {
+        var selectedRow = Math.Max(0, rows.ToList().FindIndex(row => row.Selection == selectedIndex));
         var visibleRows = Math.Max(1, Math.Min(12, terminalHeight - 12));
         var start = Math.Clamp(selectedRow - visibleRows + 1, 0, Math.Max(0, rows.Count - visibleRows));
-        var lines = new List<TodoTaskEditorDialogLine>
-        {
-            new(Truncate(
-                $"{(editor.IsCreate ? "CREATE" : "EDIT")} TASK // " +
-                $"{(editor.Values.Title.Length == 0 ? "NEW TODO" : editor.Values.Title)}",
-                width), TodoTaskEditorDialogRole.Label)
-        };
-        lines.AddRange(rows.Skip(start).Take(visibleRows).Select(row => row.Line));
+        return rows.Skip(start).Take(visibleRows).Select(row => row.Line);
+    }
 
-        var message = editor.Error ?? (editor.Mode == TodoTaskEditorMode.Edit
+    private static string FormMessage(TodoTaskEditorState editor, TuiKeyBindings bindings) =>
+        editor.Error ?? (editor.Mode == TodoTaskEditorMode.Edit
             ? "Enter ACCEPT  Esc CANCEL"
             : $"{Key(bindings.MoveDown)}/{Key(bindings.MoveUp)} MOVE  " +
               $"{Key(bindings.Open)} EDIT  {Key(bindings.CreateTodo)} ADD  " +
               $"{Key(bindings.RemoveContent)} REMOVE  Space TOGGLE  " +
               $"{Key(bindings.SaveForm)} SAVE  {Key(bindings.Back)} CANCEL");
-        lines.AddRange(Wrap(message, width).Select(line => new TodoTaskEditorDialogLine(
-            line,
-            editor.Error is null ? TodoTaskEditorDialogRole.Hint : TodoTaskEditorDialogRole.Error)));
-        return new(lines);
-    }
+
+    private static IEnumerable<TodoTaskEditorDialogLine> MessageLines(
+        string message,
+        int width,
+        string? error = null) =>
+        MessageLines(message, width, error is null ? TodoTaskEditorDialogRole.Hint : TodoTaskEditorDialogRole.Error);
+
+    private static IEnumerable<TodoTaskEditorDialogLine> MessageLines(
+        string message,
+        int width,
+        TodoTaskEditorDialogRole role) =>
+        Wrap(message, width).Select(line => new TodoTaskEditorDialogLine(line, role));
 
     public static IRenderable CreateRenderable(TodoTaskEditorDialogView view, TuiTheme theme) =>
         new Panel(new Rows(view.Lines.Select(line => new Text(line.Text, Style(line.Role, theme)))) )
@@ -145,9 +201,7 @@ public static class TodoTaskEditorDialog
         var selected = editor.SelectedIndex == index;
         var labelWidth = Math.Min(16, Math.Max(6, width / 3));
         var prefix = $"{(selected ? ">" : " ")} {FitColumn(label.ToUpperInvariant(), labelWidth)} ";
-        var display = editor.TitleEditor is not null && selected && index == (int)TodoFormField.Title
-            ? TodoTitleEditor.DisplayText(editor.TitleEditor)
-            : editor.Mode == TodoTaskEditorMode.Edit && selected
+        var display = editor.Mode == TodoTaskEditorMode.Edit && selected
                 ? editor.Draft + "_"
             : string.IsNullOrEmpty(value) ? "—" : value;
         var role = selected

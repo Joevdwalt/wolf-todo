@@ -105,11 +105,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var selectList = BrowserSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
         var textBox = BrowserTextBox(view);
+        var titleTextBox = BrowserTitleTextBox(view);
         var textBoxRows = TextBoxRows(height);
         var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
         var contentHeight = Math.Max(1, AvailableContentHeight(height, statusLines.Count) -
             (selectList is not null ? SelectListControl.Height(selectList, selectRows) :
-             textBox is not null ? TextBoxControl.Height(textBox.Value.State, textBoxRows) : 0));
+             textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) :
+             titleTextBox is not null ? TextBox.Height : 0));
         WriteOperationalHeader(
             tabs,
             keyBindings,
@@ -139,12 +141,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
         else if (textBox is { } activeTextBox)
         {
-            AnsiConsole.Write(TextBoxControl.Create(
+            AnsiConsole.Write(MultilineTextBoxControl.Create(
                 activeTextBox.Title,
                 activeTextBox.State,
                 theme,
                 textBoxRows,
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
+        }
+        else if (titleTextBox is { } activeTitleTextBox)
+        {
+            AnsiConsole.Write(TextBox.CreateRenderable("Title", activeTitleTextBox, theme, Math.Max(20, width - 4)));
         }
 
         WriteStatus(statusLines, view, theme);
@@ -173,6 +179,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var selectList = PlannerSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
         var textBox = PlannerTextBox(view);
+        var titleTextBox = PlannerTitleTextBox(view);
         var textBoxRows = TextBoxRows(height);
         WriteOperationalHeader(
             tabs,
@@ -185,7 +192,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
             view.ProjectErrorCount);
         var status = PlannerStatus(view, keyBindings, width, height);
         var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
-        var pickerRows = pickerVisible ? selectRows : 0;
         var wideLayout = width >= 120;
         var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
                             view.State.Focus == PlannerFocus.AllDay;
@@ -198,7 +204,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
                              view.GlobalCommand is null;
         const int tabTableStatusBorderAndCursorHeight = 8;
         var pickerHeight = selectList is not null ? SelectListControl.Height(selectList, selectRows) :
-            textBox is not null ? TextBoxControl.Height(textBox.Value.State, textBoxRows) : 0;
+            textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) :
+            titleTextBox is not null ? TextBox.Height : 0;
         const int compactDetailsHeight = 3;
         var narrowAllDayHeight = !wideSidePanels && showAllDayPanel
             ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
@@ -324,12 +331,16 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
         else if (textBox is { } activeTextBox)
         {
-            AnsiConsole.Write(TextBoxControl.Create(
+            AnsiConsole.Write(MultilineTextBoxControl.Create(
                 activeTextBox.Title,
                 activeTextBox.State,
                 theme,
                 textBoxRows,
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
+        }
+        else if (titleTextBox is { } activeTitleTextBox)
+        {
+            AnsiConsole.Write(TextBox.CreateRenderable("Title", activeTitleTextBox, theme, Math.Max(20, width - 4)));
         }
 
         WritePlannerStatus(status, view, theme);
@@ -514,13 +525,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     private static int TextBoxRows(int terminalHeight) => Math.Clamp(terminalHeight / 4, 3, 8);
 
-    private static (string Title, TextBoxState State)? BrowserTextBox(BrowserView view) =>
+    private static (string Title, MultilineTextBoxState State)? BrowserTextBox(BrowserView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
-    private static (string Title, TextBoxState State)? PlannerTextBox(PlannerView view) =>
+    private static (string Title, MultilineTextBoxState State)? PlannerTextBox(PlannerView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
-    private static (string Title, TextBoxState State)? TodoEditorTextBox(TodoTaskEditorState editor)
+    private static TextBoxState? BrowserTitleTextBox(BrowserView view) =>
+        view.State.Editor?.TitleTextBox;
+
+    private static TextBoxState? PlannerTitleTextBox(PlannerView view) =>
+        view.State.Editor?.TitleTextBox;
+
+    private static (string Title, MultilineTextBoxState State)? TodoEditorTextBox(TodoTaskEditorState editor)
     {
         if (editor.ContentTextBox is not { } state)
         {

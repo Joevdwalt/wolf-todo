@@ -6,7 +6,7 @@ using WolfTodo.Tui.Features.ProjectBrowser;
 
 if (args.Length != 1)
 {
-    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|titleeditor>");
+    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|textbox:edit|textbox:readonly>");
     return 2;
 }
 
@@ -19,7 +19,8 @@ Console.CancelKeyPress += (_, eventArgs) =>
 return args[0].ToLowerInvariant() switch
 {
     "dialog" => RunDialog(),
-    "titleeditor" => RunTitleEditor(),
+    "textbox" or "titleeditor" or "textbox:edit" => RunTextBox(editable: true),
+    "textbox:readonly" => RunTextBox(editable: false),
     _ => InvalidScenario()
 };
 
@@ -61,50 +62,55 @@ static int RunDialog()
     }
 }
 
-static int RunTitleEditor()
+static int RunTextBox(bool editable)
 {
-    var state = TodoTitleEditor.Create("Prepare customer workshop");
-    var message = "Sandbox only — accepted titles are kept in memory.";
+    var state = TextBox.Create(editable, "Prepare customer workshop");
+    var message = editable
+        ? "Sandbox only — accepted titles are kept in memory."
+        : "Read-only fixture — text input is ignored.";
 
     while (true)
     {
         AnsiConsole.Clear();
         var content = new Rows(
-            new Text("WOLF TODO COMPONENTS // TASK TITLE EDITOR", new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
+            new Text(
+                $"WOLF TODO COMPONENTS // TEXT BOX // {(editable ? "EDIT" : "READONLY")}",
+                new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
             new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
             new Text(string.Empty),
-            new Panel(new Rows(
-                TodoTitleEditor.CreateRenderable(state, TuiThemes.Wolf),
-                new Text("Enter ACCEPT  Esc CANCEL", new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim))))
-            {
-                Header = new PanelHeader("EDIT TASK TITLE"),
-                Border = BoxBorder.Square,
-                BorderStyle = new Style(TuiThemes.Wolf.BorderActive),
-                Expand = true
-            });
+            TextBox.CreateRenderable("Title", state, TuiThemes.Wolf, Math.Max(20, 20)),
+            new Text(editable ? "Enter ACCEPT  Esc CANCEL" : "Esc CLOSE", new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)));
         AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
 
-        var transition = TodoTitleEditor.Reduce(state, Console.ReadKey(intercept: true));
-        if (transition.Outcome == TodoTitleEditorOutcome.Cancelled)
+        var key = Console.ReadKey(intercept: true);
+        if (!editable && key.Key == ConsoleKey.Escape)
         {
             return 0;
         }
 
-        if (transition.Outcome == TodoTitleEditorOutcome.Accepted)
+        var transition = TextBox.Reduce(state, key);
+        if (transition.Outcome == TextBoxOutcome.Cancelled)
+        {
+            return 0;
+        }
+
+        if (transition.Outcome == TextBoxOutcome.Accepted)
         {
             message = $"Sandbox captured '{transition.State!.Text.Trim()}'; fixture reset.";
-            state = TodoTitleEditor.Create("Prepare customer workshop");
+            state = TextBox.Create(editable, "Prepare customer workshop");
             continue;
         }
 
         state = transition.State!;
-        message = "Sandbox only — accepted titles are kept in memory.";
+        message = editable
+            ? "Sandbox only — accepted titles are kept in memory."
+            : "Read-only fixture — text input is ignored.";
     }
 }
 
 static int InvalidScenario()
 {
-    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|titleeditor>");
+    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|textbox:edit|textbox:readonly>");
     return 2;
 }
 

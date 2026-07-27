@@ -4,9 +4,13 @@
       "commandName": "Project",
       "commandLineArgs": "dialog"
     },
-    "Task title editor": {
+    "Text box edit": {
       "commandName": "Project",
-      "commandLineArgs": "titleeditor"
+      "commandLineArgs": "textbox:edit"
+    },
+    "Text box readonly": {
+      "commandName": "Project",
+      "commandLineArgs": "textbox:readonly"
     }
   }
 }

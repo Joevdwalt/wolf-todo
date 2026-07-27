@@ -32,9 +32,9 @@ public sealed record TodoTaskEditorState(
 
     public TodoScheduleRequirement ScheduleRequirement { get; init; }
 
-    internal TextBoxState? ContentTextBox { get; init; }
+    internal MultilineTextBoxState? ContentTextBox { get; init; }
 
-    internal TodoTitleEditorState? TitleEditor { get; init; }
+    internal TextBoxState? TitleTextBox { get; init; }
 
     public bool IsEditingContent => ContentTextBox is not null;
 

@@ -53,7 +53,7 @@ public sealed class TodoTaskEditorDialogTests
     }
 
     [Fact]
-    public void Create_renders_the_dedicated_title_editor_when_the_title_is_being_edited()
+    public void Create_leaves_title_label_and_editor_to_the_generic_textbox_when_the_title_is_being_edited()
     {
         var reducer = new TodoEditorReducer();
         var editor = Editor() with { SelectedIndex = (int)TodoFormField.Title };
@@ -61,9 +61,10 @@ public sealed class TodoTaskEditorDialogTests
 
         var view = TodoTaskEditorDialog.Create(editing, Bindings, 80, 24);
 
-        view.Lines.Should().Contain(line =>
-            line.Text.Contains("> TITLE", StringComparison.Ordinal) &&
-            line.Text.Contains("Prepare workshop_", StringComparison.Ordinal));
+        view.Lines.Should().ContainSingle(line =>
+            line.Text == "Enter ACCEPT  Esc CANCEL" &&
+            line.Role == TodoTaskEditorDialogRole.Hint);
+        view.Lines.Should().NotContain(line => line.Text.Contains("TITLE", StringComparison.Ordinal));
     }
 
     private static TodoTaskEditorState Editor()

@@ -58,9 +58,9 @@ public sealed class TodoEditorReducer
             return ReduceContentTextBox(editor, key, bindings);
         }
 
-        if (editor.TitleEditor is not null)
+        if (editor.TitleTextBox is not null)
         {
-            return ReduceTitleEditor(editor, key);
+            return ReduceTitleTextBox(editor, key);
         }
 
         if (editor.Mode == TodoTaskEditorMode.Edit)
@@ -124,7 +124,7 @@ public sealed class TodoEditorReducer
                 var selected = editor.Items[editor.SelectedContentIndex];
                 return Transition(editor with
                 {
-                    ContentTextBox = TextBoxState.Create(
+                    ContentTextBox = MultilineTextBoxState.Create(
                         SelectedValue(editor),
                         selected is ContentNoteDraft),
                     Error = null
@@ -138,7 +138,7 @@ public sealed class TodoEditorReducer
                     Mode = TodoTaskEditorMode.Edit,
                     IsAddingContent = false,
                     Draft = string.Empty,
-                    TitleEditor = TodoTitleEditor.Create(editor.Values.Title),
+                    TitleTextBox = TextBox.Create(true, editor.Values.Title),
                     Error = null
                 });
             }
@@ -280,20 +280,20 @@ public sealed class TodoEditorReducer
             : Transition(editor with { Draft = editor.Draft + key.KeyChar, Error = null });
     }
 
-    private static TodoEditorTransition ReduceTitleEditor(TodoTaskEditorState editor, ConsoleKeyInfo key)
+    private static TodoEditorTransition ReduceTitleTextBox(TodoTaskEditorState editor, ConsoleKeyInfo key)
     {
-        var transition = TodoTitleEditor.Reduce(editor.TitleEditor!, key);
-        if (transition.Outcome == TodoTitleEditorOutcome.Cancelled)
+        var transition = TextBox.Reduce(editor.TitleTextBox!, key);
+        if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
             return Transition(editor with
             {
                 Mode = TodoTaskEditorMode.Browse,
-                TitleEditor = null,
+                TitleTextBox = null,
                 Error = null
             });
         }
 
-        if (transition.Outcome == TodoTitleEditorOutcome.Accepted)
+        if (transition.Outcome == TextBoxOutcome.Accepted)
         {
             var title = transition.State!.Text.Trim();
             if (title.Length == 0)
@@ -304,13 +304,13 @@ public sealed class TodoEditorReducer
             return Transition(editor with
             {
                 Mode = TodoTaskEditorMode.Browse,
-                TitleEditor = null,
+                TitleTextBox = null,
                 Values = editor.Values with { Title = title },
                 Error = null
             });
         }
 
-        return Transition(editor with { TitleEditor = transition.State, Error = null });
+        return Transition(editor with { TitleTextBox = transition.State, Error = null });
     }
 
     private static TodoEditorTransition ReduceContentTypePicker(
@@ -347,7 +347,7 @@ public sealed class TodoEditorReducer
             {
                 Mode = TodoTaskEditorMode.Browse,
                 IsAddingContent = true,
-                ContentTextBox = TextBoxState.Create(string.Empty, editor.AddKind == ContentItemKind.Note),
+                ContentTextBox = MultilineTextBoxState.Create(string.Empty, editor.AddKind == ContentItemKind.Note),
                 Error = null
             });
         }
@@ -469,7 +469,7 @@ public sealed class TodoEditorReducer
             });
         }
 
-        return Transition(editor with { ContentTextBox = TextBoxReducer.Reduce(editor.ContentTextBox!, key), Error = null });
+        return Transition(editor with { ContentTextBox = MultilineTextBoxReducer.Reduce(editor.ContentTextBox!, key), Error = null });
     }
 
     private TodoTaskEditorState CommitField(TodoTaskEditorState editor, string value)
