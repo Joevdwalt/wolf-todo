@@ -53,7 +53,7 @@ public sealed class TodoTaskEditorDialogTests
     }
 
     [Fact]
-    public void Create_leaves_title_label_and_editor_to_the_generic_textbox_when_the_title_is_being_edited()
+    public void Create_embeds_an_editable_title_textbox_when_the_title_is_being_edited()
     {
         var reducer = new TodoEditorReducer();
         var editor = Editor() with { SelectedIndex = (int)TodoFormField.Title };
@@ -61,9 +61,23 @@ public sealed class TodoTaskEditorDialogTests
 
         var view = TodoTaskEditorDialog.Create(editing, Bindings, 80, 24);
 
+        view.TitleTextBox.Should().NotBeNull();
+        view.TitleTextBox!.Edit.Should().BeTrue();
+        view.TitleTextBox.IsActive.Should().BeTrue();
         view.Lines.Should().ContainSingle(line =>
             line.Text == "Enter ACCEPT  Esc CANCEL" &&
             line.Role == TodoTaskEditorDialogRole.Hint);
+        view.Lines.Should().NotContain(line => line.Text.Contains("TITLE", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Create_embeds_a_read_only_title_textbox_while_browsing_the_form()
+    {
+        var view = TodoTaskEditorDialog.Create(Editor() with { SelectedIndex = (int)TodoFormField.Title }, Bindings, 80, 24);
+
+        view.TitleTextBox.Should().NotBeNull();
+        view.TitleTextBox!.Edit.Should().BeFalse();
+        view.TitleTextBox.IsActive.Should().BeTrue();
         view.Lines.Should().NotContain(line => line.Text.Contains("TITLE", StringComparison.Ordinal));
     }
 

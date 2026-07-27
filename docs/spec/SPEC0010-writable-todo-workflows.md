@@ -23,19 +23,25 @@ Markdown todos.
 - Spacebar toggles the selected Markdown checkbox. `:completed` continues to
   control completed-todo visibility only.
 - The bottom editor uses configured movement and open/back gestures and one
-  cursor across six compact field rows and the ordered content outline. Ctrl+S
+  cursor across the title textbox, six compact field rows, and the ordered content outline. Ctrl+S
   saves; cancellation performs no write. A field row places label and value on
   one physical line:
 
   ```text
-  > TITLE            Renew contract
+  Title
+  ╭──────────────────╮
+  │Renew contract    │
+  ╰──────────────────╯
     REFERENCE        EXT-42
     PRIORITY         —
     CONTENT
     • Review current contract
   ```
 
-  Use `—` for empty committed values and `_` as the text-entry cursor. A
+  The title is always shown as a textbox: it is read-only while browsing and
+  editable when opened. The remaining fields use one physical line. Use `—`
+  for empty committed values and `_` as the compact-field text-entry cursor.
+  A
   viewport keeps the selected row visible on shorter terminals, truncating
   long values with an ellipsis. Explicitly wrap hints and validation errors so
   the status panel remains within the terminal viewport. Use the configured theme hierarchy:

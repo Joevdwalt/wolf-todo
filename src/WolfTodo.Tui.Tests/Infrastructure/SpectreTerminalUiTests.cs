@@ -770,13 +770,14 @@ public sealed class SpectreTerminalUiTests
 
         var lines = RenderBrowser(view with { State = view.State with { Editor = editor } }, 100, 24);
         var status = lines[StatusPanelTop(lines)..];
-        var title = Array.FindIndex(status, line => line.Contains("TITLE", StringComparison.Ordinal));
+        var title = Array.FindIndex(status, line => line.Contains("Title", StringComparison.Ordinal));
         var reference = Array.FindIndex(status, line => line.Contains("REFERENCE", StringComparison.Ordinal));
         var priority = Array.FindIndex(status, line => line.Contains("PRIORITY", StringComparison.Ordinal));
 
         lines.Should().HaveCount(23);
         lines[0].Should().Contain("[TODOS]");
-        status[title].Should().Contain("> ").And.Contain("Renew contract");
+        status[title].Should().Contain("Title");
+        status[title + 2].Should().Contain("Renew contract");
         status[reference].Should().Contain("EXT-42");
         status[priority].Should().Contain("—");
         status.Should().Contain(line => line.Contains("TAGS", StringComparison.Ordinal));
@@ -843,7 +844,8 @@ public sealed class SpectreTerminalUiTests
         var filterHtml = NormalizeHtml(AnsiConsole.ExportHtml());
         StyleBefore(formHtml, "content").Should().Contain("#333333").And.Contain("font-weight: bold");
         StyleBefore(formHtml, "inactive-42").Should().Contain("#111111");
-        StyleBefore(formHtml, "title").Should().Contain("#222222").And.Contain("font-weight: bold");
+        StyleBefore(formHtml, "title").Should().Contain("#333333").And.Contain("font-weight: bold");
+        formHtml.Should().Contain("#ffffff");
         StyleBefore(formHtml, "—").Should().Contain("#2d343b").And.Contain("#162433");
         StyleBefore(formHtml, "j/k").Should().Contain("#2d343b").And.Contain("#162433");
         StyleBefore(errorHtml, "theme").Should().Contain("#555555").And.Contain("font-weight: bold");
@@ -889,8 +891,8 @@ public sealed class SpectreTerminalUiTests
         var lines = RenderBrowser(view with { State = view.State with { Editor = editor } }, 70, 16);
         var status = lines[StatusPanelTop(lines)..];
 
-        status.Should().Contain(line => line.Contains("> TITLE", StringComparison.Ordinal) &&
-            line.Contains("_", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("Title", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("╭", StringComparison.Ordinal));
         status.Should().Contain(line => line.Contains("Title is required.", StringComparison.Ordinal));
         status.Should().NotContain(line => line.Contains("Ctrl+S SAVE", StringComparison.Ordinal));
     }

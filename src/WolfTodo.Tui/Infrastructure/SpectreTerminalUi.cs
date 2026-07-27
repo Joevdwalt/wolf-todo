@@ -105,13 +105,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var selectList = BrowserSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
         var textBox = BrowserTextBox(view);
-        var titleTextBox = BrowserTitleTextBox(view);
+        var editorDialog = view.State.Editor is { } editor
+            ? TodoTaskEditorDialog.Create(
+                editor,
+                keyBindings,
+                width,
+                height)
+            : null;
         var textBoxRows = TextBoxRows(height);
         var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
-        var contentHeight = Math.Max(1, AvailableContentHeight(height, statusLines.Count) -
+        var contentHeight = Math.Max(1, AvailableContentHeight(height, DialogContentHeight(editorDialog) ?? statusLines.Count) -
             (selectList is not null ? SelectListControl.Height(selectList, selectRows) :
-             textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) :
-             titleTextBox is not null ? TextBox.Height : 0));
+             textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) : 0));
         WriteOperationalHeader(
             tabs,
             keyBindings,
@@ -148,12 +153,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 textBoxRows,
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
-        else if (titleTextBox is { } activeTitleTextBox)
-        {
-            AnsiConsole.Write(TextBox.CreateRenderable("Title", activeTitleTextBox, theme, Math.Max(20, width - 4)));
-        }
-
-        WriteStatus(statusLines, view, theme);
+        WriteStatus(statusLines, view, theme, editorDialog);
         EndUpdate(useSynchronizedUpdate);
     }
 
@@ -179,7 +179,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
         var selectList = PlannerSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
         var textBox = PlannerTextBox(view);
-        var titleTextBox = PlannerTitleTextBox(view);
+        var editorDialog = view.State.Editor is { } editor
+            ? TodoTaskEditorDialog.Create(
+                editor,
+                keyBindings,
+                width,
+                height)
+            : null;
         var textBoxRows = TextBoxRows(height);
         WriteOperationalHeader(
             tabs,
@@ -204,15 +210,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
                              view.GlobalCommand is null;
         const int tabTableStatusBorderAndCursorHeight = 8;
         var pickerHeight = selectList is not null ? SelectListControl.Height(selectList, selectRows) :
-            textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) :
-            titleTextBox is not null ? TextBox.Height : 0;
+            textBox is not null ? MultilineTextBoxControl.Height(textBox.Value.State, textBoxRows) : 0;
         const int compactDetailsHeight = 3;
         var narrowAllDayHeight = !wideSidePanels && showAllDayPanel
             ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
             : 0;
         var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
                              (compactDetails ? compactDetailsHeight : 0) + narrowAllDayHeight;
-        var availableRows = Math.Max(1, height - status.Count - reservedHeight);
+        var availableRows = Math.Max(1, height - (DialogContentHeight(editorDialog) ?? status.Count) - reservedHeight);
         var now = nowProvider();
         var timelineRows = WindowPlannerTimeline(
             view.Slots,
@@ -338,12 +343,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 textBoxRows,
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
-        else if (titleTextBox is { } activeTitleTextBox)
-        {
-            AnsiConsole.Write(TextBox.CreateRenderable("Title", activeTitleTextBox, theme, Math.Max(20, width - 4)));
-        }
-
-        WritePlannerStatus(status, view, theme);
+        WritePlannerStatus(status, view, theme, editorDialog);
         EndUpdate(useSynchronizedUpdate);
     }
 
@@ -531,12 +531,6 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static (string Title, MultilineTextBoxState State)? PlannerTextBox(PlannerView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
-    private static TextBoxState? BrowserTitleTextBox(BrowserView view) =>
-        view.State.Editor?.TitleTextBox;
-
-    private static TextBoxState? PlannerTitleTextBox(PlannerView view) =>
-        view.State.Editor?.TitleTextBox;
-
     private static (string Title, MultilineTextBoxState State)? TodoEditorTextBox(TodoTaskEditorState editor)
     {
         if (editor.ContentTextBox is not { } state)
@@ -680,8 +674,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static void WritePlannerStatus(
         IReadOnlyList<BrowserStatusLine> lines,
         PlannerView view,
-        TuiTheme theme)
+        TuiTheme theme,
+        TodoTaskEditorDialogView? editorDialog = null)
     {
+        if (editorDialog is not null)
+        {
+            WriteSurface(TodoTaskEditorDialog.CreateRenderable(editorDialog, theme), theme.Surface2, true);
+            return;
+        }
+
         var defaultStyle = view.GlobalError is not null || view.State.Error is not null ||
                     view.CommandPalette?.State.Error is not null
             ? ThemeStyle(theme.Error, Decoration.Bold)
@@ -1540,6 +1541,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
         return Math.Max(1, terminalHeight - tabTableStatusBorderAndCursorHeight - statusLineCount);
     }
 
+    private static int? DialogContentHeight(TodoTaskEditorDialogView? dialog) =>
+        dialog is null ? null : dialog.Height - 2;
+
     private static IReadOnlyList<IRenderable> FitLines(
         IReadOnlyList<IRenderable> lines,
         int contentHeight,
@@ -2356,8 +2360,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private static IReadOnlyList<BrowserStatusLine> DefaultStatusLines(IEnumerable<string> lines) =>
         lines.Select(line => new BrowserStatusLine(line)).ToArray();
 
-    private static void WriteStatus(IReadOnlyList<BrowserStatusLine> lines, BrowserView view, TuiTheme theme)
+    private static void WriteStatus(
+        IReadOnlyList<BrowserStatusLine> lines,
+        BrowserView view,
+        TuiTheme theme,
+        TodoTaskEditorDialogView? editorDialog = null)
     {
+        if (editorDialog is not null)
+        {
+            WriteSurface(TodoTaskEditorDialog.CreateRenderable(editorDialog, theme), theme.Surface2, true);
+            return;
+        }
+
         var defaultStyle = view.State switch
         {
             _ when view.GlobalError is not null || view.CommandPalette?.State.Error is not null =>

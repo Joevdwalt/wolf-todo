@@ -32,12 +32,6 @@ public static class TodoTaskEditorDialog
             return new([new("EDITING CONTENT", TodoTaskEditorDialogRole.Hint)]);
         }
 
-        if (editor.TitleTextBox is not null)
-        {
-            return MessageView(editor.Error ?? "Enter ACCEPT  Esc CANCEL", width,
-                editor.Error is null ? TodoTaskEditorDialogRole.Hint : TodoTaskEditorDialogRole.Error);
-        }
-
         return editor.Mode switch
         {
             _ when editor.IsChoosingProject => ProjectPickerView(bindings, width),
@@ -56,9 +50,9 @@ public static class TodoTaskEditorDialog
     {
         var rows = FormRows(editor, width);
         var lines = new List<TodoTaskEditorDialogLine> { FormHeading(editor, width) };
-        lines.AddRange(VisibleRows(rows, editor.SelectedIndex, terminalHeight));
-        lines.AddRange(MessageLines(FormMessage(editor, bindings), width, editor.Error));
-        return new(lines);
+        lines.AddRange(VisibleRows(rows, editor.SelectedIndex, terminalHeight - (TextBox.Height - 1)));
+        lines.AddRange(MessageLines(FormMessage(editor, bindings, width), width, editor.Error));
+        return new(lines, TitleTextBox(editor), Math.Max(3, width));
     }
 
     private static TodoTaskEditorDialogView ProjectPickerView(TuiKeyBindings bindings, int width) =>
@@ -97,23 +91,28 @@ public static class TodoTaskEditorDialog
         int width)
     {
         var rows = FieldValues(editor)
-            .Select((field, index) => ((int?)index, FieldLine(editor, index, field.Label, field.Value, width)))
+            .Select(field => ((int?)field.Index, FieldLine(editor, field.Index, field.Label, field.Value, width)))
             .ToList();
         rows.Add((null, new("  CONTENT", TodoTaskEditorDialogRole.Label)));
         AddContentRows(rows, editor, width);
         return rows;
     }
 
-    private static IReadOnlyList<(string Label, string Value)> FieldValues(TodoTaskEditorState editor) =>
+    private static IReadOnlyList<(int Index, string Label, string Value)> FieldValues(TodoTaskEditorState editor) =>
     [
-        ("Title", editor.Values.Title),
-        ("Reference", editor.Values.ExternalReference ?? string.Empty),
-        ("Priority", editor.Values.Priority?.ToString() ?? string.Empty),
-        ("Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
-        ("Scheduled date (YYYY-MM-DD, t+1, w+1)", editor.ScheduledDate),
-        ("Scheduled time", editor.ScheduledTime),
-        ("Duration", editor.Duration)
+        ((int)TodoFormField.Reference, "Reference", editor.Values.ExternalReference ?? string.Empty),
+        ((int)TodoFormField.Priority, "Priority", editor.Values.Priority?.ToString() ?? string.Empty),
+        ((int)TodoFormField.Tags, "Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
+        ((int)TodoFormField.ScheduledDate, "Scheduled date (YYYY-MM-DD, t+1, w+1)", editor.ScheduledDate),
+        ((int)TodoFormField.ScheduledTime, "Scheduled time", editor.ScheduledTime),
+        ((int)TodoFormField.Duration, "Duration", editor.Duration)
     ];
+
+    private static TextBoxState TitleTextBox(TodoTaskEditorState editor) =>
+        editor.TitleTextBox ?? TextBox.Create(
+            editable: false,
+            editor.Values.Title,
+            isActive: editor.SelectedField == TodoFormField.Title);
 
     private static void AddContentRows(
         ICollection<(int? Selection, TodoTaskEditorDialogLine Line)> rows,
@@ -154,9 +153,12 @@ public static class TodoTaskEditorDialog
         return rows.Skip(start).Take(visibleRows).Select(row => row.Line);
     }
 
-    private static string FormMessage(TodoTaskEditorState editor, TuiKeyBindings bindings) =>
+    private static string FormMessage(TodoTaskEditorState editor, TuiKeyBindings bindings, int width) =>
         editor.Error ?? (editor.Mode == TodoTaskEditorMode.Edit
             ? "Enter ACCEPT  Esc CANCEL"
+            : width <= 66
+                ? $"{Key(bindings.Open)} EDIT  {Key(bindings.CreateTodo)} ADD  " +
+                  $"{Key(bindings.RemoveContent)} REMOVE  {Key(bindings.SaveForm)} SAVE  {Key(bindings.Back)} CANCEL"
             : $"{Key(bindings.MoveDown)}/{Key(bindings.MoveUp)} MOVE  " +
               $"{Key(bindings.Open)} EDIT  {Key(bindings.CreateTodo)} ADD  " +
               $"{Key(bindings.RemoveContent)} REMOVE  Space TOGGLE  " +
@@ -174,13 +176,23 @@ public static class TodoTaskEditorDialog
         TodoTaskEditorDialogRole role) =>
         Wrap(message, width).Select(line => new TodoTaskEditorDialogLine(line, role));
 
-    public static IRenderable CreateRenderable(TodoTaskEditorDialogView view, TuiTheme theme) =>
-        new Panel(new Rows(view.Lines.Select(line => new Text(line.Text, Style(line.Role, theme)))) )
+    public static IRenderable CreateRenderable(TodoTaskEditorDialogView view, TuiTheme theme)
+    {
+        var rows = view.Lines
+            .Select(line => (IRenderable)new Text(line.Text, Style(line.Role, theme)))
+            .ToList();
+        if (view.TitleTextBox is not null)
+        {
+            rows.Insert(1, TextBox.CreateRenderable("Title", view.TitleTextBox, theme, view.TitleTextBoxWidth));
+        }
+
+        return new Panel(new Rows(rows))
         {
             Border = BoxBorder.Square,
             BorderStyle = new Style(theme.BorderActive),
             Expand = true
         };
+    }
 
     private static TodoTaskEditorDialogView Hint(string value, int width) =>
         new(Wrap(value, width).Select(line => new TodoTaskEditorDialogLine(line, TodoTaskEditorDialogRole.Hint)).ToArray());
@@ -278,9 +290,12 @@ public static class TodoTaskEditorDialog
         value.Length <= width ? value : width <= 1 ? value[..width] : value[..(width - 1)] + "…";
 }
 
-public sealed record TodoTaskEditorDialogView(IReadOnlyList<TodoTaskEditorDialogLine> Lines)
+public sealed record TodoTaskEditorDialogView(
+    IReadOnlyList<TodoTaskEditorDialogLine> Lines,
+    TextBoxState? TitleTextBox = null,
+    int TitleTextBoxWidth = 3)
 {
-    public int Height => Lines.Count + 2;
+    public int Height => Lines.Count + 2 + (TitleTextBox is null ? 0 : TextBox.Height);
 }
 
 public sealed record TodoTaskEditorDialogLine(string Text, TodoTaskEditorDialogRole Role);
