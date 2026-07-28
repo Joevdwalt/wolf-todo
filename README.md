@@ -114,6 +114,7 @@ planner_next_day = ["]"]
 planner_today = ["T"]
 planner_unschedule = ["u"]
 planner_refresh_calendar = ["r"]
+planner_export_schedule = ["x"]
 create_todo = ["a"]
 edit_todo = ["e"]
 # Compatibility alias for the same unified editor.
@@ -145,6 +146,15 @@ oauth_client_file = "/absolute/path/to/google-oauth-client.json"
 [planner]
 # New tasks created from Day Planner receive this explicit ⏱ duration.
 default_duration_minutes = 30
+
+[planner.export]
+# Optional: export the selected Day Planner date to this weekly-notes tree.
+notes_directory = "/absolute/path/to/general-day-notes"
+# Raw Markdown/Obsidian links emitted below every exported date heading.
+project_links = [
+  "[[kohde/2026/Todos - Kohde]]",
+  "[[pers/2026/Todo - Personal]]"
+]
 ```
 
 Within `[keybindings]`, only `quit` is required. Omitted bindings use the

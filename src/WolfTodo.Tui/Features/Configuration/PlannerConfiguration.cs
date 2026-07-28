@@ -4,5 +4,7 @@ public sealed record PlannerConfiguration(int DefaultDurationMinutes)
 {
     public static PlannerConfiguration Default { get; } = new(30);
 
+    public DayScheduleExportConfiguration? Export { get; init; }
+
     public TimeSpan DefaultDuration => TimeSpan.FromMinutes(DefaultDurationMinutes);
 }

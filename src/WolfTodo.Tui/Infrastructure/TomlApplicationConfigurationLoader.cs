@@ -42,7 +42,7 @@ public sealed class TomlApplicationConfigurationLoader(
         "oauth_client_file"
     ];
 
-    private static readonly HashSet<string> PlannerKeys = ["default_duration_minutes"];
+    private static readonly HashSet<string> PlannerKeys = ["default_duration_minutes", "export"];
 
     private static readonly IReadOnlyDictionary<string, Color> NamedColors = typeof(Color)
         .GetProperties(BindingFlags.Public | BindingFlags.Static)
@@ -211,7 +211,54 @@ public sealed class TomlApplicationConfigurationLoader(
                 : throw new InvalidDataException(
                     "Invalid configuration file: planner.default_duration_minutes must be a 15-minute value from 15 through 960.")
             : PlannerConfiguration.Default.DefaultDurationMinutes;
-        return new PlannerConfiguration(minutes);
+        return new PlannerConfiguration(minutes)
+        {
+            Export = ReadDayScheduleExport(planner)
+        };
+    }
+
+    private static DayScheduleExportConfiguration? ReadDayScheduleExport(TomlTable planner)
+    {
+        if (!planner.TryGetValue("export", out var exportValue))
+        {
+            return null;
+        }
+
+        if (exportValue is not TomlTable export)
+        {
+            throw new InvalidDataException("Invalid configuration file: planner.export must be a TOML table.");
+        }
+
+        var unknownKey = export.Keys.FirstOrDefault(key => key is not ("notes_directory" or "project_links"));
+        if (unknownKey is not null)
+        {
+            throw new InvalidDataException($"Invalid configuration file: planner.export.{unknownKey} is not supported.");
+        }
+
+        if (!export.TryGetValue("notes_directory", out var directoryValue) ||
+            directoryValue is not string directory ||
+            string.IsNullOrWhiteSpace(directory) ||
+            !Path.IsPathRooted(directory))
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: planner.export.notes_directory must be an absolute path.");
+        }
+
+        var links = export.TryGetValue("project_links", out var linksValue)
+            ? ReadProjectLinks(linksValue)
+            : [];
+        return new DayScheduleExportConfiguration(Path.GetFullPath(directory), links);
+    }
+
+    private static ImmutableArray<string> ReadProjectLinks(object? value)
+    {
+        if (value is not TomlArray links || links.Any(link => link is not string text || string.IsNullOrWhiteSpace(text)))
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: planner.export.project_links must be an array of non-empty strings.");
+        }
+
+        return [.. links.Cast<string>()];
     }
 
     private static GoogleCalendarConfiguration ReadGoogleCalendar(TomlTable document)
@@ -436,6 +483,8 @@ public sealed class TomlApplicationConfigurationLoader(
                 keybindings, "planner_unschedule", defaults.PlannerUnschedule),
             PlannerRefreshCalendar = ReadGestures(
                 keybindings, "planner_refresh_calendar", defaults.PlannerRefreshCalendar),
+            PlannerExportSchedule = ReadGestures(
+                keybindings, "planner_export_schedule", defaults.PlannerExportSchedule),
             CreateTodo = ReadGestures(keybindings, "create_todo", defaults.CreateTodo),
             EditTodo = ReadGestures(keybindings, "edit_todo", defaults.EditTodo),
             EditTodoContent = ReadGestures(
@@ -562,6 +611,7 @@ public sealed class TomlApplicationConfigurationLoader(
             ("planner_today", bindings.PlannerToday),
             ("planner_unschedule", bindings.PlannerUnschedule),
             ("planner_refresh_calendar", bindings.PlannerRefreshCalendar),
+            ("planner_export_schedule", bindings.PlannerExportSchedule),
             ("create_todo", bindings.CreateTodo),
             ("edit_todo", bindings.EditTodo),
             ("edit_todo_content", bindings.EditTodoContent),

@@ -25,6 +25,7 @@ public sealed record TuiKeyBindings(
     ImmutableArray<KeyGesture> PlannerToday,
     ImmutableArray<KeyGesture> PlannerUnschedule,
     ImmutableArray<KeyGesture> PlannerRefreshCalendar,
+    ImmutableArray<KeyGesture> PlannerExportSchedule,
     ImmutableArray<KeyGesture> CreateTodo,
     ImmutableArray<KeyGesture> EditTodo,
     ImmutableArray<KeyGesture> EditTodoContent,
@@ -58,6 +59,7 @@ public sealed record TuiKeyBindings(
         Gestures("T"),
         Gestures("u"),
         Gestures("r"),
+        Gestures("x"),
         Gestures("a"),
         Gestures("e"),
         Gestures("E"),
@@ -105,6 +107,8 @@ public sealed record TuiKeyBindings(
     public bool MatchesPlannerUnschedule(ConsoleKeyInfo key) => Matches(PlannerUnschedule, key);
 
     public bool MatchesPlannerRefreshCalendar(ConsoleKeyInfo key) => Matches(PlannerRefreshCalendar, key);
+
+    public bool MatchesPlannerExportSchedule(ConsoleKeyInfo key) => Matches(PlannerExportSchedule, key);
 
     public bool MatchesCreateTodo(ConsoleKeyInfo key) => Matches(CreateTodo, key);
 
