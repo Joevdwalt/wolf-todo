@@ -1,5 +1,6 @@
 using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Core.Infrastructure.Markdown;
 
 namespace WolfTodo.Core.Tests.Features.ProjectBrowser;
 
@@ -17,7 +18,7 @@ public sealed class ProjectTodoMutationServiceTests
             "- [ ] Today ⏳ 2026-07-23\r\n" +
             "- [ ] Future ⏳ 2026-07-24\r\n" +
             "- [ ] Unscheduled\r\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!;
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -48,7 +49,7 @@ public sealed class ProjectTodoMutationServiceTests
         const string changed =
             "- [ ] Original ⏳ 2026-07-20\n" +
             "- [ ] Added externally ⏳ 2026-07-21\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, original).Project!;
         var fileSystem = new WritableFileSystem(path, changed);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -69,7 +70,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Today ⏳ 2026-07-23\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!;
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -89,7 +90,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         var fileSystem = new WritableFileSystem(path, "## Work\r\n\r\n- [ ] Prepare proposal #work\r\n  - note\r\n");
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, fileSystem.Contents).Project!.Todos.Single();
         var service = new ProjectTodoMutationService(fileSystem, parser);
 
@@ -107,7 +108,7 @@ public sealed class ProjectTodoMutationServiceTests
     public void SetSchedule_refuses_a_stale_todo()
     {
         const string path = "/todos/work.md";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var original = "- [ ] Prepare proposal";
         var expected = parser.Parse(path, original).Project!.Todos.Single();
         var fileSystem = new WritableFileSystem(path, "- [ ] Externally changed");
@@ -128,7 +129,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         var fileSystem = new WritableFileSystem(path, "- [ ] Prepare proposal #work\n");
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, fileSystem.Contents).Project!.Todos.Single();
         var service = new ProjectTodoMutationService(fileSystem, parser);
 
@@ -143,7 +144,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         var fileSystem = new WritableFileSystem(path, "# Work\n");
-        var service = new ProjectTodoMutationService(fileSystem, new ProjectMarkdownParser());
+        var service = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader());
 
         var result = service.Create(
             path,
@@ -159,7 +160,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Existing 🛫 2026-07-01 📅 2026-07-31\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos.Single();
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -188,7 +189,7 @@ public sealed class ProjectTodoMutationServiceTests
         const string path = "/todos/work.md";
         const string markdown =
             "- [ ] Existing 🔁 every day ➕ 2026-07-01 ⏫ #work ⏳ 2026-07-15 ⏰ 09:30\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos.Single();
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -212,7 +213,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Parent\n  - old note\n  - [ ] Child\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos.Single();
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -242,7 +243,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Parent\n  - old first\n    old continuation\n  - [ ] Child\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos.Single();
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -270,7 +271,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         var fileSystem = new WritableFileSystem(path, "## Inbox\n");
-        var service = new ProjectTodoMutationService(fileSystem, new ProjectMarkdownParser());
+        var service = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader());
 
         var result = service.Create(
             path,
@@ -295,7 +296,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Parent\n  - old note\n  - [ ] Child #tag\n    - nested note\n- [ ] Sibling\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos[0];
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -328,7 +329,7 @@ public sealed class ProjectTodoMutationServiceTests
             "    - nested note\n" +
             "  - closing note\n" +
             "- [ ] Sibling\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos[0];
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -355,7 +356,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Parent\n  - note\n  - [ ] Child\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos[0];
         var reorderedFile = new WritableFileSystem(path, markdown);
         var retypedFile = new WritableFileSystem(path, markdown);
@@ -384,7 +385,7 @@ public sealed class ProjectTodoMutationServiceTests
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Parent\n  - [ ] Child\n    - child note\n    - [ ] Grandchild\n- [ ] Sibling\n";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos[0];
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
@@ -402,7 +403,7 @@ public sealed class ProjectTodoMutationServiceTests
     public void UpdateContent_refuses_a_stale_nested_note_without_writing()
     {
         const string path = "/todos/work.md";
-        var parser = new ProjectMarkdownParser();
+        var parser = new MarkdownTodoProjectReader();
         var original = "- [ ] Parent\n  - [ ] Child\n    - original note\n";
         var expected = parser.Parse(path, original).Project!.Todos[0];
         var changed = "- [ ] Parent\n  - [ ] Child\n    - externally changed\n";

@@ -72,12 +72,12 @@ Example:
 ```
 
 The optional external reference appears first, enclosed in parentheses, and is
-followed by one space. It may
-contain ASCII letters, digits, `.`, `_`, `/`, or `-`, must begin with a letter
-or digit, and may not contain whitespace. Examples include `134416` and
-`ABC-123`. It is a reference to another system, not a stable Wolf Todo ID.
-The parser also accepts legacy `ABC-123 - Task title` lines, but writes the
-parenthesized form whenever the task is created or updated.
+followed by one space. It may contain any non-empty descriptive text other than
+a closing parenthesis or a line break, for example `134416`, `ABC-123`, or
+`User Story 144734: By Audience`. It is a reference to another system, not a
+stable Wolf Todo ID. Only the parenthesized form is recognized and written when
+a task is created or updated; text such as `ABC-123 - Task title` is ordinary
+title text.
 
 Recognize this Obsidian Tasks-compatible metadata subset:
 

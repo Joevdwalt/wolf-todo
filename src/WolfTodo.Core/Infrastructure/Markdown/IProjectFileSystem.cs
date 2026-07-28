@@ -1,4 +1,4 @@
-namespace WolfTodo.Core.Features.ProjectBrowser;
+namespace WolfTodo.Core.Infrastructure.Markdown;
 
 public interface IProjectFileSystem
 {

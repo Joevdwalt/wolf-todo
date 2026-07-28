@@ -1,4 +1,4 @@
-using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Core.Infrastructure.Markdown;
 
 namespace WolfTodo.Tui.Infrastructure;
 
