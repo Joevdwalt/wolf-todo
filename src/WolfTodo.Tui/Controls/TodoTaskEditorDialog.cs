@@ -142,7 +142,7 @@ public static class TodoTaskEditorDialog
         TodoFormField.Reference => "Reference",
         TodoFormField.Priority => "Priority",
         TodoFormField.Tags => "Tags",
-        TodoFormField.ScheduledDate => "Scheduled date (YYYY-MM-DD, t+1, w+1)",
+        TodoFormField.ScheduledDate => "Scheduled date (YYYY-MM-DD, t+1, w+1, mon)",
         TodoFormField.ScheduledTime => "Scheduled time",
         TodoFormField.Duration => "Duration",
         _ => throw new ArgumentOutOfRangeException(nameof(field))

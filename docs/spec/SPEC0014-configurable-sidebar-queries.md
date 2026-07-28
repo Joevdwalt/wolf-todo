@@ -34,8 +34,10 @@ Supported fields are:
 - `priority`: `lowest`, `low`, `medium`, `high`, or `highest`, with missing
   priorities treated as medium.
 
-Relative dates use `t`, `t+n`, `t-n`, `w+n`, and `w-n` and are reevaluated
-against the local date on every presentation.
+Relative dates use `t`, `t+n`, `t-n`, `w+n`, `w-n`, and English weekday names
+or abbreviations such as `mon` and `monday`. Weekday expressions resolve to the
+next future occurrence and are reevaluated against the local date on every
+presentation.
 
 Order accepts `source`, `name`, `scheduled`, `tags`, `file`, or `priority`,
 optionally followed by `asc` or `desc`. Ascending is the default.

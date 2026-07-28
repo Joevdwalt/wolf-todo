@@ -88,7 +88,7 @@ public sealed record SavedTodoQueryTerm(
             if (!DateExpression.TryParse(operand, validationDate, out _))
             {
                 term = null!;
-                error = $"scheduled value '{operand}' must be an ISO date or relative expression such as t, t-1, or w+1";
+                error = $"scheduled value '{operand}' must be an ISO date or relative expression such as t, t-1, w+1, or mon";
                 return false;
             }
         }

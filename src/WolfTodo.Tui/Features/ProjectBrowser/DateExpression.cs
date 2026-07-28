@@ -7,6 +7,25 @@ namespace WolfTodo.Tui.Features.ProjectBrowser;
 /// </summary>
 public static class DateExpression
 {
+    private static readonly IReadOnlyDictionary<string, DayOfWeek> Weekdays =
+        new Dictionary<string, DayOfWeek>(StringComparer.Ordinal)
+        {
+            ["mon"] = DayOfWeek.Monday,
+            ["monday"] = DayOfWeek.Monday,
+            ["tue"] = DayOfWeek.Tuesday,
+            ["tuesday"] = DayOfWeek.Tuesday,
+            ["wed"] = DayOfWeek.Wednesday,
+            ["wednesday"] = DayOfWeek.Wednesday,
+            ["thu"] = DayOfWeek.Thursday,
+            ["thursday"] = DayOfWeek.Thursday,
+            ["fri"] = DayOfWeek.Friday,
+            ["friday"] = DayOfWeek.Friday,
+            ["sat"] = DayOfWeek.Saturday,
+            ["saturday"] = DayOfWeek.Saturday,
+            ["sun"] = DayOfWeek.Sunday,
+            ["sunday"] = DayOfWeek.Sunday
+        };
+
     public static bool TryParse(string value, DateOnly today, out DateOnly date)
     {
         if (DateOnly.TryParseExact(
@@ -24,6 +43,21 @@ public static class DateExpression
         {
             date = today;
             return true;
+        }
+
+        if (TryParseWeekday(expression, out var weekday))
+        {
+            try
+            {
+                var daysUntilWeekday = ((int)weekday - (int)today.DayOfWeek + 7) % 7;
+                date = today.AddDays(daysUntilWeekday == 0 ? 7 : daysUntilWeekday);
+                return true;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                date = default;
+                return false;
+            }
         }
 
         if (expression.Length < 3 || expression[0] is not ('t' or 'w') || expression[1] is not ('+' or '-'))
@@ -57,4 +91,7 @@ public static class DateExpression
             return false;
         }
     }
+
+    private static bool TryParseWeekday(string expression, out DayOfWeek weekday)
+        => Weekdays.TryGetValue(expression, out weekday);
 }

@@ -48,8 +48,10 @@ In the Todos pane, render a scheduled todo's structured value in an adaptive
 work; render `-` for unscheduled work. Use
 the semantic date color. The shared editor accepts separate ISO date and `HH:mm`
 fields. The date also accepts `t` for today, `t+N` or `t-N` for days from today,
-and `w+N` or `w-N` for weeks from today; a valid expression normalizes to its
-ISO date before saving. A date without a time creates an all-day schedule. Both blank values
+and `w+N` or `w-N` for weeks from today. It also accepts English weekday names
+and abbreviations such as `mon` or `monday`, which always resolve to the next
+future occurrence of that weekday. A valid expression normalizes to its ISO
+date before saving. A date without a time creates an all-day schedule. Both blank values
 unschedule a todo, while time without date, off-grid minutes, and times outside
 the Planner range are rejected. Planner creation still requires date and time.
 

@@ -42,6 +42,16 @@ public sealed class SavedTodoQueryTests
         query.Matches(todo, "Personal", Today).Should().BeFalse();
     }
 
+    [Fact]
+    public void Matches_accepts_weekday_scheduled_date_expressions()
+    {
+        SavedTodoQuery.TryParse("scheduled:mon", out var query, out _).Should().BeTrue();
+        var tuesday = new DateOnly(2026, 7, 28);
+        var todo = Todo("Task") with { Schedule = new TodoSchedule(new DateOnly(2026, 8, 3)) };
+
+        query.Matches(todo, "Work", tuesday).Should().BeTrue();
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("yesterday")]
