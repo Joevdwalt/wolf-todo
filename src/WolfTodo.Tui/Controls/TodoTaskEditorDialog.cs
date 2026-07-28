@@ -12,6 +12,10 @@ namespace WolfTodo.Tui.Controls;
 /// </summary>
 public static class TodoTaskEditorDialog
 {
+    public static int Measure(TodoTaskEditorDialogView view, TuiComponentConstraints constraints) =>
+        view.Lines.Count + 2 + (view.TextBoxes ?? [])
+            .Sum(textBox => TextBox.Default.Measure(textBox, constraints));
+
     public static TodoTaskEditorDialogView Create(
         TodoTaskEditorState editor,
         TuiKeyBindings bindings,
@@ -224,7 +228,10 @@ public static class TodoTaskEditorDialog
             .Select(line => (IRenderable)new Text(line.Text, Style(line.Role, theme)))
             .ToList();
         rows.InsertRange(Math.Min(1, rows.Count), (view.TextBoxes ?? [])
-            .Select(textBox => TextBox.CreateRenderable(textBox, theme, view.TextBoxWidth)));
+            .Select(textBox => TextBox.Default.Render(
+                textBox,
+                theme,
+                new TuiComponentConstraints(view.TextBoxWidth, TextBox.Height))));
 
         return new Panel(new Rows(rows))
         {
@@ -304,26 +311,4 @@ public static class TodoTaskEditorDialog
 
     private static string Truncate(string value, int width) =>
         value.Length <= width ? value : width <= 1 ? value[..width] : value[..(width - 1)] + "…";
-}
-
-public sealed record TodoTaskEditorDialogView(
-    IReadOnlyList<TodoTaskEditorDialogLine> Lines,
-    IReadOnlyList<TextBoxState>? TextBoxes = null,
-    int TextBoxWidth = 3)
-{
-    public int Height => Lines.Count + 2 + ((TextBoxes?.Count ?? 0) * TextBox.Height);
-}
-
-public sealed record TodoTaskEditorDialogLine(string Text, TodoTaskEditorDialogRole Role);
-
-public enum TodoTaskEditorDialogRole
-{
-    Default,
-    Label,
-    Value,
-    ActiveValue,
-    Placeholder,
-    Hint,
-    Error,
-    Warning
 }

@@ -89,6 +89,19 @@ public sealed class TextBoxTests
         activeReadOnly.Label.Should().Be("Task name");
     }
 
+    [Fact]
+    public void Component_contract_measures_renders_and_emits_textbox_outcomes()
+    {
+        ITuiComponent<TextBoxState, TextBoxOutcome> component = TextBox.Default;
+        var state = TextBox.Create("Task name", editable: true, "Plan");
+
+        var transition = component.Reduce(state, Key(ConsoleKey.Enter), TuiKeyBindings.CreateDefaults(":q"));
+
+        component.Measure(state, new TuiComponentConstraints(20, 1)).Should().Be(TextBox.Height);
+        component.Render(state, TuiThemes.Wolf, new TuiComponentConstraints(20, 1)).Should().BeOfType<Rows>();
+        transition.Outcome.Should().Be(TextBoxOutcome.Accepted);
+    }
+
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem2, false, false, false);

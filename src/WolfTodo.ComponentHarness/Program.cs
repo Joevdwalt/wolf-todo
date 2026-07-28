@@ -6,7 +6,7 @@ using WolfTodo.Tui.Features.ProjectBrowser;
 
 if (args.Length != 1)
 {
-    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|textbox:edit|textbox:readonly>");
+    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|textbox:edit|textbox:readonly|multiline|select-list>");
     return 2;
 }
 
@@ -21,6 +21,8 @@ return args[0].ToLowerInvariant() switch
     "dialog" => RunDialog(),
     "textbox" or "titleeditor" or "textbox:edit" => RunTextBox(editable: true),
     "textbox:readonly" => RunTextBox(editable: false),
+    "multiline" => RunMultilineTextBox(),
+    "select-list" => RunSelectList(),
     _ => InvalidScenario()
 };
 
@@ -88,7 +90,7 @@ static int RunTextBox(bool editable)
             return 0;
         }
 
-        var transition = TextBox.Reduce(state, key);
+        var transition = TextBox.Default.Reduce(state, key, TuiKeyBindings.CreateDefaults(":q"));
         if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
             return 0;
@@ -108,9 +110,90 @@ static int RunTextBox(bool editable)
     }
 }
 
+static int RunMultilineTextBox()
+{
+    var bindings = TuiKeyBindings.CreateDefaults(":q");
+    var state = MultilineTextBoxState.Create(
+        "Notes",
+        "Confirm attendees\nBook the meeting room",
+        isMultiline: true);
+    var message = "Sandbox only — accepted text is kept in memory.";
+
+    while (true)
+    {
+        AnsiConsole.Clear();
+        var content = new Rows(
+            new Text("WOLF TODO COMPONENTS // MULTILINE TEXT BOX", new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
+            new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
+            new Text(string.Empty),
+            MultilineTextBox.Default.Render(
+                state,
+                TuiThemes.Wolf,
+                new TuiComponentConstraints(Math.Max(20, Console.WindowWidth - 8), 6),
+                TuiKeyBindings.ShortestDisplayName(bindings.SaveForm)));
+        AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
+
+        var transition = MultilineTextBox.Default.Reduce(state, Console.ReadKey(intercept: true), bindings);
+        if (transition.Outcome == MultilineTextBoxOutcome.Cancelled)
+        {
+            return 0;
+        }
+
+        if (transition.Outcome == MultilineTextBoxOutcome.Accepted)
+        {
+            message = $"Sandbox captured {transition.State!.Text.Length} character(s); fixture reset.";
+            state = MultilineTextBoxState.Create("Notes", "Confirm attendees\nBook the meeting room", true);
+            continue;
+        }
+
+        state = transition.State!;
+        message = "Sandbox only — accepted text is kept in memory.";
+    }
+}
+
+static int RunSelectList()
+{
+    var bindings = TuiKeyBindings.CreateDefaults(":q");
+    var state = new SelectListView(
+        "Choose priority",
+        [new SelectOption("Highest"), new SelectOption("High"), new SelectOption("Medium"), new SelectOption("Low")],
+        1,
+        null,
+        "No priorities available.",
+        $"{TuiKeyBindings.ShortestDisplayName(bindings.MoveDown)}/{TuiKeyBindings.ShortestDisplayName(bindings.MoveUp)} MOVE  " +
+        $"{TuiKeyBindings.ShortestDisplayName(bindings.Open)} SELECT  {TuiKeyBindings.ShortestDisplayName(bindings.Back)} CANCEL");
+    var message = "Sandbox only — selections are kept in memory.";
+
+    while (true)
+    {
+        AnsiConsole.Clear();
+        var content = new Rows(
+            new Text("WOLF TODO COMPONENTS // SELECT LIST", new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
+            new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
+            new Text(string.Empty),
+            SelectList.Default.Render(state, TuiThemes.Wolf, new TuiComponentConstraints(Math.Max(20, Console.WindowWidth - 8), 5)));
+        AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
+
+        var transition = SelectList.Default.Reduce(state, Console.ReadKey(intercept: true), bindings);
+        if (transition.Outcome == SelectListOutcome.Cancelled)
+        {
+            return 0;
+        }
+
+        if (transition.Outcome == SelectListOutcome.Accepted)
+        {
+            message = $"Sandbox selected '{transition.State!.Options[transition.State.ClampedSelectedIndex].Label}'.";
+            continue;
+        }
+
+        state = transition.State!;
+        message = "Sandbox only — selections are kept in memory.";
+    }
+}
+
 static int InvalidScenario()
 {
-    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|textbox:edit|textbox:readonly>");
+    Console.Error.WriteLine("Usage: WolfTodo.ComponentHarness <dialog|textbox:edit|textbox:readonly|multiline|select-list>");
     return 2;
 }
 

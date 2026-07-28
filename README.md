@@ -36,6 +36,19 @@ Run repository automation through named tasks declared in `TaskFile.yml`.
 This includes build, test, formatting, linting, generation, and maintenance
 operations. Do not use repository scripts directly as the normal workflow.
 
+### Testing in Rider
+
+Wolf Todo uses Microsoft Testing Platform (MTP) with xUnit v3. To discover and
+run tests in Rider:
+
+1. Open `WolfTodo.sln` and build the solution at least once.
+2. Open **Settings** → **Build, Execution, Deployment** → **Unit Testing** →
+   **Testing Platform**.
+3. Enable Microsoft Testing Platform test discovery.
+
+Rider discovers MTP tests after their test project has been built. The tests
+then appear in the Unit Tests window and as run/debug gutters in test files.
+
 ## Running the TUI
 
 ## Component sandboxes
@@ -49,12 +62,15 @@ task component:dialog
 task component:textbox
 task component:textbox:edit
 task component:textbox:readonly
+task component:multiline
+task component:select-list
 ```
 
 The sandbox uses the same dialog renderer and editor reducer as the TUI, but
 captures save actions in memory and never writes files. To debug it in an IDE,
 set `WolfTodo.ComponentHarness` as the startup project and use its `Task edit
-dialog`, `Text box edit`, or `Text box readonly` launch profile.
+dialog`, `Text box edit`, `Text box readonly`, `Multiline text box`, or
+`Select list` launch profile.
 
 Create the global `config.toml` before starting the TUI:
 

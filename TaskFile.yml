@@ -46,3 +46,11 @@ tasks:
     desc: Run the read-only generic text-box component sandbox in Debug mode.
     cmds:
       - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- textbox:readonly
+  component:multiline:
+    desc: Run the multiline text-box component sandbox in Debug mode.
+    cmds:
+      - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- multiline
+  component:select-list:
+    desc: Run the selectable-list component sandbox in Debug mode.
+    cmds:
+      - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- select-list
