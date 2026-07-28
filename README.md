@@ -204,7 +204,8 @@ Additional virtual views can be declared with `[[sidebar.items]]`. Each item
 requires a unique `title`, an AND-combined `query`, and an `order`. Query terms
 use `field:value` syntax. Supported fields are `scheduled`, `tag`, `project`,
 `text`, and `priority`. Scheduled values accept ISO dates and the editor's
-relative expressions (`t`, `t-1`, `t+1`, `w+1`) plus `<`, `<=`, `>`, and `>=`;
+relative expressions (`t`, `t-1`, `t+1`, `w+1`, `mon`, `monday`) plus `<`,
+`<=`, `>`, and `>=`;
 for example `scheduled:<t` finds overdue work. Orders are `source`, `name`,
 `scheduled`, `tags`, `file`, or `priority`, optionally followed by `asc` or
 `desc`. Saved views appear below `@today`, aggregate all projects, retain tree
@@ -242,8 +243,9 @@ Inspector details but remain read-only, while timed meetings appear in their
 slots and warn on overlaps. Scheduled todos show either
 `YYYY-MM-DD` or `YYYY-MM-DD HH:mm` in the adaptive `SCHEDULED` column in
 the Todos pane. The shared field editor can schedule or unschedule work; use
-`t` for today, `t+1` for tomorrow, or `w+1` for the same weekday next week.
-These normalize to the stored ISO date. `d`/`D` sort by scheduled date and time.
+`t` for today, `t+1` for tomorrow, `w+1` for the same weekday next week, or
+`mon`/`monday` for the next future Monday. These normalize to the stored ISO
+date. `d`/`D` sort by scheduled date and time.
 Existing start and due annotations are
 preserved in Markdown but intentionally omitted from the normal UI. The planner
 shows responsive details for the selected planner item; `v` hides or

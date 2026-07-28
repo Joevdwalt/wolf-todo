@@ -107,7 +107,7 @@ public sealed class TodoTaskEditorDialogTests
         view.TextBoxes.Should().HaveCount(4);
         view.TextBoxes!.Select(textBox => textBox.Label).Should().Equal(
             "Tags",
-            "Scheduled date (YYYY-MM-DD, t+1, w+1)",
+            "Scheduled date (YYYY-MM-DD, t+1, w+1, mon)",
             "Scheduled time",
             "Duration");
         view.TextBoxes.Single(textBox => textBox.Label == "Duration").IsActive.Should().BeTrue();
