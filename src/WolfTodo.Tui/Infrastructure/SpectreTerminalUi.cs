@@ -528,6 +528,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
                     $"{Shortest(bindings.PlannerToday)} TODAY  {Shortest(bindings.Open)} ASSIGN/MOVE  " +
                     $"{Shortest(bindings.FilterMode)} FILTER  " +
                     $"{Shortest(bindings.PlannerUnschedule)} UNSCHEDULE  " +
+                    $"{Shortest(bindings.PlannerExportSchedule)} EXPORT  " +
                     $"{Shortest(bindings.CreateTodo)} CREATE  {Shortest(bindings.EditTodo)} EDIT  " +
                     $"{Shortest(bindings.ToggleTodo)} COMPLETE  {Shortest(bindings.ToggleDetails)} DETAILS" +
                     (view.CalendarAgenda.SyncState == PlannerCalendarSyncState.Disabled

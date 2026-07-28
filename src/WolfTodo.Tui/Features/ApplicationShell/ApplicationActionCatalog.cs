@@ -15,7 +15,8 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         bool browserActive,
         BrowserView? browser,
         PlannerView? planner,
-        TuiKeyBindings bindings)
+        TuiKeyBindings bindings,
+        bool plannerExportEnabled = false)
     {
         var browserReason = browserActive ? null : "Available in the Todos tab.";
         var plannerReason = browserActive ? "Available in the Day Planner tab." : null;
@@ -52,6 +53,9 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
                 ? "Resolve the conflicting timeslot first."
                 : null);
         var plannerUnscheduleReason = plannerSelectedReason;
+        var plannerExportReason = plannerReason ?? (plannerExportEnabled
+            ? null
+            : "Configure [planner.export] to enable day schedule export.");
         return
         [
             Item(ApplicationActionId.Exit, "Application", "Quit", "Exit Wolf Todo",
@@ -93,6 +97,9 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
             Item(ApplicationActionId.PlannerRefreshCalendar, "Planner", "Refresh calendar",
                 "Connect to or refresh the primary Google Calendar", Shortest(bindings.PlannerRefreshCalendar),
                 plannerReason),
+            Item(ApplicationActionId.PlannerExportSchedule, "Planner", "Export day schedule",
+                "Write the selected day's schedule to the configured weekly Markdown note",
+                Shortest(bindings.PlannerExportSchedule), plannerExportReason),
             Item(ApplicationActionId.PlannerAssignOrMove, "Planner", "Assign or move todo",
                 "Use the selected planner destination", Shortest(bindings.Open), plannerAssignReason),
             Item(ApplicationActionId.PlannerUnschedule, "Planner", "Unschedule todo",

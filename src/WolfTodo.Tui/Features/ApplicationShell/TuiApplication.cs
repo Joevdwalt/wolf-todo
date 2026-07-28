@@ -28,7 +28,8 @@ public sealed class TuiApplication(
     ApplicationActionCatalog? actionCatalog = null,
     IExternalEditorLauncher? externalEditorLauncher = null,
     PlannerCalendarAgendaCache? plannerCalendarCache = null,
-    Func<DateOnly>? todayProvider = null)
+    Func<DateOnly>? todayProvider = null,
+    DayScheduleExportService? dayScheduleExportService = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -50,6 +51,7 @@ public sealed class TuiApplication(
     private readonly IExternalEditorLauncher? externalEditorLauncher = externalEditorLauncher;
     private readonly PlannerCalendarAgendaCache plannerCalendarCache = plannerCalendarCache ??
         new PlannerCalendarAgendaCache(new DisabledPlannerCalendarAgendaProvider());
+    private readonly DayScheduleExportService? dayScheduleExportService = dayScheduleExportService;
 
     public int Run()
     {
@@ -102,7 +104,8 @@ public sealed class TuiApplication(
                     {
                         paletteView = palettePresenter.CreateView(
                             state.Palette,
-                            actionCatalog.Create(true, browserView, null, configuration.KeyBindings));
+                            actionCatalog.Create(true, browserView, null, configuration.KeyBindings,
+                                configuration.Planner.Export is not null));
                     }
                     var renderedBrowserView = browserView with
                     {
@@ -127,7 +130,8 @@ public sealed class TuiApplication(
                     {
                         paletteView = palettePresenter.CreateView(
                             state.Palette,
-                            actionCatalog.Create(false, null, plannerView, configuration.KeyBindings));
+                            actionCatalog.Create(false, null, plannerView, configuration.KeyBindings,
+                                configuration.Planner.Export is not null));
                     }
                     var renderedPlannerView = plannerView with
                     {
@@ -243,7 +247,8 @@ public sealed class TuiApplication(
                             state.Tabs.ActiveTab == TodosTab,
                             browserView,
                             plannerView,
-                            configuration.KeyBindings));
+                            configuration.KeyBindings,
+                            configuration.Planner.Export is not null));
                     var paletteTransition = paletteReducer.Reduce(
                         state.Palette,
                         key,
@@ -326,6 +331,12 @@ public sealed class TuiApplication(
                         continue;
                     }
 
+                    if (action == ApplicationActionId.PlannerExportSchedule)
+                    {
+                        state = ExportDaySchedule(state, plannerView!, configuration);
+                        continue;
+                    }
+
                     var plannerAction = action switch
                     {
                         ApplicationActionId.PlannerPreviousDay => PlannerAction.PreviousDay,
@@ -388,6 +399,13 @@ public sealed class TuiApplication(
                         continue;
                     }
 
+                    if (!state.Planner.CapturesInput &&
+                        configuration.KeyBindings.MatchesPlannerExportSchedule(key))
+                    {
+                        state = ExportDaySchedule(state, plannerView!, configuration);
+                        continue;
+                    }
+
                     var transition = plannerReducer.Reduce(
                         state.Planner,
                         key,
@@ -420,6 +438,25 @@ public sealed class TuiApplication(
                 state.Browser.Sort));
             terminalUi.SetCursorVisible(true);
         }
+    }
+
+    private ApplicationState ExportDaySchedule(
+        ApplicationState state,
+        PlannerView view,
+        ApplicationConfiguration configuration)
+    {
+        if (dayScheduleExportService is null)
+        {
+            return PlannerFailure(state, "Day schedule export is unavailable.");
+        }
+
+        var result = dayScheduleExportService.Export(view, configuration.Planner.Export);
+        return result.Succeeded
+            ? state with
+            {
+                Planner = state.Planner with { Error = $"Exported day schedule to {result.Path}" }
+            }
+            : PlannerFailure(state, result.Error ?? "Could not export day schedule.");
     }
 
     private ApplicationState ApplyPlannerTransition(

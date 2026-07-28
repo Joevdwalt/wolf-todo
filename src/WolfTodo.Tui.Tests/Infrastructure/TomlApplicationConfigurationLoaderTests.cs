@@ -39,6 +39,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesTabNext(Key('L')).Should().BeTrue();
         result.KeyBindings.MatchesTabPrevious(Key('H')).Should().BeTrue();
         result.KeyBindings.MatchesPlannerRefreshCalendar(Key('r')).Should().BeTrue();
+        result.KeyBindings.MatchesPlannerExportSchedule(Key('x')).Should().BeTrue();
         result.Theme.Should().Be(TuiThemes.Wolf);
         result.GoogleCalendar.Should().Be(GoogleCalendarConfiguration.Disabled);
         result.Planner.Should().Be(PlannerConfiguration.Default);
@@ -60,6 +61,49 @@ public sealed class TomlApplicationConfigurationLoaderTests
             """);
 
         loader.Load().Planner.DefaultDurationMinutes.Should().Be(45);
+    }
+
+    [Fact]
+    public void Load_reads_day_schedule_export_configuration()
+    {
+        var path = Path.GetFullPath("todo.md");
+        var notes = Path.GetFullPath("notes");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [planner.export]
+            notes_directory = "{{notes}}"
+            project_links = ["[[todos]]", "[[personal]]"]
+            """);
+
+        var export = loader.Load().Planner.Export;
+
+        export.Should().NotBeNull();
+        export!.NotesDirectory.Should().Be(notes);
+        export.ProjectLinks.Should().Equal("[[todos]]", "[[personal]]");
+    }
+
+    [Fact]
+    public void Load_rejects_relative_day_schedule_export_directory()
+    {
+        var path = Path.GetFullPath("todo.md");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [planner.export]
+            notes_directory = "notes"
+            """);
+
+        loader.Invoking(candidate => candidate.Load()).Should().Throw<InvalidDataException>()
+            .WithMessage("*planner.export.notes_directory must be an absolute path*");
     }
 
     [Fact]
