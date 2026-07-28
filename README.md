@@ -36,6 +36,19 @@ Run repository automation through named tasks declared in `TaskFile.yml`.
 This includes build, test, formatting, linting, generation, and maintenance
 operations. Do not use repository scripts directly as the normal workflow.
 
+### Testing in Rider
+
+Wolf Todo uses Microsoft Testing Platform (MTP) with xUnit v3. To discover and
+run tests in Rider:
+
+1. Open `WolfTodo.sln` and build the solution at least once.
+2. Open **Settings** → **Build, Execution, Deployment** → **Unit Testing** →
+   **Testing Platform**.
+3. Enable Microsoft Testing Platform test discovery.
+
+Rider discovers MTP tests after their test project has been built. The tests
+then appear in the Unit Tests window and as run/debug gutters in test files.
+
 ## Running the TUI
 
 ## Component sandboxes
