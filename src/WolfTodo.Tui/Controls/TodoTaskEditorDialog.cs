@@ -312,25 +312,3 @@ public static class TodoTaskEditorDialog
     private static string Truncate(string value, int width) =>
         value.Length <= width ? value : width <= 1 ? value[..width] : value[..(width - 1)] + "…";
 }
-
-public sealed record TodoTaskEditorDialogView(
-    IReadOnlyList<TodoTaskEditorDialogLine> Lines,
-    IReadOnlyList<TextBoxState>? TextBoxes = null,
-    int TextBoxWidth = 3)
-{
-    public int Height => TodoTaskEditorDialog.Measure(this, new TuiComponentConstraints(TextBoxWidth, TextBox.Height));
-}
-
-public sealed record TodoTaskEditorDialogLine(string Text, TodoTaskEditorDialogRole Role);
-
-public enum TodoTaskEditorDialogRole
-{
-    Default,
-    Label,
-    Value,
-    ActiveValue,
-    Placeholder,
-    Hint,
-    Error,
-    Warning
-}

@@ -82,11 +82,3 @@ public sealed class SelectList : ITuiComponent<SelectListView, SelectListOutcome
         return TuiControlPanel.Create(view.Title, new Rows(lines), theme);
     }
 }
-
-public enum SelectListOutcome
-{
-    Editing,
-    SelectionChanged,
-    Accepted,
-    Cancelled
-}

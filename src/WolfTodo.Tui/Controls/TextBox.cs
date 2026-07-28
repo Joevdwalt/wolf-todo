@@ -128,7 +128,7 @@ public sealed class TextBox : ITuiComponent<TextBoxState, TextBoxOutcome>
         };
     }
 
-    private static EditableTextDisplay EditableDisplay(TextBoxState state, int width)
+    private static (string Before, string Cursor, string After) EditableDisplay(TextBoxState state, int width)
     {
         var cursor = state.ClampedCursor;
         var start = Math.Max(0, cursor - width + 1);
@@ -139,26 +139,6 @@ public sealed class TextBox : ITuiComponent<TextBoxState, TextBoxOutcome>
         var after = cursor < state.Text.Length
             ? state.Text.Substring(cursor + 1, afterLength)
             : string.Empty;
-        return new(before, cursorCharacter, after);
+        return (before, cursorCharacter, after);
     }
-}
-
-internal sealed record EditableTextDisplay(string Before, string Cursor, string After);
-
-public sealed record TextBoxState(string Label, bool editing, string Text, int Cursor, bool IsActive = false)
-{
-    public int ClampedCursor => Math.Clamp(Cursor, 0, Text.Length);
-    public bool Edit => editing;
-
-}
-
-public sealed record TextBoxTransition(
-    TextBoxState? State,
-    TextBoxOutcome Outcome = TextBoxOutcome.Editing);
-
-public enum TextBoxOutcome
-{
-    Editing,
-    Accepted,
-    Cancelled
 }

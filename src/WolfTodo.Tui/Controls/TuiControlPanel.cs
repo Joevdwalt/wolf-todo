@@ -5,7 +5,7 @@ using WolfTodo.Tui.Infrastructure;
 
 namespace WolfTodo.Tui.Controls;
 
-internal static class TuiControlPanel
+public static class TuiControlPanel
 {
     public static IRenderable Create(string title, IRenderable content, TuiTheme theme) =>
         new SurfaceRenderable(
