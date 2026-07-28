@@ -1,5 +1,6 @@
 using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Core.Infrastructure.Markdown;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
@@ -669,8 +670,8 @@ public sealed class TuiApplicationTests
         Func<DateOnly>? todayProvider = null)
     {
         var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
-        var parser = new ProjectMarkdownParser();
-        var catalogLoader = new ProjectCatalogLoader(fileSystem, parser);
+        var reader = new MarkdownTodoProjectReader();
+        var catalogLoader = new ProjectCatalogLoader(new MarkdownTodoProjectRepository(fileSystem, reader));
         return new TuiApplication(
             configurationLoader,
             catalogLoader,
@@ -682,7 +683,7 @@ public sealed class TuiApplicationTests
             new ProjectBrowserPresenter(todayProvider),
             new BrowserReducer(todayProvider),
             "wolf",
-            mutationService: new ProjectTodoMutationService(fileSystem, parser),
+            mutationService: new ProjectTodoMutationService(fileSystem, reader),
             externalEditorLauncher: externalEditorLauncher,
             todayProvider: todayProvider);
     }

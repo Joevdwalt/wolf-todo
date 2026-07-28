@@ -2,10 +2,11 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using YamlDotNet.Serialization;
+using WolfTodo.Core.Features.ProjectBrowser;
 
-namespace WolfTodo.Core.Features.ProjectBrowser;
+namespace WolfTodo.Core.Infrastructure.Markdown;
 
-public sealed partial class ProjectMarkdownParser
+public sealed partial class MarkdownTodoProjectReader
 {
     private static readonly IReadOnlyDictionary<string, TodoPriority> Priorities =
         new Dictionary<string, TodoPriority>
@@ -23,113 +24,97 @@ public sealed partial class ProjectMarkdownParser
     {
         var lines = contents.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         var titleResult = ParseTitle(path, lines);
-
         if (titleResult.Error is not null)
         {
             return ProjectParseResult.Failure(titleResult.Error);
         }
 
+        var todosResult = ParseTodos(path, lines, titleResult.ContentStart);
+        if (todosResult.Error is not null)
+        {
+            return ProjectParseResult.Failure(todosResult.Error);
+        }
+
+        return ProjectParseResult.Success(new TodoProject(titleResult.Title!, path, [.. todosResult.Todos!]));
+    }
+
+    public MarkdownTodoItemsResult ParseTodos(string path, IReadOnlyList<string> lines, int contentStart)
+    {
         var headings = new string?[6];
         var rootTodos = new List<TodoBuilder>();
         var taskStack = new Stack<TodoBuilder>();
 
-        for (var index = titleResult.ContentStart; index < lines.Length; index++)
+        for (var index = contentStart; index < lines.Count; index++)
         {
             var line = lines[index];
-            var heading = HeadingPattern().Match(line);
-
-            if (heading.Success)
+            if (ParseHeading(line) is { } heading)
             {
-                var level = heading.Groups[1].Value.Length;
-                headings[level - 1] = heading.Groups[2].Value.Trim();
-
-                for (var deeperLevel = level; deeperLevel < headings.Length; deeperLevel++)
-                {
-                    headings[deeperLevel] = null;
-                }
-
+                ApplyHeading(headings, heading);
                 taskStack.Clear();
                 continue;
             }
 
-            var task = TaskPattern().Match(line);
-
-            if (task.Success)
+            var taskResult = ParseTodoLine(index + 1, line, headings);
+            if (taskResult.IsTask)
             {
-                var indent = IndentWidth(task.Groups[1].Value);
-                var parsed = ParseTodoLine(index + 1, task.Groups[2].Value, task.Groups[3].Value, headings);
-
-                if (parsed.Error is not null)
+                if (taskResult.Error is not null)
                 {
-                    return ProjectParseResult.Failure($"{path}:{index + 1}: {parsed.Error}");
+                    return MarkdownTodoItemsResult.Failure($"{path}:{index + 1}: {taskResult.Error}");
                 }
 
-                var builder = parsed.Builder!;
-
-                while (taskStack.Count > 0 && taskStack.Peek().Indent >= indent)
-                {
-                    taskStack.Pop();
-                }
-
-                if (taskStack.Count > 0)
-                {
-                    taskStack.Peek().Subtasks.Add(builder);
-                }
-                else
-                {
-                    rootTodos.Add(builder);
-                }
-
-                builder.Indent = indent;
-                taskStack.Push(builder);
+                AddTask(taskResult.Line!, rootTodos, taskStack);
                 continue;
             }
 
-            if (taskStack.Count > 0)
-            {
-                var indent = IndentWidth(line[..(line.Length - line.TrimStart().Length)]);
-                var current = taskStack.Peek();
-                var trimmed = line.TrimStart();
-                var isContinuation = current.Notes.Count > 0 &&
-                                     (string.IsNullOrWhiteSpace(line) || indent > current.Indent) &&
-                                     !trimmed.StartsWith("- ", StringComparison.Ordinal) &&
-                                     !trimmed.StartsWith("* ", StringComparison.Ordinal) &&
-                                     !trimmed.StartsWith("+ ", StringComparison.Ordinal);
-                if (isContinuation)
-                {
-                    var note = current.Notes[^1];
-                    current.Notes[^1] = note with
-                    {
-                        Text = note.Text + "\n" + (string.IsNullOrWhiteSpace(line) ? string.Empty : trimmed),
-                        LineCount = note.LineCount + 1
-                    };
-                    continue;
-                }
-
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    continue;
-                }
-
-                while (taskStack.Count > 0 && taskStack.Peek().Indent >= indent)
-                {
-                    taskStack.Pop();
-                }
-
-                if (taskStack.Count > 0)
-                {
-                    taskStack.Peek().Notes.Add(new TodoNote(index + 1, NormalizeNote(line.Trim())));
-                }
-            }
+            ApplyNote(ParseNoteLine(index + 1, line), taskStack);
         }
 
-        return ProjectParseResult.Success(new TodoProject(
-            titleResult.Title!,
-            path,
-            [.. rootTodos.Select(todo => todo.Build())]));
+        return MarkdownTodoItemsResult.Success([.. rootTodos.Select(todo => todo.Build())]);
     }
 
-    private TitleResult ParseTitle(string path, string[] lines)
+    public MarkdownHeading? ParseHeading(string line)
+    {
+        var heading = HeadingPattern().Match(line);
+        return heading.Success
+            ? new MarkdownHeading(heading.Groups[1].Value.Length, heading.Groups[2].Value.Trim())
+            : null;
+    }
+
+    public MarkdownTodoLineResult ParseTodoLine(
+        int sourceLine,
+        string line,
+        IReadOnlyList<string?> headings)
+    {
+        var task = TaskPattern().Match(line);
+        if (!task.Success)
+        {
+            return MarkdownTodoLineResult.NotATask();
+        }
+
+        var parsed = ParseTodoItem(sourceLine, task.Groups[2].Value, task.Groups[3].Value, headings);
+        return parsed.Error is not null
+            ? MarkdownTodoLineResult.Failure(parsed.Error)
+            : MarkdownTodoLineResult.Success(new MarkdownTodoLine(
+                IndentWidth(task.Groups[1].Value),
+                parsed.Todo!));
+    }
+
+    public MarkdownNoteLine ParseNoteLine(int sourceLine, string line)
+    {
+        var leadingWhitespaceLength = line.Length - line.TrimStart().Length;
+        var trimmed = line.TrimStart();
+        var isListItem = trimmed.StartsWith("- ", StringComparison.Ordinal) ||
+                         trimmed.StartsWith("* ", StringComparison.Ordinal) ||
+                         trimmed.StartsWith("+ ", StringComparison.Ordinal);
+        return new MarkdownNoteLine(
+            sourceLine,
+            IndentWidth(line[..leadingWhitespaceLength]),
+            NormalizeNote(line.Trim()),
+            string.IsNullOrWhiteSpace(line),
+            isListItem);
+    }
+
+    public TitleResult ParseTitle(string path, string[] lines)
     {
         if (lines.Length == 0 || lines[0].Trim() != "---")
         {
@@ -166,14 +151,96 @@ public sealed partial class ProjectMarkdownParser
         }
     }
 
-    private static TodoLineResult ParseTodoLine(int sourceLine, string status, string text, string?[] headings)
+    private static void ApplyHeading(string?[] headings, MarkdownHeading heading)
+    {
+        headings[heading.Level - 1] = heading.Title;
+        for (var deeperLevel = heading.Level; deeperLevel < headings.Length; deeperLevel++)
+        {
+            headings[deeperLevel] = null;
+        }
+    }
+
+    private static void AddTask(
+        MarkdownTodoLine line,
+        ICollection<TodoBuilder> rootTodos,
+        Stack<TodoBuilder> taskStack)
+    {
+        while (taskStack.Count > 0 && taskStack.Peek().Indent >= line.Indent)
+        {
+            taskStack.Pop();
+        }
+
+        var builder = new TodoBuilder(line.Todo) { Indent = line.Indent };
+        if (taskStack.Count > 0)
+        {
+            taskStack.Peek().Subtasks.Add(builder);
+        }
+        else
+        {
+            rootTodos.Add(builder);
+        }
+
+        taskStack.Push(builder);
+    }
+
+    public static TodoItem AddNote(TodoItem todo, MarkdownNoteLine line, bool isContinuation)
+    {
+        if (!isContinuation)
+        {
+            return line.IsBlank
+                ? todo
+                : todo with { Notes = todo.Notes.Add(new TodoNote(line.SourceLine, line.Text)) };
+        }
+
+        var previous = todo.Notes[^1];
+        return todo with
+        {
+            Notes = todo.Notes.SetItem(todo.Notes.Length - 1, previous with
+            {
+                Text = previous.Text + "\n" + (line.IsBlank ? string.Empty : line.Text),
+                LineCount = previous.LineCount + 1
+            })
+        };
+    }
+
+    private void ApplyNote(MarkdownNoteLine line, Stack<TodoBuilder> taskStack)
+    {
+        if (taskStack.Count == 0)
+        {
+            return;
+        }
+
+        var current = taskStack.Peek();
+        var isContinuation = current.Todo.Notes.Length > 0 &&
+                             (line.IsBlank || line.Indent > current.Indent) &&
+                             !line.IsListItem;
+        if (isContinuation)
+        {
+            current.Todo = AddNote(current.Todo, line, isContinuation: true);
+            return;
+        }
+
+        if (line.IsBlank)
+        {
+            return;
+        }
+
+        while (taskStack.Count > 0 && taskStack.Peek().Indent >= line.Indent)
+        {
+            taskStack.Pop();
+        }
+
+        if (taskStack.Count > 0)
+        {
+            var target = taskStack.Peek();
+            target.Todo = AddNote(target.Todo, line, isContinuation: false);
+        }
+    }
+
+    private static TodoItemResult ParseTodoItem(int sourceLine, string status, string text, IReadOnlyList<string?> headings)
     {
         var externalReference = default(string);
         var referenceMatch = ParenthesizedReferencePattern().Match(text);
-        if (!referenceMatch.Success)
-        {
-            referenceMatch = LegacyReferencePattern().Match(text);
-        }
 
         if (referenceMatch.Success)
         {
@@ -187,34 +254,34 @@ public sealed partial class ProjectMarkdownParser
 
         if (priorityMatches.Length > 1)
         {
-            return new TodoLineResult(null, "Todo contains more than one priority marker.");
+            return new TodoItemResult(null, "Todo contains more than one priority marker.");
         }
 
         var startResult = ParseDate(text, StartDatePattern(), "start");
 
         if (startResult.Error is not null)
         {
-            return new TodoLineResult(null, startResult.Error);
+            return new TodoItemResult(null, startResult.Error);
         }
 
         var dueResult = ParseDate(text, DueDatePattern(), "due");
 
         if (dueResult.Error is not null)
         {
-            return new TodoLineResult(null, dueResult.Error);
+            return new TodoItemResult(null, dueResult.Error);
         }
 
         var scheduleResult = ParseSchedule(text);
 
         if (scheduleResult.Error is not null)
         {
-            return new TodoLineResult(null, scheduleResult.Error);
+            return new TodoItemResult(null, scheduleResult.Error);
         }
 
         var durationResult = ParseDuration(text);
         if (durationResult.Error is not null)
         {
-            return new TodoLineResult(null, durationResult.Error);
+            return new TodoItemResult(null, durationResult.Error);
         }
 
         var tags = TagPattern().Matches(text)
@@ -238,12 +305,12 @@ public sealed partial class ProjectMarkdownParser
 
         if (title.Length == 0)
         {
-            return new TodoLineResult(null, "Todo title must not be empty.");
+            return new TodoItemResult(null, "Todo title must not be empty.");
         }
 
         var sectionPath = string.Join(" / ", headings.Where(heading => !string.IsNullOrWhiteSpace(heading)));
         TodoPriority? priority = priorityMatches.Length == 1 ? priorityMatches[0].Value : null;
-        var builder = new TodoBuilder(
+        var todo = new TodoItem(
             sourceLine,
             !string.Equals(status, " ", StringComparison.Ordinal),
             externalReference,
@@ -253,10 +320,14 @@ public sealed partial class ProjectMarkdownParser
             startResult.Date,
             dueResult.Date,
             sectionPath,
-            scheduleResult.Schedule,
-            durationResult.Duration);
+            [],
+            [])
+        {
+            Schedule = scheduleResult.Schedule,
+            Duration = durationResult.Duration
+        };
 
-        return new TodoLineResult(builder, null);
+        return new TodoItemResult(todo, null);
     }
 
     private static DateResult ParseDate(string text, Regex pattern, string fieldName)
@@ -377,11 +448,8 @@ public sealed partial class ProjectMarkdownParser
     [GeneratedRegex("^(\\s*)[-*+]\\s+\\[([ xX])\\]\\s*(.*)$")]
     private static partial Regex TaskPattern();
 
-    [GeneratedRegex("^\\(([A-Za-z0-9][A-Za-z0-9._/-]*)\\)\\s+")]
+    [GeneratedRegex("^\\(([^)\\r\\n]*\\S[^)\\r\\n]*)\\)\\s+")]
     private static partial Regex ParenthesizedReferencePattern();
-
-    [GeneratedRegex("^([A-Za-z0-9][A-Za-z0-9._/-]*)\\s+-\\s+")]
-    private static partial Regex LegacyReferencePattern();
 
     [GeneratedRegex("(?<![\\p{L}\\p{N}_])#([\\p{L}\\p{N}_/-]+)")]
     private static partial Regex TagPattern();
@@ -407,46 +475,23 @@ public sealed partial class ProjectMarkdownParser
     [GeneratedRegex("^[-*+]\\s+")]
     private static partial Regex NoteBulletPattern();
 
-    private sealed class TodoBuilder(
-        int sourceLine,
-        bool isCompleted,
-        string? externalReference,
-        string title,
-        TodoPriority? priority,
-        ImmutableArray<string> tags,
-        DateOnly? startDate,
-        DateOnly? dueDate,
-        string sectionPath,
-        TodoSchedule? schedule,
-        TimeSpan? duration)
+    private sealed class TodoBuilder(TodoItem todo)
     {
-        public int Indent { get; set; }
+        public TodoItem Todo { get; set; } = todo;
 
-        public List<TodoNote> Notes { get; } = [];
+        public int Indent { get; set; }
 
         public List<TodoBuilder> Subtasks { get; } = [];
 
-        public TodoItem Build() => new TodoItem(
-            sourceLine,
-            isCompleted,
-            externalReference,
-            title,
-            priority,
-            tags,
-            startDate,
-            dueDate,
-            sectionPath,
-            [.. Notes],
-            [.. Subtasks.Select(subtask => subtask.Build())])
+        public TodoItem Build() => Todo with
         {
-            Schedule = schedule,
-            Duration = duration
+            Subtasks = [.. Subtasks.Select(subtask => subtask.Build())]
         };
     }
 
-    private sealed record TitleResult(string? Title, int ContentStart, string? Error);
+    public sealed record TitleResult(string? Title, int ContentStart, string? Error);
 
-    private sealed record TodoLineResult(TodoBuilder? Builder, string? Error);
+    private sealed record TodoItemResult(TodoItem? Todo, string? Error);
 
     private sealed record DateResult(DateOnly? Date, string? Token, string? Error);
 

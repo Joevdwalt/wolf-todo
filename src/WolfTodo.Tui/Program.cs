@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Core.Infrastructure.Markdown;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
@@ -10,7 +11,8 @@ using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Infrastructure;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddSingleton<ProjectMarkdownParser>();
+builder.Services.AddSingleton<MarkdownTodoProjectReader>();
+builder.Services.AddSingleton<ITodoProjectRepository, MarkdownTodoProjectRepository>();
 builder.Services.AddSingleton<ProjectCatalogLoader>();
 builder.Services.AddSingleton<ProjectBrowserPresenter>();
 builder.Services.AddSingleton<BrowserReducer>();

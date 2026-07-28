@@ -1,5 +1,6 @@
 using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Core.Infrastructure.Markdown;
 
 namespace WolfTodo.Core.Tests.Features.ProjectBrowser;
 
@@ -14,7 +15,8 @@ public sealed class ProjectCatalogLoaderTests
                 ["/todos/zeta.md"] = "- [ ] Zeta task",
                 ["/todos/alpha.MD"] = "---\ntitle: Alpha\n---\n- [ ] Alpha task"
             });
-        var loader = new ProjectCatalogLoader(fileSystem, new ProjectMarkdownParser());
+        var loader = new ProjectCatalogLoader(
+            new MarkdownTodoProjectRepository(fileSystem, new MarkdownTodoProjectReader()));
 
         var result = loader.Load(["/todos/zeta.md", "/todos/alpha.MD", "/todos/zeta.md", "/missing.md"]);
 

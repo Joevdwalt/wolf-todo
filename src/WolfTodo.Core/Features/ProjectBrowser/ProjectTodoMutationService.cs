@@ -1,11 +1,12 @@
 using System.Collections.Immutable;
 using System.Text.RegularExpressions;
+using WolfTodo.Core.Infrastructure.Markdown;
 
 namespace WolfTodo.Core.Features.ProjectBrowser;
 
 public sealed partial class ProjectTodoMutationService(
     IProjectFileSystem fileSystem,
-    ProjectMarkdownParser parser)
+    MarkdownTodoProjectReader reader)
 {
     public TodoMutationResult SetSchedule(
         string path,
@@ -33,7 +34,7 @@ public sealed partial class ProjectTodoMutationService(
             }
 
             var contents = fileSystem.ReadAllText(path);
-            var parsed = parser.Parse(path, contents);
+            var parsed = reader.Parse(path, contents);
             if (parsed.Project is null)
             {
                 return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
@@ -95,7 +96,7 @@ public sealed partial class ProjectTodoMutationService(
         try
         {
             var sourceContents = fileSystem.ReadAllText(sourcePath);
-            var source = parser.Parse(sourcePath, sourceContents);
+            var source = reader.Parse(sourcePath, sourceContents);
             if (source.Project is null)
             {
                 return TodoMutationResult.Failure(source.Error ?? "Source project cannot be parsed.");
@@ -108,7 +109,7 @@ public sealed partial class ProjectTodoMutationService(
             }
 
             var destinationContents = fileSystem.ReadAllText(destinationPath);
-            var destination = parser.Parse(destinationPath, destinationContents);
+            var destination = reader.Parse(destinationPath, destinationContents);
             if (destination.Project is null)
             {
                 return TodoMutationResult.Failure(destination.Error ?? "Destination project cannot be parsed.");
@@ -178,7 +179,7 @@ public sealed partial class ProjectTodoMutationService(
         try
         {
             var contents = fileSystem.ReadAllText(path);
-            var parsed = parser.Parse(path, contents);
+            var parsed = reader.Parse(path, contents);
             if (parsed.Project is null)
             {
                 return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
@@ -367,7 +368,7 @@ public sealed partial class ProjectTodoMutationService(
         try
         {
             var contents = fileSystem.ReadAllText(path);
-            var parsed = parser.Parse(path, contents);
+            var parsed = reader.Parse(path, contents);
             if (parsed.Project is null)
             {
                 return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
@@ -444,7 +445,7 @@ public sealed partial class ProjectTodoMutationService(
         try
         {
             var contents = fileSystem.ReadAllText(path);
-            var parsed = parser.Parse(path, contents);
+            var parsed = reader.Parse(path, contents);
             if (parsed.Project is null)
             {
                 return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");

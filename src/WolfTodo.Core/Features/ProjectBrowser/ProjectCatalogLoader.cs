@@ -2,9 +2,7 @@ using System.Collections.Immutable;
 
 namespace WolfTodo.Core.Features.ProjectBrowser;
 
-public sealed class ProjectCatalogLoader(
-    IProjectFileSystem fileSystem,
-    ProjectMarkdownParser parser)
+public sealed class ProjectCatalogLoader(ITodoProjectRepository repository)
 {
     public ProjectCatalog Load(IEnumerable<string> configuredFiles)
     {
@@ -14,44 +12,24 @@ public sealed class ProjectCatalogLoader(
 
         foreach (var configuredFile in configuredFiles)
         {
-            var path = Canonicalize(configuredFile);
+            var path = repository.CanonicalizePath(configuredFile);
 
             if (!loadedPaths.Add(path))
             {
                 continue;
             }
 
-            if (!fileSystem.FileExists(path))
+            var result = repository.Read(path);
+            if (result.Project is not null)
             {
-                errors.Add(new ProjectSourceError(
-                    System.IO.Path.GetFileName(path),
-                    path,
-                    $"Project file does not exist: {path}"));
-                continue;
+                projects.Add(result.Project);
             }
-
-            try
-            {
-                var result = parser.Parse(path, fileSystem.ReadAllText(path));
-
-                if (result.Project is not null)
-                {
-                    projects.Add(result.Project);
-                }
-                else
-                {
-                    errors.Add(new ProjectSourceError(
-                        System.IO.Path.GetFileNameWithoutExtension(path),
-                        path,
-                        result.Error ?? "Invalid project file."));
-                }
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            else
             {
                 errors.Add(new ProjectSourceError(
                     System.IO.Path.GetFileNameWithoutExtension(path),
                     path,
-                    $"Cannot read project file: {exception.Message}"));
+                    result.Error ?? "Invalid project file."));
             }
         }
 
@@ -60,7 +38,4 @@ public sealed class ProjectCatalogLoader(
                 .ThenBy(project => project.Path, StringComparer.OrdinalIgnoreCase)],
             errors.ToImmutable());
     }
-
-    private string Canonicalize(string path) => fileSystem.GetFullPath(path);
-
 }
