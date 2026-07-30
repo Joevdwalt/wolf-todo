@@ -40,7 +40,7 @@ builder.Services.AddSingleton<IApplicationConfigurationLoader>(serviceProvider =
         File.Exists,
         File.ReadAllText));
 builder.Services.AddSingleton(serviceProvider =>
-    new ApplicationRunner(
+    ApplicationRuntimeComposition.Create(
         serviceProvider.GetRequiredService<IApplicationConfigurationLoader>(),
         serviceProvider.GetRequiredService<ProjectCatalogLoader>(),
         serviceProvider.GetRequiredService<ITerminalUi>(),
@@ -56,8 +56,8 @@ builder.Services.AddSingleton(serviceProvider =>
         serviceProvider.GetRequiredService<ProjectTodoMutationService>(),
         serviceProvider.GetRequiredService<ApplicationCommandReducer>(),
         externalEditorLauncher: serviceProvider.GetRequiredService<IExternalEditorLauncher>(),
-        plannerCalendarCache: serviceProvider.GetRequiredService<PlannerCalendarAgendaCache>(),
-        dayScheduleExportService: serviceProvider.GetRequiredService<DayScheduleExportService>()));
+        calendarCache: serviceProvider.GetRequiredService<PlannerCalendarAgendaCache>(),
+        exportService: serviceProvider.GetRequiredService<DayScheduleExportService>()));
 builder.Services.AddSingleton(serviceProvider => new TuiApplication(
     serviceProvider.GetRequiredService<ApplicationRunner>()));
 

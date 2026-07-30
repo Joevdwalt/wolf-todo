@@ -672,7 +672,7 @@ public sealed class TuiApplicationTests
         var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
         var reader = new MarkdownTodoProjectReader();
         var catalogLoader = new ProjectCatalogLoader(new MarkdownTodoProjectRepository(fileSystem, reader));
-        return new TuiApplication(
+        return new TuiApplication(ApplicationRuntimeComposition.Create(
             configurationLoader,
             catalogLoader,
             terminal,
@@ -685,7 +685,7 @@ public sealed class TuiApplicationTests
             "wolf",
             mutationService: new ProjectTodoMutationService(fileSystem, reader),
             externalEditorLauncher: externalEditorLauncher,
-            todayProvider: todayProvider);
+            todayProvider: todayProvider));
     }
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem1, false, false, false);

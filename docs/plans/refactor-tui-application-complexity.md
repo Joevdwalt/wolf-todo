@@ -1,3 +1,19 @@
 # Refactor TUI Application Complexity
 
-Reduce `TuiApplication` to a delegating façade and move runtime orchestration into focused application-shell collaborators. Preserve all existing terminal, command, palette, todo mutation, planner, and Markdown workflows. The façade must have cyclomatic complexity below 10; extracted named types follow ADR0003 and ADR0012 and receive mirrored tests.
+`TuiApplication` remains a delegating façade and `ApplicationRunner` now owns
+only startup/session coordination. The former `Run` decision tree is split
+across:
+
+- `ApplicationStartup` for configuration, catalog, and persisted-state loading;
+- `ApplicationSession` for cursor, splash, persistence, and the render/input loop;
+- `ApplicationFrameRenderer` for browser/planner presentation;
+- `ApplicationInputDispatcher` for command, palette, tab, browser, and planner routing;
+- `ApplicationTransitionExecutor` for Markdown mutations, external editing,
+  project moves, planner state following, and export; and
+- immutable runtime, frame, startup, and input-result records.
+
+The composition root assembles these collaborators through
+`ApplicationRuntimeComposition`. `ApplicationRunner.Run()` has one startup
+decision and delegates the interactive lifecycle. Existing commands,
+keybindings, Markdown writes, calendar behavior, and session persistence remain
+unchanged.
