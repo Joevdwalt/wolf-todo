@@ -11,7 +11,7 @@ public sealed class DayScheduleMarkdownRenderer
         lines.AddRange(configuration.ProjectLinks);
         lines.Add(string.Empty);
         lines.Add("## All day");
-        lines.AddRange(view.CalendarAgenda.AllDayItems.Select(item => $"- {item.Title}"));
+        lines.AddRange(view.CalendarAgenda.AllDayItems.Select(item => $"- {FormatTitle(item.Title, item.IsCompleted)}"));
         lines.Add(string.Empty);
         lines.Add("## Time blocks");
 
@@ -25,7 +25,7 @@ public sealed class DayScheduleMarkdownRenderer
                 .Where(item => Occupies(item, start, end))
                 .OrderBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(item => item.Identity, StringComparer.Ordinal)
-                .Select(item => item.Title);
+                .Select(item => FormatTitle(item.Title, item.IsCompleted));
             lines.Add($"**{start.ToString("HH:mm", CultureInfo.InvariantCulture)} - " +
                       $"{end.ToString("HH:mm", CultureInfo.InvariantCulture)}** - {string.Join(" · ", titles)}");
         }
@@ -37,4 +37,7 @@ public sealed class DayScheduleMarkdownRenderer
         item.TimeShape == PlannerTimeShape.Instant
             ? item.Start >= start && item.Start < end
             : item.Start < end && item.End > start;
+
+    private static string FormatTitle(string title, bool isCompleted) =>
+        isCompleted ? $"~~{title}~~" : title;
 }

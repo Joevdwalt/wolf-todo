@@ -15,8 +15,9 @@ public sealed class DayPlannerPresenter
         PlannerCalendarAgenda? calendarAgenda = null,
         PlannerConfiguration? plannerConfiguration = null)
     {
-        var configuration = plannerConfiguration ?? PlannerConfiguration.Default;
+        
         var agenda = calendarAgenda ?? PlannerCalendarAgenda.Disabled;
+        
         var assignments = catalog.Projects
             .SelectMany(project => Flatten(project.Todos)
                 .Select(todo => new PlannerAssignment(
@@ -25,8 +26,10 @@ public sealed class DayPlannerPresenter
                     project.Path,
                     todo)))
             .ToArray();
+        
         var slotIndex = Math.Clamp(state.SlotIndex, 0, SlotCount - 1);
         var filter = (state.Mode == PlannerMode.EditFilter ? state.FilterDraft : state.FilterText).Trim();
+        
         var picker = assignments
             .Where(assignment => !assignment.Todo.IsCompleted && assignment.Todo.Schedule is null)
             .Where(assignment => Matches(assignment, filter))
@@ -34,6 +37,7 @@ public sealed class DayPlannerPresenter
             .ThenBy(assignment => assignment.Todo.Title, NaturalStringComparer.Instance)
             .ToImmutableArray();
         var pickerIndex = Math.Clamp(state.PickerIndex, 0, Math.Max(0, picker.Length - 1));
+        
         var slots = Enumerable.Range(0, SlotCount)
             .Select(index =>
             {
@@ -68,6 +72,7 @@ public sealed class DayPlannerPresenter
         var selectedItemIdentity = state.Focus == PlannerFocus.Timeline
             ? slots[slotIndex].Items.FirstOrDefault()?.Identity
             : null;
+        
         if (selectedItemIdentity is not null)
         {
             slots = slots
@@ -88,6 +93,7 @@ public sealed class DayPlannerPresenter
         var projects = catalog.Projects
             .Select(project => new PlannerProjectOption(project.Title, project.Path))
             .ToImmutableArray();
+        
         var allDayTodos = assignments
             .Where(assignment => assignment.Todo.Schedule?.Date == state.SelectedDate &&
                                  assignment.Todo.Schedule.Time is null)
@@ -101,6 +107,7 @@ public sealed class DayPlannerPresenter
                 Assignment = assignment
             });
         var allDayItems = agenda.AllDayItems.Concat(allDayTodos).ToImmutableArray();
+        
         var pendingAllDayIndex = state.PendingAllDaySelection is null
             ? -1
             : Array.FindIndex(
@@ -109,6 +116,7 @@ public sealed class DayPlannerPresenter
         var allDayIndex = pendingAllDayIndex >= 0
             ? pendingAllDayIndex
             : Math.Clamp(state.AllDayIndex, 0, Math.Max(0, allDayItems.Length - 1));
+        
         return new PlannerView(
             state with
             {
@@ -207,6 +215,7 @@ public sealed class DayPlannerPresenter
     private static bool Contains(string? value, string filter) =>
         value?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true;
 
+    
     private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
     {
         foreach (var todo in todos)

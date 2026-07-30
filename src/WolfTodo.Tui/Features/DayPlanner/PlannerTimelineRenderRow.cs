@@ -133,7 +133,7 @@ public static class PlannerTimelineRenderModel
             ? string.Empty
             : item.ItemType == PlannerItemType.Task
                 ? item.IsCompleted ? "✓" : "○"
-                : "◆";
+                : "⬥";
         var metadata = item.IntervalState == PlannerIntervalState.StartAndEnd && item.Duration is { } duration
             ? $"· {(int)duration.TotalMinutes}m"
             : string.Empty;

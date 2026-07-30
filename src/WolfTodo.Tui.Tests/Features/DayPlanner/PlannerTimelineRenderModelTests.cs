@@ -52,7 +52,7 @@ public sealed class PlannerTimelineRenderModelTests
         var row = PlannerTimelineRenderModel.ForSlot(Slot(item)).Single();
 
         row.ActivityBranchGlyph.Should().Be("├▶");
-        row.StatusGlyph.Should().Be("◆");
+        row.StatusGlyph.Should().Be("⬥");
     }
 
     [Fact]

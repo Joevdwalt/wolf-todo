@@ -279,7 +279,7 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("LOCATION: Boardroom")
             .And.Contain("ATTENDEES: Alice, Bob")
             .And.Contain("Quarterly customer review")
-            .And.Contain("├▶ ◆ Client meeting")
+            .And.Contain("├▶ ⬥ Client meeting")
             .And.Contain("│");
     }
 

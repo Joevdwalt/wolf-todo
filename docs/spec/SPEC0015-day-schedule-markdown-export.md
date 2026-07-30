@@ -14,7 +14,7 @@ Enable export with an optional `[planner.export]` table in global configuration.
 
 The `x` planner binding, configurable through `keybindings.planner_export_schedule`, and the command palette export the selected date. The generated section has an English `# 📅 Weekday, DD Mon YYYY` heading, the configured links, an `## All day` list, and `## Time blocks` containing half-hour rows from 09:00 to 17:00. Timed todos and calendar entries use plain titles; concurrent entries in one block are joined with ` · `.
 
-Date-only todos and calendar all-day entries appear in the All day list. Completed scheduled todos remain included because the export records the day's schedule.
+Date-only todos and calendar all-day entries appear in the All day list. Completed scheduled todos remain included because the export records the day's schedule and render as Markdown strikethrough (`~~title~~`). Calendar entries always use their plain title.
 
 When the weekly note already contains the exact date heading, replace only that section through the next date heading or end of file. Otherwise append the new section, preserving unrelated note content. A missing export configuration disables the palette action and direct export reports a clear error.
 
