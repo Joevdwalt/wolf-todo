@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.ApplicationShell.CommandPalette;
 
 namespace WolfTodo.Tui.Features.DayPlanner;
 

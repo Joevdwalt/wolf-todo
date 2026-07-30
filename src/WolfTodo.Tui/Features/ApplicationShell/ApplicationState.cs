@@ -1,6 +1,8 @@
+using WolfTodo.Tui.Features.ApplicationShell.CommandPalette;
+using WolfTodo.Tui.Features.ApplicationShell.Commands;
+using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Tabs;
-using WolfTodo.Tui.Features.DayPlanner;
 
 namespace WolfTodo.Tui.Features.ApplicationShell;
 

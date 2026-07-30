@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 using WolfTodo.Core.Features.ProjectBrowser;
-using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.ApplicationShell.CommandPalette;
 
 namespace WolfTodo.Tui.Features.ProjectBrowser;
 

@@ -1,0 +1,31 @@
+namespace WolfTodo.Tui.Features.ApplicationShell.Actions;
+
+public enum ApplicationActionId
+{
+    Exit,
+    ToggleCompleted,
+    NextTab,
+    PreviousTab,
+    BrowserFilter,
+    BrowserSort,
+    BrowserCreate,
+    BrowserEdit,
+    BrowserEditExternal,
+    BrowserToggleCompleted,
+    BrowserRollProjectToday,
+    BrowserToggleDetails,
+    BrowserJumpTop,
+    BrowserJumpBottom,
+    PlannerPreviousDay,
+    PlannerNextDay,
+    PlannerToday,
+    PlannerRefreshCalendar,
+    PlannerExportSchedule,
+    PlannerAssignOrMove,
+    PlannerUnschedule,
+    PlannerCreate,
+    PlannerEdit,
+    PlannerEditExternal,
+    PlannerToggleCompleted,
+    PlannerToggleDetails
+}

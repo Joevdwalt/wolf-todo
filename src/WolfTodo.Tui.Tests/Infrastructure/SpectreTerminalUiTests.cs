@@ -8,6 +8,8 @@ using WolfTodo.Tui.Infrastructure;
 using WolfTodo.Tui.Features.Tabs;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.ApplicationShell.Actions;
+using WolfTodo.Tui.Features.ApplicationShell.CommandPalette;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 

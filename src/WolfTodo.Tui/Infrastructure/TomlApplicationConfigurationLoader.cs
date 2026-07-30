@@ -4,6 +4,7 @@ using Spectre.Console;
 using Tomlyn;
 using Tomlyn.Model;
 using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.ApplicationShell.Commands;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 
