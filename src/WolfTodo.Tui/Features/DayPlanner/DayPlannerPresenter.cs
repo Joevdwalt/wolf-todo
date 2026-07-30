@@ -18,78 +18,42 @@ public sealed class DayPlannerPresenter
         
         var agenda = calendarAgenda ?? PlannerCalendarAgenda.Disabled;
         
-        var assignments = catalog.Projects
-            .SelectMany(project => Flatten(project.Todos)
-                .Select(todo => new PlannerAssignment(
-                    new TodoIdentity(project.Path, todo.SourceLine),
-                    project.Title,
-                    project.Path,
-                    todo)))
-            .ToArray();
+        var assignments = GetPlannerAssignments(catalog);
         
         var slotIndex = Math.Clamp(state.SlotIndex, 0, SlotCount - 1);
+        
         var filter = (state.Mode == PlannerMode.EditFilter ? state.FilterDraft : state.FilterText).Trim();
         
-        var picker = assignments
-            .Where(assignment => !assignment.Todo.IsCompleted && assignment.Todo.Schedule is null)
-            .Where(assignment => Matches(assignment, filter))
-            .OrderBy(assignment => assignment.ProjectTitle, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(assignment => assignment.Todo.Title, NaturalStringComparer.Instance)
-            .ToImmutableArray();
+        var picker = GetPickerAssignments(assignments, filter);
+        
+        
         var pickerIndex = Math.Clamp(state.PickerIndex, 0, Math.Max(0, picker.Length - 1));
         
-        var slots = Enumerable.Range(0, SlotCount)
-            .Select(index =>
-            {
-                var time = new TimeOnly(6, 0).AddMinutes(index * 15);
-                var items = assignments
-                    .Where(assignment => Occupies(assignment.Todo, state.SelectedDate, time))
-                    .ToImmutableArray();
-                var slotEnd = time.AddMinutes(15);
-                var meetings = agenda.Meetings
-                    .Where(meeting => meeting.Start < slotEnd && meeting.End > time)
-                    .OrderBy(meeting => meeting.Start)
-                    .ThenBy(meeting => meeting.End)
-                    .ThenBy(meeting => meeting.Title, StringComparer.OrdinalIgnoreCase)
-                    .ToImmutableArray();
-                var timelineItems = items
-                    .OrderBy(assignment => assignment.ProjectTitle, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(assignment => assignment.Todo.Title, NaturalStringComparer.Instance)
-                    .ThenBy(assignment => assignment.Todo.SourceLine)
-                    .Select(assignment => TaskItem(assignment, time))
-                    .Concat(meetings.Select(meeting => MeetingItem(meeting, time)))
-                    .ToImmutableArray();
-                return new PlannerSlotView(
-                    time,
-                    items,
-                    state.Focus == PlannerFocus.Timeline && index == slotIndex)
-                {
-                    Items = timelineItems,
-                    Meetings = meetings
-                };
-            })
-            .ToImmutableArray();
+        var slots = GetPlannerSlotViews(state, assignments, agenda, slotIndex);
+        
         var selectedItemIdentity = state.Focus == PlannerFocus.Timeline
             ? slots[slotIndex].Items.FirstOrDefault()?.Identity
             : null;
         
         if (selectedItemIdentity is not null)
         {
-            slots = slots
-                .Select((slot, index) => slot with
-                {
-                    // The cursor belongs to the active slot, not every row of a
-                    // duration item which happens to share the same identity.
-                    // The active identity remains highlighted across its whole
-                    // duration so the user can follow it through the timeline.
-                    Items = [.. slot.Items.Select(item => item with
+            slots = [
+                ..slots
+                    .Select((slot, index) => slot with
                     {
-                        IsSelected = index == slotIndex && item.Identity == selectedItemIdentity,
-                        IsActive = item.Identity == selectedItemIdentity
-                    })],
-                })
-                .ToImmutableArray();
+                        // The cursor belongs to the active slot, not every row of a
+                        // duration item which happens to share the same identity.
+                        // The active identity remains highlighted across its whole
+                        // duration so the user can follow it through the timeline.
+                        Items = [.. slot.Items.Select(item => item with
+                        {
+                            IsSelected = index == slotIndex && item.Identity == selectedItemIdentity,
+                            IsActive = item.Identity == selectedItemIdentity
+                        })],
+                    })
+            ];
         }
+        
         var projects = catalog.Projects
             .Select(project => new PlannerProjectOption(project.Title, project.Path))
             .ToImmutableArray();
@@ -133,6 +97,67 @@ public sealed class DayPlannerPresenter
             ProjectErrorCount = catalog.Errors.Length,
             CalendarAgenda = agenda with { AllDayItems = allDayItems }
         };
+    }
+
+    public static ImmutableArray<PlannerSlotView> GetPlannerSlotViews(PlannerState state, PlannerAssignment[] assignments,
+        PlannerCalendarAgenda agenda, int slotIndex)
+    {
+        var slots = Enumerable.Range(0, SlotCount)
+            .Select(index =>
+            {
+                var time = new TimeOnly(6, 0).AddMinutes(index * 15);
+                var items = assignments
+                    .Where(assignment => Occupies(assignment.Todo, state.SelectedDate, time))
+                    .ToImmutableArray();
+                var slotEnd = time.AddMinutes(15);
+                var meetings = agenda.Meetings
+                    .Where(meeting => meeting.Start < slotEnd && meeting.End > time)
+                    .OrderBy(meeting => meeting.Start)
+                    .ThenBy(meeting => meeting.End)
+                    .ThenBy(meeting => meeting.Title, StringComparer.OrdinalIgnoreCase)
+                    .ToImmutableArray();
+                var timelineItems = items
+                    .OrderBy(assignment => assignment.ProjectTitle, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(assignment => assignment.Todo.Title, NaturalStringComparer.Instance)
+                    .ThenBy(assignment => assignment.Todo.SourceLine)
+                    .Select(assignment => TaskItem(assignment, time))
+                    .Concat(meetings.Select(meeting => MeetingItem(meeting, time)))
+                    .ToImmutableArray();
+                return new PlannerSlotView(
+                    time,
+                    items,
+                    state.Focus == PlannerFocus.Timeline && index == slotIndex)
+                {
+                    Items = timelineItems,
+                    Meetings = meetings
+                };
+            })
+            .ToImmutableArray();
+        return slots;
+    }
+
+    public static ImmutableArray<PlannerAssignment> GetPickerAssignments(PlannerAssignment[] assignments, string filter)
+    {
+        var picker = assignments
+            .Where(assignment => !assignment.Todo.IsCompleted && assignment.Todo.Schedule is null)
+            .Where(assignment => Matches(assignment, filter))
+            .OrderBy(assignment => assignment.ProjectTitle, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(assignment => assignment.Todo.Title, NaturalStringComparer.Instance)
+            .ToImmutableArray();
+        return picker;
+    }
+
+    public static PlannerAssignment[] GetPlannerAssignments(ProjectCatalog catalog)
+    {
+        var assignments = catalog.Projects
+            .SelectMany(project => Flatten(project.Todos)
+                .Select(todo => new PlannerAssignment(
+                    new TodoIdentity(project.Path, todo.SourceLine),
+                    project.Title,
+                    project.Path,
+                    todo)))
+            .ToArray();
+        return assignments;
     }
 
     private static bool Occupies(TodoItem todo, DateOnly date, TimeOnly time)
