@@ -1,0 +1,2435 @@
+using System.Collections.Immutable;
+using Spectre.Console;
+using Spectre.Console.Rendering;
+using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Controls;
+using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.Tabs;
+using WolfTodo.Tui.Features.DayPlanner;
+
+namespace WolfTodo.Tui.Infrastructure;
+
+public sealed class BrowserRenderer
+{
+    private const int TodoSelectionLookAheadRows = 10;
+
+    private const string OpenTodoGlyph = "◯";
+    private const string CompletedTodoGlyph = "✓";
+
+    private abstract record PlannerTimelineRow;
+
+    private sealed record PlannerSlotTimelineRow(PlannerSlotView Slot) : PlannerTimelineRow;
+
+    private sealed record PlannerNowTimelineRow(TimeOnly Time) : PlannerTimelineRow;
+
+    private readonly Func<int> widthProvider;
+    private readonly Func<int> heightProvider;
+    private readonly Func<DateOnly> todayProvider;
+    private readonly Func<DateTime> nowProvider;
+
+    public BrowserRenderer() : this(SafeWindowWidth, SafeWindowHeight, null, null)
+    {
+    }
+
+    public BrowserRenderer(
+        Func<int> widthProvider,
+        Func<int> heightProvider,
+        Func<DateOnly>? todayProvider = null,
+        Func<DateTime>? nowProvider = null)
+    {
+        this.widthProvider = widthProvider;
+        this.heightProvider = heightProvider;
+        this.todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
+        this.nowProvider = nowProvider ?? (() => DateTime.Now);
+    }
+
+    public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings) =>
+        ShowBrowser(tabs, view, keyBindings, TuiThemes.Wolf);
+
+    public void ShowBrowser(
+        TabStripView tabs,
+        BrowserView view,
+        TuiKeyBindings keyBindings,
+        TuiTheme theme)
+    {
+        var width = widthProvider();
+        var height = heightProvider();
+        var compact = width < 80 || height < 18;
+        var today = todayProvider();
+        var selectList = BrowserSelectList(view, keyBindings);
+        var selectRows = SelectListRows(height);
+        var textBox = BrowserTextBox(view);
+        var editorDialog = view.State.Editor is { } editor
+            ? TodoTaskEditorDialog.Create(
+                editor,
+                keyBindings,
+                width,
+                height)
+            : null;
+        var textBoxRows = TextBoxRows(height);
+        var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
+        var contentHeight = Math.Max(1, AvailableContentHeight(height, DialogContentHeight(editorDialog) ?? statusLines.Count) -
+            (selectList is not null ? SelectList.Default.Measure(
+                 selectList,
+                 new TuiComponentConstraints(width, selectRows)) :
+             textBox is not null ? MultilineTextBox.Default.Measure(
+                 textBox,
+                 new TuiComponentConstraints(width, textBoxRows)) : 0));
+        WriteOperationalHeader(
+            tabs,
+            keyBindings,
+            theme,
+            width,
+            BrowserMode(view),
+            today,
+            view.Projects.FirstOrDefault()?.ActiveCount ?? 0,
+            view.Projects.Count(project => project.Error is not null));
+
+        if (editorDialog is null || contentHeight > 1)
+        {
+            if (width >= 120 && height >= 24)
+            {
+                WriteWide(view, width, contentHeight, theme, today);
+            }
+            else if (width >= 80 && height >= 18)
+            {
+                WriteMedium(view, width, contentHeight, theme, today);
+            }
+            else
+            {
+                WriteNarrow(view, width, contentHeight, theme, today);
+            }
+        }
+
+        if (selectList is not null)
+        {
+            AnsiConsole.Write(SelectList.Default.Render(
+                selectList,
+                theme,
+                new TuiComponentConstraints(width, selectRows)));
+        }
+        else if (textBox is { } activeTextBox)
+        {
+            AnsiConsole.Write(MultilineTextBox.Default.Render(
+                activeTextBox,
+                theme,
+                new TuiComponentConstraints(width, textBoxRows),
+                TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
+        }
+        WriteStatus(statusLines, view, theme, editorDialog);
+    }
+
+    public void ShowPlanner(
+        TabStripView tabs,
+        PlannerView view,
+        TuiKeyBindings keyBindings,
+        TuiTheme theme)
+    {
+        var width = widthProvider();
+        var height = heightProvider();
+        var selectList = PlannerSelectList(view, keyBindings);
+        var selectRows = SelectListRows(height);
+        var textBox = PlannerTextBox(view);
+        var editorDialog = view.State.Editor is { } editor
+            ? TodoTaskEditorDialog.Create(
+                editor,
+                keyBindings,
+                width,
+                height)
+            : null;
+        var textBoxRows = TextBoxRows(height);
+        WriteOperationalHeader(
+            tabs,
+            keyBindings,
+            theme,
+            width,
+            PlannerModeLabel(view),
+            view.State.SelectedDate,
+            view.OpenTodoCount,
+            view.ProjectErrorCount);
+        var status = PlannerStatus(view, keyBindings, width, height);
+        var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
+        var wideLayout = width >= 120;
+        var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
+                            view.State.Focus == PlannerFocus.AllDay;
+        var showAllDayPanel = allDayVisible || (wideLayout && view.State.ShowDetails);
+        var wideSidePanels = wideLayout && (view.State.ShowDetails || showAllDayPanel);
+        var compactDetails = view.State.ShowDetails && !wideSidePanels &&
+                             view.State.Mode == PlannerMode.Browse &&
+                             view.State.Editor is null &&
+                             view.CommandPalette is null &&
+                             view.GlobalCommand is null;
+        const int tabTableStatusBorderAndCursorHeight = 8;
+        var pickerHeight = selectList is not null ? SelectList.Default.Measure(
+            selectList,
+            new TuiComponentConstraints(width, selectRows)) :
+            textBox is not null ? MultilineTextBox.Default.Measure(
+                textBox,
+                new TuiComponentConstraints(width, textBoxRows)) : 0;
+        const int compactDetailsHeight = 3;
+        var narrowAllDayHeight = !wideSidePanels && showAllDayPanel
+            ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
+            : 0;
+        var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
+                             (compactDetails ? compactDetailsHeight : 0) + narrowAllDayHeight;
+        var availableRows = Math.Max(1, height - (DialogContentHeight(editorDialog) ?? status.Count) - reservedHeight);
+        var now = nowProvider();
+        var timelineRows = WindowPlannerTimeline(
+            view.Slots,
+            view.State.SlotIndex,
+            availableRows,
+            view.State.SelectedDate,
+            now);
+        var timelineWidth = wideSidePanels ? Math.Max(40, (width * 2 / 3) - 2) : width;
+        var table = new Table().SquareBorder().Expand();
+        table.BorderStyle = ThemeStyle(theme.BorderActive);
+        table.AddColumn(new TableColumn(new Text(
+            "TIME",
+            ThemeStyle(theme.Heading, Decoration.Bold)))
+        {
+            Width = 8,
+            NoWrap = true
+        });
+        table.AddColumn(new TableColumn(new Text("PLAN", ThemeStyle(theme.Accent, Decoration.Bold))));
+        foreach (var row in timelineRows)
+        {
+            if (row is PlannerNowTimelineRow marker)
+            {
+                table.AddRow(
+                    new Text(marker.Time.ToString("HH:mm").PadLeft(5), ThemeStyle(theme.AccentBright, Decoration.Bold)),
+                    new TimelineMarkerRenderable(
+                        ThemeStyle(theme.AccentBright, Decoration.Bold)));
+                continue;
+            }
+
+            var slot = ((PlannerSlotTimelineRow)row).Slot;
+            foreach (var renderRow in PlannerTimelineRenderModel.ForSlot(slot))
+            {
+                var time = PlannerTimeRulerLine(renderRow, theme);
+                var content = PlannerTimelineRenderLine(renderRow, theme);
+                var isActiveRow = renderRow.IsActive || renderRow.IsPrimaryActive ||
+                                  renderRow.IsSelected || (slot.IsSelected && renderRow.IsEmpty);
+                table.AddRow(
+                    isActiveRow ? OnSurface(time, theme.Surface2, true) : time,
+                    isActiveRow ? OnSurface(content, theme.Surface2, true) : content);
+            }
+        }
+
+        for (var index = PlannerTimelineHeight(timelineRows); index < availableRows; index++)
+        {
+            table.AddEmptyRow();
+        }
+
+        if (editorDialog is null || availableRows > 1)
+        {
+            if (wideSidePanels)
+            {
+                var detailWidth = Math.Max(28, width - timelineWidth - 4);
+                const int inspectorContentHeight = 10;
+                var allDayContentHeight = Math.Max(
+                    1,
+                    availableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
+                var sidePanels = new List<IRenderable>();
+                if (view.State.ShowDetails)
+                {
+                    sidePanels.Add(PlannerPanel(
+                        "INSPECTOR",
+                        FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
+                        theme));
+                }
+
+                if (showAllDayPanel)
+                {
+                    sidePanels.Add(PlannerPanel(
+                        "ALL DAY",
+                        AllDayAgendaLines(view, theme, allDayContentHeight),
+                        theme,
+                        view.State.Focus == PlannerFocus.AllDay));
+                }
+
+                var shell = new Table().NoBorder().Collapse().HideHeaders();
+                shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
+                shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
+                shell.AddRow(
+                    table,
+                    OnSurface(
+                        new Rows(sidePanels),
+                        theme.Surface2,
+                        true));
+                WriteSurface(shell, theme.Surface, true);
+            }
+            else
+            {
+                WriteSurface(table, theme.Surface, true);
+                if (compactDetails)
+                {
+                    WriteSurface(
+                        new Panel(PlannerCompactDetail(view, theme))
+                        {
+                            Header = new PanelHeader("SELECTED"),
+                            Border = BoxBorder.Square,
+                            BorderStyle = ThemeStyle(theme.Border),
+                            Expand = true
+                        },
+                        theme.Surface2,
+                        true);
+                }
+                if (narrowAllDayHeight > 0)
+                {
+                    WriteSurface(
+                        PlannerPanel(
+                            "ALL DAY",
+                            AllDayAgendaLines(view, theme, Math.Max(1, narrowAllDayHeight - 2)),
+                            theme,
+                            view.State.Focus == PlannerFocus.AllDay),
+                        theme.Surface2,
+                        true);
+                }
+            }
+        }
+
+        if (selectList is not null)
+        {
+            AnsiConsole.Write(SelectList.Default.Render(
+                selectList,
+                theme,
+                new TuiComponentConstraints(width, selectRows)));
+        }
+        else if (textBox is { } activeTextBox)
+        {
+            AnsiConsole.Write(MultilineTextBox.Default.Render(
+                activeTextBox,
+                theme,
+                new TuiComponentConstraints(width, textBoxRows),
+                TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
+        }
+        WritePlannerStatus(status, view, theme, editorDialog);
+    }
+
+    private static string MeetingHint(PlannerSlotView slot) =>
+        slot.Meetings.Length == 0 ? string.Empty : $"  ⚠ {MeetingLabel(slot.Meetings[0])}" +
+            (slot.Meetings.Length > 1 ? $" +{slot.Meetings.Length - 1}" : string.Empty);
+
+    private static string MeetingLabel(PlannerCalendarMeeting meeting) =>
+        $"{meeting.Start:HH:mm}–{meeting.End:HH:mm} {meeting.Title}";
+
+    private static IReadOnlyList<PlannerTimelineRow> WindowPlannerTimeline(
+        IReadOnlyList<PlannerSlotView> slots,
+        int selectedIndex,
+        int availableRows,
+        DateOnly selectedDate,
+        DateTime now)
+    {
+        var rows = new List<PlannerTimelineRow>(slots.Count + 1);
+        var today = DateOnly.FromDateTime(now);
+        var currentTime = new TimeOnly(now.Hour, now.Minute);
+        var addMarker = selectedDate == today;
+        var markerAdded = false;
+        foreach (var slot in slots)
+        {
+            if (addMarker && !markerAdded && currentTime <= slot.Time)
+            {
+                rows.Add(new PlannerNowTimelineRow(currentTime));
+                markerAdded = true;
+            }
+
+            rows.Add(new PlannerSlotTimelineRow(slot));
+        }
+
+        if (addMarker && !markerAdded)
+        {
+            rows.Add(new PlannerNowTimelineRow(currentTime));
+        }
+
+        if (PlannerTimelineHeight(rows) <= availableRows)
+        {
+            return rows;
+        }
+
+        var selectedRow = rows.FindIndex(row =>
+            row is PlannerSlotTimelineRow slotRow && slotRow.Slot.IsSelected);
+        if (selectedRow < 0)
+        {
+            selectedRow = Math.Clamp(selectedIndex, 0, rows.Count - 1);
+        }
+
+        var start = selectedRow;
+        var usedRows = TimelineRowHeight(rows[selectedRow]);
+        while (start > 0 && usedRows + TimelineRowHeight(rows[start - 1]) <= availableRows)
+        {
+            start--;
+            usedRows += TimelineRowHeight(rows[start]);
+        }
+
+        var end = selectedRow + 1;
+        while (end < rows.Count && usedRows + TimelineRowHeight(rows[end]) <= availableRows)
+        {
+            usedRows += TimelineRowHeight(rows[end]);
+            end++;
+        }
+
+        var markerRow = rows.FindIndex(row => row is PlannerNowTimelineRow);
+        if (markerRow >= 0)
+        {
+            var requiredStart = Math.Min(selectedRow, markerRow);
+            var requiredEnd = Math.Max(selectedRow, markerRow) + 1;
+            var requiredHeight = PlannerTimelineHeight(rows.Skip(requiredStart).Take(requiredEnd - requiredStart));
+            if (requiredHeight <= availableRows)
+            {
+                start = requiredStart;
+                end = requiredEnd;
+                usedRows = requiredHeight;
+                while (start > 0 && usedRows + TimelineRowHeight(rows[start - 1]) <= availableRows)
+                {
+                    start--;
+                    usedRows += TimelineRowHeight(rows[start]);
+                }
+
+                while (end < rows.Count && usedRows + TimelineRowHeight(rows[end]) <= availableRows)
+                {
+                    usedRows += TimelineRowHeight(rows[end]);
+                    end++;
+                }
+            }
+        }
+
+        return rows.Skip(start).Take(end - start).ToArray();
+    }
+
+    private static int PlannerTimelineHeight(IEnumerable<PlannerTimelineRow> rows) =>
+        rows.Sum(TimelineRowHeight);
+
+    private static int TimelineRowHeight(PlannerTimelineRow row) => row switch
+    {
+        PlannerSlotTimelineRow slot => PlannerTimelineRenderModel.ForSlot(slot.Slot).Count,
+        _ => 1
+    };
+
+    private static IReadOnlyList<BrowserStatusLine> PlannerStatus(
+        PlannerView view,
+        TuiKeyBindings bindings,
+        int terminalWidth,
+        int terminalHeight)
+    {
+        IReadOnlyList<string> status;
+        if (view.CommandPalette is not null)
+        {
+            return DefaultStatusLines([CommandPaletteFooter(bindings)]);
+        }
+
+        if (view.State.Editor is not null)
+        {
+            return TodoTaskEditorStatus(
+                view.State.Editor,
+                view.Projects
+                    .Select(project => new TodoEditorProjectOption(project.Title, project.Path))
+                    .ToArray(),
+                bindings,
+                terminalWidth,
+                terminalHeight);
+        }
+
+        if (view.GlobalCommand is not null)
+        {
+            status = [view.GlobalCommand];
+        }
+        else if (view.GlobalError is not null)
+        {
+            status = [view.GlobalError];
+        }
+        else if (view.State.Error is not null)
+        {
+            status = [view.State.Error];
+        }
+        else if (view.CalendarAgenda.Error is not null)
+        {
+            status = [$"{view.CalendarAgenda.Error}  {Shortest(bindings.PlannerRefreshCalendar)} RETRY"];
+        }
+        else
+        {
+            status = view.State.Mode switch
+            {
+                PlannerMode.EditFilter or PlannerMode.ChooseTodo => [PlannerPickerFooter(bindings)],
+                PlannerMode.MoveTodo =>
+                [
+                    $"MOVE TODO  {Shortest(bindings.FocusNext)} PANE  " +
+                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} ITEM  " +
+                    $"{Shortest(bindings.JumpTop)}/{Shortest(bindings.JumpBottom)} TOP/BOTTOM  " +
+                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
+                    $"{Shortest(bindings.Open)} PLACE  {Shortest(bindings.Back)} CANCEL"
+                ],
+                _ =>
+                [
+                    $"{Shortest(bindings.FocusNext)} PANE  " +
+                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} ITEM  " +
+                    $"{Shortest(bindings.JumpTop)}/{Shortest(bindings.JumpBottom)} TOP/BOTTOM  " +
+                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
+                    $"{Shortest(bindings.PlannerToday)} TODAY  {Shortest(bindings.Open)} ASSIGN/MOVE  " +
+                    $"{Shortest(bindings.FilterMode)} FILTER  " +
+                    $"{Shortest(bindings.PlannerUnschedule)} UNSCHEDULE  " +
+                    $"{Shortest(bindings.PlannerExportSchedule)} EXPORT  " +
+                    $"{Shortest(bindings.CreateTodo)} CREATE  {Shortest(bindings.EditTodo)} EDIT  " +
+                    $"{Shortest(bindings.ToggleTodo)} COMPLETE  {Shortest(bindings.ToggleDetails)} DETAILS" +
+                    (view.CalendarAgenda.SyncState == PlannerCalendarSyncState.Disabled
+                        ? string.Empty
+                        : $"  {Shortest(bindings.PlannerRefreshCalendar)} CALENDAR {CalendarStatus(view.CalendarAgenda)}")
+                ]
+            };
+        }
+
+        var statusWidth = Math.Max(1, terminalWidth - 4);
+        return DefaultStatusLines(status.SelectMany(line => WrapStatus(line, statusWidth)));
+    }
+
+    private static int SelectListRows(int terminalHeight) => Math.Clamp(terminalHeight / 5, 3, 7);
+
+    private static int TextBoxRows(int terminalHeight) => Math.Clamp(terminalHeight / 4, 3, 8);
+
+    private static MultilineTextBoxState? BrowserTextBox(BrowserView view) =>
+        view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
+
+    private static MultilineTextBoxState? PlannerTextBox(PlannerView view) =>
+        view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
+
+    private static MultilineTextBoxState? TodoEditorTextBox(TodoTaskEditorState editor) => editor.ContentTextBox;
+
+    private static SelectListView? BrowserSelectList(BrowserView view, TuiKeyBindings bindings)
+    {
+        if (view.CommandPalette is not null)
+        {
+            return CommandPaletteSelectList(view.CommandPalette, bindings);
+        }
+
+        return view.State.Editor is null
+            ? null
+            : TodoEditorSelectList(
+                view.State.Editor,
+                view.Projects
+                    .Where(project => project.Project is not null)
+                    .Select(project => new TodoEditorProjectOption(project.Title, project.Project!.Path))
+                    .ToArray(),
+                bindings);
+    }
+
+    private static SelectListView? PlannerSelectList(PlannerView view, TuiKeyBindings bindings)
+    {
+        if (view.CommandPalette is not null)
+        {
+            return CommandPaletteSelectList(view.CommandPalette, bindings);
+        }
+
+        if (view.State.Editor is not null)
+        {
+            return TodoEditorSelectList(
+                view.State.Editor,
+                view.Projects.Select(project => new TodoEditorProjectOption(project.Title, project.Path)).ToArray(),
+                bindings);
+        }
+
+        if (view.State.Mode is not (PlannerMode.ChooseTodo or PlannerMode.EditFilter))
+        {
+            return null;
+        }
+
+        var searchText = view.State.Mode == PlannerMode.EditFilter
+            ? view.State.FilterDraft
+            : view.State.FilterText.Length == 0 ? null : view.State.FilterText;
+        return new SelectListView(
+            "Unscheduled todos",
+            view.PickerTodos
+                .Select(todo => new SelectOption(todo.Todo.Title, $"[{todo.ProjectTitle}]"))
+                .ToArray(),
+            view.State.PickerIndex,
+            searchText,
+            "No open unscheduled todos",
+            PlannerPickerFooter(bindings),
+            view.State.Error);
+    }
+
+    private static SelectListView CommandPaletteSelectList(CommandPaletteView palette, TuiKeyBindings bindings) =>
+        new(
+            "Command palette",
+            palette.Items.Select(item => new SelectOption(
+                $"{item.Group}: {item.Label}",
+                $"[{item.Binding}]" + (item.IsEnabled ? string.Empty : $" — {item.DisabledReason}"),
+                item.IsEnabled)).ToArray(),
+            palette.SelectedIndex,
+            palette.State.IsSearching ? palette.State.Query : null,
+            "No matching actions",
+            CommandPaletteFooter(bindings),
+            palette.State.Error);
+
+    private static SelectListView? TodoEditorSelectList(
+        TodoTaskEditorState editor,
+        IReadOnlyList<TodoEditorProjectOption> projects,
+        TuiKeyBindings bindings)
+    {
+        if (editor.IsEditingContent)
+        {
+            return null;
+        }
+
+        if (editor.IsChoosingProject)
+        {
+            return new SelectListView(
+                "Choose project",
+                projects.Select(project => new SelectOption(project.Title)).ToArray(),
+                editor.ProjectPickerIndex,
+                null,
+                "No valid projects",
+                $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+                $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
+                editor.Error);
+        }
+
+        if (editor.Mode != TodoTaskEditorMode.ChooseContentType)
+        {
+            return null;
+        }
+
+        return new SelectListView(
+            "Add content",
+            Enum.GetValues<ContentItemKind>()
+                .Select(kind => new SelectOption(kind.ToString().ToUpperInvariant()))
+                .ToArray(),
+            (int)editor.AddKind,
+            null,
+            "No content types available",
+            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+            $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
+            editor.Error);
+    }
+
+    private static string CommandPaletteFooter(TuiKeyBindings bindings) =>
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+        $"{Shortest(bindings.FilterMode)} SEARCH  {Shortest(bindings.Open)} RUN  " +
+        $"{Shortest(bindings.Back)} CLOSE";
+
+    private static string PlannerPickerFooter(TuiKeyBindings bindings) =>
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+        $"{Shortest(bindings.Open)} ASSIGN  {Shortest(bindings.FilterMode)} FILTER  " +
+        $"{Shortest(bindings.Back)} CANCEL";
+
+    private static string CalendarStatus(PlannerCalendarAgenda agenda) => agenda.SyncState switch
+    {
+        PlannerCalendarSyncState.Syncing => "SYNCING",
+        PlannerCalendarSyncState.Ready => "READY",
+        PlannerCalendarSyncState.AuthenticationRequired => "SIGN IN",
+        PlannerCalendarSyncState.ConfigurationError => "CONFIG",
+        PlannerCalendarSyncState.Offline => "OFFLINE",
+        _ => string.Empty
+    };
+
+    private static void WritePlannerStatus(
+        IReadOnlyList<BrowserStatusLine> lines,
+        PlannerView view,
+        TuiTheme theme,
+        TodoTaskEditorDialogView? editorDialog = null)
+    {
+        if (editorDialog is not null)
+        {
+            WriteSurface(TodoTaskEditorDialog.CreateRenderable(editorDialog, theme), theme.Surface2, true);
+            return;
+        }
+
+        var defaultStyle = view.GlobalError is not null || view.State.Error is not null ||
+                    view.CommandPalette?.State.Error is not null
+            ? ThemeStyle(theme.Error, Decoration.Bold)
+            : view.GlobalCommand is not null || view.CommandPalette is not null
+                ? ThemeStyle(theme.Accent)
+            : view.State.Mode == PlannerMode.Browse
+                ? ThemeStyle(theme.SecondaryText)
+                : ThemeStyle(theme.Accent);
+        var content = lines.Select(line => new Text(
+            line.Text,
+            line.Role switch
+            {
+                BrowserStatusRole.FormLabel => ThemeStyle(theme.Heading, Decoration.Bold),
+                BrowserStatusRole.FormValue => ThemeStyle(theme.SecondaryText),
+                BrowserStatusRole.FormActiveValue => ThemeStyle(theme.AccentBright, Decoration.Bold),
+                BrowserStatusRole.FormPlaceholder => ThemeStyle(theme.Muted, Decoration.Dim),
+                BrowserStatusRole.FormHint => ThemeStyle(theme.Muted, Decoration.Dim),
+                BrowserStatusRole.FormError => ThemeStyle(theme.Error, Decoration.Bold),
+                BrowserStatusRole.ContentWarning => ThemeStyle(theme.Warning, Decoration.Bold),
+                _ => defaultStyle
+            }));
+        WriteSurface(
+            new Panel(new Rows(content))
+            {
+                Border = BoxBorder.Square,
+                BorderStyle = ThemeStyle(
+                    view.State.Mode == PlannerMode.Browse ? theme.Border : theme.BorderActive),
+                Expand = true
+            },
+            theme.Surface2,
+            true);
+    }
+
+    private static void WriteWide(
+        BrowserView view,
+        int terminalWidth,
+        int contentHeight,
+        TuiTheme theme,
+        DateOnly today)
+    {
+        const int projectWidth = 22;
+        if (!view.State.ShowDetails)
+        {
+            const int twoPaneFrameAndPaddingWidth = 7;
+            var expandedTodoWidth = terminalWidth - projectWidth - twoPaneFrameAndPaddingWidth;
+            var hiddenDetailProjectLines = FitLines(
+                ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
+            var expandedTodoLines = FitTodoLines(view, expandedTodoWidth - 2, contentHeight, theme, today);
+            var twoPaneTable = CreatePaneTable(theme,
+                ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
+                ($"Todos: {view.SelectedProjectTitle}", expandedTodoWidth,
+                    view.State.Focus == BrowserFocus.Todos, true));
+            twoPaneTable.AddRow(CreateContent(hiddenDetailProjectLines), CreateContent(expandedTodoLines));
+            PadToContentHeight(
+                twoPaneTable, contentHeight, hiddenDetailProjectLines.Count, expandedTodoLines.Count);
+            WriteSurface(twoPaneTable, theme.Surface, true);
+            return;
+        }
+
+        const int frameAndPaddingWidth = 10;
+        var remainingWidth = terminalWidth - projectWidth - frameAndPaddingWidth;
+        var todoWidth = remainingWidth / 2;
+        var detailWidth = remainingWidth - todoWidth;
+        var projectLines = FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
+        var todoLines = FitTodoLines(view, todoWidth - 2, contentHeight, theme, today);
+        var detailLines = FitLines(DetailLines(view, theme), contentHeight, 0);
+        var table = CreatePaneTable(theme,
+            ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
+            ($"Todos: {view.SelectedProjectTitle}", todoWidth, view.State.Focus == BrowserFocus.Todos, true),
+            ("Details", detailWidth, view.State.Focus == BrowserFocus.Details, false));
+        table.AddRow(
+            CreateContent(projectLines),
+            CreateContent(todoLines),
+            OnSurface(CreateContent(detailLines), theme.Surface2, true));
+        PadToContentHeight(table, contentHeight, projectLines.Count, todoLines.Count, detailLines.Count);
+        WriteSurface(table, theme.Surface, true);
+    }
+
+    private static void WriteMedium(
+        BrowserView view,
+        int terminalWidth,
+        int contentHeight,
+        TuiTheme theme,
+        DateOnly today)
+    {
+        if (view.State.Focus == BrowserFocus.Projects)
+        {
+            var projectLines = FitLines(
+                ProjectLines(view, theme),
+                contentHeight,
+                SelectedProjectIndex(view));
+            var navigation = CreatePaneTable(theme, ("Navigation", null, true, true));
+            navigation.AddRow(CreateContent(projectLines));
+            PadToContentHeight(navigation, contentHeight, projectLines.Count);
+            WriteSurface(navigation, theme.Surface, true);
+            return;
+        }
+
+        if (!view.State.ShowDetails)
+        {
+            var taskLines = FitTodoLines(view, terminalWidth - 4, contentHeight, theme, today);
+            var tasks = CreatePaneTable(
+                theme,
+                ($"Tasks // {view.SelectedProjectTitle}", null, true, true));
+            tasks.AddRow(CreateContent(taskLines));
+            PadToContentHeight(tasks, contentHeight, taskLines.Count);
+            WriteSurface(tasks, theme.Surface, true);
+            return;
+        }
+
+        const int frameAndPaddingWidth = 7;
+        var remainingWidth = terminalWidth - frameAndPaddingWidth;
+        var detailWidth = Math.Max(28, remainingWidth * 2 / 5);
+        var taskWidth = remainingWidth - detailWidth;
+        var todos = FitTodoLines(view, taskWidth - 2, contentHeight, theme, today);
+        var details = FitLines(DetailLines(view, theme), contentHeight, 0);
+        var table = CreatePaneTable(
+            theme,
+            ($"Tasks // {view.SelectedProjectTitle}", taskWidth, view.State.Focus == BrowserFocus.Todos, true),
+            ("Inspector", detailWidth, view.State.Focus == BrowserFocus.Details, false));
+        table.AddRow(CreateContent(todos), OnSurface(CreateContent(details), theme.Surface2, true));
+        PadToContentHeight(table, contentHeight, todos.Count, details.Count);
+        WriteSurface(table, theme.Surface, true);
+    }
+
+    private static void WriteNarrow(
+        BrowserView view,
+        int terminalWidth,
+        int contentHeight,
+        TuiTheme theme,
+        DateOnly today)
+    {
+        const int frameAndPaddingWidth = 4;
+        var contentWidth = terminalWidth - frameAndPaddingWidth;
+        var focus = !view.State.ShowDetails && view.State.Focus == BrowserFocus.Details
+            ? BrowserFocus.Todos
+            : view.State.Focus;
+        var title = focus switch
+        {
+            BrowserFocus.Projects => "Projects",
+            BrowserFocus.Todos => $"Todos: {view.SelectedProjectTitle}",
+            _ => "Details"
+        };
+        var lines = focus switch
+        {
+            BrowserFocus.Projects => FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view)),
+            BrowserFocus.Todos => FitTodoLines(view, contentWidth, contentHeight, theme, today),
+            _ => FitLines(DetailLines(view, theme), contentHeight, 0)
+        };
+        var table = CreatePaneTable(theme, (title, null, true, focus != BrowserFocus.Details));
+        table.AddRow(focus == BrowserFocus.Details
+            ? OnSurface(CreateContent(lines), theme.Surface2, true)
+            : CreateContent(lines));
+        PadToContentHeight(table, contentHeight, lines.Count);
+
+        WriteSurface(table, theme.Surface, true);
+    }
+
+    private static Table CreatePaneTable(
+        TuiTheme theme,
+        params (string Title, int? Width, bool Focused, bool NoWrap)[] panes)
+    {
+        var table = new Table().SquareBorder().Expand();
+        table.BorderStyle = ThemeStyle(
+            panes.Any(pane => pane.Focused) ? theme.BorderActive : theme.Border);
+
+        foreach (var pane in panes)
+        {
+            var header = new Text(
+                pane.Title.ToUpperInvariant(),
+                ThemeStyle(pane.Focused ? theme.Accent : theme.Heading, Decoration.Bold));
+            table.AddColumn(new TableColumn(header)
+            {
+                Width = pane.Width,
+                NoWrap = pane.NoWrap,
+                Padding = new Padding(1, 0)
+            });
+        }
+
+        return table;
+    }
+
+    private static void WriteOperationalHeader(
+        TabStripView view,
+        TuiKeyBindings bindings,
+        TuiTheme theme,
+        int terminalWidth,
+        string mode,
+        DateOnly date,
+        int openCount,
+        int errorCount)
+    {
+        var segments = new List<(string Text, Color Color, Decoration Decoration)>();
+        if (terminalWidth >= 60)
+        {
+            segments.Add(("WOLF TODO // ", theme.Heading, Decoration.Bold));
+            for (var index = 0; index < view.Tabs.Length; index++)
+            {
+                if (index > 0)
+                {
+                    segments.Add(("  ", theme.Text, Decoration.None));
+                }
+
+                var tab = view.Tabs[index];
+                var title = tab.IsSelected
+                    ? $"[{tab.Title.ToUpperInvariant()}]"
+                    : tab.Title.ToUpperInvariant();
+                var color = tab.IsSelected ? theme.Accent : theme.Muted;
+                var decoration = tab.IsSelected ? Decoration.Bold : Decoration.Dim;
+                segments.Add((title, color, decoration));
+            }
+        }
+        else
+        {
+            var active = view.Tabs.First(tab => tab.IsSelected);
+            segments.Add(($"[{active.Title.ToUpperInvariant()}]", theme.Accent, Decoration.Bold));
+        }
+
+        segments.Add(($"  MODE:{mode}", theme.SecondaryText, Decoration.None));
+        if (terminalWidth >= 80)
+        {
+            segments.Add(($"  {date.ToString("ddd dd MMM").ToUpperInvariant()}", theme.Date, Decoration.None));
+        }
+
+        if (terminalWidth >= 100)
+        {
+            segments.Add(($"  OPEN:{openCount}", theme.Text, Decoration.None));
+            segments.Add((
+                errorCount == 0 ? "  FILES:CLEAN" : $"  FILES:{errorCount} ERRORS",
+                errorCount == 0 ? theme.Muted : theme.Error,
+                errorCount == 0 ? Decoration.Dim : Decoration.Bold));
+        }
+
+        if (terminalWidth >= 120 && view.Tabs.Length > 1)
+        {
+            var hint = $"  {TuiKeyBindings.ShortestDisplayName(bindings.TabPrevious)}/" +
+                       $"{TuiKeyBindings.ShortestDisplayName(bindings.TabNext)} TABS";
+            segments.Add((hint, theme.Muted, Decoration.Dim));
+        }
+
+        var totalLength = segments.Sum(segment => segment.Text.Length);
+        var width = Math.Max(1, terminalWidth);
+        var remaining = totalLength > width ? width - 1 : width;
+        var output = new System.Text.StringBuilder();
+
+        foreach (var segment in segments)
+        {
+            var length = Math.Min(segment.Text.Length, remaining);
+            if (length == 0)
+            {
+                break;
+            }
+
+            AppendStyled(output, segment.Text[..length], segment.Color, segment.Decoration);
+            remaining -= length;
+        }
+
+        if (totalLength > width)
+        {
+            AppendStyled(output, "…", theme.Muted);
+        }
+
+        WriteSurface(new Markup(output.ToString()), theme.Background, true);
+        AnsiConsole.WriteLine();
+    }
+
+    private static string BrowserMode(BrowserView view) => view switch
+    {
+        { CommandPalette: not null } => "HELP",
+        { GlobalCommand: not null } => "COMMAND",
+        { GlobalError: not null } => "ERROR",
+        { State.Editor.IsCreate: true } => "CREATE",
+        { State.Editor: not null } => "EDIT",
+        { State.IsFilterMode: true } => "FILTER",
+        { State.IsSortMode: true } => "SORT",
+        { State.Error: not null } => "ERROR",
+        _ => "BROWSE"
+    };
+
+    private static string PlannerModeLabel(PlannerView view) => view switch
+    {
+        { CommandPalette: not null } => "HELP",
+        { GlobalCommand: not null } => "COMMAND",
+        { GlobalError: not null } => "ERROR",
+        { State.Editor.IsCreate: true } => "CREATE",
+        { State.Editor: not null } => "EDIT",
+        { State.Mode: PlannerMode.EditFilter } => "FILTER",
+        { State.Mode: PlannerMode.ChooseTodo } => "PICK",
+        { State.Mode: PlannerMode.MoveTodo } => "MOVE",
+        { State.Error: not null } => "ERROR",
+        _ => "BROWSE"
+    };
+
+    private static IReadOnlyList<IRenderable> ProjectLines(BrowserView view, TuiTheme theme)
+    {
+        return view.Projects.Select(row =>
+        {
+            var line = new System.Text.StringBuilder();
+            var rowColor = row.IsSelected
+                ? theme.AccentBright
+                : row.Kind is ProjectRowKind.Today or ProjectRowKind.SavedQuery ? theme.Date : theme.Text;
+            AppendStyled(
+                line,
+                row.IsSelected ? ">" : " ",
+                rowColor,
+                row.IsSelected ? Decoration.Bold : Decoration.None);
+            AppendStyled(
+                line,
+                row.Error is null ? " " : "!",
+                row.Error is null ? rowColor : theme.Error,
+                row.Error is null ? Decoration.None : Decoration.Bold);
+            AppendStyled(line, $" {row.Title}", row.Error is null ? rowColor : theme.Error);
+            if (row.Error is null)
+            {
+                AppendStyled(line, $" {row.ActiveCount}", theme.SecondaryText, Decoration.Dim);
+            }
+
+            var content = (IRenderable)new Markup(line.ToString()).Ellipsis();
+            return row.IsSelected
+                ? OnSurface(content, theme.Surface2, true)
+                : content;
+        }).ToArray();
+    }
+
+    private static IReadOnlyList<TodoLineGroup> TodoLineGroups(
+        BrowserView view,
+        int contentWidth,
+        TuiTheme theme,
+        DateOnly today)
+    {
+        if (view.Diagnostic is not null)
+        {
+            return
+            [
+                new TodoLineGroup(
+                    [new Text("Select the error entry for details.", ThemeStyle(theme.Error))],
+                    true)
+            ];
+        }
+
+        if (view.Todos.Length == 0)
+        {
+            return [new TodoLineGroup([new Text(view.EmptyMessage, ThemeStyle(theme.Muted))], true)];
+        }
+
+        var layout = TodoColumns(contentWidth, view.SelectedProjectPath is null);
+        var groups = new List<TodoLineGroup>
+        {
+            new([TodoColumnHeader(layout, theme)], false)
+        };
+        groups.AddRange(view.Todos.Select(row =>
+        {
+            if (row.Heading is not null)
+            {
+                return new TodoLineGroup(
+                    [new Text(row.Heading, ThemeStyle(theme.Heading, Decoration.Bold)).Ellipsis()],
+                    false);
+            }
+
+            var lines = new List<IRenderable> { TodoListRow(
+                row,
+                layout,
+                theme) };
+            if (row.Todo!.Tags.Length > 0)
+            {
+                lines.Add(TodoTagsRow(row, layout, theme));
+            }
+
+            return new TodoLineGroup(lines, row.IsSelected);
+        }));
+        return groups;
+    }
+
+    private static IReadOnlyList<IRenderable> DetailLines(BrowserView view, TuiTheme theme)
+    {
+        var lines = new List<IRenderable>();
+
+        if (view.Diagnostic is not null)
+        {
+            lines.Add(new Text("PROJECT ERROR", ThemeStyle(theme.Error, Decoration.Bold)));
+            lines.Add(new Text(view.SelectedProjectPath ?? string.Empty, ThemeStyle(theme.Muted)));
+            lines.Add(new Text(string.Empty));
+            lines.Add(new Text(view.Diagnostic, ThemeStyle(theme.Error)));
+        }
+        else if (view.SelectedTodo is null)
+        {
+            lines.Add(new Text(view.EmptyMessage, ThemeStyle(theme.Muted)));
+        }
+        else
+        {
+            var todo = view.SelectedTodo;
+            lines.Add(new Text(todo.Title, ThemeStyle(theme.Heading, Decoration.Bold)));
+            AddField(lines, "Project", view.SelectedProjectTitle, theme, theme.Text);
+
+            if (!string.IsNullOrEmpty(todo.SectionPath))
+            {
+                AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
+            }
+
+            AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
+            AddField(
+                lines,
+                "Priority",
+                todo.Priority?.ToString(),
+                theme,
+                PriorityColor(todo.Priority, theme));
+            AddField(
+                lines,
+                "Tags",
+                todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
+                theme,
+                theme.Tag);
+            AddField(
+                lines,
+                "Scheduled",
+                todo.Schedule is null
+                    ? null
+                    : FormatSchedule(todo.Schedule),
+                theme,
+                theme.Date);
+            AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
+
+            if (todo.Notes.Length == 0 && todo.Subtasks.Length == 0)
+            {
+                lines.Add(new Text(string.Empty));
+                lines.Add(new Text("NO ADDITIONAL DETAILS", ThemeStyle(theme.Muted)));
+            }
+            else
+            {
+                if (todo.Notes.Length > 0)
+                {
+                    lines.Add(new Text(string.Empty));
+                    lines.Add(new Text("NOTES", ThemeStyle(theme.Heading, Decoration.Bold)));
+                    lines.AddRange(todo.Notes.Select(note => new Text($"• {note.Text}", ThemeStyle(theme.Text))));
+                }
+
+                if (todo.Subtasks.Length > 0)
+                {
+                    lines.Add(new Text(string.Empty));
+                    lines.Add(new Text("SUBTASKS", ThemeStyle(theme.Heading, Decoration.Bold)));
+                    lines.AddRange(FlattenSubtasks(todo.Subtasks)
+                        .Select(item => DetailedTodoLine(item.Todo, item.TreePath, false, theme)));
+                }
+            }
+        }
+
+        return lines;
+    }
+
+    private static IReadOnlyList<IRenderable> PlannerDetailLines(PlannerView view, TuiTheme theme)
+    {
+        if (view.State.Mode == PlannerMode.MoveTodo && view.State.MovingTodo is { } movingIdentity)
+        {
+            var moving = view.Slots
+                .SelectMany(slot => slot.Assignments)
+                .Concat(view.CalendarAgenda.AllDayItems
+                    .Where(item => item.Assignment is not null)
+                    .Select(item => item.Assignment!))
+                .FirstOrDefault(assignment => assignment.Identity == movingIdentity);
+            if (moving is not null)
+            {
+                var schedule = moving.Todo.Schedule;
+                var duration = moving.Todo.Duration;
+                var destination = view.State.Focus == PlannerFocus.AllDay
+                    ? $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY"
+                    : duration is { } destinationDuration
+                        ? $"{view.State.SelectedDate:yyyy-MM-dd} " +
+                          $"{view.SelectedSlot.Time:HH:mm}–{view.SelectedSlot.Time.Add(destinationDuration):HH:mm}"
+                        : $"{view.State.SelectedDate:yyyy-MM-dd} {view.SelectedSlot.Time:HH:mm}";
+                var current = schedule is null
+                    ? "Unscheduled"
+                    : schedule.Time is null
+                        ? $"{schedule.Date:yyyy-MM-dd} · ALL DAY"
+                        : duration is { } currentDuration
+                            ? $"{schedule.Date:yyyy-MM-dd} " +
+                              $"{schedule.Time:HH:mm}–{schedule.Time.Value.Add(currentDuration):HH:mm}"
+                            : $"{schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}";
+                return
+                [
+                    new Text("MOVE TASK", ThemeStyle(theme.AccentBright, Decoration.Bold)),
+                    new Text($"Task: {moving.Todo.Title}", ThemeStyle(theme.Text)),
+                    new Text($"Current: {current}", ThemeStyle(theme.Date)),
+                    new Text($"Destination: {destination}", ThemeStyle(theme.Date)),
+                    new Text($"Duration: {FormatDuration(duration) ?? "Instant"}", ThemeStyle(theme.Info))
+                ];
+            }
+        }
+
+        if (view.State.Focus == PlannerFocus.AllDay)
+        {
+            return PlannerAllDayDetailLines(view, theme);
+        }
+
+        if (view.SelectedSlot.Assignments.Length > 1)
+        {
+            return
+            [
+                new Text("CONFLICTING ASSIGNMENTS", ThemeStyle(theme.Error, Decoration.Bold)),
+                new Text("Resolve the duplicate schedule metadata before editing this slot.",
+                    ThemeStyle(theme.Error))
+            ];
+        }
+
+        if (view.SelectedAssignment is null)
+        {
+            return view.SelectedMeeting is null
+                ? [new Text("EMPTY TIMESLOT", ThemeStyle(theme.Muted, Decoration.Dim))]
+                : PlannerMeetingDetailLines(view, theme);
+        }
+
+        var assignment = view.SelectedAssignment;
+        var todo = assignment.Todo;
+        var lines = new List<IRenderable>
+        {
+            new Text(todo.Title, ThemeStyle(theme.Heading, Decoration.Bold))
+        };
+        AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
+        if (!string.IsNullOrEmpty(todo.SectionPath))
+        {
+            AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
+        }
+
+        AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
+        AddField(lines, "Priority", todo.Priority?.ToString(), theme, PriorityColor(todo.Priority, theme));
+        AddField(
+            lines,
+            "Tags",
+            todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
+            theme,
+            theme.Tag);
+        AddField(
+            lines,
+            "Scheduled",
+            todo.Schedule is null
+                ? null
+                : FormatSchedule(todo.Schedule),
+            theme,
+            theme.Date);
+        AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
+        AddField(
+            lines,
+            "Calendar",
+            view.SelectedSlot.Meetings.FirstOrDefault() is null
+                ? null
+                : MeetingLabel(view.SelectedSlot.Meetings[0]) +
+                  (view.SelectedSlot.Meetings.Length > 1 ? $" +{view.SelectedSlot.Meetings.Length - 1}" : string.Empty),
+            theme,
+            theme.Info);
+
+        if (todo.Notes.Length > 0)
+        {
+            lines.Add(new Text(string.Empty));
+            lines.Add(new Text("NOTES", ThemeStyle(theme.Heading, Decoration.Bold)));
+            lines.AddRange(todo.Notes.Select(note => new Text($"• {note.Text}", ThemeStyle(theme.Text))));
+        }
+
+        if (todo.Subtasks.Length > 0)
+        {
+            lines.Add(new Text(string.Empty));
+            lines.Add(new Text("SUBTASKS", ThemeStyle(theme.Heading, Decoration.Bold)));
+            lines.AddRange(todo.Subtasks.Select(subtask => DetailedTodoLine(subtask, [], false, theme)));
+        }
+
+        if (todo.Notes.Length == 0 && todo.Subtasks.Length == 0)
+        {
+            lines.Add(new Text(string.Empty));
+            lines.Add(new Text("NO ADDITIONAL DETAILS", ThemeStyle(theme.Muted, Decoration.Dim)));
+        }
+
+        return lines;
+    }
+
+    private static IReadOnlyList<IRenderable> PlannerAllDayDetailLines(PlannerView view, TuiTheme theme)
+    {
+        var item = view.SelectedAllDayItem;
+        if (item is null)
+        {
+            return
+            [
+                new Text("EMPTY ALL DAY", ThemeStyle(theme.Muted, Decoration.Dim)),
+                new Text("Press Enter to assign an existing todo or a to create one.", ThemeStyle(theme.Muted))
+            ];
+        }
+
+        if (item.Assignment is { } assignment)
+        {
+            var todo = assignment.Todo;
+            var lines = new List<IRenderable>
+            {
+                new Text(todo.Title, ThemeStyle(theme.Heading, Decoration.Bold))
+            };
+            AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
+            AddField(lines, "Scheduled", $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY", theme, theme.Date);
+            AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
+            AddField(lines, "Priority", todo.Priority?.ToString(), theme, PriorityColor(todo.Priority, theme));
+            AddField(
+                lines,
+                "Tags",
+                todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
+                theme,
+                theme.Tag);
+            AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
+            return lines;
+        }
+
+        var calendarLines = new List<IRenderable>
+        {
+            new Text(item.Title, ThemeStyle(theme.Info, Decoration.Bold))
+        };
+        AddField(lines: calendarLines, "Type", AllDayKindLabel(item.Kind), theme, theme.Info);
+        AddField(lines: calendarLines, "Scheduled", $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY", theme, theme.Date);
+        AddField(lines: calendarLines, "Location", item.Location, theme, theme.Text);
+        AddField(
+            calendarLines,
+            "Attendees",
+            item.Attendees.Length == 0 ? null : string.Join(", ", item.Attendees),
+            theme,
+            theme.SecondaryText);
+        AddField(lines: calendarLines, "Notes", MeetingDescriptionPreview(item.Description), theme, theme.Text);
+        calendarLines.Add(new Text("READ-ONLY CALENDAR ITEM", ThemeStyle(theme.Muted, Decoration.Dim)));
+        return calendarLines;
+    }
+
+    private static IReadOnlyList<IRenderable> AllDayAgendaLines(
+        PlannerView view,
+        TuiTheme theme,
+        int contentHeight)
+    {
+        if (view.CalendarAgenda.AllDayItems.Length == 0)
+        {
+            return view.State.Focus == PlannerFocus.AllDay
+                ? [new Text("> — ADD ALL-DAY TASK", ThemeStyle(theme.AccentBright, Decoration.Bold))]
+                : [new Text("NO ALL-DAY ITEMS", ThemeStyle(theme.Muted, Decoration.Dim))];
+        }
+
+        var lines = view.CalendarAgenda.AllDayItems.Select((item, index) =>
+        {
+            var selected = view.State.Focus == PlannerFocus.AllDay && index == view.State.AllDayIndex;
+            if (item.Todo is not null)
+            {
+                return PlannerTodoLine(
+                    item.Todo,
+                    item.ProjectTitle,
+                    selected ? ">" : " ",
+                    selected,
+                    string.Empty,
+                    theme);
+            }
+
+            var color = selected ? theme.AccentBright : item.IsCompleted ? theme.Muted :
+                item.Kind == PlannerCalendarItemKind.Todo ? theme.Text : theme.Info;
+            return (IRenderable)new Text($"{(selected ? ">" : " ")} ◆ {item.Title}", ThemeStyle(
+                color,
+                selected ? Decoration.Bold : item.IsCompleted ? Decoration.Dim : Decoration.None)).Ellipsis();
+        }).ToArray();
+        return FitLines(lines, contentHeight, view.State.AllDayIndex);
+    }
+
+    private static Panel PlannerPanel(
+        string header,
+        IReadOnlyList<IRenderable> lines,
+        TuiTheme theme,
+        bool active = false)
+    {
+        var styledHeader = new System.Text.StringBuilder();
+        AppendStyled(styledHeader, header, theme.AccentBright, Decoration.Bold);
+        var panel = new Panel(CreateContent(lines))
+        {
+            Header = new PanelHeader(styledHeader.ToString()),
+            Border = BoxBorder.Square,
+            BorderStyle = ThemeStyle(active ? theme.AccentBright : theme.BorderActive),
+            Expand = true
+        };
+        return panel;
+    }
+
+    private static IReadOnlyList<IRenderable> FixedLines(
+        IReadOnlyList<IRenderable> lines,
+        int contentHeight)
+    {
+        var fitted = FitLines(lines, contentHeight, 0).ToList();
+        while (fitted.Count < contentHeight)
+        {
+            fitted.Add(new Text(string.Empty));
+        }
+
+        return fitted;
+    }
+
+    private static IRenderable PlannerCompactDetail(PlannerView view, TuiTheme theme)
+    {
+        if (view.State.Focus == PlannerFocus.AllDay)
+        {
+            var item = view.SelectedAllDayItem;
+            if (item is null)
+            {
+                return new Text("Empty all-day schedule", ThemeStyle(theme.Muted, Decoration.Dim));
+            }
+
+            var label = item.Assignment is null
+                ? $"{item.Title}  ·  {AllDayKindLabel(item.Kind)}  ·  READ ONLY"
+                : $"{item.Title}  ·  {item.ProjectTitle}  ·  ALL DAY";
+            return new Text(
+                label,
+                ThemeStyle(item.Assignment is null ? theme.Info : theme.Heading, Decoration.Bold)).Ellipsis();
+        }
+
+        if (view.SelectedSlot.Assignments.Length > 1)
+        {
+            return new Text(
+                $"{view.SelectedSlot.Assignments.Length} conflicting assignments",
+                ThemeStyle(theme.Error, Decoration.Bold)).Ellipsis();
+        }
+
+        if (view.SelectedAssignment is null)
+        {
+            if (view.SelectedMeeting is null)
+            {
+                return new Text("Empty timeslot", ThemeStyle(theme.Muted, Decoration.Dim));
+            }
+
+            var meeting = view.SelectedMeeting;
+            var meetingLine = new System.Text.StringBuilder();
+            AppendStyled(meetingLine, meeting.Title, theme.Info, Decoration.Bold);
+            AppendStyled(meetingLine, $"  {MeetingTimeAndDuration(meeting)}", theme.Muted, Decoration.Dim);
+            return new Markup(meetingLine.ToString()).Ellipsis();
+        }
+
+        var assignment = view.SelectedAssignment;
+        var todo = assignment.Todo;
+        var metadata = new[]
+        {
+            assignment.ProjectTitle,
+            todo.Priority?.ToString(),
+            todo.Tags.Length == 0 ? null : string.Join(' ', todo.Tags.Select(tag => $"#{tag}")),
+            todo.Schedule is null
+                ? null
+                : FormatSchedule(todo.Schedule)
+        };
+        var line = new System.Text.StringBuilder();
+        AppendStyled(line, todo.Title, theme.Heading, Decoration.Bold);
+        AppendStyled(
+            line,
+            $"  {string.Join(" · ", metadata.Where(value => !string.IsNullOrEmpty(value)))}",
+            theme.Muted,
+            Decoration.Dim);
+        return new Markup(line.ToString()).Ellipsis();
+    }
+
+    private static string AllDayKindLabel(PlannerCalendarItemKind kind) => kind switch
+    {
+        PlannerCalendarItemKind.FocusTime => "Focus time",
+        PlannerCalendarItemKind.OutOfOffice => "Out of office",
+        PlannerCalendarItemKind.Todo => "Todo",
+        _ => "Calendar event"
+    };
+
+    private static IRenderable CreateContent(IReadOnlyList<IRenderable> lines)
+    {
+        return lines.Count == 0 ? new Text(string.Empty) : new Rows(lines);
+    }
+
+    private static int AvailableContentHeight(int terminalHeight, int statusLineCount)
+    {
+        const int tabTableStatusBorderAndCursorHeight = 8;
+        return Math.Max(1, terminalHeight - tabTableStatusBorderAndCursorHeight - statusLineCount);
+    }
+
+    private static int? DialogContentHeight(TodoTaskEditorDialogView? dialog) =>
+        dialog is null ? null : dialog.Height - 2;
+
+    private static IReadOnlyList<IRenderable> FitLines(
+        IReadOnlyList<IRenderable> lines,
+        int contentHeight,
+        int selectedIndex)
+    {
+        if (lines.Count <= contentHeight)
+        {
+            return lines;
+        }
+
+        var start = Math.Clamp(selectedIndex - contentHeight + 1, 0, lines.Count - contentHeight);
+        return lines.Skip(start).Take(contentHeight).ToArray();
+    }
+
+    private static IReadOnlyList<IRenderable> FitTodoLines(
+        BrowserView view,
+        int contentWidth,
+        int contentHeight,
+        TuiTheme theme,
+        DateOnly today)
+    {
+        var allGroups = TodoLineGroups(view, contentWidth, theme, today);
+        var hasColumnHeader = view.Diagnostic is null && view.Todos.Length > 0;
+        var header = hasColumnHeader ? allGroups[0].Lines : [];
+        var groups = hasColumnHeader ? allGroups.Skip(1).ToArray() : allGroups.ToArray();
+        var availableHeight = Math.Max(0, contentHeight - header.Count);
+        if (availableHeight == 0)
+        {
+            return header;
+        }
+
+        if (groups.Sum(group => group.Lines.Count) <= availableHeight)
+        {
+            return header.Concat(groups.SelectMany(group => group.Lines)).ToArray();
+        }
+
+        var selectedIndex = 0;
+        for (var index = 0; index < groups.Length; index++)
+        {
+            if (groups[index].IsSelected)
+            {
+                selectedIndex = index;
+                break;
+            }
+        }
+
+        var selected = groups[selectedIndex];
+        if (selected.Lines.Count > availableHeight)
+        {
+            return header.Concat(selected.Lines.Take(availableHeight)).ToArray();
+        }
+
+        var start = selectedIndex;
+        var end = selectedIndex;
+        var usedHeight = selected.Lines.Count;
+
+        var rowsBelowSelection = selected.Lines.Count - 1;
+        while (end + 1 < groups.Length &&
+               rowsBelowSelection < TodoSelectionLookAheadRows &&
+               usedHeight + groups[end + 1].Lines.Count <= availableHeight)
+        {
+            end++;
+            usedHeight += groups[end].Lines.Count;
+            rowsBelowSelection += groups[end].Lines.Count;
+        }
+
+        while (start > 0 && usedHeight + groups[start - 1].Lines.Count <= availableHeight)
+        {
+            start--;
+            usedHeight += groups[start].Lines.Count;
+        }
+
+        while (end + 1 < groups.Length && usedHeight + groups[end + 1].Lines.Count <= availableHeight)
+        {
+            end++;
+            usedHeight += groups[end].Lines.Count;
+        }
+
+        return header.Concat(groups.Skip(start).Take(end - start + 1).SelectMany(group => group.Lines)).ToArray();
+    }
+
+    private static int SelectedProjectIndex(BrowserView view)
+    {
+        for (var index = 0; index < view.Projects.Length; index++)
+        {
+            if (view.Projects[index].IsSelected)
+            {
+                return index;
+            }
+        }
+
+        return 0;
+    }
+
+    private static void PadToContentHeight(Table table, int contentHeight, params int[] paneLineCounts)
+    {
+        var renderedContentHeight = Math.Max(1, paneLineCounts.Max());
+
+        for (var row = renderedContentHeight; row < contentHeight; row++)
+        {
+            table.AddEmptyRow();
+        }
+    }
+
+    private static TodoColumnLayout TodoColumns(int contentWidth, bool includeProject)
+    {
+        var showProject = includeProject && contentWidth >= 52;
+        var showSchedule = contentWidth >= 44;
+        const int projectWidth = 10;
+        const int scheduleWidth = 16;
+        var fixedWidth = 6 + (showProject ? projectWidth + 2 : 0) +
+                         (showSchedule ? scheduleWidth + 2 : 0);
+        return new TodoColumnLayout(
+            contentWidth,
+            Math.Max(1, contentWidth - fixedWidth),
+            showProject,
+            projectWidth,
+            showSchedule,
+            scheduleWidth);
+    }
+
+    private static IRenderable TodoColumnHeader(TodoColumnLayout layout, TuiTheme theme)
+    {
+        var text = $"  S P {FitColumn("TASK", layout.TaskWidth)}";
+        if (layout.ShowProject)
+        {
+            text += $"  {FitColumn("PROJECT", layout.ProjectWidth)}";
+        }
+
+        if (layout.ShowSchedule)
+        {
+            text += $"  {FitColumn("SCHEDULED", layout.ScheduleWidth)}";
+        }
+
+        return new Text(Truncate(text, layout.ContentWidth), ThemeStyle(theme.Heading, Decoration.Bold));
+    }
+
+    private static IRenderable TodoListRow(
+        TodoRow row,
+        TodoColumnLayout layout,
+        TuiTheme theme)
+    {
+        var todo = row.Todo!;
+        var cursor = row.IsSelected ? ">" : " ";
+        var treePrefix = TodoTreeFormatter.Format(row.TreePath);
+        var status = TodoStatusGlyph(todo.IsCompleted);
+        var priority = PriorityCode(todo.Priority);
+        var prefixWidth = DisplayWidth(treePrefix);
+        var visiblePrefix = prefixWidth >= layout.TaskWidth
+            ? FitColumn(treePrefix, layout.TaskWidth)
+            : treePrefix;
+        var title = prefixWidth >= layout.TaskWidth
+            ? string.Empty
+            : FitColumn(todo.Title, layout.TaskWidth - prefixWidth);
+        var selectedColor = row.IsSelected ? theme.AccentBright : theme.Text;
+        var baseColor = todo.IsCompleted ? theme.Muted : selectedColor;
+        var treeColor = row.IsSelected ? theme.AccentBright : theme.Muted;
+        var decoration = row.IsSelected
+            ? Decoration.Bold
+            : todo.IsCompleted ? Decoration.Dim : Decoration.None;
+        var line = new System.Text.StringBuilder();
+        AppendStyled(line, $"{cursor} ", baseColor, decoration);
+        AppendStyled(line, status, baseColor, decoration);
+        AppendStyled(line, " ", baseColor, decoration);
+        AppendStyled(
+            line,
+            priority,
+            row.IsSelected || todo.IsCompleted ? baseColor : PriorityColor(todo.Priority, theme),
+            decoration);
+        AppendStyled(line, " ", baseColor, decoration);
+        AppendStyled(line, visiblePrefix, treeColor, decoration);
+        AppendStyled(line, title, baseColor, decoration);
+        if (layout.ShowProject)
+        {
+            AppendStyled(
+                line,
+                $"  {FitColumn(row.ProjectTitle ?? "-", layout.ProjectWidth)}",
+                baseColor,
+                decoration);
+        }
+
+        if (layout.ShowSchedule)
+        {
+            var schedule = todo.Schedule is null
+                ? "-"
+                : FormatSchedule(todo.Schedule);
+            var scheduleColor = row.IsSelected || todo.IsCompleted
+                ? baseColor
+                : theme.Date;
+            AppendStyled(
+                line,
+                $"  {FitColumn(schedule, layout.ScheduleWidth)}",
+                scheduleColor,
+                decoration);
+        }
+
+        var content = (IRenderable)new Markup(line.ToString());
+        return row.IsSelected
+            ? OnSurface(content, theme.Surface2, true)
+            : content;
+    }
+
+    private static IRenderable TodoTagsRow(
+        TodoRow row,
+        TodoColumnLayout layout,
+        TuiTheme theme)
+    {
+        var todo = row.Todo!;
+        var treeContinuation = TodoTreeFormatter.FormatContinuation(row.TreePath);
+        var treeWidth = DisplayWidth(treeContinuation);
+        var visibleTreeWidth = Math.Min(treeWidth, Math.Max(0, layout.TaskWidth - 1));
+        var visibleTree = FitColumn(treeContinuation, visibleTreeWidth);
+        var tagWidth = layout.TaskWidth - visibleTreeWidth;
+        var tags = string.Join(' ', todo.Tags.Select(tag => $"#{tag}"));
+        var tagColor = row.IsSelected
+            ? theme.AccentBright
+            : todo.IsCompleted ? theme.Muted : theme.Tag;
+        var treeColor = row.IsSelected ? theme.AccentBright : theme.Muted;
+        var decoration = row.IsSelected
+            ? Decoration.Bold
+            : todo.IsCompleted ? Decoration.Dim : Decoration.None;
+        var line = new System.Text.StringBuilder();
+        AppendStyled(line, new string(' ', 6), tagColor, decoration);
+        AppendStyled(line, visibleTree, treeColor, decoration);
+        AppendStyled(line, FitColumn(tags, tagWidth), tagColor, decoration);
+
+        var content = (IRenderable)new Markup(line.ToString());
+        return row.IsSelected
+            ? OnSurface(content, theme.Surface2, true)
+            : content;
+    }
+
+    private static string FitColumn(string value, int width)
+    {
+        var result = Truncate(value, width);
+        return result + new string(' ', Math.Max(0, width - DisplayWidth(result)));
+    }
+
+    private static string FormatSchedule(TodoSchedule schedule) =>
+        schedule.Time is null
+            ? schedule.Date.ToString("yyyy-MM-dd")
+            : $"{schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}";
+
+    private static string? FormatDuration(TimeSpan? duration) => duration is null
+        ? null
+        : $"{(int)duration.Value.TotalMinutes}m";
+
+    private static string PriorityCode(TodoPriority? priority) => priority switch
+    {
+        TodoPriority.Highest => "!",
+        TodoPriority.High => "H",
+        TodoPriority.Medium => "M",
+        TodoPriority.Low => "L",
+        TodoPriority.Lowest => ".",
+        _ => "-"
+    };
+
+    private static string TodoStatusGlyph(bool isCompleted) =>
+        isCompleted ? CompletedTodoGlyph : OpenTodoGlyph;
+
+    private static string Truncate(string value, int width)
+    {
+        if (DisplayWidth(value) <= width)
+        {
+            return value;
+        }
+
+        var result = new System.Text.StringBuilder();
+        var remainingWidth = Math.Max(0, width - 1);
+
+        foreach (var rune in value.EnumerateRunes())
+        {
+            var runeWidth = rune.ToString().GetCellWidth();
+            if (runeWidth > remainingWidth)
+            {
+                break;
+            }
+
+            result.Append(rune.ToString());
+            remainingWidth -= runeWidth;
+        }
+
+        return result.Append('…').ToString();
+    }
+
+    private static int DisplayWidth(string value) => value.GetCellWidth();
+
+    private static IEnumerable<(TodoItem Todo, ImmutableArray<TodoTreeSegment> TreePath)> FlattenSubtasks(
+        ImmutableArray<TodoItem> todos,
+        ImmutableArray<TodoTreeSegment> parentPath = default)
+    {
+        for (var index = 0; index < todos.Length; index++)
+        {
+            var path = (parentPath.IsDefault ? ImmutableArray<TodoTreeSegment>.Empty : parentPath).Add(
+                index == todos.Length - 1
+                    ? TodoTreeSegment.LastSibling
+                    : TodoTreeSegment.HasFollowingSibling);
+            var todo = todos[index];
+            yield return (todo, path);
+
+            foreach (var descendant in FlattenSubtasks(todo.Subtasks, path))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private static IRenderable DetailedTodoLine(
+        TodoItem todo,
+        ImmutableArray<TodoTreeSegment> treePath,
+        bool selected,
+        TuiTheme theme)
+    {
+        var cursor = selected ? ">" : " ";
+        var treePrefix = TodoTreeFormatter.Format(treePath);
+        var status = TodoStatusGlyph(todo.IsCompleted);
+        var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
+        var priority = PriorityCode(todo.Priority);
+        var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
+        var schedule = todo.Schedule is null
+            ? string.Empty
+            : $" ⏳ {FormatSchedule(todo.Schedule)}";
+
+        var line = new System.Text.StringBuilder();
+        AppendStyled(
+            line,
+            cursor,
+            selected ? theme.Accent : todo.IsCompleted ? theme.Muted : theme.Text,
+            selected ? Decoration.Bold : todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        AppendStyled(
+            line,
+            $" {treePrefix}",
+            selected ? theme.Accent : theme.Muted,
+            todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        AppendStyled(
+            line,
+            status,
+            todo.IsCompleted ? theme.Muted : theme.Accent,
+            todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        AppendStyled(line, $" {priority}", todo.IsCompleted ? theme.Muted : PriorityColor(todo.Priority, theme));
+        AppendStyled(
+            line,
+            $" {reference}{todo.Title}",
+            todo.IsCompleted ? theme.Muted : theme.Text,
+            todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        AppendStyled(line, tags, todo.IsCompleted ? theme.Muted : theme.Tag,
+            todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        AppendStyled(line, schedule, todo.IsCompleted ? theme.Muted : theme.Date,
+            todo.IsCompleted ? Decoration.Dim : Decoration.None);
+        return new Markup(line.ToString());
+    }
+
+    private static IRenderable PlannerTimeRulerLine(PlannerTimelineRenderRow row, TuiTheme theme)
+    {
+        var text = row.IsMinorTimeTick ? row.TimeTickGlyph.PadLeft(5) : row.TimeLabel.PadLeft(5);
+        return new Text(
+            text,
+            ThemeStyle(
+                row.IsSelected ? theme.AccentBright : row.IsMinorTimeTick ? theme.Muted : theme.Date,
+                row.IsSelected ? Decoration.Bold : row.IsMinorTimeTick ? Decoration.Dim : Decoration.None));
+    }
+
+    private static IRenderable PlannerTimelineRenderLine(PlannerTimelineRenderRow row, TuiTheme theme)
+    {
+        var selected = row.IsSelected;
+        var active = row.IsActive;
+        var primaryActive = row.IsPrimaryActive;
+        var completed = row.ItemType == PlannerItemType.Task && row.StatusGlyph == "✓";
+        var color = active ? theme.AccentBright : completed ? theme.Muted :
+            row.ItemType == PlannerItemType.Task ? theme.Text : row.ItemType is null ? theme.Muted : theme.Info;
+        var decoration = active ? Decoration.Bold : completed || row.IsEmpty ? Decoration.Dim : Decoration.None;
+        var line = new System.Text.StringBuilder();
+        AppendStyled(
+            line,
+            row.PrimaryBranchGlyph,
+            row.IsPrimarySelected || primaryActive || selected ? theme.AccentBright : row.IsEmpty ? theme.Muted : theme.BorderActive,
+            row.IsPrimarySelected || primaryActive ? Decoration.Bold : decoration);
+        if (row.SecondaryPrefix.Length > 0)
+        {
+            AppendStyled(line, "  " + row.SecondaryPrefix + "  ", theme.BorderActive, decoration);
+        }
+        else if (row.ActivityBranchGlyph.Length > 0 && row.PrimaryBranchGlyph.Length > 0)
+        {
+            AppendStyled(line, "  ", color, decoration);
+        }
+
+        if (row.IsEmpty)
+        {
+            return new Markup(line.ToString());
+        }
+
+        AppendStyled(line, row.ActivityBranchGlyph + " ", color, decoration);
+        if (row.StatusGlyph.Length > 0)
+        {
+            var glyphColor = row.ItemType == PlannerItemType.Task && !completed
+                ? active ? theme.AccentBright : theme.Accent
+                : color;
+            AppendStyled(line, row.StatusGlyph + " ", glyphColor, decoration);
+            AppendStyled(line, row.Title, color, decoration);
+            if (row.Metadata.Length > 0)
+            {
+                AppendStyled(line, " " + row.Metadata, active ? theme.AccentBright : theme.Muted, decoration);
+            }
+        }
+
+        return new Markup(line.ToString());
+    }
+
+    private static IRenderable PlannerTodoLine(
+        TodoItem todo,
+        string? projectTitle,
+        string prefix,
+        bool selected,
+        string meetingHint,
+        TuiTheme theme)
+    {
+        var completed = todo.IsCompleted;
+        var decoration = selected ? Decoration.Bold : completed ? Decoration.Dim : Decoration.None;
+        var baseColor = selected ? theme.AccentBright : completed ? theme.Muted : theme.Text;
+        var markerColor = selected ? theme.AccentBright : completed ? theme.Muted : theme.Accent;
+        var priorityColor = selected ? theme.AccentBright : completed ? theme.Muted : PriorityColor(todo.Priority, theme);
+        var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
+        var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
+        var schedule = todo.Schedule is null ? string.Empty : $" ⏳ {FormatSchedule(todo.Schedule)}";
+        var line = new System.Text.StringBuilder();
+
+        AppendStyled(line, $"{prefix} ", baseColor, decoration);
+        AppendStyled(line, TodoStatusGlyph(completed), markerColor, decoration);
+        AppendStyled(line, " ", baseColor, decoration);
+        AppendStyled(line, PriorityCode(todo.Priority), priorityColor, decoration);
+        AppendStyled(line, " ", baseColor, decoration);
+        AppendStyled(line, reference, selected ? theme.AccentBright : completed ? theme.Muted : theme.Info, decoration);
+        AppendStyled(line, todo.Title, baseColor, decoration);
+        AppendStyled(line, projectTitle is null ? string.Empty : $"  [{projectTitle}]",
+            selected ? theme.AccentBright : completed ? theme.Muted : theme.SecondaryText,
+            decoration);
+        AppendStyled(line, tags, selected ? theme.AccentBright : completed ? theme.Muted : theme.Tag, decoration);
+        AppendStyled(line, schedule, selected ? theme.AccentBright : completed ? theme.Muted : theme.Date, decoration);
+        AppendStyled(line, meetingHint, theme.Warning, decoration);
+        return new Markup(line.ToString());
+    }
+
+    private static IRenderable PlannerMeetingLine(
+        PlannerCalendarMeeting meeting,
+        string prefix,
+        bool selected,
+        int additionalMeetings,
+        TuiTheme theme)
+    {
+        var line = new System.Text.StringBuilder();
+        var color = selected ? theme.AccentBright : theme.Info;
+        var decoration = selected ? Decoration.Bold : Decoration.None;
+        AppendStyled(line, $"{prefix} MEETING ", color, decoration);
+        AppendStyled(line, MeetingLabel(meeting), color, decoration);
+        if (additionalMeetings > 0)
+        {
+            AppendStyled(line, $" +{additionalMeetings}", selected ? theme.AccentBright : theme.Warning, decoration);
+        }
+
+        return new Markup(line.ToString());
+    }
+
+    private static IReadOnlyList<IRenderable> PlannerMeetingDetailLines(PlannerView view, TuiTheme theme)
+    {
+        var meeting = view.SelectedMeeting!;
+        var lines = new List<IRenderable>
+        {
+            new Text(meeting.Title, ThemeStyle(theme.Info, Decoration.Bold))
+        };
+        AddField(lines, "Time", MeetingTimeAndDuration(meeting), theme, theme.Date);
+        AddField(lines, "Location", meeting.Location, theme, theme.Text);
+        AddField(
+            lines,
+            "Attendees",
+            meeting.Attendees.Length == 0 ? null : string.Join(", ", meeting.Attendees),
+            theme,
+            theme.SecondaryText);
+        AddField(lines, "Notes", MeetingDescriptionPreview(meeting.Description), theme, theme.Text);
+        if (view.SelectedSlot.Meetings.Length > 1)
+        {
+            AddField(
+                lines,
+                "Also",
+                string.Join(" · ", view.SelectedSlot.Meetings
+                    .Where(candidate => candidate.Identity != meeting.Identity)
+                    .Select(MeetingLabel)),
+                theme,
+                theme.Warning);
+        }
+
+        return lines;
+    }
+
+    private static string MeetingTimeAndDuration(PlannerCalendarMeeting meeting) =>
+        $"{meeting.Start:HH:mm}–{meeting.End:HH:mm} · {(int)(meeting.End - meeting.Start).TotalMinutes}m";
+
+    private static string? MeetingDescriptionPreview(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return null;
+        }
+
+        var normalized = string.Join(' ', description.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= 120 ? normalized : normalized[..117] + "…";
+    }
+
+    private static Color PriorityColor(TodoPriority? priority, TuiTheme theme) => priority switch
+    {
+        TodoPriority.Highest => theme.Error,
+        TodoPriority.High => theme.Warning,
+        TodoPriority.Medium => theme.Accent,
+        TodoPriority.Low => theme.Muted,
+        TodoPriority.Lowest => theme.Muted,
+        _ => theme.Text
+    };
+
+    private static void AddField(
+        List<IRenderable> lines,
+        string name,
+        string? value,
+        TuiTheme theme,
+        Color valueColor)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            var line = new System.Text.StringBuilder();
+            AppendStyled(line, $"{name.ToUpperInvariant()}: ", theme.Heading, Decoration.Bold);
+            AppendStyled(line, value, valueColor);
+            lines.Add(new Markup(line.ToString()));
+        }
+    }
+
+    private static IReadOnlyList<BrowserStatusLine> CreateStatusLines(
+        BrowserView view,
+        TuiKeyBindings keyBindings,
+        bool compact,
+        int terminalWidth,
+        int terminalHeight)
+    {
+        if (view.CommandPalette is not null)
+        {
+            return DefaultStatusLines([CommandPaletteFooter(keyBindings)]);
+        }
+
+        if (view.GlobalCommand is not null)
+        {
+            return [new BrowserStatusLine(view.GlobalCommand)];
+        }
+
+        if (view.GlobalError is not null)
+        {
+            return DefaultStatusLines(WrapStatus(view.GlobalError, Math.Max(1, terminalWidth - 4)));
+        }
+
+        if (view.State.Editor is not null)
+        {
+            return TodoTaskEditorStatus(
+                view.State.Editor,
+                view.Projects
+                    .Where(project => project.Project is not null)
+                    .Select(project => new TodoEditorProjectOption(project.Title, project.Project!.Path))
+                    .ToArray(),
+                keyBindings,
+                terminalWidth,
+                terminalHeight);
+        }
+
+        if (view.State.IsSortMode)
+        {
+            string[] menuLines = terminalWidth switch
+            {
+                >= 100 =>
+                    ["SORT // n/N NAME  d/D SCHEDULED  p/P PRIORITY  t/T TAGS  f/F FILE  o SOURCE  Esc CANCEL"],
+                >= 60 =>
+                [
+                    "SORT // n/N NAME  d/D SCHEDULED  p/P PRIORITY",
+                    "t/T TAGS  f/F FILE  o SOURCE  Esc CANCEL"
+                ],
+                _ =>
+                [
+                    "SORT // n/N NAME  d/D SCHEDULED",
+                    "p/P PRIORITY  t/T TAGS",
+                    "f/F FILE  o SOURCE",
+                    "Esc CANCEL"
+                ]
+            };
+
+            return DefaultStatusLines(menuLines
+                .SelectMany(line => WrapStatus(line, Math.Max(1, terminalWidth - 4)))
+                .ToArray());
+        }
+
+        var status = view.State switch
+        {
+            { IsFilterMode: true } => $"/{view.State.FilterDraft}",
+            { Error: not null } => view.State.Error,
+            { FilterText.Length: > 0 } =>
+                $"FILTER: /{view.State.FilterText}  {Shortest(keyBindings.FilterMode)} EDIT  " +
+                $"EMPTY Enter CLEARS  {SortHint(view.State, keyBindings)}",
+            _ when compact => CompactStatus(keyBindings, view.State),
+            _ => NormalStatus(keyBindings, view.State)
+        };
+
+        return DefaultStatusLines(WrapStatus(status, Math.Max(1, terminalWidth - 4)));
+    }
+
+    private static IReadOnlyList<BrowserStatusLine> TodoTaskEditorStatus(
+        TodoTaskEditorState editor,
+        IReadOnlyList<TodoEditorProjectOption> projects,
+        TuiKeyBindings bindings,
+        int terminalWidth,
+        int terminalHeight) =>
+        TodoTaskEditorDialog.Create(editor, bindings, terminalWidth, terminalHeight).Lines
+            .Select(line => new BrowserStatusLine(
+                line.Text,
+                line.Role switch
+                {
+                    TodoTaskEditorDialogRole.Label => BrowserStatusRole.FormLabel,
+                    TodoTaskEditorDialogRole.Value => BrowserStatusRole.FormValue,
+                    TodoTaskEditorDialogRole.ActiveValue => BrowserStatusRole.FormActiveValue,
+                    TodoTaskEditorDialogRole.Placeholder => BrowserStatusRole.FormPlaceholder,
+                    TodoTaskEditorDialogRole.Hint => BrowserStatusRole.FormHint,
+                    TodoTaskEditorDialogRole.Error => BrowserStatusRole.FormError,
+                    TodoTaskEditorDialogRole.Warning => BrowserStatusRole.ContentWarning,
+                    _ => BrowserStatusRole.Default
+                }))
+            .ToArray();
+
+    /*
+     * Kept temporarily below as reference while migrating the status shell.
+     * The production path above now delegates all task-editor layout to
+     * TodoTaskEditorDialog, which is also rendered by the component harness.
+     */
+    private static IReadOnlyList<BrowserStatusLine> LegacyTodoTaskEditorStatus(
+        TodoTaskEditorState editor,
+        IReadOnlyList<TodoEditorProjectOption> projects,
+        TuiKeyBindings bindings,
+        int terminalWidth,
+        int terminalHeight)
+    {
+        var width = Math.Max(1, terminalWidth - 4);
+        if (editor.IsEditingContent)
+        {
+            return DefaultStatusLines(["EDITING CONTENT"]);
+        }
+
+        if (editor.IsChoosingProject)
+        {
+            return DefaultStatusLines(WrapStatus(
+                $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+                $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
+                width));
+        }
+
+        if (editor.Mode == TodoTaskEditorMode.ChooseContentType)
+        {
+            return ContentStatusLines(
+                $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+                $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
+                width,
+                BrowserStatusRole.FormHint);
+        }
+
+        if (editor.Mode == TodoTaskEditorMode.ConfirmRemoval)
+        {
+            var selected = (ContentSubtaskDraft)editor.Items[editor.SelectedContentIndex];
+            return ContentStatusLines(
+                $"REMOVE '{selected.Title}' AND {selected.DescendantCount} NESTED ITEM(S)?  " +
+                $"{Shortest(bindings.Open)} CONFIRM  {Shortest(bindings.Back)} CANCEL",
+                width,
+                BrowserStatusRole.ContentWarning);
+        }
+
+        if (editor.Mode == TodoTaskEditorMode.Edit && editor.IsAddingContent)
+        {
+            return ContentStatusLines(
+                $"ADD {editor.AddKind.ToString().ToUpperInvariant()}: {editor.Draft}_  Enter ACCEPT  Esc CANCEL",
+                width,
+                BrowserStatusRole.FormActiveValue);
+        }
+
+        var fields = new[]
+        {
+            ("Title", editor.Values.Title),
+            ("Reference", editor.Values.ExternalReference ?? string.Empty),
+            ("Priority", editor.Values.Priority?.ToString() ?? string.Empty),
+            ("Tags", string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}"))),
+            ("Scheduled date (YYYY-MM-DD, t+1, w+1, mon)", editor.ScheduledDate),
+            ("Scheduled time", editor.ScheduledTime),
+            ("Duration", editor.Duration)
+        };
+
+        var rows = new List<(int? Selection, BrowserStatusLine Line)>();
+        for (var index = 0; index < fields.Length; index++)
+        {
+            rows.Add((index, TaskEditorFieldLine(editor, index, fields[index].Item1, fields[index].Item2, width)));
+        }
+
+        rows.Add((null, new BrowserStatusLine("  CONTENT", BrowserStatusRole.FormLabel)));
+        if (editor.Items.Length == 0)
+        {
+            rows.Add((null, new BrowserStatusLine("    — No notes or subtasks", BrowserStatusRole.FormPlaceholder)));
+        }
+        else
+        {
+            for (var index = 0; index < editor.Items.Length; index++)
+            {
+                var selection = TodoTaskEditorState.FieldCount + index;
+                var selected = selection == editor.SelectedIndex;
+                rows.Add((selection, new BrowserStatusLine(
+                    ContentOutlineLine(
+                        editor.Items[index],
+                        selected,
+                        width,
+                        editor.Mode == TodoTaskEditorMode.Edit && selected ? editor.Draft + "_" : null),
+                    selected ? BrowserStatusRole.FormActiveValue : BrowserStatusRole.FormValue)));
+            }
+        }
+
+        var selectedRow = Math.Max(0, rows.FindIndex(row => row.Selection == editor.SelectedIndex));
+        var visibleRows = Math.Max(1, Math.Min(12, terminalHeight - 12));
+        var start = Math.Clamp(selectedRow - visibleRows + 1, 0, Math.Max(0, rows.Count - visibleRows));
+        var lines = new List<BrowserStatusLine>
+        {
+            new(Truncate(
+                $"{(editor.IsCreate ? "CREATE" : "EDIT")} TASK // " +
+                $"{(editor.Values.Title.Length == 0 ? "NEW TODO" : editor.Values.Title)}",
+                width), BrowserStatusRole.FormLabel)
+        };
+        lines.AddRange(rows.Skip(start).Take(visibleRows).Select(row => row.Line));
+
+        var message = editor.Error ?? (editor.Mode == TodoTaskEditorMode.Edit
+            ? "Enter ACCEPT  Esc CANCEL"
+            : $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+              $"{Shortest(bindings.Open)} EDIT  {Shortest(bindings.CreateTodo)} ADD  " +
+              $"{Shortest(bindings.RemoveContent)} REMOVE  Space TOGGLE  " +
+              $"{Shortest(bindings.SaveForm)} SAVE  {Shortest(bindings.Back)} CANCEL");
+        lines.AddRange(ContentStatusLines(
+            message,
+            width,
+            editor.Error is null ? BrowserStatusRole.FormHint : BrowserStatusRole.FormError));
+        return lines;
+    }
+
+    private static BrowserStatusLine TaskEditorFieldLine(
+        TodoTaskEditorState editor,
+        int index,
+        string label,
+        string value,
+        int width)
+    {
+        var selected = editor.SelectedIndex == index;
+        var labelWidth = Math.Min(16, Math.Max(6, width / 3));
+        var prefix = $"{(selected ? ">" : " ")} {FitColumn(label.ToUpperInvariant(), labelWidth)} ";
+        var display = editor.Mode == TodoTaskEditorMode.Edit && selected
+            ? editor.Draft + "_"
+            : string.IsNullOrEmpty(value) ? "—" : value;
+        var role = selected
+            ? BrowserStatusRole.FormActiveValue
+            : string.IsNullOrEmpty(value)
+                ? BrowserStatusRole.FormPlaceholder
+                : BrowserStatusRole.FormValue;
+        return new BrowserStatusLine(
+            prefix + Truncate(display, Math.Max(1, width - DisplayWidth(prefix))),
+            role);
+    }
+
+    private static string ContentOutlineLine(
+        ContentItemDraft item,
+        bool selected,
+        int width,
+        string? valueOverride = null)
+    {
+        var marker = selected ? ">" : " ";
+        var icon = item switch
+        {
+            ContentNoteDraft => "•",
+            ContentSubtaskDraft subtask => TodoStatusGlyph(subtask.IsCompleted),
+            _ => "-"
+        };
+        var value = valueOverride ?? item switch
+        {
+            ContentNoteDraft note => note.Text,
+            ContentSubtaskDraft subtask => subtask.Title,
+            _ => string.Empty
+        };
+        var suffix = item is ContentSubtaskDraft { DescendantCount: > 0 } nestedSubtask
+            ? $"  +{nestedSubtask.DescendantCount} nested"
+            : string.Empty;
+        var prefix = $"{marker} {icon} ";
+        var fixedWidth = DisplayWidth(prefix) + DisplayWidth(suffix);
+        return fixedWidth >= width
+            ? Truncate(prefix + value, width)
+            : prefix + Truncate(value, width - fixedWidth) + suffix;
+    }
+
+    private static IReadOnlyList<BrowserStatusLine> ContentStatusLines(
+        string value,
+        int width,
+        BrowserStatusRole role) =>
+        WrapStatus(value, width).Select(line => new BrowserStatusLine(line, role)).ToArray();
+
+    private static IReadOnlyList<string> WrapStatus(string value, int width)
+    {
+        var lines = new List<string>();
+        var remaining = value;
+
+        while (remaining.Length > width)
+        {
+            var breakAt = remaining.LastIndexOf(' ', width - 1, width);
+            if (breakAt <= 0)
+            {
+                breakAt = width;
+            }
+
+            lines.Add(remaining[..breakAt].TrimEnd());
+            remaining = remaining[breakAt..].TrimStart();
+        }
+
+        lines.Add(remaining);
+        return lines;
+    }
+
+    private static IReadOnlyList<BrowserStatusLine> DefaultStatusLines(IEnumerable<string> lines) =>
+        lines.Select(line => new BrowserStatusLine(line)).ToArray();
+
+    private static void WriteStatus(
+        IReadOnlyList<BrowserStatusLine> lines,
+        BrowserView view,
+        TuiTheme theme,
+        TodoTaskEditorDialogView? editorDialog = null)
+    {
+        if (editorDialog is not null)
+        {
+            WriteSurface(TodoTaskEditorDialog.CreateRenderable(editorDialog, theme), theme.Surface2, true);
+            return;
+        }
+
+        var defaultStyle = view.State switch
+        {
+            _ when view.GlobalError is not null || view.CommandPalette?.State.Error is not null =>
+                ThemeStyle(theme.Error, Decoration.Bold),
+            _ when view.GlobalCommand is not null || view.CommandPalette is not null => ThemeStyle(theme.Accent),
+            { Error: not null } => ThemeStyle(theme.Error, Decoration.Bold),
+            { IsFilterMode: true } => ThemeStyle(theme.Accent),
+            { IsSortMode: true } => ThemeStyle(theme.Accent),
+            { Editor: not null } => ThemeStyle(theme.Accent),
+            _ => ThemeStyle(theme.SecondaryText)
+        };
+        var content = lines.Select(line => new Text(
+            line.Text,
+            line.Role switch
+            {
+                BrowserStatusRole.FormLabel => ThemeStyle(theme.Heading, Decoration.Bold),
+                BrowserStatusRole.FormValue => ThemeStyle(theme.SecondaryText),
+                BrowserStatusRole.FormActiveValue => ThemeStyle(theme.AccentBright, Decoration.Bold),
+                BrowserStatusRole.FormPlaceholder => ThemeStyle(theme.Muted, Decoration.Dim),
+                BrowserStatusRole.FormHint => ThemeStyle(theme.Muted, Decoration.Dim),
+                BrowserStatusRole.FormError => ThemeStyle(theme.Error, Decoration.Bold),
+                BrowserStatusRole.ContentWarning => ThemeStyle(theme.Warning, Decoration.Bold),
+                _ => defaultStyle
+            }));
+        var statusIsActive = view.GlobalCommand is not null ||
+                             view.CommandPalette is not null ||
+                             view.State.IsFilterMode ||
+                             view.State.IsSortMode ||
+                             view.State.Editor is not null;
+        WriteSurface(
+            new Panel(new Rows(content))
+            {
+                Border = BoxBorder.Square,
+                BorderStyle = ThemeStyle(statusIsActive ? theme.BorderActive : theme.Border),
+                Expand = true
+            },
+            theme.Surface2,
+            true);
+    }
+
+    private static string NormalStatus(TuiKeyBindings bindings, BrowserState state) =>
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} NAVIGATE  " +
+        $"{Shortest(bindings.FocusNext)} PANE  {Shortest(bindings.Open)} OPEN  {Shortest(bindings.Back)} BACK  " +
+        $"{Shortest(bindings.FilterMode)} FILTER  {Shortest(bindings.CommandMode)} COMMAND  " +
+        $"{Shortest(bindings.ToggleDetails)} DETAILS  " +
+        $"{bindings.ToggleCompletedCommand}  {bindings.QuitCommand}  {SortHint(state, bindings)}";
+
+    private static string CompactStatus(TuiKeyBindings bindings, BrowserState state) =>
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+        $"{Shortest(bindings.Back)}/{Shortest(bindings.Open)} BACK/OPEN  " +
+        $"{Shortest(bindings.FilterMode)} FILTER  {Shortest(bindings.ToggleDetails)} DETAILS  " +
+        $"{Shortest(bindings.CommandMode)} COMMANDS  " +
+        SortHint(state, bindings);
+
+    private static string SortHint(BrowserState state, TuiKeyBindings bindings)
+    {
+        var launcher = Shortest(bindings.SortMode);
+        if (state.Sort.Property == TodoSortProperty.Source)
+        {
+            return $"{launcher} SORT";
+        }
+
+        var property = state.Sort.Property switch
+        {
+            TodoSortProperty.Name => "name",
+            TodoSortProperty.Schedule => "scheduled",
+            TodoSortProperty.Tags => "tags",
+            TodoSortProperty.File => "file",
+            TodoSortProperty.Priority => "priority",
+            _ => "source"
+        };
+        var direction = state.Sort.Direction == TodoSortDirection.Ascending ? "↑" : "↓";
+        return $"{launcher} {property.ToUpperInvariant()}{direction}";
+    }
+
+    private static string Shortest(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>
+        TuiKeyBindings.ShortestDisplayName(gestures);
+
+    private static Style ThemeStyle(
+        Color color,
+        Decoration decoration = Decoration.None,
+        Color? background = null) =>
+        new(color, background ?? Color.Default, decoration);
+
+    private static IRenderable OnSurface(IRenderable content, Color background, bool expand = false) =>
+        background == Color.Default
+            ? content
+            : new SurfaceRenderable(content, background, expand);
+
+    private static void WriteSurface(IRenderable content, Color background, bool expand = false) =>
+        AnsiConsole.Write(OnSurface(content, background, expand));
+
+    private static void AppendStyled(
+        System.Text.StringBuilder output,
+        string value,
+        Color color,
+        Decoration decoration = Decoration.None,
+        Color? background = null)
+    {
+        if (value.Length == 0)
+        {
+            return;
+        }
+
+        var styles = new List<string>();
+        if (color != Color.Default)
+        {
+            styles.Add(color.ToMarkup());
+        }
+
+        if (background is not null && background != Color.Default)
+        {
+            styles.Add($"on {background.Value.ToMarkup()}");
+        }
+
+        if ((decoration & Decoration.Bold) != 0)
+        {
+            styles.Add("bold");
+        }
+
+        if ((decoration & Decoration.Dim) != 0)
+        {
+            styles.Add("dim");
+        }
+
+        var content = Markup.Escape(value);
+        if (styles.Count == 0)
+        {
+            output.Append(content);
+            return;
+        }
+
+        output.Append('[');
+        output.AppendJoin(' ', styles);
+        output.Append(']');
+        output.Append(content);
+        output.Append("[/]");
+    }
+
+    private static int SafeWindowWidth()
+    {
+        try
+        {
+            return Console.WindowWidth;
+        }
+        catch (IOException)
+        {
+            return 80;
+        }
+    }
+
+    private static int SafeWindowHeight()
+    {
+        try
+        {
+            return Console.WindowHeight;
+        }
+        catch (IOException)
+        {
+            return 24;
+        }
+    }
+
+    private sealed record TodoLineGroup(IReadOnlyList<IRenderable> Lines, bool IsSelected);
+
+    private sealed record TodoColumnLayout(
+        int ContentWidth,
+        int TaskWidth,
+        bool ShowProject,
+        int ProjectWidth,
+        bool ShowSchedule,
+        int ScheduleWidth);
+
+    private sealed record BrowserStatusLine(
+        string Text,
+        BrowserStatusRole Role = BrowserStatusRole.Default);
+
+    private enum BrowserStatusRole
+    {
+        Default,
+        FormLabel,
+        FormValue,
+        FormActiveValue,
+        FormPlaceholder,
+        FormHint,
+        FormError,
+        ContentWarning
+    }
+}
