@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Rendering;
 
 internal sealed class SurfaceRenderable(
     IRenderable content,

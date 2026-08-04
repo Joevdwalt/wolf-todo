@@ -1,6 +1,7 @@
 using WolfTodo.Tui.Controls;
+using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Features.DayPlanner.Rendering;
 
 public sealed record PlannerRenderContext(
     int Width,

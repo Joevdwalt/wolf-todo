@@ -1,8 +1,8 @@
 using FluentAssertions;
 using WolfTodo.Tui.Features.DayPlanner;
-using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Features.DayPlanner.Rendering;
 
-namespace WolfTodo.Tui.Tests.Infrastructure;
+namespace WolfTodo.Tui.Tests.Features.DayPlanner.Rendering;
 
 public sealed class CalendarItemRendererTests
 {
