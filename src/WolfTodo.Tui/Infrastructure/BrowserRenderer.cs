@@ -54,6 +54,17 @@ public sealed class BrowserRenderer
         TuiKeyBindings keyBindings,
         TuiTheme theme)
     {
+        var context = CreateBrowserRenderContext(view, keyBindings);
+        RenderBrowserHeader(tabs, view, keyBindings, theme, context);
+        RenderBrowserBody(view, theme, context);
+        RenderBrowserOverlay(keyBindings, theme, context);
+        WriteStatus(context.StatusLines, view, theme, context.EditorDialog);
+    }
+
+    private BrowserRenderContext CreateBrowserRenderContext(
+        BrowserView view,
+        TuiKeyBindings keyBindings)
+    {
         var width = widthProvider();
         var height = heightProvider();
         var compact = width < 80 || height < 18;
@@ -61,65 +72,118 @@ public sealed class BrowserRenderer
         var selectList = BrowserSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
         var textBox = BrowserTextBox(view);
-        var editorDialog = view.State.Editor is { } editor
-            ? TodoTaskEditorDialog.Create(
-                editor,
-                keyBindings,
-                width,
-                height)
-            : null;
+        var editorDialog = CreateBrowserEditorDialog(view, keyBindings, width, height);
         var textBoxRows = TextBoxRows(height);
         var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
-        var contentHeight = Math.Max(1, AvailableContentHeight(height, DialogContentHeight(editorDialog) ?? statusLines.Count) -
-            (selectList is not null ? SelectList.Default.Measure(
-                 selectList,
-                 new TuiComponentConstraints(width, selectRows)) :
-             textBox is not null ? MultilineTextBox.Default.Measure(
-                 textBox,
-                 new TuiComponentConstraints(width, textBoxRows)) : 0));
+        var contentHeight = BrowserContentHeight(
+            height,
+            DialogContentHeight(editorDialog) ?? statusLines.Count,
+            BrowserPickerHeight(selectList, width, selectRows, textBox, textBoxRows));
+
+        return new BrowserRenderContext(
+            width,
+            height,
+            compact,
+            today,
+            selectList,
+            selectRows,
+            textBox,
+            textBoxRows,
+            editorDialog,
+            statusLines,
+            contentHeight);
+    }
+
+    private static void RenderBrowserHeader(
+        TabStripView tabs,
+        BrowserView view,
+        TuiKeyBindings keyBindings,
+        TuiTheme theme,
+        BrowserRenderContext context)
+    {
         WriteOperationalHeader(
             tabs,
             keyBindings,
             theme,
-            width,
+            context.Width,
             BrowserMode(view),
-            today,
+            context.Today,
             view.Projects.FirstOrDefault()?.ActiveCount ?? 0,
             view.Projects.Count(project => project.Error is not null));
+    }
 
-        if (editorDialog is null || contentHeight > 1)
+    private static void RenderBrowserBody(
+        BrowserView view,
+        TuiTheme theme,
+        BrowserRenderContext context)
+    {
+        if (context.EditorDialog is not null && context.ContentHeight <= 1)
         {
-            if (width >= 120 && height >= 24)
-            {
-                WriteWide(view, width, contentHeight, theme, today);
-            }
-            else if (width >= 80 && height >= 18)
-            {
-                WriteMedium(view, width, contentHeight, theme, today);
-            }
-            else
-            {
-                WriteNarrow(view, width, contentHeight, theme, today);
-            }
+            return;
         }
 
-        if (selectList is not null)
+        if (context.Width >= 120 && context.Height >= 24)
+        {
+            WriteWide(view, context.Width, context.ContentHeight, theme, context.Today);
+        }
+        else if (context.Width >= 80 && context.Height >= 18)
+        {
+            WriteMedium(view, context.Width, context.ContentHeight, theme, context.Today);
+        }
+        else
+        {
+            WriteNarrow(view, context.Width, context.ContentHeight, theme, context.Today);
+        }
+    }
+
+    private static void RenderBrowserOverlay(
+        TuiKeyBindings keyBindings,
+        TuiTheme theme,
+        BrowserRenderContext context)
+    {
+        if (context.SelectList is not null)
         {
             AnsiConsole.Write(SelectList.Default.Render(
-                selectList,
+                context.SelectList,
                 theme,
-                new TuiComponentConstraints(width, selectRows)));
+                new TuiComponentConstraints(context.Width, context.SelectRows)));
         }
-        else if (textBox is { } activeTextBox)
+        else if (context.TextBox is { } activeTextBox)
         {
             AnsiConsole.Write(MultilineTextBox.Default.Render(
                 activeTextBox,
                 theme,
-                new TuiComponentConstraints(width, textBoxRows),
+                new TuiComponentConstraints(context.Width, context.TextBoxRows),
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
-        WriteStatus(statusLines, view, theme, editorDialog);
     }
+
+    private static TodoTaskEditorDialogView? CreateBrowserEditorDialog(
+        BrowserView view,
+        TuiKeyBindings keyBindings,
+        int width,
+        int height) =>
+        view.State.Editor is { } editor
+            ? TodoTaskEditorDialog.Create(editor, keyBindings, width, height)
+            : null;
+
+    private static int BrowserPickerHeight(
+        SelectListView? selectList,
+        int width,
+        int selectRows,
+        MultilineTextBoxState? textBox,
+        int textBoxRows) =>
+        selectList is not null
+            ? SelectList.Default.Measure(selectList, new TuiComponentConstraints(width, selectRows))
+            : textBox is not null
+                ? MultilineTextBox.Default.Measure(textBox, new TuiComponentConstraints(width, textBoxRows))
+                : 0;
+
+    private static int BrowserContentHeight(
+        int terminalHeight,
+        int statusHeight,
+        int pickerHeight) =>
+        Math.Max(1, AvailableContentHeight(terminalHeight, statusHeight) - pickerHeight);
 
     public void ShowPlanner(
         TabStripView tabs,
@@ -2533,6 +2597,19 @@ public sealed class BrowserRenderer
             return 24;
         }
     }
+
+    private sealed record BrowserRenderContext(
+        int Width,
+        int Height,
+        bool Compact,
+        DateOnly Today,
+        SelectListView? SelectList,
+        int SelectRows,
+        MultilineTextBoxState? TextBox,
+        int TextBoxRows,
+        TodoTaskEditorDialogView? EditorDialog,
+        IReadOnlyList<BrowserStatusLine> StatusLines,
+        int ContentHeight);
 
     private sealed record PlannerRenderContext(
         int Width,
