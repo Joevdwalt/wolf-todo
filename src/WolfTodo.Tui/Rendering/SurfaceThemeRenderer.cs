@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Rendering;
 
 public sealed class SurfaceThemeRenderer
 {
@@ -15,6 +15,9 @@ public sealed class SurfaceThemeRenderer
         background == Color.Default
             ? content
             : new SurfaceRenderable(content, background, expand);
+
+    public void WriteSurface(IRenderable content, Color background, bool expand = false) =>
+        AnsiConsole.Write(OnSurface(content, background, expand));
 
     public void AppendStyled(
         System.Text.StringBuilder output,

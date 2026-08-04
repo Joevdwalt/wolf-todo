@@ -3,12 +3,16 @@ using Microsoft.Extensions.Hosting;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Core.Infrastructure.Markdown;
 using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.DayPlanner.Rendering;
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.ProjectBrowser.Rendering;
 using WolfTodo.Tui.Features.Splash;
 using WolfTodo.Tui.Features.Tabs;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Rendering;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSingleton<MarkdownTodoProjectReader>();

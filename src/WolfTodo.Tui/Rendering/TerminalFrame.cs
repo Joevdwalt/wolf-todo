@@ -1,6 +1,6 @@
 using Spectre.Console.Rendering;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Rendering;
 
 public sealed record TerminalFrame(
     IRenderable Header,

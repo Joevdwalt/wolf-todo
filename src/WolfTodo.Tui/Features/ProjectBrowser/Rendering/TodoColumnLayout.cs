@@ -1,4 +1,4 @@
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Features.ProjectBrowser.Rendering;
 
 public sealed record TodoColumnLayout(
     int ContentWidth,

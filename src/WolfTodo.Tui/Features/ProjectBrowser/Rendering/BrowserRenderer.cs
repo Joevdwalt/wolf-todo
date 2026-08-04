@@ -3,13 +3,14 @@ using Spectre.Console;
 using Spectre.Console.Rendering;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Tabs;
-using WolfTodo.Tui.Features.DayPlanner;
+using WolfTodo.Tui.Rendering;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Features.ProjectBrowser.Rendering;
 
 public sealed class BrowserRenderer
 {
@@ -22,8 +23,9 @@ public sealed class BrowserRenderer
     private readonly Func<int> heightProvider;
     private readonly Func<DateOnly> todayProvider;
     private readonly Func<DateTime> nowProvider;
+    private readonly StatusRenderer statusRenderer = new();
 
-    public BrowserRenderer() : this(SafeWindowWidth, SafeWindowHeight, null, null)
+    public BrowserRenderer() : this(TerminalLayout.SafeWindowWidth, TerminalLayout.SafeWindowHeight, null, null)
     {
     }
 
@@ -52,7 +54,7 @@ public sealed class BrowserRenderer
         RenderBrowserHeader(tabs, view, keyBindings, theme, context);
         RenderBrowserBody(view, theme, context);
         RenderBrowserOverlay(keyBindings, theme, context);
-        WriteStatus(context.StatusLines, view, theme, context.EditorDialog);
+        statusRenderer.WriteBrowserStatus(context.StatusLines, view, theme, context.EditorDialog);
     }
 
     public BrowserRenderContext CreateBrowserRenderContext(
@@ -64,15 +66,15 @@ public sealed class BrowserRenderer
         var compact = width < 80 || height < 18;
         var today = todayProvider();
         var selectList = BrowserSelectList(view, keyBindings);
-        var selectRows = SelectListRows(height);
+        var selectRows = TerminalLayout.SelectListRows(height);
         var textBox = BrowserTextBox(view);
         var editorDialog = CreateBrowserEditorDialog(view, keyBindings, width, height);
-        var textBoxRows = TextBoxRows(height);
-        var statusLines = CreateStatusLines(view, keyBindings, compact, width, height);
+        var textBoxRows = TerminalLayout.TextBoxRows(height);
+        var statusLines = statusRenderer.BrowserStatus(view, keyBindings, compact, width, height);
         var contentHeight = BrowserContentHeight(
             height,
-            DialogContentHeight(editorDialog) ?? statusLines.Count,
-            BrowserPickerHeight(selectList, width, selectRows, textBox, textBoxRows));
+            TerminalLayout.DialogContentHeight(editorDialog) ?? statusLines.Count,
+            TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows));
 
         return new BrowserRenderContext(
             width,
@@ -88,7 +90,7 @@ public sealed class BrowserRenderer
             contentHeight);
     }
 
-    public static void RenderBrowserHeader(
+    public void RenderBrowserHeader(
         TabStripView tabs,
         BrowserView view,
         TuiKeyBindings keyBindings,
@@ -100,7 +102,7 @@ public sealed class BrowserRenderer
             keyBindings,
             theme,
             context.Width,
-            BrowserMode(view),
+            statusRenderer.BrowserMode(view),
             context.Today,
             view.Projects.FirstOrDefault()?.ActiveCount ?? 0,
             view.Projects.Count(project => project.Error is not null));
@@ -167,448 +169,19 @@ public sealed class BrowserRenderer
         int selectRows,
         MultilineTextBoxState? textBox,
         int textBoxRows) =>
-        selectList is not null
-            ? SelectList.Default.Measure(selectList, new TuiComponentConstraints(width, selectRows))
-            : textBox is not null
-                ? MultilineTextBox.Default.Measure(textBox, new TuiComponentConstraints(width, textBoxRows))
-                : 0;
+        TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows);
 
     public static int BrowserContentHeight(
         int terminalHeight,
         int statusHeight,
         int pickerHeight) =>
-        Math.Max(1, AvailableContentHeight(terminalHeight, statusHeight) - pickerHeight);
+        Math.Max(1, TerminalLayout.AvailableContentHeight(terminalHeight, statusHeight) - pickerHeight);
 
-    public static void RenderPlannerHeader(
-        TabStripView tabs,
-        PlannerView view,
-        TuiKeyBindings keyBindings,
-        TuiTheme theme,
-        PlannerRenderContext context)
-    {
-        WriteOperationalHeader(
-            tabs,
-            keyBindings,
-            theme,
-            context.Width,
-            PlannerModeLabel(view),
-            view.State.SelectedDate,
-            view.OpenTodoCount,
-            view.ProjectErrorCount);
-    }
+    public static int SelectListRows(int terminalHeight) => TerminalLayout.SelectListRows(terminalHeight);
 
-    public static Table CreatePlannerTimelineTable(
-        IReadOnlyList<PlannerTimelineRow> timelineRows,
-        int availableRows,
-        TuiTheme theme)
-    {
-        var table = new Table().SquareBorder().Expand();
-        table.BorderStyle = ThemeStyle(theme.BorderActive);
-        table.AddColumn(new TableColumn(new Text(
-            "TIME",
-            ThemeStyle(theme.Heading, Decoration.Bold)))
-        {
-            Width = 8,
-            NoWrap = true
-        });
-        table.AddColumn(new TableColumn(new Text("PLAN", ThemeStyle(theme.Accent, Decoration.Bold))));
-        AddPlannerTimelineRows(table, timelineRows, theme);
-        PadPlannerTimeline(table, timelineRows, availableRows);
-        return table;
-    }
-
-    public static void AddPlannerTimelineRows(
-        Table table,
-        IReadOnlyList<PlannerTimelineRow> timelineRows,
-        TuiTheme theme)
-    {
-        foreach (var row in timelineRows)
-        {
-            if (row is PlannerNowTimelineRow marker)
-            {
-                table.AddRow(
-                    new Text(marker.Time.ToString("HH:mm").PadLeft(5), ThemeStyle(theme.AccentBright, Decoration.Bold)),
-                    new TimelineMarkerRenderable(
-                        ThemeStyle(theme.AccentBright, Decoration.Bold)));
-                continue;
-            }
-
-            var slot = ((PlannerSlotTimelineRow)row).Slot;
-            foreach (var renderRow in PlannerTimelineRenderModel.ForSlot(slot))
-            {
-                var time = PlannerTimeRulerLine(renderRow, theme);
-                var content = PlannerTimelineRenderLine(renderRow, theme);
-                var isActiveRow = renderRow.IsActive || renderRow.IsPrimaryActive ||
-                                  renderRow.IsSelected || (slot.IsSelected && renderRow.IsEmpty);
-                table.AddRow(
-                    isActiveRow ? OnSurface(time, theme.Surface2, true) : time,
-                    isActiveRow ? OnSurface(content, theme.Surface2, true) : content);
-            }
-        }
-    }
-
-    public static void PadPlannerTimeline(
-        Table table,
-        IReadOnlyList<PlannerTimelineRow> timelineRows,
-        int availableRows)
-    {
-        for (var index = PlannerTimelineHeight(timelineRows); index < availableRows; index++)
-        {
-            table.AddEmptyRow();
-        }
-    }
-
-    public static void RenderPlannerBody(
-        PlannerView view,
-        TuiTheme theme,
-        PlannerRenderContext context,
-        Table timelineTable)
-    {
-        if (context.EditorDialog is not null && context.AvailableRows <= 1)
-        {
-            return;
-        }
-
-        if (context.WideSidePanels)
-        {
-            RenderPlannerWideBody(view, theme, context, timelineTable);
-            return;
-        }
-
-        RenderPlannerNarrowBody(view, theme, context, timelineTable);
-    }
-
-    public static void RenderPlannerWideBody(
-        PlannerView view,
-        TuiTheme theme,
-        PlannerRenderContext context,
-        Table timelineTable)
-    {
-        var detailWidth = Math.Max(28, context.Width - context.TimelineWidth - 4);
-        const int inspectorContentHeight = 10;
-        var allDayContentHeight = Math.Max(
-            1,
-            context.AvailableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
-        var sidePanels = new List<IRenderable>();
-        if (view.State.ShowDetails)
-        {
-            sidePanels.Add(PlannerPanel(
-                "INSPECTOR",
-                FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
-                theme));
-        }
-
-        if (context.ShowAllDayPanel)
-        {
-            sidePanels.Add(PlannerPanel(
-                "ALL DAY",
-                AllDayAgendaLines(view, theme, allDayContentHeight),
-                theme,
-                view.State.Focus == PlannerFocus.AllDay));
-        }
-
-        var shell = new Table().NoBorder().Collapse().HideHeaders();
-        shell.AddColumn(new TableColumn(string.Empty).Width(context.TimelineWidth).NoWrap());
-        shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
-        shell.AddRow(
-            timelineTable,
-            OnSurface(
-                new Rows(sidePanels),
-                theme.Surface2,
-                true));
-        WriteSurface(shell, theme.Surface, true);
-    }
-
-    public static void RenderPlannerNarrowBody(
-        PlannerView view,
-        TuiTheme theme,
-        PlannerRenderContext context,
-        Table timelineTable)
-    {
-        WriteSurface(timelineTable, theme.Surface, true);
-        if (context.CompactDetails)
-        {
-            WriteSurface(
-                new Panel(PlannerCompactDetail(view, theme))
-                {
-                    Header = new PanelHeader("SELECTED"),
-                    Border = BoxBorder.Square,
-                    BorderStyle = ThemeStyle(theme.Border),
-                    Expand = true
-                },
-                theme.Surface2,
-                true);
-        }
-
-        if (context.NarrowAllDayHeight > 0)
-        {
-            WriteSurface(
-                PlannerPanel(
-                    "ALL DAY",
-                    AllDayAgendaLines(view, theme, Math.Max(1, context.NarrowAllDayHeight - 2)),
-                    theme,
-                    view.State.Focus == PlannerFocus.AllDay),
-                theme.Surface2,
-                true);
-        }
-    }
-
-    public static void RenderPlannerOverlay(
-        PlannerView view,
-        TuiKeyBindings keyBindings,
-        TuiTheme theme,
-        PlannerRenderContext context)
-    {
-        if (context.SelectList is not null)
-        {
-            AnsiConsole.Write(SelectList.Default.Render(
-                context.SelectList,
-                theme,
-                new TuiComponentConstraints(context.Width, context.SelectRows)));
-        }
-        else if (context.TextBox is { } activeTextBox)
-        {
-            AnsiConsole.Write(MultilineTextBox.Default.Render(
-                activeTextBox,
-                theme,
-                new TuiComponentConstraints(context.Width, context.TextBoxRows),
-                TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
-        }
-    }
-
-    public static TodoTaskEditorDialogView? CreatePlannerEditorDialog(
-        PlannerView view,
-        TuiKeyBindings keyBindings,
-        int width,
-        int height) =>
-        view.State.Editor is { } editor
-            ? TodoTaskEditorDialog.Create(editor, keyBindings, width, height)
-            : null;
-
-    public static bool IsPlannerCompactDetailsVisible(PlannerView view, bool wideSidePanels) =>
-        view.State.ShowDetails && !wideSidePanels &&
-        view.State.Mode == PlannerMode.Browse &&
-        view.State.Editor is null &&
-        view.CommandPalette is null &&
-        view.GlobalCommand is null;
-
-    public static int PlannerNarrowAllDayHeight(
-        PlannerView view,
-        bool wideSidePanels,
-        bool showAllDayPanel) =>
-        !wideSidePanels && showAllDayPanel
-            ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
-            : 0;
-
-    public static int PlannerPickerHeight(
-        SelectListView? selectList,
-        int width,
-        int selectRows,
-        MultilineTextBoxState? textBox,
-        int textBoxRows) =>
-        selectList is not null
-            ? SelectList.Default.Measure(selectList, new TuiComponentConstraints(width, selectRows))
-            : textBox is not null
-                ? MultilineTextBox.Default.Measure(textBox, new TuiComponentConstraints(width, textBoxRows))
-                : 0;
-
-    public static int PlannerAvailableRows(
-        int terminalHeight,
-        int statusHeight,
-        int pickerHeight,
-        bool compactDetails,
-        int narrowAllDayHeight)
-    {
-        const int tabTableStatusBorderAndCursorHeight = 8;
-        const int compactDetailsHeight = 3;
-        var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
-                             (compactDetails ? compactDetailsHeight : 0) + narrowAllDayHeight;
-        return Math.Max(1, terminalHeight - statusHeight - reservedHeight);
-    }
-
-    public static string MeetingHint(PlannerSlotView slot) =>
-        slot.Meetings.Length == 0 ? string.Empty : $"  ⚠ {MeetingLabel(slot.Meetings[0])}" +
-            (slot.Meetings.Length > 1 ? $" +{slot.Meetings.Length - 1}" : string.Empty);
-
-    public static string MeetingLabel(PlannerCalendarMeeting meeting) =>
-        $"{meeting.Start:HH:mm}–{meeting.End:HH:mm} {meeting.Title}";
-
-    public static IReadOnlyList<PlannerTimelineRow> WindowPlannerTimeline(
-        IReadOnlyList<PlannerSlotView> slots,
-        int selectedIndex,
-        int availableRows,
-        DateOnly selectedDate,
-        DateTime now)
-    {
-        var rows = new List<PlannerTimelineRow>(slots.Count + 1);
-        var today = DateOnly.FromDateTime(now);
-        var currentTime = new TimeOnly(now.Hour, now.Minute);
-        var addMarker = selectedDate == today;
-        var markerAdded = false;
-        foreach (var slot in slots)
-        {
-            if (addMarker && !markerAdded && currentTime <= slot.Time)
-            {
-                rows.Add(new PlannerNowTimelineRow(currentTime));
-                markerAdded = true;
-            }
-
-            rows.Add(new PlannerSlotTimelineRow(slot));
-        }
-
-        if (addMarker && !markerAdded)
-        {
-            rows.Add(new PlannerNowTimelineRow(currentTime));
-        }
-
-        if (PlannerTimelineHeight(rows) <= availableRows)
-        {
-            return rows;
-        }
-
-        var selectedRow = rows.FindIndex(row =>
-            row is PlannerSlotTimelineRow slotRow && slotRow.Slot.IsSelected);
-        if (selectedRow < 0)
-        {
-            selectedRow = Math.Clamp(selectedIndex, 0, rows.Count - 1);
-        }
-
-        var start = selectedRow;
-        var usedRows = TimelineRowHeight(rows[selectedRow]);
-        while (start > 0 && usedRows + TimelineRowHeight(rows[start - 1]) <= availableRows)
-        {
-            start--;
-            usedRows += TimelineRowHeight(rows[start]);
-        }
-
-        var end = selectedRow + 1;
-        while (end < rows.Count && usedRows + TimelineRowHeight(rows[end]) <= availableRows)
-        {
-            usedRows += TimelineRowHeight(rows[end]);
-            end++;
-        }
-
-        var markerRow = rows.FindIndex(row => row is PlannerNowTimelineRow);
-        if (markerRow >= 0)
-        {
-            var requiredStart = Math.Min(selectedRow, markerRow);
-            var requiredEnd = Math.Max(selectedRow, markerRow) + 1;
-            var requiredHeight = PlannerTimelineHeight(rows.Skip(requiredStart).Take(requiredEnd - requiredStart));
-            if (requiredHeight <= availableRows)
-            {
-                start = requiredStart;
-                end = requiredEnd;
-                usedRows = requiredHeight;
-                while (start > 0 && usedRows + TimelineRowHeight(rows[start - 1]) <= availableRows)
-                {
-                    start--;
-                    usedRows += TimelineRowHeight(rows[start]);
-                }
-
-                while (end < rows.Count && usedRows + TimelineRowHeight(rows[end]) <= availableRows)
-                {
-                    usedRows += TimelineRowHeight(rows[end]);
-                    end++;
-                }
-            }
-        }
-
-        return rows.Skip(start).Take(end - start).ToArray();
-    }
-
-    public static int PlannerTimelineHeight(IEnumerable<PlannerTimelineRow> rows) =>
-        rows.Sum(TimelineRowHeight);
-
-    public static int TimelineRowHeight(PlannerTimelineRow row) => row switch
-    {
-        PlannerSlotTimelineRow slot => PlannerTimelineRenderModel.ForSlot(slot.Slot).Count,
-        _ => 1
-    };
-
-    public static IReadOnlyList<BrowserStatusLine> PlannerStatus(
-        PlannerView view,
-        TuiKeyBindings bindings,
-        int terminalWidth,
-        int terminalHeight)
-    {
-        IReadOnlyList<string> status;
-        if (view.CommandPalette is not null)
-        {
-            return DefaultStatusLines([CommandPaletteFooter(bindings)]);
-        }
-
-        if (view.State.Editor is not null)
-        {
-            return TodoTaskEditorStatus(
-                view.State.Editor,
-                view.Projects
-                    .Select(project => new TodoEditorProjectOption(project.Title, project.Path))
-                    .ToArray(),
-                bindings,
-                terminalWidth,
-                terminalHeight);
-        }
-
-        if (view.GlobalCommand is not null)
-        {
-            status = [view.GlobalCommand];
-        }
-        else if (view.GlobalError is not null)
-        {
-            status = [view.GlobalError];
-        }
-        else if (view.State.Error is not null)
-        {
-            status = [view.State.Error];
-        }
-        else if (view.CalendarAgenda.Error is not null)
-        {
-            status = [$"{view.CalendarAgenda.Error}  {Shortest(bindings.PlannerRefreshCalendar)} RETRY"];
-        }
-        else
-        {
-            status = view.State.Mode switch
-            {
-                PlannerMode.EditFilter or PlannerMode.ChooseTodo => [PlannerPickerFooter(bindings)],
-                PlannerMode.MoveTodo =>
-                [
-                    $"MOVE TODO  {Shortest(bindings.FocusNext)} PANE  " +
-                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} ITEM  " +
-                    $"{Shortest(bindings.JumpTop)}/{Shortest(bindings.JumpBottom)} TOP/BOTTOM  " +
-                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
-                    $"{Shortest(bindings.Open)} PLACE  {Shortest(bindings.Back)} CANCEL"
-                ],
-                _ =>
-                [
-                    $"{Shortest(bindings.FocusNext)} PANE  " +
-                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} ITEM  " +
-                    $"{Shortest(bindings.JumpTop)}/{Shortest(bindings.JumpBottom)} TOP/BOTTOM  " +
-                    $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  " +
-                    $"{Shortest(bindings.PlannerToday)} TODAY  {Shortest(bindings.Open)} ASSIGN/MOVE  " +
-                    $"{Shortest(bindings.FilterMode)} FILTER  " +
-                    $"{Shortest(bindings.PlannerUnschedule)} UNSCHEDULE  " +
-                    $"{Shortest(bindings.PlannerExportSchedule)} EXPORT  " +
-                    $"{Shortest(bindings.CreateTodo)} CREATE  {Shortest(bindings.EditTodo)} EDIT  " +
-                    $"{Shortest(bindings.ToggleTodo)} COMPLETE  {Shortest(bindings.ToggleDetails)} DETAILS" +
-                    (view.CalendarAgenda.SyncState == PlannerCalendarSyncState.Disabled
-                        ? string.Empty
-                        : $"  {Shortest(bindings.PlannerRefreshCalendar)} CALENDAR {CalendarStatus(view.CalendarAgenda)}")
-                ]
-            };
-        }
-
-        var statusWidth = Math.Max(1, terminalWidth - 4);
-        return DefaultStatusLines(status.SelectMany(line => WrapStatus(line, statusWidth)));
-    }
-
-    public static int SelectListRows(int terminalHeight) => Math.Clamp(terminalHeight / 5, 3, 7);
-
-    public static int TextBoxRows(int terminalHeight) => Math.Clamp(terminalHeight / 4, 3, 8);
+    public static int TextBoxRows(int terminalHeight) => TerminalLayout.TextBoxRows(terminalHeight);
 
     public static MultilineTextBoxState? BrowserTextBox(BrowserView view) =>
-        view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
-
-    public static MultilineTextBoxState? PlannerTextBox(PlannerView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
     public static MultilineTextBoxState? TodoEditorTextBox(TodoTaskEditorState editor) => editor.ContentTextBox;
@@ -629,41 +202,6 @@ public sealed class BrowserRenderer
                     .Select(project => new TodoEditorProjectOption(project.Title, project.Project!.Path))
                     .ToArray(),
                 bindings);
-    }
-
-    public static SelectListView? PlannerSelectList(PlannerView view, TuiKeyBindings bindings)
-    {
-        if (view.CommandPalette is not null)
-        {
-            return CommandPaletteSelectList(view.CommandPalette, bindings);
-        }
-
-        if (view.State.Editor is not null)
-        {
-            return TodoEditorSelectList(
-                view.State.Editor,
-                view.Projects.Select(project => new TodoEditorProjectOption(project.Title, project.Path)).ToArray(),
-                bindings);
-        }
-
-        if (view.State.Mode is not (PlannerMode.ChooseTodo or PlannerMode.EditFilter))
-        {
-            return null;
-        }
-
-        var searchText = view.State.Mode == PlannerMode.EditFilter
-            ? view.State.FilterDraft
-            : view.State.FilterText.Length == 0 ? null : view.State.FilterText;
-        return new SelectListView(
-            "Unscheduled todos",
-            view.PickerTodos
-                .Select(todo => new SelectOption(todo.Todo.Title, $"[{todo.ProjectTitle}]"))
-                .ToArray(),
-            view.State.PickerIndex,
-            searchText,
-            "No open unscheduled todos",
-            PlannerPickerFooter(bindings),
-            view.State.Error);
     }
 
     public static SelectListView CommandPaletteSelectList(CommandPaletteView palette, TuiKeyBindings bindings) =>
@@ -724,66 +262,6 @@ public sealed class BrowserRenderer
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
         $"{Shortest(bindings.FilterMode)} SEARCH  {Shortest(bindings.Open)} RUN  " +
         $"{Shortest(bindings.Back)} CLOSE";
-
-    public static string PlannerPickerFooter(TuiKeyBindings bindings) =>
-        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
-        $"{Shortest(bindings.Open)} ASSIGN  {Shortest(bindings.FilterMode)} FILTER  " +
-        $"{Shortest(bindings.Back)} CANCEL";
-
-    public static string CalendarStatus(PlannerCalendarAgenda agenda) => agenda.SyncState switch
-    {
-        PlannerCalendarSyncState.Syncing => "SYNCING",
-        PlannerCalendarSyncState.Ready => "READY",
-        PlannerCalendarSyncState.AuthenticationRequired => "SIGN IN",
-        PlannerCalendarSyncState.ConfigurationError => "CONFIG",
-        PlannerCalendarSyncState.Offline => "OFFLINE",
-        _ => string.Empty
-    };
-
-    public static void WritePlannerStatus(
-        IReadOnlyList<BrowserStatusLine> lines,
-        PlannerView view,
-        TuiTheme theme,
-        TodoTaskEditorDialogView? editorDialog = null)
-    {
-        if (editorDialog is not null)
-        {
-            WriteSurface(TodoTaskEditorDialog.CreateRenderable(editorDialog, theme), theme.Surface2, true);
-            return;
-        }
-
-        var defaultStyle = view.GlobalError is not null || view.State.Error is not null ||
-                    view.CommandPalette?.State.Error is not null
-            ? ThemeStyle(theme.Error, Decoration.Bold)
-            : view.GlobalCommand is not null || view.CommandPalette is not null
-                ? ThemeStyle(theme.Accent)
-            : view.State.Mode == PlannerMode.Browse
-                ? ThemeStyle(theme.SecondaryText)
-                : ThemeStyle(theme.Accent);
-        var content = lines.Select(line => new Text(
-            line.Text,
-            line.Role switch
-            {
-                BrowserStatusRole.FormLabel => ThemeStyle(theme.Heading, Decoration.Bold),
-                BrowserStatusRole.FormValue => ThemeStyle(theme.SecondaryText),
-                BrowserStatusRole.FormActiveValue => ThemeStyle(theme.AccentBright, Decoration.Bold),
-                BrowserStatusRole.FormPlaceholder => ThemeStyle(theme.Muted, Decoration.Dim),
-                BrowserStatusRole.FormHint => ThemeStyle(theme.Muted, Decoration.Dim),
-                BrowserStatusRole.FormError => ThemeStyle(theme.Error, Decoration.Bold),
-                BrowserStatusRole.ContentWarning => ThemeStyle(theme.Warning, Decoration.Bold),
-                _ => defaultStyle
-            }));
-        WriteSurface(
-            new Panel(new Rows(content))
-            {
-                Border = BoxBorder.Square,
-                BorderStyle = ThemeStyle(
-                    view.State.Mode == PlannerMode.Browse ? theme.Border : theme.BorderActive),
-                Expand = true
-            },
-            theme.Surface2,
-            true);
-    }
 
     public static void WriteWide(
         BrowserView view,
@@ -1031,20 +509,6 @@ public sealed class BrowserRenderer
         _ => "BROWSE"
     };
 
-    public static string PlannerModeLabel(PlannerView view) => view switch
-    {
-        { CommandPalette: not null } => "HELP",
-        { GlobalCommand: not null } => "COMMAND",
-        { GlobalError: not null } => "ERROR",
-        { State.Editor.IsCreate: true } => "CREATE",
-        { State.Editor: not null } => "EDIT",
-        { State.Mode: PlannerMode.EditFilter } => "FILTER",
-        { State.Mode: PlannerMode.ChooseTodo } => "PICK",
-        { State.Mode: PlannerMode.MoveTodo } => "MOVE",
-        { State.Error: not null } => "ERROR",
-        _ => "BROWSE"
-    };
-
     public static IReadOnlyList<IRenderable> ProjectLines(BrowserView view, TuiTheme theme)
     {
         return view.Projects.Select(row =>
@@ -1201,327 +665,16 @@ public sealed class BrowserRenderer
         return lines;
     }
 
-    public static IReadOnlyList<IRenderable> PlannerDetailLines(PlannerView view, TuiTheme theme)
-    {
-        if (view.State.Mode == PlannerMode.MoveTodo && view.State.MovingTodo is { } movingIdentity)
-        {
-            var moving = view.Slots
-                .SelectMany(slot => slot.Assignments)
-                .Concat(view.CalendarAgenda.AllDayItems
-                    .Where(item => item.Assignment is not null)
-                    .Select(item => item.Assignment!))
-                .FirstOrDefault(assignment => assignment.Identity == movingIdentity);
-            if (moving is not null)
-            {
-                var schedule = moving.Todo.Schedule;
-                var duration = moving.Todo.Duration;
-                var destination = view.State.Focus == PlannerFocus.AllDay
-                    ? $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY"
-                    : duration is { } destinationDuration
-                        ? $"{view.State.SelectedDate:yyyy-MM-dd} " +
-                          $"{view.SelectedSlot.Time:HH:mm}–{view.SelectedSlot.Time.Add(destinationDuration):HH:mm}"
-                        : $"{view.State.SelectedDate:yyyy-MM-dd} {view.SelectedSlot.Time:HH:mm}";
-                var current = schedule is null
-                    ? "Unscheduled"
-                    : schedule.Time is null
-                        ? $"{schedule.Date:yyyy-MM-dd} · ALL DAY"
-                        : duration is { } currentDuration
-                            ? $"{schedule.Date:yyyy-MM-dd} " +
-                              $"{schedule.Time:HH:mm}–{schedule.Time.Value.Add(currentDuration):HH:mm}"
-                            : $"{schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}";
-                return
-                [
-                    new Text("MOVE TASK", ThemeStyle(theme.AccentBright, Decoration.Bold)),
-                    new Text($"Task: {moving.Todo.Title}", ThemeStyle(theme.Text)),
-                    new Text($"Current: {current}", ThemeStyle(theme.Date)),
-                    new Text($"Destination: {destination}", ThemeStyle(theme.Date)),
-                    new Text($"Duration: {FormatDuration(duration) ?? "Instant"}", ThemeStyle(theme.Info))
-                ];
-            }
-        }
-
-        if (view.State.Focus == PlannerFocus.AllDay)
-        {
-            return PlannerAllDayDetailLines(view, theme);
-        }
-
-        if (view.SelectedSlot.Assignments.Length > 1)
-        {
-            return
-            [
-                new Text("CONFLICTING ASSIGNMENTS", ThemeStyle(theme.Error, Decoration.Bold)),
-                new Text("Resolve the duplicate schedule metadata before editing this slot.",
-                    ThemeStyle(theme.Error))
-            ];
-        }
-
-        if (view.SelectedAssignment is null)
-        {
-            return view.SelectedMeeting is null
-                ? [new Text("EMPTY TIMESLOT", ThemeStyle(theme.Muted, Decoration.Dim))]
-                : PlannerMeetingDetailLines(view, theme);
-        }
-
-        var assignment = view.SelectedAssignment;
-        var todo = assignment.Todo;
-        var lines = new List<IRenderable>
-        {
-            new Text(todo.Title, ThemeStyle(theme.Heading, Decoration.Bold))
-        };
-        AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
-        if (!string.IsNullOrEmpty(todo.SectionPath))
-        {
-            AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
-        }
-
-        AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
-        AddField(lines, "Priority", todo.Priority?.ToString(), theme, PriorityColor(todo.Priority, theme));
-        AddField(
-            lines,
-            "Tags",
-            todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
-            theme,
-            theme.Tag);
-        AddField(
-            lines,
-            "Scheduled",
-            todo.Schedule is null
-                ? null
-                : FormatSchedule(todo.Schedule),
-            theme,
-            theme.Date);
-        AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
-        AddField(
-            lines,
-            "Calendar",
-            view.SelectedSlot.Meetings.FirstOrDefault() is null
-                ? null
-                : MeetingLabel(view.SelectedSlot.Meetings[0]) +
-                  (view.SelectedSlot.Meetings.Length > 1 ? $" +{view.SelectedSlot.Meetings.Length - 1}" : string.Empty),
-            theme,
-            theme.Info);
-
-        if (todo.Notes.Length > 0)
-        {
-            lines.Add(new Text(string.Empty));
-            lines.Add(new Text("NOTES", ThemeStyle(theme.Heading, Decoration.Bold)));
-            lines.AddRange(todo.Notes.Select(note => new Text($"• {note.Text}", ThemeStyle(theme.Text))));
-        }
-
-        if (todo.Subtasks.Length > 0)
-        {
-            lines.Add(new Text(string.Empty));
-            lines.Add(new Text("SUBTASKS", ThemeStyle(theme.Heading, Decoration.Bold)));
-            lines.AddRange(todo.Subtasks.Select(subtask => DetailedTodoLine(subtask, [], false, theme)));
-        }
-
-        if (todo.Notes.Length == 0 && todo.Subtasks.Length == 0)
-        {
-            lines.Add(new Text(string.Empty));
-            lines.Add(new Text("NO ADDITIONAL DETAILS", ThemeStyle(theme.Muted, Decoration.Dim)));
-        }
-
-        return lines;
-    }
-
-    public static IReadOnlyList<IRenderable> PlannerAllDayDetailLines(PlannerView view, TuiTheme theme)
-    {
-        var item = view.SelectedAllDayItem;
-        if (item is null)
-        {
-            return
-            [
-                new Text("EMPTY ALL DAY", ThemeStyle(theme.Muted, Decoration.Dim)),
-                new Text("Press Enter to assign an existing todo or a to create one.", ThemeStyle(theme.Muted))
-            ];
-        }
-
-        if (item.Assignment is { } assignment)
-        {
-            var todo = assignment.Todo;
-            var lines = new List<IRenderable>
-            {
-                new Text(todo.Title, ThemeStyle(theme.Heading, Decoration.Bold))
-            };
-            AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
-            AddField(lines, "Scheduled", $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY", theme, theme.Date);
-            AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
-            AddField(lines, "Priority", todo.Priority?.ToString(), theme, PriorityColor(todo.Priority, theme));
-            AddField(
-                lines,
-                "Tags",
-                todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
-                theme,
-                theme.Tag);
-            AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
-            return lines;
-        }
-
-        var calendarLines = new List<IRenderable>
-        {
-            new Text(item.Title, ThemeStyle(theme.Info, Decoration.Bold))
-        };
-        AddField(lines: calendarLines, "Type", AllDayKindLabel(item.Kind), theme, theme.Info);
-        AddField(lines: calendarLines, "Scheduled", $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY", theme, theme.Date);
-        AddField(lines: calendarLines, "Location", item.Location, theme, theme.Text);
-        AddField(
-            calendarLines,
-            "Attendees",
-            item.Attendees.Length == 0 ? null : string.Join(", ", item.Attendees),
-            theme,
-            theme.SecondaryText);
-        AddField(lines: calendarLines, "Notes", MeetingDescriptionPreview(item.Description), theme, theme.Text);
-        calendarLines.Add(new Text("READ-ONLY CALENDAR ITEM", ThemeStyle(theme.Muted, Decoration.Dim)));
-        return calendarLines;
-    }
-
-    public static IReadOnlyList<IRenderable> AllDayAgendaLines(
-        PlannerView view,
-        TuiTheme theme,
-        int contentHeight)
-    {
-        if (view.CalendarAgenda.AllDayItems.Length == 0)
-        {
-            return view.State.Focus == PlannerFocus.AllDay
-                ? [new Text("> — ADD ALL-DAY TASK", ThemeStyle(theme.AccentBright, Decoration.Bold))]
-                : [new Text("NO ALL-DAY ITEMS", ThemeStyle(theme.Muted, Decoration.Dim))];
-        }
-
-        var lines = view.CalendarAgenda.AllDayItems.Select((item, index) =>
-        {
-            var selected = view.State.Focus == PlannerFocus.AllDay && index == view.State.AllDayIndex;
-            if (item.Todo is not null)
-            {
-                return PlannerTodoLine(
-                    item.Todo,
-                    item.ProjectTitle,
-                    selected ? ">" : " ",
-                    selected,
-                    string.Empty,
-                    theme);
-            }
-
-            var color = selected ? theme.AccentBright : item.IsCompleted ? theme.Muted :
-                item.Kind == PlannerCalendarItemKind.Todo ? theme.Text : theme.Info;
-            return (IRenderable)new Text($"{(selected ? ">" : " ")} ◆ {item.Title}", ThemeStyle(
-                color,
-                selected ? Decoration.Bold : item.IsCompleted ? Decoration.Dim : Decoration.None)).Ellipsis();
-        }).ToArray();
-        return FitLines(lines, contentHeight, view.State.AllDayIndex);
-    }
-
-    public static Panel PlannerPanel(
-        string header,
-        IReadOnlyList<IRenderable> lines,
-        TuiTheme theme,
-        bool active = false)
-    {
-        var styledHeader = new System.Text.StringBuilder();
-        AppendStyled(styledHeader, header, theme.AccentBright, Decoration.Bold);
-        var panel = new Panel(CreateContent(lines))
-        {
-            Header = new PanelHeader(styledHeader.ToString()),
-            Border = BoxBorder.Square,
-            BorderStyle = ThemeStyle(active ? theme.AccentBright : theme.BorderActive),
-            Expand = true
-        };
-        return panel;
-    }
-
-    public static IReadOnlyList<IRenderable> FixedLines(
-        IReadOnlyList<IRenderable> lines,
-        int contentHeight)
-    {
-        var fitted = FitLines(lines, contentHeight, 0).ToList();
-        while (fitted.Count < contentHeight)
-        {
-            fitted.Add(new Text(string.Empty));
-        }
-
-        return fitted;
-    }
-
-    public static IRenderable PlannerCompactDetail(PlannerView view, TuiTheme theme)
-    {
-        if (view.State.Focus == PlannerFocus.AllDay)
-        {
-            var item = view.SelectedAllDayItem;
-            if (item is null)
-            {
-                return new Text("Empty all-day schedule", ThemeStyle(theme.Muted, Decoration.Dim));
-            }
-
-            var label = item.Assignment is null
-                ? $"{item.Title}  ·  {AllDayKindLabel(item.Kind)}  ·  READ ONLY"
-                : $"{item.Title}  ·  {item.ProjectTitle}  ·  ALL DAY";
-            return new Text(
-                label,
-                ThemeStyle(item.Assignment is null ? theme.Info : theme.Heading, Decoration.Bold)).Ellipsis();
-        }
-
-        if (view.SelectedSlot.Assignments.Length > 1)
-        {
-            return new Text(
-                $"{view.SelectedSlot.Assignments.Length} conflicting assignments",
-                ThemeStyle(theme.Error, Decoration.Bold)).Ellipsis();
-        }
-
-        if (view.SelectedAssignment is null)
-        {
-            if (view.SelectedMeeting is null)
-            {
-                return new Text("Empty timeslot", ThemeStyle(theme.Muted, Decoration.Dim));
-            }
-
-            var meeting = view.SelectedMeeting;
-            var meetingLine = new System.Text.StringBuilder();
-            AppendStyled(meetingLine, meeting.Title, theme.Info, Decoration.Bold);
-            AppendStyled(meetingLine, $"  {MeetingTimeAndDuration(meeting)}", theme.Muted, Decoration.Dim);
-            return new Markup(meetingLine.ToString()).Ellipsis();
-        }
-
-        var assignment = view.SelectedAssignment;
-        var todo = assignment.Todo;
-        var metadata = new[]
-        {
-            assignment.ProjectTitle,
-            todo.Priority?.ToString(),
-            todo.Tags.Length == 0 ? null : string.Join(' ', todo.Tags.Select(tag => $"#{tag}")),
-            todo.Schedule is null
-                ? null
-                : FormatSchedule(todo.Schedule)
-        };
-        var line = new System.Text.StringBuilder();
-        AppendStyled(line, todo.Title, theme.Heading, Decoration.Bold);
-        AppendStyled(
-            line,
-            $"  {string.Join(" · ", metadata.Where(value => !string.IsNullOrEmpty(value)))}",
-            theme.Muted,
-            Decoration.Dim);
-        return new Markup(line.ToString()).Ellipsis();
-    }
-
-    public static string AllDayKindLabel(PlannerCalendarItemKind kind) => kind switch
-    {
-        PlannerCalendarItemKind.FocusTime => "Focus time",
-        PlannerCalendarItemKind.OutOfOffice => "Out of office",
-        PlannerCalendarItemKind.Todo => "Todo",
-        _ => "Calendar event"
-    };
-
     public static IRenderable CreateContent(IReadOnlyList<IRenderable> lines)
     {
         return lines.Count == 0 ? new Text(string.Empty) : new Rows(lines);
     }
 
-    public static int AvailableContentHeight(int terminalHeight, int statusLineCount)
-    {
-        const int tabTableStatusBorderAndCursorHeight = 8;
-        return Math.Max(1, terminalHeight - tabTableStatusBorderAndCursorHeight - statusLineCount);
-    }
+    public static int AvailableContentHeight(int terminalHeight, int statusLineCount) =>
+        TerminalLayout.AvailableContentHeight(terminalHeight, statusLineCount);
 
     public static int? DialogContentHeight(TodoTaskEditorDialogView? dialog) =>
-        dialog is null ? null : dialog.Height - 2;
+        TerminalLayout.DialogContentHeight(dialog);
 
     public static IReadOnlyList<IRenderable> FitLines(
         IReadOnlyList<IRenderable> lines,
@@ -1873,161 +1026,6 @@ public sealed class BrowserRenderer
         AppendStyled(line, schedule, todo.IsCompleted ? theme.Muted : theme.Date,
             todo.IsCompleted ? Decoration.Dim : Decoration.None);
         return new Markup(line.ToString());
-    }
-
-    public static IRenderable PlannerTimeRulerLine(PlannerTimelineRenderRow row, TuiTheme theme)
-    {
-        var text = row.IsMinorTimeTick ? row.TimeTickGlyph.PadLeft(5) : row.TimeLabel.PadLeft(5);
-        return new Text(
-            text,
-            ThemeStyle(
-                row.IsSelected ? theme.AccentBright : row.IsMinorTimeTick ? theme.Muted : theme.Date,
-                row.IsSelected ? Decoration.Bold : row.IsMinorTimeTick ? Decoration.Dim : Decoration.None));
-    }
-
-    public static IRenderable PlannerTimelineRenderLine(PlannerTimelineRenderRow row, TuiTheme theme)
-    {
-        var selected = row.IsSelected;
-        var active = row.IsActive;
-        var primaryActive = row.IsPrimaryActive;
-        var completed = row.ItemType == PlannerItemType.Task && row.StatusGlyph == "✓";
-        var color = active ? theme.AccentBright : completed ? theme.Muted :
-            row.ItemType == PlannerItemType.Task ? theme.Text : row.ItemType is null ? theme.Muted : theme.Info;
-        var decoration = active ? Decoration.Bold : completed || row.IsEmpty ? Decoration.Dim : Decoration.None;
-        var line = new System.Text.StringBuilder();
-        AppendStyled(
-            line,
-            row.PrimaryBranchGlyph,
-            row.IsPrimarySelected || primaryActive || selected ? theme.AccentBright : row.IsEmpty ? theme.Muted : theme.BorderActive,
-            row.IsPrimarySelected || primaryActive ? Decoration.Bold : decoration);
-        if (row.SecondaryPrefix.Length > 0)
-        {
-            AppendStyled(line, "  " + row.SecondaryPrefix + "  ", theme.BorderActive, decoration);
-        }
-        else if (row.ActivityBranchGlyph.Length > 0 && row.PrimaryBranchGlyph.Length > 0)
-        {
-            AppendStyled(line, "  ", color, decoration);
-        }
-
-        if (row.IsEmpty)
-        {
-            return new Markup(line.ToString());
-        }
-
-        AppendStyled(line, row.ActivityBranchGlyph + " ", color, decoration);
-        if (row.StatusGlyph.Length > 0)
-        {
-            var glyphColor = row.ItemType == PlannerItemType.Task && !completed
-                ? active ? theme.AccentBright : theme.Accent
-                : color;
-            AppendStyled(line, row.StatusGlyph + " ", glyphColor, decoration);
-            AppendStyled(line, row.Title, color, decoration);
-            if (row.Metadata.Length > 0)
-            {
-                AppendStyled(line, " " + row.Metadata, active ? theme.AccentBright : theme.Muted, decoration);
-            }
-        }
-
-        return new Markup(line.ToString());
-    }
-
-    public static IRenderable PlannerTodoLine(
-        TodoItem todo,
-        string? projectTitle,
-        string prefix,
-        bool selected,
-        string meetingHint,
-        TuiTheme theme)
-    {
-        var completed = todo.IsCompleted;
-        var decoration = selected ? Decoration.Bold : completed ? Decoration.Dim : Decoration.None;
-        var baseColor = selected ? theme.AccentBright : completed ? theme.Muted : theme.Text;
-        var markerColor = selected ? theme.AccentBright : completed ? theme.Muted : theme.Accent;
-        var priorityColor = selected ? theme.AccentBright : completed ? theme.Muted : PriorityColor(todo.Priority, theme);
-        var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
-        var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
-        var schedule = todo.Schedule is null ? string.Empty : $" ⏳ {FormatSchedule(todo.Schedule)}";
-        var line = new System.Text.StringBuilder();
-
-        AppendStyled(line, $"{prefix} ", baseColor, decoration);
-        AppendStyled(line, TodoStatusGlyph(completed), markerColor, decoration);
-        AppendStyled(line, " ", baseColor, decoration);
-        AppendStyled(line, PriorityCode(todo.Priority), priorityColor, decoration);
-        AppendStyled(line, " ", baseColor, decoration);
-        AppendStyled(line, reference, selected ? theme.AccentBright : completed ? theme.Muted : theme.Info, decoration);
-        AppendStyled(line, todo.Title, baseColor, decoration);
-        AppendStyled(line, projectTitle is null ? string.Empty : $"  [{projectTitle}]",
-            selected ? theme.AccentBright : completed ? theme.Muted : theme.SecondaryText,
-            decoration);
-        AppendStyled(line, tags, selected ? theme.AccentBright : completed ? theme.Muted : theme.Tag, decoration);
-        AppendStyled(line, schedule, selected ? theme.AccentBright : completed ? theme.Muted : theme.Date, decoration);
-        AppendStyled(line, meetingHint, theme.Warning, decoration);
-        return new Markup(line.ToString());
-    }
-
-    public static IRenderable PlannerMeetingLine(
-        PlannerCalendarMeeting meeting,
-        string prefix,
-        bool selected,
-        int additionalMeetings,
-        TuiTheme theme)
-    {
-        var line = new System.Text.StringBuilder();
-        var color = selected ? theme.AccentBright : theme.Info;
-        var decoration = selected ? Decoration.Bold : Decoration.None;
-        AppendStyled(line, $"{prefix} MEETING ", color, decoration);
-        AppendStyled(line, MeetingLabel(meeting), color, decoration);
-        if (additionalMeetings > 0)
-        {
-            AppendStyled(line, $" +{additionalMeetings}", selected ? theme.AccentBright : theme.Warning, decoration);
-        }
-
-        return new Markup(line.ToString());
-    }
-
-    public static IReadOnlyList<IRenderable> PlannerMeetingDetailLines(PlannerView view, TuiTheme theme)
-    {
-        var meeting = view.SelectedMeeting!;
-        var lines = new List<IRenderable>
-        {
-            new Text(meeting.Title, ThemeStyle(theme.Info, Decoration.Bold))
-        };
-        AddField(lines, "Time", MeetingTimeAndDuration(meeting), theme, theme.Date);
-        AddField(lines, "Location", meeting.Location, theme, theme.Text);
-        AddField(
-            lines,
-            "Attendees",
-            meeting.Attendees.Length == 0 ? null : string.Join(", ", meeting.Attendees),
-            theme,
-            theme.SecondaryText);
-        AddField(lines, "Notes", MeetingDescriptionPreview(meeting.Description), theme, theme.Text);
-        if (view.SelectedSlot.Meetings.Length > 1)
-        {
-            AddField(
-                lines,
-                "Also",
-                string.Join(" · ", view.SelectedSlot.Meetings
-                    .Where(candidate => candidate.Identity != meeting.Identity)
-                    .Select(MeetingLabel)),
-                theme,
-                theme.Warning);
-        }
-
-        return lines;
-    }
-
-    public static string MeetingTimeAndDuration(PlannerCalendarMeeting meeting) =>
-        $"{meeting.Start:HH:mm}–{meeting.End:HH:mm} · {(int)(meeting.End - meeting.Start).TotalMinutes}m";
-
-    public static string? MeetingDescriptionPreview(string? description)
-    {
-        if (string.IsNullOrWhiteSpace(description))
-        {
-            return null;
-        }
-
-        var normalized = string.Join(' ', description.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        return normalized.Length <= 120 ? normalized : normalized[..117] + "…";
     }
 
     public static Color PriorityColor(TodoPriority? priority, TuiTheme theme) => priority switch
@@ -2447,12 +1445,10 @@ public sealed class BrowserRenderer
         new(color, background ?? Color.Default, decoration);
 
     public static IRenderable OnSurface(IRenderable content, Color background, bool expand = false) =>
-        background == Color.Default
-            ? content
-            : new SurfaceRenderable(content, background, expand);
+        new SurfaceThemeRenderer().OnSurface(content, background, expand);
 
     public static void WriteSurface(IRenderable content, Color background, bool expand = false) =>
-        AnsiConsole.Write(OnSurface(content, background, expand));
+        new SurfaceThemeRenderer().WriteSurface(content, background, expand);
 
     public static void AppendStyled(
         System.Text.StringBuilder output,

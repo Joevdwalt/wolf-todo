@@ -1,8 +1,8 @@
 using FluentAssertions;
 using Spectre.Console;
-using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Rendering;
 
-namespace WolfTodo.Tui.Tests.Infrastructure;
+namespace WolfTodo.Tui.Tests.Rendering;
 
 public sealed class SurfaceThemeRendererTests
 {

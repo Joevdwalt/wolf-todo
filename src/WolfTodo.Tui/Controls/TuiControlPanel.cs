@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using WolfTodo.Tui.Features.Configuration;
-using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Controls;
 

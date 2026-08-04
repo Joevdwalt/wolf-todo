@@ -1,4 +1,4 @@
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Features.ApplicationShell.Rendering;
 
 public sealed record BrowserStatusLine(
     string Text,

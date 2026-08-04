@@ -1,8 +1,8 @@
 using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
-using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Features.ProjectBrowser.Rendering;
 
-namespace WolfTodo.Tui.Tests.Infrastructure;
+namespace WolfTodo.Tui.Tests.Features.ProjectBrowser.Rendering;
 
 public sealed class TodoRowRendererTests
 {

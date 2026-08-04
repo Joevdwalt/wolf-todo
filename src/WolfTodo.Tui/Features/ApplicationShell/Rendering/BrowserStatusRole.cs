@@ -1,4 +1,4 @@
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Features.ApplicationShell.Rendering;
 
 public enum BrowserStatusRole
 {
