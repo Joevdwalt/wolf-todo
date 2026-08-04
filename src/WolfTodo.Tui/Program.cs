@@ -33,7 +33,21 @@ builder.Services.AddSingleton<IExternalEditorLauncher>(new ProcessExternalEditor
 builder.Services.AddSingleton<IApplicationStateStore>(
     new JsonApplicationStateStore(GlobalApplicationStatePath.Resolve()));
 builder.Services.AddSingleton<IProjectFileSystem, PhysicalProjectFileSystem>();
-builder.Services.AddSingleton<ITerminalUi>(new SpectreTerminalUi());
+builder.Services.AddSingleton<SurfaceThemeRenderer>();
+builder.Services.AddSingleton<StatusRenderer>();
+builder.Services.AddSingleton<TodoRowRenderer>();
+builder.Services.AddSingleton<CalendarItemRenderer>();
+builder.Services.AddSingleton<TerminalInputReader>();
+builder.Services.AddSingleton<BrowserRenderer>();
+builder.Services.AddSingleton<PlannerRenderer>();
+builder.Services.AddSingleton<ITerminalUi>(serviceProvider =>
+    new SpectreTerminalUi(
+        SafeWindowWidth,
+        SafeWindowHeight,
+        serviceProvider.GetRequiredService<BrowserRenderer>(),
+        serviceProvider.GetRequiredService<PlannerRenderer>(),
+        serviceProvider.GetRequiredService<TerminalInputReader>(),
+        serviceProvider.GetRequiredService<SurfaceThemeRenderer>()));
 builder.Services.AddSingleton<IApplicationConfigurationLoader>(serviceProvider =>
     new TomlApplicationConfigurationLoader(
         GlobalConfigurationPath.Resolve(),
@@ -61,3 +75,27 @@ builder.Services.AddSingleton(serviceProvider =>
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();
+
+static int SafeWindowWidth()
+{
+    try
+    {
+        return Console.WindowWidth;
+    }
+    catch (IOException)
+    {
+        return 80;
+    }
+}
+
+static int SafeWindowHeight()
+{
+    try
+    {
+        return Console.WindowHeight;
+    }
+    catch (IOException)
+    {
+        return 24;
+    }
+}
