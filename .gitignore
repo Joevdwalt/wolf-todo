@@ -21,6 +21,9 @@ coverage*/
 *.coverage
 *.coveragexml
 
+# Generated analysis output
+graphify-out/
+
 # NuGet package artifacts
 *.nupkg
 *.snupkg
