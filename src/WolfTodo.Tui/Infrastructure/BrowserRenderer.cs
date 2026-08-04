@@ -18,12 +18,6 @@ public sealed class BrowserRenderer
     private const string OpenTodoGlyph = "◯";
     private const string CompletedTodoGlyph = "✓";
 
-    private abstract record PlannerTimelineRow;
-
-    private sealed record PlannerSlotTimelineRow(PlannerSlotView Slot) : PlannerTimelineRow;
-
-    private sealed record PlannerNowTimelineRow(TimeOnly Time) : PlannerTimelineRow;
-
     private readonly Func<int> widthProvider;
     private readonly Func<int> heightProvider;
     private readonly Func<DateOnly> todayProvider;
@@ -61,7 +55,7 @@ public sealed class BrowserRenderer
         WriteStatus(context.StatusLines, view, theme, context.EditorDialog);
     }
 
-    private BrowserRenderContext CreateBrowserRenderContext(
+    public BrowserRenderContext CreateBrowserRenderContext(
         BrowserView view,
         TuiKeyBindings keyBindings)
     {
@@ -94,7 +88,7 @@ public sealed class BrowserRenderer
             contentHeight);
     }
 
-    private static void RenderBrowserHeader(
+    public static void RenderBrowserHeader(
         TabStripView tabs,
         BrowserView view,
         TuiKeyBindings keyBindings,
@@ -112,7 +106,7 @@ public sealed class BrowserRenderer
             view.Projects.Count(project => project.Error is not null));
     }
 
-    private static void RenderBrowserBody(
+    public static void RenderBrowserBody(
         BrowserView view,
         TuiTheme theme,
         BrowserRenderContext context)
@@ -136,7 +130,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static void RenderBrowserOverlay(
+    public static void RenderBrowserOverlay(
         TuiKeyBindings keyBindings,
         TuiTheme theme,
         BrowserRenderContext context)
@@ -158,7 +152,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static TodoTaskEditorDialogView? CreateBrowserEditorDialog(
+    public static TodoTaskEditorDialogView? CreateBrowserEditorDialog(
         BrowserView view,
         TuiKeyBindings keyBindings,
         int width,
@@ -167,7 +161,7 @@ public sealed class BrowserRenderer
             ? TodoTaskEditorDialog.Create(editor, keyBindings, width, height)
             : null;
 
-    private static int BrowserPickerHeight(
+    public static int BrowserPickerHeight(
         SelectListView? selectList,
         int width,
         int selectRows,
@@ -179,80 +173,13 @@ public sealed class BrowserRenderer
                 ? MultilineTextBox.Default.Measure(textBox, new TuiComponentConstraints(width, textBoxRows))
                 : 0;
 
-    private static int BrowserContentHeight(
+    public static int BrowserContentHeight(
         int terminalHeight,
         int statusHeight,
         int pickerHeight) =>
         Math.Max(1, AvailableContentHeight(terminalHeight, statusHeight) - pickerHeight);
 
-    public void ShowPlanner(
-        TabStripView tabs,
-        PlannerView view,
-        TuiKeyBindings keyBindings,
-        TuiTheme theme)
-    {
-        var context = CreatePlannerRenderContext(view, keyBindings);
-        RenderPlannerHeader(tabs, view, keyBindings, theme, context);
-
-        var timelineRows = WindowPlannerTimeline(
-            view.Slots,
-            view.State.SlotIndex,
-            context.AvailableRows,
-            view.State.SelectedDate,
-            nowProvider());
-        var timelineTable = CreatePlannerTimelineTable(timelineRows, context.AvailableRows, theme);
-
-        RenderPlannerBody(view, theme, context, timelineTable);
-        RenderPlannerOverlay(view, keyBindings, theme, context);
-        WritePlannerStatus(context.Status, view, theme, context.EditorDialog);
-    }
-
-    private PlannerRenderContext CreatePlannerRenderContext(
-        PlannerView view,
-        TuiKeyBindings keyBindings)
-    {
-        var width = widthProvider();
-        var height = heightProvider();
-        var selectRows = SelectListRows(height);
-        var textBoxRows = TextBoxRows(height);
-        var selectList = PlannerSelectList(view, keyBindings);
-        var textBox = PlannerTextBox(view);
-        var editorDialog = CreatePlannerEditorDialog(view, keyBindings, width, height);
-        var status = PlannerStatus(view, keyBindings, width, height);
-        var wideLayout = width >= 120;
-        var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
-                            view.State.Focus == PlannerFocus.AllDay;
-        var showAllDayPanel = allDayVisible || (wideLayout && view.State.ShowDetails);
-        var wideSidePanels = wideLayout && (view.State.ShowDetails || showAllDayPanel);
-        var compactDetails = IsPlannerCompactDetailsVisible(view, wideSidePanels);
-        var narrowAllDayHeight = PlannerNarrowAllDayHeight(view, wideSidePanels, showAllDayPanel);
-        var pickerHeight = PlannerPickerHeight(selectList, width, selectRows, textBox, textBoxRows);
-        var availableRows = PlannerAvailableRows(
-            height,
-            DialogContentHeight(editorDialog) ?? status.Count,
-            pickerHeight,
-            compactDetails,
-            narrowAllDayHeight);
-        var timelineWidth = wideSidePanels ? Math.Max(40, (width * 2 / 3) - 2) : width;
-
-        return new PlannerRenderContext(
-            width,
-            height,
-            selectList,
-            selectRows,
-            textBox,
-            textBoxRows,
-            editorDialog,
-            status,
-            wideSidePanels,
-            showAllDayPanel,
-            compactDetails,
-            narrowAllDayHeight,
-            availableRows,
-            timelineWidth);
-    }
-
-    private static void RenderPlannerHeader(
+    public static void RenderPlannerHeader(
         TabStripView tabs,
         PlannerView view,
         TuiKeyBindings keyBindings,
@@ -270,7 +197,7 @@ public sealed class BrowserRenderer
             view.ProjectErrorCount);
     }
 
-    private static Table CreatePlannerTimelineTable(
+    public static Table CreatePlannerTimelineTable(
         IReadOnlyList<PlannerTimelineRow> timelineRows,
         int availableRows,
         TuiTheme theme)
@@ -290,7 +217,7 @@ public sealed class BrowserRenderer
         return table;
     }
 
-    private static void AddPlannerTimelineRows(
+    public static void AddPlannerTimelineRows(
         Table table,
         IReadOnlyList<PlannerTimelineRow> timelineRows,
         TuiTheme theme)
@@ -320,7 +247,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static void PadPlannerTimeline(
+    public static void PadPlannerTimeline(
         Table table,
         IReadOnlyList<PlannerTimelineRow> timelineRows,
         int availableRows)
@@ -331,7 +258,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static void RenderPlannerBody(
+    public static void RenderPlannerBody(
         PlannerView view,
         TuiTheme theme,
         PlannerRenderContext context,
@@ -351,7 +278,7 @@ public sealed class BrowserRenderer
         RenderPlannerNarrowBody(view, theme, context, timelineTable);
     }
 
-    private static void RenderPlannerWideBody(
+    public static void RenderPlannerWideBody(
         PlannerView view,
         TuiTheme theme,
         PlannerRenderContext context,
@@ -392,7 +319,7 @@ public sealed class BrowserRenderer
         WriteSurface(shell, theme.Surface, true);
     }
 
-    private static void RenderPlannerNarrowBody(
+    public static void RenderPlannerNarrowBody(
         PlannerView view,
         TuiTheme theme,
         PlannerRenderContext context,
@@ -426,7 +353,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static void RenderPlannerOverlay(
+    public static void RenderPlannerOverlay(
         PlannerView view,
         TuiKeyBindings keyBindings,
         TuiTheme theme,
@@ -449,7 +376,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static TodoTaskEditorDialogView? CreatePlannerEditorDialog(
+    public static TodoTaskEditorDialogView? CreatePlannerEditorDialog(
         PlannerView view,
         TuiKeyBindings keyBindings,
         int width,
@@ -458,14 +385,14 @@ public sealed class BrowserRenderer
             ? TodoTaskEditorDialog.Create(editor, keyBindings, width, height)
             : null;
 
-    private static bool IsPlannerCompactDetailsVisible(PlannerView view, bool wideSidePanels) =>
+    public static bool IsPlannerCompactDetailsVisible(PlannerView view, bool wideSidePanels) =>
         view.State.ShowDetails && !wideSidePanels &&
         view.State.Mode == PlannerMode.Browse &&
         view.State.Editor is null &&
         view.CommandPalette is null &&
         view.GlobalCommand is null;
 
-    private static int PlannerNarrowAllDayHeight(
+    public static int PlannerNarrowAllDayHeight(
         PlannerView view,
         bool wideSidePanels,
         bool showAllDayPanel) =>
@@ -473,7 +400,7 @@ public sealed class BrowserRenderer
             ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
             : 0;
 
-    private static int PlannerPickerHeight(
+    public static int PlannerPickerHeight(
         SelectListView? selectList,
         int width,
         int selectRows,
@@ -485,7 +412,7 @@ public sealed class BrowserRenderer
                 ? MultilineTextBox.Default.Measure(textBox, new TuiComponentConstraints(width, textBoxRows))
                 : 0;
 
-    private static int PlannerAvailableRows(
+    public static int PlannerAvailableRows(
         int terminalHeight,
         int statusHeight,
         int pickerHeight,
@@ -499,14 +426,14 @@ public sealed class BrowserRenderer
         return Math.Max(1, terminalHeight - statusHeight - reservedHeight);
     }
 
-    private static string MeetingHint(PlannerSlotView slot) =>
+    public static string MeetingHint(PlannerSlotView slot) =>
         slot.Meetings.Length == 0 ? string.Empty : $"  ⚠ {MeetingLabel(slot.Meetings[0])}" +
             (slot.Meetings.Length > 1 ? $" +{slot.Meetings.Length - 1}" : string.Empty);
 
-    private static string MeetingLabel(PlannerCalendarMeeting meeting) =>
+    public static string MeetingLabel(PlannerCalendarMeeting meeting) =>
         $"{meeting.Start:HH:mm}–{meeting.End:HH:mm} {meeting.Title}";
 
-    private static IReadOnlyList<PlannerTimelineRow> WindowPlannerTimeline(
+    public static IReadOnlyList<PlannerTimelineRow> WindowPlannerTimeline(
         IReadOnlyList<PlannerSlotView> slots,
         int selectedIndex,
         int availableRows,
@@ -589,16 +516,16 @@ public sealed class BrowserRenderer
         return rows.Skip(start).Take(end - start).ToArray();
     }
 
-    private static int PlannerTimelineHeight(IEnumerable<PlannerTimelineRow> rows) =>
+    public static int PlannerTimelineHeight(IEnumerable<PlannerTimelineRow> rows) =>
         rows.Sum(TimelineRowHeight);
 
-    private static int TimelineRowHeight(PlannerTimelineRow row) => row switch
+    public static int TimelineRowHeight(PlannerTimelineRow row) => row switch
     {
         PlannerSlotTimelineRow slot => PlannerTimelineRenderModel.ForSlot(slot.Slot).Count,
         _ => 1
     };
 
-    private static IReadOnlyList<BrowserStatusLine> PlannerStatus(
+    public static IReadOnlyList<BrowserStatusLine> PlannerStatus(
         PlannerView view,
         TuiKeyBindings bindings,
         int terminalWidth,
@@ -674,19 +601,19 @@ public sealed class BrowserRenderer
         return DefaultStatusLines(status.SelectMany(line => WrapStatus(line, statusWidth)));
     }
 
-    private static int SelectListRows(int terminalHeight) => Math.Clamp(terminalHeight / 5, 3, 7);
+    public static int SelectListRows(int terminalHeight) => Math.Clamp(terminalHeight / 5, 3, 7);
 
-    private static int TextBoxRows(int terminalHeight) => Math.Clamp(terminalHeight / 4, 3, 8);
+    public static int TextBoxRows(int terminalHeight) => Math.Clamp(terminalHeight / 4, 3, 8);
 
-    private static MultilineTextBoxState? BrowserTextBox(BrowserView view) =>
+    public static MultilineTextBoxState? BrowserTextBox(BrowserView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
-    private static MultilineTextBoxState? PlannerTextBox(PlannerView view) =>
+    public static MultilineTextBoxState? PlannerTextBox(PlannerView view) =>
         view.State.Editor is null ? null : TodoEditorTextBox(view.State.Editor);
 
-    private static MultilineTextBoxState? TodoEditorTextBox(TodoTaskEditorState editor) => editor.ContentTextBox;
+    public static MultilineTextBoxState? TodoEditorTextBox(TodoTaskEditorState editor) => editor.ContentTextBox;
 
-    private static SelectListView? BrowserSelectList(BrowserView view, TuiKeyBindings bindings)
+    public static SelectListView? BrowserSelectList(BrowserView view, TuiKeyBindings bindings)
     {
         if (view.CommandPalette is not null)
         {
@@ -704,7 +631,7 @@ public sealed class BrowserRenderer
                 bindings);
     }
 
-    private static SelectListView? PlannerSelectList(PlannerView view, TuiKeyBindings bindings)
+    public static SelectListView? PlannerSelectList(PlannerView view, TuiKeyBindings bindings)
     {
         if (view.CommandPalette is not null)
         {
@@ -739,7 +666,7 @@ public sealed class BrowserRenderer
             view.State.Error);
     }
 
-    private static SelectListView CommandPaletteSelectList(CommandPaletteView palette, TuiKeyBindings bindings) =>
+    public static SelectListView CommandPaletteSelectList(CommandPaletteView palette, TuiKeyBindings bindings) =>
         new(
             "Command palette",
             palette.Items.Select(item => new SelectOption(
@@ -752,7 +679,7 @@ public sealed class BrowserRenderer
             CommandPaletteFooter(bindings),
             palette.State.Error);
 
-    private static SelectListView? TodoEditorSelectList(
+    public static SelectListView? TodoEditorSelectList(
         TodoTaskEditorState editor,
         IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings)
@@ -793,17 +720,17 @@ public sealed class BrowserRenderer
             editor.Error);
     }
 
-    private static string CommandPaletteFooter(TuiKeyBindings bindings) =>
+    public static string CommandPaletteFooter(TuiKeyBindings bindings) =>
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
         $"{Shortest(bindings.FilterMode)} SEARCH  {Shortest(bindings.Open)} RUN  " +
         $"{Shortest(bindings.Back)} CLOSE";
 
-    private static string PlannerPickerFooter(TuiKeyBindings bindings) =>
+    public static string PlannerPickerFooter(TuiKeyBindings bindings) =>
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
         $"{Shortest(bindings.Open)} ASSIGN  {Shortest(bindings.FilterMode)} FILTER  " +
         $"{Shortest(bindings.Back)} CANCEL";
 
-    private static string CalendarStatus(PlannerCalendarAgenda agenda) => agenda.SyncState switch
+    public static string CalendarStatus(PlannerCalendarAgenda agenda) => agenda.SyncState switch
     {
         PlannerCalendarSyncState.Syncing => "SYNCING",
         PlannerCalendarSyncState.Ready => "READY",
@@ -813,7 +740,7 @@ public sealed class BrowserRenderer
         _ => string.Empty
     };
 
-    private static void WritePlannerStatus(
+    public static void WritePlannerStatus(
         IReadOnlyList<BrowserStatusLine> lines,
         PlannerView view,
         TuiTheme theme,
@@ -858,7 +785,7 @@ public sealed class BrowserRenderer
             true);
     }
 
-    private static void WriteWide(
+    public static void WriteWide(
         BrowserView view,
         int terminalWidth,
         int contentHeight,
@@ -903,7 +830,7 @@ public sealed class BrowserRenderer
         WriteSurface(table, theme.Surface, true);
     }
 
-    private static void WriteMedium(
+    public static void WriteMedium(
         BrowserView view,
         int terminalWidth,
         int contentHeight,
@@ -950,7 +877,7 @@ public sealed class BrowserRenderer
         WriteSurface(table, theme.Surface, true);
     }
 
-    private static void WriteNarrow(
+    public static void WriteNarrow(
         BrowserView view,
         int terminalWidth,
         int contentHeight,
@@ -983,7 +910,7 @@ public sealed class BrowserRenderer
         WriteSurface(table, theme.Surface, true);
     }
 
-    private static Table CreatePaneTable(
+    public static Table CreatePaneTable(
         TuiTheme theme,
         params (string Title, int? Width, bool Focused, bool NoWrap)[] panes)
     {
@@ -1007,7 +934,7 @@ public sealed class BrowserRenderer
         return table;
     }
 
-    private static void WriteOperationalHeader(
+    public static void WriteOperationalHeader(
         TabStripView view,
         TuiKeyBindings bindings,
         TuiTheme theme,
@@ -1091,7 +1018,7 @@ public sealed class BrowserRenderer
         AnsiConsole.WriteLine();
     }
 
-    private static string BrowserMode(BrowserView view) => view switch
+    public static string BrowserMode(BrowserView view) => view switch
     {
         { CommandPalette: not null } => "HELP",
         { GlobalCommand: not null } => "COMMAND",
@@ -1104,7 +1031,7 @@ public sealed class BrowserRenderer
         _ => "BROWSE"
     };
 
-    private static string PlannerModeLabel(PlannerView view) => view switch
+    public static string PlannerModeLabel(PlannerView view) => view switch
     {
         { CommandPalette: not null } => "HELP",
         { GlobalCommand: not null } => "COMMAND",
@@ -1118,7 +1045,7 @@ public sealed class BrowserRenderer
         _ => "BROWSE"
     };
 
-    private static IReadOnlyList<IRenderable> ProjectLines(BrowserView view, TuiTheme theme)
+    public static IReadOnlyList<IRenderable> ProjectLines(BrowserView view, TuiTheme theme)
     {
         return view.Projects.Select(row =>
         {
@@ -1149,7 +1076,7 @@ public sealed class BrowserRenderer
         }).ToArray();
     }
 
-    private static IReadOnlyList<TodoLineGroup> TodoLineGroups(
+    public static IReadOnlyList<TodoLineGroup> TodoLineGroups(
         BrowserView view,
         int contentWidth,
         TuiTheme theme,
@@ -1198,7 +1125,7 @@ public sealed class BrowserRenderer
         return groups;
     }
 
-    private static IReadOnlyList<IRenderable> DetailLines(BrowserView view, TuiTheme theme)
+    public static IReadOnlyList<IRenderable> DetailLines(BrowserView view, TuiTheme theme)
     {
         var lines = new List<IRenderable>();
 
@@ -1274,7 +1201,7 @@ public sealed class BrowserRenderer
         return lines;
     }
 
-    private static IReadOnlyList<IRenderable> PlannerDetailLines(PlannerView view, TuiTheme theme)
+    public static IReadOnlyList<IRenderable> PlannerDetailLines(PlannerView view, TuiTheme theme)
     {
         if (view.State.Mode == PlannerMode.MoveTodo && view.State.MovingTodo is { } movingIdentity)
         {
@@ -1397,7 +1324,7 @@ public sealed class BrowserRenderer
         return lines;
     }
 
-    private static IReadOnlyList<IRenderable> PlannerAllDayDetailLines(PlannerView view, TuiTheme theme)
+    public static IReadOnlyList<IRenderable> PlannerAllDayDetailLines(PlannerView view, TuiTheme theme)
     {
         var item = view.SelectedAllDayItem;
         if (item is null)
@@ -1448,7 +1375,7 @@ public sealed class BrowserRenderer
         return calendarLines;
     }
 
-    private static IReadOnlyList<IRenderable> AllDayAgendaLines(
+    public static IReadOnlyList<IRenderable> AllDayAgendaLines(
         PlannerView view,
         TuiTheme theme,
         int contentHeight)
@@ -1483,7 +1410,7 @@ public sealed class BrowserRenderer
         return FitLines(lines, contentHeight, view.State.AllDayIndex);
     }
 
-    private static Panel PlannerPanel(
+    public static Panel PlannerPanel(
         string header,
         IReadOnlyList<IRenderable> lines,
         TuiTheme theme,
@@ -1501,7 +1428,7 @@ public sealed class BrowserRenderer
         return panel;
     }
 
-    private static IReadOnlyList<IRenderable> FixedLines(
+    public static IReadOnlyList<IRenderable> FixedLines(
         IReadOnlyList<IRenderable> lines,
         int contentHeight)
     {
@@ -1514,7 +1441,7 @@ public sealed class BrowserRenderer
         return fitted;
     }
 
-    private static IRenderable PlannerCompactDetail(PlannerView view, TuiTheme theme)
+    public static IRenderable PlannerCompactDetail(PlannerView view, TuiTheme theme)
     {
         if (view.State.Focus == PlannerFocus.AllDay)
         {
@@ -1574,7 +1501,7 @@ public sealed class BrowserRenderer
         return new Markup(line.ToString()).Ellipsis();
     }
 
-    private static string AllDayKindLabel(PlannerCalendarItemKind kind) => kind switch
+    public static string AllDayKindLabel(PlannerCalendarItemKind kind) => kind switch
     {
         PlannerCalendarItemKind.FocusTime => "Focus time",
         PlannerCalendarItemKind.OutOfOffice => "Out of office",
@@ -1582,21 +1509,21 @@ public sealed class BrowserRenderer
         _ => "Calendar event"
     };
 
-    private static IRenderable CreateContent(IReadOnlyList<IRenderable> lines)
+    public static IRenderable CreateContent(IReadOnlyList<IRenderable> lines)
     {
         return lines.Count == 0 ? new Text(string.Empty) : new Rows(lines);
     }
 
-    private static int AvailableContentHeight(int terminalHeight, int statusLineCount)
+    public static int AvailableContentHeight(int terminalHeight, int statusLineCount)
     {
         const int tabTableStatusBorderAndCursorHeight = 8;
         return Math.Max(1, terminalHeight - tabTableStatusBorderAndCursorHeight - statusLineCount);
     }
 
-    private static int? DialogContentHeight(TodoTaskEditorDialogView? dialog) =>
+    public static int? DialogContentHeight(TodoTaskEditorDialogView? dialog) =>
         dialog is null ? null : dialog.Height - 2;
 
-    private static IReadOnlyList<IRenderable> FitLines(
+    public static IReadOnlyList<IRenderable> FitLines(
         IReadOnlyList<IRenderable> lines,
         int contentHeight,
         int selectedIndex)
@@ -1610,7 +1537,7 @@ public sealed class BrowserRenderer
         return lines.Skip(start).Take(contentHeight).ToArray();
     }
 
-    private static IReadOnlyList<IRenderable> FitTodoLines(
+    public static IReadOnlyList<IRenderable> FitTodoLines(
         BrowserView view,
         int contentWidth,
         int contentHeight,
@@ -1677,7 +1604,7 @@ public sealed class BrowserRenderer
         return header.Concat(groups.Skip(start).Take(end - start + 1).SelectMany(group => group.Lines)).ToArray();
     }
 
-    private static int SelectedProjectIndex(BrowserView view)
+    public static int SelectedProjectIndex(BrowserView view)
     {
         for (var index = 0; index < view.Projects.Length; index++)
         {
@@ -1690,7 +1617,7 @@ public sealed class BrowserRenderer
         return 0;
     }
 
-    private static void PadToContentHeight(Table table, int contentHeight, params int[] paneLineCounts)
+    public static void PadToContentHeight(Table table, int contentHeight, params int[] paneLineCounts)
     {
         var renderedContentHeight = Math.Max(1, paneLineCounts.Max());
 
@@ -1700,7 +1627,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static TodoColumnLayout TodoColumns(int contentWidth, bool includeProject)
+    public static TodoColumnLayout TodoColumns(int contentWidth, bool includeProject)
     {
         var showProject = includeProject && contentWidth >= 52;
         var showSchedule = contentWidth >= 44;
@@ -1717,7 +1644,7 @@ public sealed class BrowserRenderer
             scheduleWidth);
     }
 
-    private static IRenderable TodoColumnHeader(TodoColumnLayout layout, TuiTheme theme)
+    public static IRenderable TodoColumnHeader(TodoColumnLayout layout, TuiTheme theme)
     {
         var text = $"  S P {FitColumn("TASK", layout.TaskWidth)}";
         if (layout.ShowProject)
@@ -1733,7 +1660,7 @@ public sealed class BrowserRenderer
         return new Text(Truncate(text, layout.ContentWidth), ThemeStyle(theme.Heading, Decoration.Bold));
     }
 
-    private static IRenderable TodoListRow(
+    public static IRenderable TodoListRow(
         TodoRow row,
         TodoColumnLayout layout,
         TuiTheme theme)
@@ -1798,7 +1725,7 @@ public sealed class BrowserRenderer
             : content;
     }
 
-    private static IRenderable TodoTagsRow(
+    public static IRenderable TodoTagsRow(
         TodoRow row,
         TodoColumnLayout layout,
         TuiTheme theme)
@@ -1828,22 +1755,22 @@ public sealed class BrowserRenderer
             : content;
     }
 
-    private static string FitColumn(string value, int width)
+    public static string FitColumn(string value, int width)
     {
         var result = Truncate(value, width);
         return result + new string(' ', Math.Max(0, width - DisplayWidth(result)));
     }
 
-    private static string FormatSchedule(TodoSchedule schedule) =>
+    public static string FormatSchedule(TodoSchedule schedule) =>
         schedule.Time is null
             ? schedule.Date.ToString("yyyy-MM-dd")
             : $"{schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}";
 
-    private static string? FormatDuration(TimeSpan? duration) => duration is null
+    public static string? FormatDuration(TimeSpan? duration) => duration is null
         ? null
         : $"{(int)duration.Value.TotalMinutes}m";
 
-    private static string PriorityCode(TodoPriority? priority) => priority switch
+    public static string PriorityCode(TodoPriority? priority) => priority switch
     {
         TodoPriority.Highest => "!",
         TodoPriority.High => "H",
@@ -1853,10 +1780,10 @@ public sealed class BrowserRenderer
         _ => "-"
     };
 
-    private static string TodoStatusGlyph(bool isCompleted) =>
+    public static string TodoStatusGlyph(bool isCompleted) =>
         isCompleted ? CompletedTodoGlyph : OpenTodoGlyph;
 
-    private static string Truncate(string value, int width)
+    public static string Truncate(string value, int width)
     {
         if (DisplayWidth(value) <= width)
         {
@@ -1881,9 +1808,9 @@ public sealed class BrowserRenderer
         return result.Append('…').ToString();
     }
 
-    private static int DisplayWidth(string value) => value.GetCellWidth();
+    public static int DisplayWidth(string value) => value.GetCellWidth();
 
-    private static IEnumerable<(TodoItem Todo, ImmutableArray<TodoTreeSegment> TreePath)> FlattenSubtasks(
+    public static IEnumerable<(TodoItem Todo, ImmutableArray<TodoTreeSegment> TreePath)> FlattenSubtasks(
         ImmutableArray<TodoItem> todos,
         ImmutableArray<TodoTreeSegment> parentPath = default)
     {
@@ -1903,7 +1830,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static IRenderable DetailedTodoLine(
+    public static IRenderable DetailedTodoLine(
         TodoItem todo,
         ImmutableArray<TodoTreeSegment> treePath,
         bool selected,
@@ -1948,7 +1875,7 @@ public sealed class BrowserRenderer
         return new Markup(line.ToString());
     }
 
-    private static IRenderable PlannerTimeRulerLine(PlannerTimelineRenderRow row, TuiTheme theme)
+    public static IRenderable PlannerTimeRulerLine(PlannerTimelineRenderRow row, TuiTheme theme)
     {
         var text = row.IsMinorTimeTick ? row.TimeTickGlyph.PadLeft(5) : row.TimeLabel.PadLeft(5);
         return new Text(
@@ -1958,7 +1885,7 @@ public sealed class BrowserRenderer
                 row.IsSelected ? Decoration.Bold : row.IsMinorTimeTick ? Decoration.Dim : Decoration.None));
     }
 
-    private static IRenderable PlannerTimelineRenderLine(PlannerTimelineRenderRow row, TuiTheme theme)
+    public static IRenderable PlannerTimelineRenderLine(PlannerTimelineRenderRow row, TuiTheme theme)
     {
         var selected = row.IsSelected;
         var active = row.IsActive;
@@ -2004,7 +1931,7 @@ public sealed class BrowserRenderer
         return new Markup(line.ToString());
     }
 
-    private static IRenderable PlannerTodoLine(
+    public static IRenderable PlannerTodoLine(
         TodoItem todo,
         string? projectTitle,
         string prefix,
@@ -2038,7 +1965,7 @@ public sealed class BrowserRenderer
         return new Markup(line.ToString());
     }
 
-    private static IRenderable PlannerMeetingLine(
+    public static IRenderable PlannerMeetingLine(
         PlannerCalendarMeeting meeting,
         string prefix,
         bool selected,
@@ -2058,7 +1985,7 @@ public sealed class BrowserRenderer
         return new Markup(line.ToString());
     }
 
-    private static IReadOnlyList<IRenderable> PlannerMeetingDetailLines(PlannerView view, TuiTheme theme)
+    public static IReadOnlyList<IRenderable> PlannerMeetingDetailLines(PlannerView view, TuiTheme theme)
     {
         var meeting = view.SelectedMeeting!;
         var lines = new List<IRenderable>
@@ -2089,10 +2016,10 @@ public sealed class BrowserRenderer
         return lines;
     }
 
-    private static string MeetingTimeAndDuration(PlannerCalendarMeeting meeting) =>
+    public static string MeetingTimeAndDuration(PlannerCalendarMeeting meeting) =>
         $"{meeting.Start:HH:mm}–{meeting.End:HH:mm} · {(int)(meeting.End - meeting.Start).TotalMinutes}m";
 
-    private static string? MeetingDescriptionPreview(string? description)
+    public static string? MeetingDescriptionPreview(string? description)
     {
         if (string.IsNullOrWhiteSpace(description))
         {
@@ -2103,7 +2030,7 @@ public sealed class BrowserRenderer
         return normalized.Length <= 120 ? normalized : normalized[..117] + "…";
     }
 
-    private static Color PriorityColor(TodoPriority? priority, TuiTheme theme) => priority switch
+    public static Color PriorityColor(TodoPriority? priority, TuiTheme theme) => priority switch
     {
         TodoPriority.Highest => theme.Error,
         TodoPriority.High => theme.Warning,
@@ -2113,7 +2040,7 @@ public sealed class BrowserRenderer
         _ => theme.Text
     };
 
-    private static void AddField(
+    public static void AddField(
         List<IRenderable> lines,
         string name,
         string? value,
@@ -2129,7 +2056,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static IReadOnlyList<BrowserStatusLine> CreateStatusLines(
+    public static IReadOnlyList<BrowserStatusLine> CreateStatusLines(
         BrowserView view,
         TuiKeyBindings keyBindings,
         bool compact,
@@ -2203,7 +2130,7 @@ public sealed class BrowserRenderer
         return DefaultStatusLines(WrapStatus(status, Math.Max(1, terminalWidth - 4)));
     }
 
-    private static IReadOnlyList<BrowserStatusLine> TodoTaskEditorStatus(
+    public static IReadOnlyList<BrowserStatusLine> TodoTaskEditorStatus(
         TodoTaskEditorState editor,
         IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings,
@@ -2230,7 +2157,7 @@ public sealed class BrowserRenderer
      * The production path above now delegates all task-editor layout to
      * TodoTaskEditorDialog, which is also rendered by the component harness.
      */
-    private static IReadOnlyList<BrowserStatusLine> LegacyTodoTaskEditorStatus(
+    public static IReadOnlyList<BrowserStatusLine> LegacyTodoTaskEditorStatus(
         TodoTaskEditorState editor,
         IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings,
@@ -2341,7 +2268,7 @@ public sealed class BrowserRenderer
         return lines;
     }
 
-    private static BrowserStatusLine TaskEditorFieldLine(
+    public static BrowserStatusLine TaskEditorFieldLine(
         TodoTaskEditorState editor,
         int index,
         string label,
@@ -2364,7 +2291,7 @@ public sealed class BrowserRenderer
             role);
     }
 
-    private static string ContentOutlineLine(
+    public static string ContentOutlineLine(
         ContentItemDraft item,
         bool selected,
         int width,
@@ -2393,13 +2320,13 @@ public sealed class BrowserRenderer
             : prefix + Truncate(value, width - fixedWidth) + suffix;
     }
 
-    private static IReadOnlyList<BrowserStatusLine> ContentStatusLines(
+    public static IReadOnlyList<BrowserStatusLine> ContentStatusLines(
         string value,
         int width,
         BrowserStatusRole role) =>
         WrapStatus(value, width).Select(line => new BrowserStatusLine(line, role)).ToArray();
 
-    private static IReadOnlyList<string> WrapStatus(string value, int width)
+    public static IReadOnlyList<string> WrapStatus(string value, int width)
     {
         var lines = new List<string>();
         var remaining = value;
@@ -2420,10 +2347,10 @@ public sealed class BrowserRenderer
         return lines;
     }
 
-    private static IReadOnlyList<BrowserStatusLine> DefaultStatusLines(IEnumerable<string> lines) =>
+    public static IReadOnlyList<BrowserStatusLine> DefaultStatusLines(IEnumerable<string> lines) =>
         lines.Select(line => new BrowserStatusLine(line)).ToArray();
 
-    private static void WriteStatus(
+    public static void WriteStatus(
         IReadOnlyList<BrowserStatusLine> lines,
         BrowserView view,
         TuiTheme theme,
@@ -2475,21 +2402,21 @@ public sealed class BrowserRenderer
             true);
     }
 
-    private static string NormalStatus(TuiKeyBindings bindings, BrowserState state) =>
+    public static string NormalStatus(TuiKeyBindings bindings, BrowserState state) =>
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} NAVIGATE  " +
         $"{Shortest(bindings.FocusNext)} PANE  {Shortest(bindings.Open)} OPEN  {Shortest(bindings.Back)} BACK  " +
         $"{Shortest(bindings.FilterMode)} FILTER  {Shortest(bindings.CommandMode)} COMMAND  " +
         $"{Shortest(bindings.ToggleDetails)} DETAILS  " +
         $"{bindings.ToggleCompletedCommand}  {bindings.QuitCommand}  {SortHint(state, bindings)}";
 
-    private static string CompactStatus(TuiKeyBindings bindings, BrowserState state) =>
+    public static string CompactStatus(TuiKeyBindings bindings, BrowserState state) =>
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
         $"{Shortest(bindings.Back)}/{Shortest(bindings.Open)} BACK/OPEN  " +
         $"{Shortest(bindings.FilterMode)} FILTER  {Shortest(bindings.ToggleDetails)} DETAILS  " +
         $"{Shortest(bindings.CommandMode)} COMMANDS  " +
         SortHint(state, bindings);
 
-    private static string SortHint(BrowserState state, TuiKeyBindings bindings)
+    public static string SortHint(BrowserState state, TuiKeyBindings bindings)
     {
         var launcher = Shortest(bindings.SortMode);
         if (state.Sort.Property == TodoSortProperty.Source)
@@ -2510,24 +2437,24 @@ public sealed class BrowserRenderer
         return $"{launcher} {property.ToUpperInvariant()}{direction}";
     }
 
-    private static string Shortest(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>
+    public static string Shortest(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>
         TuiKeyBindings.ShortestDisplayName(gestures);
 
-    private static Style ThemeStyle(
+    public static Style ThemeStyle(
         Color color,
         Decoration decoration = Decoration.None,
         Color? background = null) =>
         new(color, background ?? Color.Default, decoration);
 
-    private static IRenderable OnSurface(IRenderable content, Color background, bool expand = false) =>
+    public static IRenderable OnSurface(IRenderable content, Color background, bool expand = false) =>
         background == Color.Default
             ? content
             : new SurfaceRenderable(content, background, expand);
 
-    private static void WriteSurface(IRenderable content, Color background, bool expand = false) =>
+    public static void WriteSurface(IRenderable content, Color background, bool expand = false) =>
         AnsiConsole.Write(OnSurface(content, background, expand));
 
-    private static void AppendStyled(
+    public static void AppendStyled(
         System.Text.StringBuilder output,
         string value,
         Color color,
@@ -2574,7 +2501,7 @@ public sealed class BrowserRenderer
         output.Append("[/]");
     }
 
-    private static int SafeWindowWidth()
+    public static int SafeWindowWidth()
     {
         try
         {
@@ -2586,7 +2513,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    private static int SafeWindowHeight()
+    public static int SafeWindowHeight()
     {
         try
         {
@@ -2596,60 +2523,5 @@ public sealed class BrowserRenderer
         {
             return 24;
         }
-    }
-
-    private sealed record BrowserRenderContext(
-        int Width,
-        int Height,
-        bool Compact,
-        DateOnly Today,
-        SelectListView? SelectList,
-        int SelectRows,
-        MultilineTextBoxState? TextBox,
-        int TextBoxRows,
-        TodoTaskEditorDialogView? EditorDialog,
-        IReadOnlyList<BrowserStatusLine> StatusLines,
-        int ContentHeight);
-
-    private sealed record PlannerRenderContext(
-        int Width,
-        int Height,
-        SelectListView? SelectList,
-        int SelectRows,
-        MultilineTextBoxState? TextBox,
-        int TextBoxRows,
-        TodoTaskEditorDialogView? EditorDialog,
-        IReadOnlyList<BrowserStatusLine> Status,
-        bool WideSidePanels,
-        bool ShowAllDayPanel,
-        bool CompactDetails,
-        int NarrowAllDayHeight,
-        int AvailableRows,
-        int TimelineWidth);
-
-    private sealed record TodoLineGroup(IReadOnlyList<IRenderable> Lines, bool IsSelected);
-
-    private sealed record TodoColumnLayout(
-        int ContentWidth,
-        int TaskWidth,
-        bool ShowProject,
-        int ProjectWidth,
-        bool ShowSchedule,
-        int ScheduleWidth);
-
-    private sealed record BrowserStatusLine(
-        string Text,
-        BrowserStatusRole Role = BrowserStatusRole.Default);
-
-    private enum BrowserStatusRole
-    {
-        Default,
-        FormLabel,
-        FormValue,
-        FormActiveValue,
-        FormPlaceholder,
-        FormHint,
-        FormError,
-        ContentWarning
     }
 }
