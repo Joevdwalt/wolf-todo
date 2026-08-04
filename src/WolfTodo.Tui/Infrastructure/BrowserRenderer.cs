@@ -127,62 +127,90 @@ public sealed class BrowserRenderer
         TuiKeyBindings keyBindings,
         TuiTheme theme)
     {
+        var context = CreatePlannerRenderContext(view, keyBindings);
+        RenderPlannerHeader(tabs, view, keyBindings, theme, context);
+
+        var timelineRows = WindowPlannerTimeline(
+            view.Slots,
+            view.State.SlotIndex,
+            context.AvailableRows,
+            view.State.SelectedDate,
+            nowProvider());
+        var timelineTable = CreatePlannerTimelineTable(timelineRows, context.AvailableRows, theme);
+
+        RenderPlannerBody(view, theme, context, timelineTable);
+        RenderPlannerOverlay(view, keyBindings, theme, context);
+        WritePlannerStatus(context.Status, view, theme, context.EditorDialog);
+    }
+
+    private PlannerRenderContext CreatePlannerRenderContext(
+        PlannerView view,
+        TuiKeyBindings keyBindings)
+    {
         var width = widthProvider();
         var height = heightProvider();
-        var selectList = PlannerSelectList(view, keyBindings);
         var selectRows = SelectListRows(height);
-        var textBox = PlannerTextBox(view);
-        var editorDialog = view.State.Editor is { } editor
-            ? TodoTaskEditorDialog.Create(
-                editor,
-                keyBindings,
-                width,
-                height)
-            : null;
         var textBoxRows = TextBoxRows(height);
-        WriteOperationalHeader(
-            tabs,
-            keyBindings,
-            theme,
-            width,
-            PlannerModeLabel(view),
-            view.State.SelectedDate,
-            view.OpenTodoCount,
-            view.ProjectErrorCount);
+        var selectList = PlannerSelectList(view, keyBindings);
+        var textBox = PlannerTextBox(view);
+        var editorDialog = CreatePlannerEditorDialog(view, keyBindings, width, height);
         var status = PlannerStatus(view, keyBindings, width, height);
-        var pickerVisible = view.State.Mode is PlannerMode.ChooseTodo or PlannerMode.EditFilter;
         var wideLayout = width >= 120;
         var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
                             view.State.Focus == PlannerFocus.AllDay;
         var showAllDayPanel = allDayVisible || (wideLayout && view.State.ShowDetails);
         var wideSidePanels = wideLayout && (view.State.ShowDetails || showAllDayPanel);
-        var compactDetails = view.State.ShowDetails && !wideSidePanels &&
-                             view.State.Mode == PlannerMode.Browse &&
-                             view.State.Editor is null &&
-                             view.CommandPalette is null &&
-                             view.GlobalCommand is null;
-        const int tabTableStatusBorderAndCursorHeight = 8;
-        var pickerHeight = selectList is not null ? SelectList.Default.Measure(
-            selectList,
-            new TuiComponentConstraints(width, selectRows)) :
-            textBox is not null ? MultilineTextBox.Default.Measure(
-                textBox,
-                new TuiComponentConstraints(width, textBoxRows)) : 0;
-        const int compactDetailsHeight = 3;
-        var narrowAllDayHeight = !wideSidePanels && showAllDayPanel
-            ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
-            : 0;
-        var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
-                             (compactDetails ? compactDetailsHeight : 0) + narrowAllDayHeight;
-        var availableRows = Math.Max(1, height - (DialogContentHeight(editorDialog) ?? status.Count) - reservedHeight);
-        var now = nowProvider();
-        var timelineRows = WindowPlannerTimeline(
-            view.Slots,
-            view.State.SlotIndex,
-            availableRows,
-            view.State.SelectedDate,
-            now);
+        var compactDetails = IsPlannerCompactDetailsVisible(view, wideSidePanels);
+        var narrowAllDayHeight = PlannerNarrowAllDayHeight(view, wideSidePanels, showAllDayPanel);
+        var pickerHeight = PlannerPickerHeight(selectList, width, selectRows, textBox, textBoxRows);
+        var availableRows = PlannerAvailableRows(
+            height,
+            DialogContentHeight(editorDialog) ?? status.Count,
+            pickerHeight,
+            compactDetails,
+            narrowAllDayHeight);
         var timelineWidth = wideSidePanels ? Math.Max(40, (width * 2 / 3) - 2) : width;
+
+        return new PlannerRenderContext(
+            width,
+            height,
+            selectList,
+            selectRows,
+            textBox,
+            textBoxRows,
+            editorDialog,
+            status,
+            wideSidePanels,
+            showAllDayPanel,
+            compactDetails,
+            narrowAllDayHeight,
+            availableRows,
+            timelineWidth);
+    }
+
+    private static void RenderPlannerHeader(
+        TabStripView tabs,
+        PlannerView view,
+        TuiKeyBindings keyBindings,
+        TuiTheme theme,
+        PlannerRenderContext context)
+    {
+        WriteOperationalHeader(
+            tabs,
+            keyBindings,
+            theme,
+            context.Width,
+            PlannerModeLabel(view),
+            view.State.SelectedDate,
+            view.OpenTodoCount,
+            view.ProjectErrorCount);
+    }
+
+    private static Table CreatePlannerTimelineTable(
+        IReadOnlyList<PlannerTimelineRow> timelineRows,
+        int availableRows,
+        TuiTheme theme)
+    {
         var table = new Table().SquareBorder().Expand();
         table.BorderStyle = ThemeStyle(theme.BorderActive);
         table.AddColumn(new TableColumn(new Text(
@@ -193,6 +221,16 @@ public sealed class BrowserRenderer
             NoWrap = true
         });
         table.AddColumn(new TableColumn(new Text("PLAN", ThemeStyle(theme.Accent, Decoration.Bold))));
+        AddPlannerTimelineRows(table, timelineRows, theme);
+        PadPlannerTimeline(table, timelineRows, availableRows);
+        return table;
+    }
+
+    private static void AddPlannerTimelineRows(
+        Table table,
+        IReadOnlyList<PlannerTimelineRow> timelineRows,
+        TuiTheme theme)
+    {
         foreach (var row in timelineRows)
         {
             if (row is PlannerNowTimelineRow marker)
@@ -216,96 +254,185 @@ public sealed class BrowserRenderer
                     isActiveRow ? OnSurface(content, theme.Surface2, true) : content);
             }
         }
+    }
 
+    private static void PadPlannerTimeline(
+        Table table,
+        IReadOnlyList<PlannerTimelineRow> timelineRows,
+        int availableRows)
+    {
         for (var index = PlannerTimelineHeight(timelineRows); index < availableRows; index++)
         {
             table.AddEmptyRow();
         }
+    }
 
-        if (editorDialog is null || availableRows > 1)
+    private static void RenderPlannerBody(
+        PlannerView view,
+        TuiTheme theme,
+        PlannerRenderContext context,
+        Table timelineTable)
+    {
+        if (context.EditorDialog is not null && context.AvailableRows <= 1)
         {
-            if (wideSidePanels)
-            {
-                var detailWidth = Math.Max(28, width - timelineWidth - 4);
-                const int inspectorContentHeight = 10;
-                var allDayContentHeight = Math.Max(
-                    1,
-                    availableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
-                var sidePanels = new List<IRenderable>();
-                if (view.State.ShowDetails)
-                {
-                    sidePanels.Add(PlannerPanel(
-                        "INSPECTOR",
-                        FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
-                        theme));
-                }
-
-                if (showAllDayPanel)
-                {
-                    sidePanels.Add(PlannerPanel(
-                        "ALL DAY",
-                        AllDayAgendaLines(view, theme, allDayContentHeight),
-                        theme,
-                        view.State.Focus == PlannerFocus.AllDay));
-                }
-
-                var shell = new Table().NoBorder().Collapse().HideHeaders();
-                shell.AddColumn(new TableColumn(string.Empty).Width(timelineWidth).NoWrap());
-                shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
-                shell.AddRow(
-                    table,
-                    OnSurface(
-                        new Rows(sidePanels),
-                        theme.Surface2,
-                        true));
-                WriteSurface(shell, theme.Surface, true);
-            }
-            else
-            {
-                WriteSurface(table, theme.Surface, true);
-                if (compactDetails)
-                {
-                    WriteSurface(
-                        new Panel(PlannerCompactDetail(view, theme))
-                        {
-                            Header = new PanelHeader("SELECTED"),
-                            Border = BoxBorder.Square,
-                            BorderStyle = ThemeStyle(theme.Border),
-                            Expand = true
-                        },
-                        theme.Surface2,
-                        true);
-                }
-                if (narrowAllDayHeight > 0)
-                {
-                    WriteSurface(
-                        PlannerPanel(
-                            "ALL DAY",
-                            AllDayAgendaLines(view, theme, Math.Max(1, narrowAllDayHeight - 2)),
-                            theme,
-                            view.State.Focus == PlannerFocus.AllDay),
-                        theme.Surface2,
-                        true);
-                }
-            }
+            return;
         }
 
-        if (selectList is not null)
+        if (context.WideSidePanels)
+        {
+            RenderPlannerWideBody(view, theme, context, timelineTable);
+            return;
+        }
+
+        RenderPlannerNarrowBody(view, theme, context, timelineTable);
+    }
+
+    private static void RenderPlannerWideBody(
+        PlannerView view,
+        TuiTheme theme,
+        PlannerRenderContext context,
+        Table timelineTable)
+    {
+        var detailWidth = Math.Max(28, context.Width - context.TimelineWidth - 4);
+        const int inspectorContentHeight = 10;
+        var allDayContentHeight = Math.Max(
+            1,
+            context.AvailableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
+        var sidePanels = new List<IRenderable>();
+        if (view.State.ShowDetails)
+        {
+            sidePanels.Add(PlannerPanel(
+                "INSPECTOR",
+                FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
+                theme));
+        }
+
+        if (context.ShowAllDayPanel)
+        {
+            sidePanels.Add(PlannerPanel(
+                "ALL DAY",
+                AllDayAgendaLines(view, theme, allDayContentHeight),
+                theme,
+                view.State.Focus == PlannerFocus.AllDay));
+        }
+
+        var shell = new Table().NoBorder().Collapse().HideHeaders();
+        shell.AddColumn(new TableColumn(string.Empty).Width(context.TimelineWidth).NoWrap());
+        shell.AddColumn(new TableColumn(string.Empty).Width(detailWidth).NoWrap());
+        shell.AddRow(
+            timelineTable,
+            OnSurface(
+                new Rows(sidePanels),
+                theme.Surface2,
+                true));
+        WriteSurface(shell, theme.Surface, true);
+    }
+
+    private static void RenderPlannerNarrowBody(
+        PlannerView view,
+        TuiTheme theme,
+        PlannerRenderContext context,
+        Table timelineTable)
+    {
+        WriteSurface(timelineTable, theme.Surface, true);
+        if (context.CompactDetails)
+        {
+            WriteSurface(
+                new Panel(PlannerCompactDetail(view, theme))
+                {
+                    Header = new PanelHeader("SELECTED"),
+                    Border = BoxBorder.Square,
+                    BorderStyle = ThemeStyle(theme.Border),
+                    Expand = true
+                },
+                theme.Surface2,
+                true);
+        }
+
+        if (context.NarrowAllDayHeight > 0)
+        {
+            WriteSurface(
+                PlannerPanel(
+                    "ALL DAY",
+                    AllDayAgendaLines(view, theme, Math.Max(1, context.NarrowAllDayHeight - 2)),
+                    theme,
+                    view.State.Focus == PlannerFocus.AllDay),
+                theme.Surface2,
+                true);
+        }
+    }
+
+    private static void RenderPlannerOverlay(
+        PlannerView view,
+        TuiKeyBindings keyBindings,
+        TuiTheme theme,
+        PlannerRenderContext context)
+    {
+        if (context.SelectList is not null)
         {
             AnsiConsole.Write(SelectList.Default.Render(
-                selectList,
+                context.SelectList,
                 theme,
-                new TuiComponentConstraints(width, selectRows)));
+                new TuiComponentConstraints(context.Width, context.SelectRows)));
         }
-        else if (textBox is { } activeTextBox)
+        else if (context.TextBox is { } activeTextBox)
         {
             AnsiConsole.Write(MultilineTextBox.Default.Render(
                 activeTextBox,
                 theme,
-                new TuiComponentConstraints(width, textBoxRows),
+                new TuiComponentConstraints(context.Width, context.TextBoxRows),
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
-        WritePlannerStatus(status, view, theme, editorDialog);
+    }
+
+    private static TodoTaskEditorDialogView? CreatePlannerEditorDialog(
+        PlannerView view,
+        TuiKeyBindings keyBindings,
+        int width,
+        int height) =>
+        view.State.Editor is { } editor
+            ? TodoTaskEditorDialog.Create(editor, keyBindings, width, height)
+            : null;
+
+    private static bool IsPlannerCompactDetailsVisible(PlannerView view, bool wideSidePanels) =>
+        view.State.ShowDetails && !wideSidePanels &&
+        view.State.Mode == PlannerMode.Browse &&
+        view.State.Editor is null &&
+        view.CommandPalette is null &&
+        view.GlobalCommand is null;
+
+    private static int PlannerNarrowAllDayHeight(
+        PlannerView view,
+        bool wideSidePanels,
+        bool showAllDayPanel) =>
+        !wideSidePanels && showAllDayPanel
+            ? Math.Min(6, view.CalendarAgenda.AllDayItems.Length + 3)
+            : 0;
+
+    private static int PlannerPickerHeight(
+        SelectListView? selectList,
+        int width,
+        int selectRows,
+        MultilineTextBoxState? textBox,
+        int textBoxRows) =>
+        selectList is not null
+            ? SelectList.Default.Measure(selectList, new TuiComponentConstraints(width, selectRows))
+            : textBox is not null
+                ? MultilineTextBox.Default.Measure(textBox, new TuiComponentConstraints(width, textBoxRows))
+                : 0;
+
+    private static int PlannerAvailableRows(
+        int terminalHeight,
+        int statusHeight,
+        int pickerHeight,
+        bool compactDetails,
+        int narrowAllDayHeight)
+    {
+        const int tabTableStatusBorderAndCursorHeight = 8;
+        const int compactDetailsHeight = 3;
+        var reservedHeight = tabTableStatusBorderAndCursorHeight + pickerHeight +
+                             (compactDetails ? compactDetailsHeight : 0) + narrowAllDayHeight;
+        return Math.Max(1, terminalHeight - statusHeight - reservedHeight);
     }
 
     private static string MeetingHint(PlannerSlotView slot) =>
@@ -2406,6 +2533,22 @@ public sealed class BrowserRenderer
             return 24;
         }
     }
+
+    private sealed record PlannerRenderContext(
+        int Width,
+        int Height,
+        SelectListView? SelectList,
+        int SelectRows,
+        MultilineTextBoxState? TextBox,
+        int TextBoxRows,
+        TodoTaskEditorDialogView? EditorDialog,
+        IReadOnlyList<BrowserStatusLine> Status,
+        bool WideSidePanels,
+        bool ShowAllDayPanel,
+        bool CompactDetails,
+        int NarrowAllDayHeight,
+        int AvailableRows,
+        int TimelineWidth);
 
     private sealed record TodoLineGroup(IReadOnlyList<IRenderable> Lines, bool IsSelected);
 
