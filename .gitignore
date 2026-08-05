@@ -32,3 +32,6 @@ packages/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# graphify
+.codex/
