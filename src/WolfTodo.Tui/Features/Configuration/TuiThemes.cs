@@ -21,7 +21,8 @@ public static class TuiThemes
         new Color(162, 178, 193),
         new Color(53, 82, 107),
         new Color(255, 177, 74),
-        new Color(95, 168, 211));
+        new Color(95, 168, 211),
+        new Color(255, 92, 168));
 
     public static TuiTheme Classic { get; } = new(
         Color.Default,
@@ -40,9 +41,11 @@ public static class TuiThemes
         Color.Default,
         Color.Default,
         Color.Cyan,
-        Color.Default);
+        Color.Default,
+        new Color(255, 0, 255));
 
     public static TuiTheme Mono { get; } = new(
+        Color.Default,
         Color.Default,
         Color.Default,
         Color.Default,

@@ -136,6 +136,7 @@ surface_2 = "#162433"
 accent = "#F28C28"
 accent_bright = "#FFB14A"
 info = "#5FA8D3"
+now = "#FF5CA8"
 
 [google_calendar]
 # Optional: show primary Google Calendar meetings in the Day Planner.
@@ -166,7 +167,7 @@ The optional `[tui.theme]` table selects the startup theme. Available presets
 are `wolf` (the default), `classic`, and `mono`. The configurable semantic
 colors are `text`, `accent`, `heading`, `border`, `muted`, `success`,
 `warning`, `error`, `tag`, `date`, `background`, `surface`, `surface_2`,
-`secondary_text`, `border_active`, `accent_bright`, and `info`. Color values
+`secondary_text`, `border_active`, `accent_bright`, `info`, and `now`. Color values
 accept Spectre.Console named colors such as `Cyan`, six-digit hexadecimal
 colors such as `#F28C28`, or `default`. Using `default` for a foreground role
 uses the terminal foreground; using it for a surface makes that layer
@@ -260,8 +261,10 @@ Existing start and due annotations are
 preserved in Markdown but intentionally omitted from the normal UI. The planner
 shows responsive details for the selected planner item; `v` hides or
 restores the Inspector without disabling the all-day pane. On today, a bright, full-width `▶────` timeline row shows the exact current
-time and refreshes once per idle minute without borrowing the panel-border
-style. Its unscheduled-todo picker shows several filterable candidates.
+time and, when available, its duration and name. Its hot-pink `now` theme role
+refreshes once per idle minute without borrowing the panel-border style and
+never derives the countdown from scheduled todos. Its unscheduled-todo picker
+shows several filterable candidates.
 On an occupied slot, `e` or `E`, Ctrl+E, and Space provide the same task editing,
 external editing, and completion actions as the Todos tab. Creating with `a`
 uses the complete task editor, pre-fills the selected slot, and

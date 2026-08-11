@@ -33,7 +33,8 @@ public sealed class TomlApplicationConfigurationLoader(
         "secondary_text",
         "border_active",
         "accent_bright",
-        "info"
+        "info",
+        "now"
     ];
 
     private static readonly HashSet<string> GoogleCalendarKeys =
@@ -348,7 +349,8 @@ public sealed class TomlApplicationConfigurationLoader(
             SecondaryText = ReadThemeColor(theme, "secondary_text", preset.SecondaryText),
             BorderActive = ReadThemeColor(theme, "border_active", preset.BorderActive),
             AccentBright = ReadThemeColor(theme, "accent_bright", preset.AccentBright),
-            Info = ReadThemeColor(theme, "info", preset.Info)
+            Info = ReadThemeColor(theme, "info", preset.Info),
+            Now = ReadThemeColor(theme, "now", preset.Now)
         };
     }
 
