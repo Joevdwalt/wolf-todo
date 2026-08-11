@@ -19,4 +19,5 @@ public sealed record TuiTheme(
     Color SecondaryText,
     Color BorderActive,
     Color AccentBright,
-    Color Info);
+    Color Info,
+    Color Now);

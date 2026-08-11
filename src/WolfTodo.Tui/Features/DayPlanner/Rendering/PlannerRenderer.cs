@@ -53,7 +53,8 @@ public sealed class PlannerRenderer
             view.State.SlotIndex,
             context.AvailableRows,
             view.State.SelectedDate,
-            nowProvider());
+            nowProvider(),
+            view.CalendarAgenda.Meetings);
         var timelineTable = CreatePlannerTimelineTable(timelineRows, context.AvailableRows, theme);
 
         RenderPlannerBody(view, theme, context, timelineTable);
@@ -152,8 +153,11 @@ public sealed class PlannerRenderer
             if (row is PlannerNowTimelineRow marker)
             {
                 table.AddRow(
-                    new Text(marker.Time.ToString("HH:mm").PadLeft(5), themeRenderer.Style(theme.AccentBright, Decoration.Bold)),
-                    new TimelineMarkerRenderable(themeRenderer.Style(theme.AccentBright, Decoration.Bold)));
+                    new Text(marker.Time.ToString("HH:mm").PadLeft(5), themeRenderer.Style(theme.Now, Decoration.Bold)),
+                    new TimelineMarkerRenderable(
+                        themeRenderer.Style(theme.Now, Decoration.Bold),
+                        marker.TimeUntilNextMeeting,
+                        marker.NextMeetingTitle));
                 continue;
             }
 
@@ -343,18 +347,21 @@ public sealed class PlannerRenderer
         int selectedIndex,
         int availableRows,
         DateOnly selectedDate,
-        DateTime now)
+        DateTime now,
+        IReadOnlyList<PlannerCalendarMeeting>? meetings = null)
     {
         var rows = new List<PlannerTimelineRow>(slots.Count + 1);
         var today = DateOnly.FromDateTime(now);
         var currentTime = new TimeOnly(now.Hour, now.Minute);
         var addMarker = selectedDate == today;
+        var nextMeeting = addMarker ? NextMeeting(meetings ?? [], currentTime) : null;
+        TimeSpan? timeUntilNextMeeting = nextMeeting is null ? null : nextMeeting.Start - currentTime;
         var markerAdded = false;
         foreach (var slot in slots)
         {
             if (addMarker && !markerAdded && currentTime <= slot.Time)
             {
-                rows.Add(new PlannerNowTimelineRow(currentTime));
+                rows.Add(new PlannerNowTimelineRow(currentTime, timeUntilNextMeeting, nextMeeting?.Title));
                 markerAdded = true;
             }
 
@@ -363,7 +370,7 @@ public sealed class PlannerRenderer
 
         if (addMarker && !markerAdded)
         {
-            rows.Add(new PlannerNowTimelineRow(currentTime));
+            rows.Add(new PlannerNowTimelineRow(currentTime, timeUntilNextMeeting, nextMeeting?.Title));
         }
 
         if (PlannerTimelineHeight(rows) <= availableRows)
@@ -419,6 +426,20 @@ public sealed class PlannerRenderer
         }
 
         return rows.Skip(start).Take(end - start).ToArray();
+    }
+
+    private static PlannerCalendarMeeting? NextMeeting(
+        IReadOnlyList<PlannerCalendarMeeting> meetings,
+        TimeOnly currentTime)
+    {
+        var nextMeeting = meetings
+            .Where(meeting => meeting.Start > currentTime)
+            .OrderBy(meeting => meeting.Start)
+            .ThenBy(meeting => meeting.End)
+            .ThenBy(meeting => meeting.Title, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+
+        return nextMeeting;
     }
 
     public int PlannerTimelineHeight(IEnumerable<PlannerTimelineRow> rows) =>

@@ -221,6 +221,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
             surface_2 = "#070809"
             border_active = "#0A0B0C"
             info = "#0D0E0F"
+            now = "#101112"
             """);
 
         var result = loader.Load();
@@ -235,6 +236,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.Theme.Surface2.Should().Be(new Color(7, 8, 9));
         result.Theme.BorderActive.Should().Be(new Color(10, 11, 12));
         result.Theme.Info.Should().Be(new Color(13, 14, 15));
+        result.Theme.Now.Should().Be(new Color(16, 17, 18));
         result.Theme.Error.Should().Be(Color.Red);
     }
 

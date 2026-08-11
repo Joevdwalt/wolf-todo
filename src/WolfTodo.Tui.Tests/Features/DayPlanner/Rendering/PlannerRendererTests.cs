@@ -55,9 +55,37 @@ public sealed class PlannerRendererTests
 
         rows.Should().HaveCount(3);
         rows[0].Should().BeOfType<PlannerSlotTimelineRow>();
-        rows[1].Should().BeOfType<PlannerNowTimelineRow>()
-            .Which.Time.Should().Be(new TimeOnly(9, 15));
+        var marker = rows[1].Should().BeOfType<PlannerNowTimelineRow>().Which;
+        marker.Time.Should().Be(new TimeOnly(9, 15));
+        marker.TimeUntilNextMeeting.Should().BeNull();
         rows[2].Should().BeOfType<PlannerSlotTimelineRow>();
+    }
+
+    [Fact]
+    public void WindowPlannerTimeline_counts_down_to_the_earliest_future_calendar_event()
+    {
+        var renderer = new PlannerRenderer(() => 100, () => 30);
+        var meetings = new[]
+        {
+            new PlannerCalendarMeeting("Active", new TimeOnly(9, 0), new TimeOnly(9, 45)),
+            new PlannerCalendarMeeting("Starting now", new TimeOnly(9, 15), new TimeOnly(9, 45)),
+            new PlannerCalendarMeeting("Later", new TimeOnly(11, 0), new TimeOnly(11, 30)),
+            new PlannerCalendarMeeting("Next solo event", new TimeOnly(10, 30), new TimeOnly(11, 0))
+        };
+
+        var rows = renderer.WindowPlannerTimeline(
+            [new PlannerSlotView(new TimeOnly(9, 15), [], true)],
+            0,
+            10,
+            new DateOnly(2026, 8, 4),
+            new DateTime(2026, 8, 4, 9, 15, 0),
+            meetings);
+
+        rows.Should().ContainSingle(row => row is PlannerNowTimelineRow);
+        rows.OfType<PlannerNowTimelineRow>().Single().TimeUntilNextMeeting
+            .Should().Be(TimeSpan.FromMinutes(75));
+        rows.OfType<PlannerNowTimelineRow>().Single().NextMeetingTitle
+            .Should().Be("Next solo event");
     }
 
     [Fact]

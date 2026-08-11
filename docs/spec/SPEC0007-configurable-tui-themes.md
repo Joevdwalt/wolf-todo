@@ -51,6 +51,7 @@ Supported override keys are:
 | `tag` | Todo tags |
 | `date` | Scheduled dates and times |
 | `info` | Informational metadata and the default date family |
+| `now` | Live Day Planner current-time marker |
 | `background` | Application canvas and operational header |
 | `surface` | Normal workspace panes |
 | `surface_2` | Inspectors, status panels, dialogs, and selection fills |
@@ -83,6 +84,7 @@ The default `wolf` preset uses:
 | `error` | `#D96C6C` |
 | `info` | `#5FA8D3` |
 | `date` | `#5FA8D3` |
+| `now` | `#FF5CA8` |
 
 The `classic` preset uses terminal-default surfaces and foregrounds except cyan
 active accents and red errors. The `mono` preset uses terminal defaults for

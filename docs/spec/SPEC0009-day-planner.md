@@ -47,7 +47,13 @@ planner unusable.
 
 On today, add a logical current-time row immediately before the next quarter-hour
 slot. Show the exact `HH:mm` value in the time column and fill the plan column
-with `▶` followed by `─` characters in the configured bright accent. Fill the
+with `▶` followed by `─` characters in the configured `now` color. When the
+current day's loaded calendar agenda has a later timed event, append its compact
+duration followed by its title. Count every timed calendar event,
+including events without attendees, but exclude scheduled todos. Skip events
+that have already started, do not look beyond the current day, and retain the
+plain current-time row when no later event is available. The duration retains
+priority on narrow terminals; truncate long titles with an ellipsis. Fill the
 actual rendered cell width without wrapping. This row is timeline content: do
 not use panel borders, active-row backgrounds, intersections, or surface fills. Before 06:00 place it before the first slot; after
 21:45 place it after the last. Keep the selected slot visible when it cannot fit
@@ -106,8 +112,10 @@ feedback match the Todos view.
    without exceeding the terminal viewport.
 7. Planner property, content, completion, and external-editor actions use the
    same conflict-safe Markdown workflows as the Todos tab.
-8. Today's current-time row uses the highlight foreground without resembling a
-   table border, stays within the viewport budget, and advances while idle.
+8. Today's current-time row uses its dedicated `now` foreground without
+   resembling a table border, stays within the viewport budget, advances while
+   idle, and shows the duration and name of the next timed calendar event
+   without considering todos.
 9. Date-only schedules and calendar all-day items remain navigable in their
    separate pane without removing access to the selected timeline slot.
 10. Calendar overlap warnings and failed calendar refreshes never block normal

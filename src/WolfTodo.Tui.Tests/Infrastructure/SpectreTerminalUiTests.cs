@@ -365,7 +365,8 @@ public sealed class SpectreTerminalUiTests
         {
             AccentBright = new Color(1, 2, 3),
             Surface2 = new Color(4, 5, 6),
-            BorderActive = new Color(7, 8, 9)
+            BorderActive = new Color(7, 8, 9),
+            Now = new Color(16, 17, 18)
         };
         StartRecording(100, 24);
         var start = AnsiConsole.ExportText().Length;
@@ -382,9 +383,73 @@ public sealed class SpectreTerminalUiTests
 
         planCell.Should().StartWith("┣━━ NOW ");
         planCell.Should().Contain("━");
+        planCell.Should().NotContain("NEXT MEETING");
         planCell.Length.Should().Be(cells[^2].Length - 2);
-        StyleBefore(html, "14:23").Should().Contain("#010203").And.NotContain("#040506");
+        StyleBefore(html, "14:23").Should().Contain("#101112").And.NotContain("#040506");
         html.Should().Contain("#070809");
+    }
+
+    [Theory]
+    [InlineData(10, 0, "45m")]
+    [InlineData(10, 15, "1h")]
+    [InlineData(10, 20, "1h 05m")]
+    public void ShowPlanner_renders_time_until_the_next_meeting_without_using_a_scheduled_todo(
+        int meetingHour,
+        int meetingMinute,
+        string expectedDuration)
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var now = new DateTime(2026, 7, 15, 9, 15, 0);
+        var todo = CreateTodoItem("Sooner todo", 1) with
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(9, 30))
+        };
+        var agenda = new PlannerCalendarAgenda(
+            [],
+            [new PlannerCalendarMeeting(
+                "Next calendar event",
+                new TimeOnly(meetingHour, meetingMinute),
+                new TimeOnly(meetingHour, meetingMinute).AddMinutes(30))],
+            PlannerCalendarSyncState.Ready);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 13 },
+            agenda);
+        StartRecording(100, 24);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 24, () => date, () => now)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var output = AnsiConsole.ExportText()[start..];
+
+        output.Should().Contain($"NOW · {expectedDuration} · Next calendar event")
+            .And.NotContain("NOW · 15m");
+    }
+
+    [Fact]
+    public void ShowPlanner_keeps_the_next_meeting_label_on_one_row_when_narrow()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var now = new DateTime(2026, 7, 15, 9, 15, 0);
+        var agenda = new PlannerCalendarAgenda(
+            [],
+            [new PlannerCalendarMeeting("A longer meeting title", new TimeOnly(10, 0), new TimeOnly(10, 30))],
+            PlannerCalendarSyncState.Ready);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 13 },
+            agenda);
+        StartRecording(40, 24);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 40, () => 24, () => date, () => now)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
+        var lines = AnsiConsole.ExportText()[start..]
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        lines.Should().HaveCount(23);
+        lines.Should().ContainSingle(line => line.Contains("NOW · 45m", StringComparison.Ordinal));
+        lines.Should().ContainSingle(line => line.Contains('…'));
     }
 
     [Theory]
