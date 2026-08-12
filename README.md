@@ -115,6 +115,9 @@ planner_today = ["T"]
 planner_unschedule = ["u"]
 planner_refresh_calendar = ["r"]
 planner_export_schedule = ["x"]
+toggle_timer = ["Ctrl+T"]
+start_pomodoro = ["Ctrl+P"]
+start_untracked_pomodoro = ["Ctrl+Shift+P"]
 create_todo = ["a"]
 edit_todo = ["e"]
 # Compatibility alias for the same unified editor.
@@ -137,6 +140,7 @@ accent = "#F28C28"
 accent_bright = "#FFB14A"
 info = "#5FA8D3"
 now = "#FF5CA8"
+timer = "#C6F36A"
 
 [google_calendar]
 # Optional: show primary Google Calendar meetings in the Day Planner.
@@ -156,6 +160,13 @@ project_links = [
   "[[kohde/2026/Todos - Kohde]]",
   "[[pers/2026/Todo - Personal]]"
 ]
+
+[timer]
+notes_directory = "/absolute/path/to/time-logs"
+# Focus countdown length, from 1 through 180 minutes.
+pomodoro_minutes = 25
+# Ring the terminal bell when a Pomodoro finishes.
+bell = true
 ```
 
 Within `[keybindings]`, only `quit` is required. Omitted bindings use the
@@ -167,7 +178,7 @@ The optional `[tui.theme]` table selects the startup theme. Available presets
 are `wolf` (the default), `classic`, and `mono`. The configurable semantic
 colors are `text`, `accent`, `heading`, `border`, `muted`, `success`,
 `warning`, `error`, `tag`, `date`, `background`, `surface`, `surface_2`,
-`secondary_text`, `border_active`, `accent_bright`, `info`, and `now`. Color values
+`secondary_text`, `border_active`, `accent_bright`, `info`, `now`, and `timer`. Color values
 accept Spectre.Console named colors such as `Cyan`, six-digit hexadecimal
 colors such as `#F28C28`, or `default`. Using `default` for a foreground role
 uses the terminal foreground; using it for a surface makes that layer
@@ -180,6 +191,22 @@ Desktop OAuth client JSON file. The first refresh opens Google's consent flow;
 the refresh token is stored in Wolf Todo's application-state directory, not in
 the project Markdown. `r` refreshes the selected day. Calendar meetings only
 warn when a todo shares their time; they never prevent scheduling.
+
+The optional `[timer]` table enables one active task timer. `Ctrl+T` starts or
+stops the selected todo (or switches to another selected todo), shows elapsed
+time in a dedicated pulsing status row in both Todos and Day Planner, and
+writes sessions to `YYYY/MM/Time - <ISO-week>.md` below `notes_directory`.
+`Ctrl+P` opens a Pomodoro-minutes prompt for the selected todo, or an untracked
+Pomodoro when no todo is selected. A selected todo's explicit `⏱` duration is
+the prompt default; otherwise it uses `pomodoro_minutes` (25 by default).
+`Ctrl+Shift+P` opens the same prompt for an untracked Pomodoro. Use
+`:pomodoro 45` for an immediate one-off countdown, `:pomodoro task` to use the
+selected todo's `⏱` duration, or `:pomodoro 10 --untracked` to start without a
+todo. One-off values may be from 1 through 960 minutes and do not change the
+configured default. The countdown rings the terminal bell when `bell` is
+enabled. Task-linked Pomodoros are written to the weekly log; untracked
+Pomodoros are not. Wolf Todo records an active task-linked timer when it exits
+normally.
 
 Each configured Markdown file is one project. Start the application with:
 
@@ -260,11 +287,17 @@ date. `d`/`D` sort by scheduled date and time.
 Existing start and due annotations are
 preserved in Markdown but intentionally omitted from the normal UI. The planner
 shows responsive details for the selected planner item; `v` hides or
-restores the Inspector without disabling the all-day pane. On today, a bright, full-width `▶────` timeline row shows the exact current
-time and, when available, its duration and name. Its hot-pink `now` theme role
-refreshes once per idle minute without borrowing the panel-border style and
-never derives the countdown from scheduled todos. Its unscheduled-todo picker
-shows several filterable candidates.
+restores the Inspector without disabling the all-day pane. On today, a bright,
+full-width `┣━━ NOW` timeline row shows the exact current time and, when
+available, the next meeting's duration and name. An active Pomodoro appears
+first as `◷ MM:SS · <task>`, followed by the meeting as
+`NEXT <duration> · <meeting>`; the Pomodoro portion uses the lime `timer` role
+while the rest uses the hot-pink `now` role. The Pomodoro also appears as a
+temporary, read-only schedule block and disappears when it stops or completes.
+The marker refreshes once per second during timing and once per idle minute
+otherwise, without borrowing the panel-border style or deriving the meeting
+countdown from scheduled todos. Its unscheduled-todo picker shows several
+filterable candidates.
 On an occupied slot, `e` or `E`, Ctrl+E, and Space provide the same task editing,
 external editing, and completion actions as the Todos tab. Creating with `a`
 uses the complete task editor, pre-fills the selected slot, and
@@ -292,7 +325,8 @@ argument; other editors open the file without a line position. `$EDITOR` must
 contain an executable name or path without additional arguments.
 
 Command mode belongs to the application shell: `:q`, `:completed`, and unknown
-command feedback work from either Todos or Day Planner. An active feature
+command feedback work from either Todos or Day Planner. Pomodoro commands also
+work from either tab. An active feature
 picker, filter, move, or edit form receives input before global commands.
 While command mode is active, Tab completes a unique command prefix and cycles
 ambiguous matches. In the Todos tab, `:roll-today` changes every incomplete

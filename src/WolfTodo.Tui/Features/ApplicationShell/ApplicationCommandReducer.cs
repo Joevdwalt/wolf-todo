@@ -35,6 +35,12 @@ public sealed class ApplicationCommandReducer
 
         if (key.Key == ConsoleKey.Enter)
         {
+            if (state.Value.Equals(ApplicationCommandCatalog.Pomodoro, StringComparison.OrdinalIgnoreCase) ||
+                state.Value.StartsWith(ApplicationCommandCatalog.Pomodoro + " ", StringComparison.OrdinalIgnoreCase))
+            {
+                return ParsePomodoro(state.Value);
+            }
+
             if (state.Value.Equals(
                     ApplicationCommandCatalog.MoveTodoProject,
                     StringComparison.OrdinalIgnoreCase) ||
@@ -122,4 +128,44 @@ public sealed class ApplicationCommandReducer
 
     private static ApplicationCommandState Closed(string? error) =>
         ApplicationCommandState.Initial with { Error = error };
+
+    private static ApplicationCommandTransition ParsePomodoro(string value)
+    {
+        const string usage = "Usage: :pomodoro <minutes|task> [--untracked]";
+        var arguments = value[ApplicationCommandCatalog.Pomodoro.Length..]
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var untracked = arguments.Any(argument =>
+            argument.Equals("--untracked", StringComparison.OrdinalIgnoreCase));
+        var durationArguments = arguments
+            .Where(argument => !argument.Equals("--untracked", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (arguments.Count(argument => argument.Equals("--untracked", StringComparison.OrdinalIgnoreCase)) > 1 ||
+            durationArguments.Length != 1)
+        {
+            return new ApplicationCommandTransition(Closed(usage));
+        }
+
+        if (durationArguments[0].Equals("task", StringComparison.OrdinalIgnoreCase))
+        {
+            return untracked
+                ? new ApplicationCommandTransition(Closed("The task duration cannot be used with --untracked."))
+                : new ApplicationCommandTransition(
+                    Closed(null),
+                    ApplicationCommandOperation.StartPomodoro,
+                    PomodoroDurationSource: PomodoroDurationSource.SelectedTask);
+        }
+
+        if (!int.TryParse(durationArguments[0], out var minutes) || minutes is < 1 or > 960)
+        {
+            return new ApplicationCommandTransition(Closed("Pomodoro minutes must be a whole number from 1 through 960."));
+        }
+
+        return new ApplicationCommandTransition(
+            Closed(null),
+            ApplicationCommandOperation.StartPomodoro,
+            PomodoroDurationSource: PomodoroDurationSource.ExplicitMinutes,
+            PomodoroMinutes: minutes,
+            PomodoroUntracked: untracked);
+    }
 }

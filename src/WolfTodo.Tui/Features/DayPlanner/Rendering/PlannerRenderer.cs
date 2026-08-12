@@ -54,7 +54,8 @@ public sealed class PlannerRenderer
             context.AvailableRows,
             view.State.SelectedDate,
             nowProvider(),
-            view.CalendarAgenda.Meetings);
+            view.CalendarAgenda.Meetings,
+            view.ActiveFocusBlock);
         var timelineTable = CreatePlannerTimelineTable(timelineRows, context.AvailableRows, theme);
 
         RenderPlannerBody(view, theme, context, timelineTable);
@@ -82,6 +83,7 @@ public sealed class PlannerRenderer
         var compactDetails = IsPlannerCompactDetailsVisible(view, wideSidePanels);
         var narrowAllDayHeight = PlannerNarrowAllDayHeight(view, wideSidePanels, showAllDayPanel);
         var pickerHeight = TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows);
+        pickerHeight += view.PomodoroPrompt is null ? 0 : PomodoroPromptRenderer.Height;
         var availableRows = PlannerAvailableRows(
             height,
             TerminalLayout.DialogContentHeight(editorDialog) ?? status.Count,
@@ -97,6 +99,7 @@ public sealed class PlannerRenderer
             selectRows,
             textBox,
             textBoxRows,
+            view.PomodoroPrompt,
             editorDialog,
             status,
             wideSidePanels,
@@ -157,7 +160,10 @@ public sealed class PlannerRenderer
                     new TimelineMarkerRenderable(
                         themeRenderer.Style(theme.Now, Decoration.Bold),
                         marker.TimeUntilNextMeeting,
-                        marker.NextMeetingTitle));
+                        marker.NextMeetingTitle,
+                        themeRenderer.Style(theme.Timer, Decoration.Bold),
+                        marker.PomodoroRemaining,
+                        marker.PomodoroTitle));
                 continue;
             }
 
@@ -287,7 +293,11 @@ public sealed class PlannerRenderer
         TuiTheme theme,
         PlannerRenderContext context)
     {
-        if (context.SelectList is not null)
+        if (context.PomodoroPrompt is { } pomodoroPrompt)
+        {
+            AnsiConsole.Write(PomodoroPromptRenderer.Render(pomodoroPrompt, theme, context.Width));
+        }
+        else if (context.SelectList is not null)
         {
             AnsiConsole.Write(SelectList.Default.Render(
                 context.SelectList,
@@ -348,7 +358,8 @@ public sealed class PlannerRenderer
         int availableRows,
         DateOnly selectedDate,
         DateTime now,
-        IReadOnlyList<PlannerCalendarMeeting>? meetings = null)
+        IReadOnlyList<PlannerCalendarMeeting>? meetings = null,
+        PlannerFocusBlock? activeFocusBlock = null)
     {
         var rows = new List<PlannerTimelineRow>(slots.Count + 1);
         var today = DateOnly.FromDateTime(now);
@@ -356,12 +367,21 @@ public sealed class PlannerRenderer
         var addMarker = selectedDate == today;
         var nextMeeting = addMarker ? NextMeeting(meetings ?? [], currentTime) : null;
         TimeSpan? timeUntilNextMeeting = nextMeeting is null ? null : nextMeeting.Start - currentTime;
+        TimeSpan? pomodoroRemaining = addMarker && activeFocusBlock is not null
+            ? activeFocusBlock.Remaining(now)
+            : null;
+        var pomodoroTitle = pomodoroRemaining is not null ? activeFocusBlock?.TodoTitle : null;
         var markerAdded = false;
         foreach (var slot in slots)
         {
             if (addMarker && !markerAdded && currentTime <= slot.Time)
             {
-                rows.Add(new PlannerNowTimelineRow(currentTime, timeUntilNextMeeting, nextMeeting?.Title));
+                rows.Add(new PlannerNowTimelineRow(
+                    currentTime,
+                    timeUntilNextMeeting,
+                    nextMeeting?.Title,
+                    pomodoroRemaining,
+                    pomodoroTitle));
                 markerAdded = true;
             }
 
@@ -370,7 +390,12 @@ public sealed class PlannerRenderer
 
         if (addMarker && !markerAdded)
         {
-            rows.Add(new PlannerNowTimelineRow(currentTime, timeUntilNextMeeting, nextMeeting?.Title));
+            rows.Add(new PlannerNowTimelineRow(
+                currentTime,
+                timeUntilNextMeeting,
+                nextMeeting?.Title,
+                pomodoroRemaining,
+                pomodoroTitle));
         }
 
         if (PlannerTimelineHeight(rows) <= availableRows)
@@ -774,8 +799,10 @@ public sealed class PlannerRenderer
         var active = row.IsActive;
         var primaryActive = row.IsPrimaryActive;
         var completed = row.ItemType == PlannerItemType.Task && row.StatusGlyph == "✓";
-        var color = active ? theme.AccentBright : completed ? theme.Muted :
-            row.ItemType == PlannerItemType.Task ? theme.Text : row.ItemType is null ? theme.Muted : theme.Info;
+        var color = row.ItemType == PlannerItemType.Pomodoro ? theme.Timer :
+            active ? theme.AccentBright : completed ? theme.Muted :
+            row.ItemType == PlannerItemType.Task ? theme.Text :
+            row.ItemType is null ? theme.Muted : theme.Info;
         var decoration = active ? Decoration.Bold : completed || row.IsEmpty ? Decoration.Dim : Decoration.None;
         var line = new System.Text.StringBuilder();
         themeRenderer.AppendStyled(
@@ -807,7 +834,10 @@ public sealed class PlannerRenderer
             themeRenderer.AppendStyled(line, row.Title, color, decoration);
             if (row.Metadata.Length > 0)
             {
-                themeRenderer.AppendStyled(line, " " + row.Metadata, active ? theme.AccentBright : theme.Muted, decoration);
+                var metadataColor = row.ItemType == PlannerItemType.Pomodoro
+                    ? theme.Timer
+                    : active ? theme.AccentBright : theme.Muted;
+                themeRenderer.AppendStyled(line, " " + row.Metadata, metadataColor, decoration);
             }
         }
 

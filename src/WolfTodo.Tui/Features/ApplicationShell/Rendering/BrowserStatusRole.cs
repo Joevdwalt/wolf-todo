@@ -9,5 +9,7 @@ public enum BrowserStatusRole
     FormPlaceholder,
     FormHint,
     FormError,
-    ContentWarning
+    ContentWarning,
+    TimerActive,
+    TimerInactive
 }

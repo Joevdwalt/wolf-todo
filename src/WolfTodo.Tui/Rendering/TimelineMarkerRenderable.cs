@@ -4,12 +4,14 @@ using Spectre.Console.Rendering;
 namespace WolfTodo.Tui.Rendering;
 
 internal sealed class TimelineMarkerRenderable(
-    Style style,
+    Style nowStyle,
     TimeSpan? timeUntilNextMeeting = null,
-    string? nextMeetingTitle = null) : IRenderable
+    string? nextMeetingTitle = null,
+    Style? timerStyle = null,
+    TimeSpan? pomodoroRemaining = null,
+    string? pomodoroTitle = null) : IRenderable
 {
-    public Measurement Measure(RenderOptions options, int maxWidth) =>
-        new(maxWidth, maxWidth);
+    public Measurement Measure(RenderOptions options, int maxWidth) => new(maxWidth, maxWidth);
 
     public IEnumerable<Segment> Render(RenderOptions options, int maxWidth)
     {
@@ -18,15 +20,76 @@ internal sealed class TimelineMarkerRenderable(
             yield break;
         }
 
-        var label = Label(maxWidth);
-        var labelWidth = label.GetCellWidth();
-        var text = labelWidth >= maxWidth
-            ? Truncate(label, maxWidth)
-            : label + new string('━', maxWidth - labelWidth);
-        yield return new Segment(text, style, null);
+        var segments = pomodoroRemaining is { } remaining
+            ? PomodoroSegments(maxWidth, remaining)
+            : MeetingSegments(maxWidth);
+        var usedWidth = segments.Sum(segment => segment.Text.GetCellWidth());
+        if (usedWidth < maxWidth)
+        {
+            segments.Add(new Segment(new string('━', maxWidth - usedWidth), nowStyle, null));
+        }
+
+        foreach (var segment in segments)
+        {
+            yield return segment;
+        }
     }
 
-    private string Label(int maxWidth)
+    private List<Segment> MeetingSegments(int maxWidth)
+    {
+        var label = MeetingLabel(maxWidth);
+        return [new Segment(Truncate(label, maxWidth), nowStyle, null)];
+    }
+
+    private List<Segment> PomodoroSegments(int maxWidth, TimeSpan remaining)
+    {
+        var timer = timerStyle ?? nowStyle;
+        const string nowPrefix = "┣━━ NOW · ";
+        var pomodoroCountdown = $"◷ {FormatCountdown(remaining)}";
+        var meetingPrefix = timeUntilNextMeeting is { } meetingCountdown
+            ? $" · NEXT {FormatDuration(meetingCountdown)}"
+            : string.Empty;
+        const string trailingSpace = " ";
+
+        var fixedWidth = nowPrefix.GetCellWidth() + pomodoroCountdown.GetCellWidth() +
+                         meetingPrefix.GetCellWidth() + trailingSpace.GetCellWidth();
+        if (fixedWidth > maxWidth)
+        {
+            return TruncatedFixedSegments(maxWidth, nowPrefix, pomodoroCountdown, timer);
+        }
+
+        var taskTitle = Normalize(pomodoroTitle);
+        var meetingTitle = Normalize(nextMeetingTitle);
+        var available = maxWidth - fixedWidth;
+        var taskPart = TitlePart(taskTitle, available);
+        available -= taskPart.GetCellWidth();
+        var meetingPart = TitlePart(meetingTitle, available);
+
+        return
+        [
+            new Segment(nowPrefix, nowStyle, null),
+            new Segment(pomodoroCountdown + taskPart, timer, null),
+            new Segment(meetingPrefix + meetingPart + trailingSpace, nowStyle, null)
+        ];
+    }
+
+    private List<Segment> TruncatedFixedSegments(
+        int maxWidth,
+        string nowPrefix,
+        string pomodoroCountdown,
+        Style timer)
+    {
+        var nowText = Truncate(nowPrefix, maxWidth);
+        var remainingWidth = maxWidth - nowText.GetCellWidth();
+        var timerText = remainingWidth > 0 ? Truncate(pomodoroCountdown, remainingWidth) : string.Empty;
+        return
+        [
+            new Segment(nowText, nowStyle, null),
+            new Segment(timerText, timer, null)
+        ];
+    }
+
+    private string MeetingLabel(int maxWidth)
     {
         if (timeUntilNextMeeting is not { } countdown)
         {
@@ -42,23 +105,34 @@ internal sealed class TimelineMarkerRenderable(
 
         const int minimumLineWidth = 3;
         var titleWidth = maxWidth - prefix.GetCellWidth() - " · ".GetCellWidth() - minimumLineWidth - 1;
-        return titleWidth <= 0
-            ? prefix + " "
-            : $"{prefix} · {Ellipsize(title, titleWidth)} ";
+        return titleWidth <= 0 ? prefix + " " : $"{prefix} · {Ellipsize(title, titleWidth)} ";
+    }
+
+    private static string TitlePart(string? title, int availableWidth)
+    {
+        if (title is null || availableWidth <= " · ".GetCellWidth())
+        {
+            return string.Empty;
+        }
+
+        var titleWidth = availableWidth - " · ".GetCellWidth();
+        return $" · {Ellipsize(title, titleWidth)}";
+    }
+
+    private static string FormatCountdown(TimeSpan duration)
+    {
+        var totalSeconds = Math.Max(0, (int)Math.Ceiling(duration.TotalSeconds));
+        return totalSeconds >= 3600
+            ? $"{totalSeconds / 3600:00}:{totalSeconds % 3600 / 60:00}:{totalSeconds % 60:00}"
+            : $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";
     }
 
     private static string FormatDuration(TimeSpan duration)
     {
-        var totalMinutes = (int)duration.TotalMinutes;
+        var totalMinutes = Math.Max(0, (int)duration.TotalMinutes);
         var hours = totalMinutes / 60;
         var minutes = totalMinutes % 60;
-
-        if (hours == 0)
-        {
-            return $"{minutes}m";
-        }
-
-        return minutes == 0 ? $"{hours}h" : $"{hours}h {minutes:00}m";
+        return hours == 0 ? $"{minutes}m" : minutes == 0 ? $"{hours}h" : $"{hours}h {minutes:00}m";
     }
 
     private static string? Normalize(string? title)
@@ -69,6 +143,11 @@ internal sealed class TimelineMarkerRenderable(
 
     private static string Ellipsize(string value, int maxWidth)
     {
+        if (maxWidth <= 0)
+        {
+            return string.Empty;
+        }
+
         if (value.GetCellWidth() <= maxWidth)
         {
             return value;

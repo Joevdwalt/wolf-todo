@@ -58,6 +58,7 @@ public sealed class PlannerRendererTests
         var marker = rows[1].Should().BeOfType<PlannerNowTimelineRow>().Which;
         marker.Time.Should().Be(new TimeOnly(9, 15));
         marker.TimeUntilNextMeeting.Should().BeNull();
+        marker.PomodoroRemaining.Should().BeNull();
         rows[2].Should().BeOfType<PlannerSlotTimelineRow>();
     }
 
@@ -86,6 +87,26 @@ public sealed class PlannerRendererTests
             .Should().Be(TimeSpan.FromMinutes(75));
         rows.OfType<PlannerNowTimelineRow>().Single().NextMeetingTitle
             .Should().Be("Next solo event");
+    }
+
+    [Fact]
+    public void WindowPlannerTimeline_adds_active_pomodoro_data_to_the_now_row()
+    {
+        var renderer = new PlannerRenderer(() => 100, () => 30);
+        var now = new DateTime(2026, 8, 4, 9, 15, 0);
+        var focus = new PlannerFocusBlock(now.AddMinutes(-5), now.AddMinutes(20), "Deep work");
+
+        var rows = renderer.WindowPlannerTimeline(
+            [new PlannerSlotView(new TimeOnly(9, 15), [], true)],
+            0,
+            10,
+            new DateOnly(2026, 8, 4),
+            now,
+            activeFocusBlock: focus);
+
+        var marker = rows.OfType<PlannerNowTimelineRow>().Single();
+        marker.PomodoroRemaining.Should().Be(TimeSpan.FromMinutes(20));
+        marker.PomodoroTitle.Should().Be("Deep work");
     }
 
     [Fact]

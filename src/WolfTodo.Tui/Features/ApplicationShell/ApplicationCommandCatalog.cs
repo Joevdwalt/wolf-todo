@@ -6,6 +6,7 @@ namespace WolfTodo.Tui.Features.ApplicationShell;
 public static class ApplicationCommandCatalog
 {
     public const string MoveTodoProject = ":move-todo-project";
+    public const string Pomodoro = ":pomodoro";
     public const string RollToday = ":roll-today";
 
     public static ImmutableArray<string> Create(TuiKeyBindings bindings) =>
@@ -16,6 +17,7 @@ public static class ApplicationCommandCatalog
             bindings.ToggleCompletedCommand,
             bindings.HelpCommand,
             MoveTodoProject,
+            Pomodoro,
             RollToday
         }
         .Distinct(StringComparer.OrdinalIgnoreCase)

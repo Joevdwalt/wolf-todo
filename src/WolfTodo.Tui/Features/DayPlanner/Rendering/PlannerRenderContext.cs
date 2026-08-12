@@ -1,4 +1,5 @@
 using WolfTodo.Tui.Controls;
+using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 
 namespace WolfTodo.Tui.Features.DayPlanner.Rendering;
@@ -10,6 +11,7 @@ public sealed record PlannerRenderContext(
     int SelectRows,
     MultilineTextBoxState? TextBox,
     int TextBoxRows,
+    PomodoroPromptState? PomodoroPrompt,
     TodoTaskEditorDialogView? EditorDialog,
     IReadOnlyList<BrowserStatusLine> Status,
     bool WideSidePanels,

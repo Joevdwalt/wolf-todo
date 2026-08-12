@@ -74,7 +74,8 @@ public sealed class BrowserRenderer
         var contentHeight = BrowserContentHeight(
             height,
             TerminalLayout.DialogContentHeight(editorDialog) ?? statusLines.Count,
-            TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows));
+            TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows) +
+            (view.PomodoroPrompt is null ? 0 : PomodoroPromptRenderer.Height));
 
         return new BrowserRenderContext(
             width,
@@ -85,6 +86,7 @@ public sealed class BrowserRenderer
             selectRows,
             textBox,
             textBoxRows,
+            view.PomodoroPrompt,
             editorDialog,
             statusLines,
             contentHeight);
@@ -137,7 +139,11 @@ public sealed class BrowserRenderer
         TuiTheme theme,
         BrowserRenderContext context)
     {
-        if (context.SelectList is not null)
+        if (context.PomodoroPrompt is { } pomodoroPrompt)
+        {
+            AnsiConsole.Write(PomodoroPromptRenderer.Render(pomodoroPrompt, theme, context.Width));
+        }
+        else if (context.SelectList is not null)
         {
             AnsiConsole.Write(SelectList.Default.Render(
                 context.SelectList,

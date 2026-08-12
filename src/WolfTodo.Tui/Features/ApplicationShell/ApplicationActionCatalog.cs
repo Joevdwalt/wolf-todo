@@ -16,7 +16,9 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         BrowserView? browser,
         PlannerView? planner,
         TuiKeyBindings bindings,
-        bool plannerExportEnabled = false)
+        bool plannerExportEnabled = false,
+        bool timerEnabled = false,
+        bool timerRunning = false)
     {
         var browserReason = browserActive ? null : "Available in the Todos tab.";
         var plannerReason = browserActive ? "Available in the Day Planner tab." : null;
@@ -56,12 +58,34 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         var plannerExportReason = plannerReason ?? (plannerExportEnabled
             ? null
             : "Configure [planner.export] to enable day schedule export.");
+        var timerReason = !timerEnabled
+            ? "Configure [timer] to enable task timing."
+            : timerRunning ? null
+            : browserActive ? selectedReason : plannerSelectedReason;
+        var pomodoroReason = !timerEnabled
+            ? "Configure [timer] to enable Pomodoro timing."
+            : timerRunning
+                ? "Stop the active timer first."
+                : null;
+        var untrackedPomodoroReason = !timerEnabled
+            ? "Configure [timer] to enable Pomodoro timing."
+            : timerRunning
+                ? "Stop the active timer first."
+                : null;
         return
         [
             Item(ApplicationActionId.Exit, "Application", "Quit", "Exit Wolf Todo",
                 bindings.QuitCommand),
             Item(ApplicationActionId.ToggleCompleted, "Application", "Toggle completed",
                 "Show or hide completed todos", bindings.ToggleCompletedCommand),
+            Item(ApplicationActionId.ToggleTimer, "Application", timerRunning ? "Stop timer" : "Start timer",
+                "Start or stop timing the selected todo", Shortest(bindings.ToggleTimer), timerReason),
+            Item(ApplicationActionId.StartPomodoro, "Application", "Start Pomodoro",
+                "Start for the selected todo, or untracked when none is selected",
+                Shortest(bindings.StartPomodoro), pomodoroReason),
+            Item(ApplicationActionId.StartUntrackedPomodoro, "Application", "Start untracked Pomodoro",
+                "Start a Pomodoro without a todo or time-log entry",
+                Shortest(bindings.StartUntrackedPomodoro), untrackedPomodoroReason),
             Item(ApplicationActionId.NextTab, "Application", "Next tab", "Select the next application tab",
                 Shortest(bindings.TabNext)),
             Item(ApplicationActionId.PreviousTab, "Application", "Previous tab",

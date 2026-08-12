@@ -142,6 +142,161 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_completes_an_untracked_pomodoro_without_logging_or_a_disabled_bell()
+    {
+        var now = new DateTime(2026, 8, 12, 9, 0, 0);
+        var store = new MemoryTimeLogFileStore();
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(ConsoleKey.P, control: true, shift: true),
+            Key(ConsoleKey.Enter),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter))
+        {
+            TimeoutNextTimedRead = true,
+            OnTimedRead = _ => now = now.AddMinutes(25)
+        };
+        var application = CreateApplication(
+            new FixedConfigurationLoader(timer: new TimerConfiguration("/logs", Bell: false)),
+            terminal,
+            weeklyTimeLogService: new WeeklyTimeLogService(store),
+            nowProvider: () => now);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.BellCount.Should().Be(0);
+        terminal.BrowserViews.Should().Contain(view => view.TimerStatus == "POMODORO 25:00");
+        terminal.BrowserViews.Last().TimerStatus.Should().BeNull();
+        store.Files.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Run_logs_a_selected_todo_pomodoro_at_its_deadline_and_rings_once()
+    {
+        var now = new DateTime(2026, 8, 12, 9, 0, 0);
+        var projectFiles = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Deep work\n");
+        var store = new MemoryTimeLogFileStore();
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(ConsoleKey.P, control: true),
+            Key(ConsoleKey.Enter),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter))
+        {
+            TimeoutNextTimedRead = true,
+            OnTimedRead = _ => now = now.AddMinutes(26)
+        };
+        var application = CreateApplication(
+            new FixedConfigurationLoader(timer: new TimerConfiguration("/logs")),
+            terminal,
+            new FakeApplicationStateStore("/todos/project.md"),
+            projectFileSystem: projectFiles,
+            weeklyTimeLogService: new WeeklyTimeLogService(store),
+            nowProvider: () => now);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.BellCount.Should().Be(1);
+        terminal.BrowserViews.Should().Contain(view => view.TimerStatus == "POMODORO 25:00 · Deep work");
+        store.Files.Should().ContainSingle();
+        store.Files.Values.Single().Should().Contain("09:00–09:25 · 25m — project · Deep work");
+    }
+
+    [Fact]
+    public void Run_prefills_the_prompt_from_task_duration_and_accepts_a_custom_value()
+    {
+        var projectFiles = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Deep work ⏱ 45m\n");
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(ConsoleKey.P, control: true),
+            Key(ConsoleKey.Backspace), Key(ConsoleKey.Backspace), Key('3'), Key('0'),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.T, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(timer: new TimerConfiguration("/logs")),
+            terminal,
+            new FakeApplicationStateStore("/todos/project.md"),
+            projectFileSystem: projectFiles,
+            weeklyTimeLogService: new WeeklyTimeLogService(new MemoryTimeLogFileStore()),
+            nowProvider: () => new DateTime(2026, 8, 12, 9, 0, 0));
+
+        application.Run();
+
+        terminal.BrowserViews.Should().Contain(view =>
+            view.PomodoroPrompt != null &&
+            view.PomodoroPrompt.Input.Text == "45" &&
+            view.PomodoroPrompt.Input.Label.Contains("Deep work"));
+        terminal.BrowserViews.Should().Contain(view =>
+            view.TimerStatus == "POMODORO 30:00 · Deep work");
+    }
+
+    [Fact]
+    public void Run_starts_the_selected_task_duration_command_and_shows_a_planner_focus_block()
+    {
+        var date = new DateOnly(2026, 8, 12);
+        var now = date.ToDateTime(new TimeOnly(9, 7));
+        var projectFiles = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Deep work ⏱ 45m\n");
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(':'),
+            Key('p'), Key('o'), Key('m'), Key('o'), Key('d'), Key('o'), Key('r'), Key('o'),
+            Key(' '), Key('t'), Key('a'), Key('s'), Key('k'),
+            Key(ConsoleKey.Enter),
+            Key('L'),
+            Key(ConsoleKey.T, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(timer: new TimerConfiguration("/logs")),
+            terminal,
+            new FakeApplicationStateStore("/todos/project.md"),
+            projectFileSystem: projectFiles,
+            todayProvider: () => date,
+            weeklyTimeLogService: new WeeklyTimeLogService(new MemoryTimeLogFileStore()),
+            nowProvider: () => now);
+
+        application.Run();
+
+        terminal.BrowserViews.Should().Contain(view =>
+            view.TimerStatus == "POMODORO 45:00 · Deep work");
+        var planner = terminal.PlannerViews.First(view => view.ActiveFocusBlock is not null);
+        planner.ActiveFocusBlock!.TodoTitle.Should().Be("Deep work");
+        planner.Slots.SelectMany(slot => slot.Items)
+            .Where(item => item.ItemType == PlannerItemType.Pomodoro)
+            .Select(item => item.Title)
+            .Should().OnlyContain(title => title == "Deep work");
+    }
+
+    [Fact]
+    public void Run_keeps_an_invalid_prompt_open_until_cancelled()
+    {
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(ConsoleKey.P, control: true, shift: true),
+            Key(ConsoleKey.Backspace), Key(ConsoleKey.Backspace), Key('0'),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.Escape),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(timer: new TimerConfiguration("/logs")),
+            terminal,
+            weeklyTimeLogService: new WeeklyTimeLogService(new MemoryTimeLogFileStore()));
+
+        application.Run();
+
+        terminal.BrowserViews.Should().Contain(view =>
+            view.PomodoroPrompt != null &&
+            view.PomodoroPrompt.Error == "Enter a whole number from 1 through 960.");
+        terminal.BrowserViews.Last().PomodoroPrompt.Should().BeNull();
+    }
+
+    [Fact]
     public void Run_applies_the_global_completed_command_from_the_day_planner()
     {
         var terminal = new FakeTerminal(
@@ -667,7 +822,9 @@ public sealed class TuiApplicationTests
         IApplicationStateStore? applicationStateStore = null,
         IExternalEditorLauncher? externalEditorLauncher = null,
         IProjectFileSystem? projectFileSystem = null,
-        Func<DateOnly>? todayProvider = null)
+        Func<DateOnly>? todayProvider = null,
+        WeeklyTimeLogService? weeklyTimeLogService = null,
+        Func<DateTime>? nowProvider = null)
     {
         var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
         var reader = new MarkdownTodoProjectReader();
@@ -685,19 +842,26 @@ public sealed class TuiApplicationTests
             "wolf",
             mutationService: new ProjectTodoMutationService(fileSystem, reader),
             externalEditorLauncher: externalEditorLauncher,
-            todayProvider: todayProvider);
+            todayProvider: todayProvider,
+            weeklyTimeLogService: weeklyTimeLogService,
+            nowProvider: nowProvider);
     }
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem1, false, false, false);
 
-    private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false) =>
-        new('\0', key, false, false, control);
+    private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false, bool shift = false) =>
+        new('\0', key, shift, false, control);
 
-    private sealed class FixedConfigurationLoader(TuiKeyBindings? bindings = null) : IApplicationConfigurationLoader
+    private sealed class FixedConfigurationLoader(
+        TuiKeyBindings? bindings = null,
+        TimerConfiguration? timer = null) : IApplicationConfigurationLoader
     {
         public ApplicationConfiguration Load() => new(
             ["/todos/project.md"],
-            bindings ?? TuiKeyBindings.CreateDefaults(":q"));
+            bindings ?? TuiKeyBindings.CreateDefaults(":q"))
+        {
+            Timer = timer
+        };
     }
 
     private sealed class ThrowingConfigurationLoader : IApplicationConfigurationLoader
@@ -802,7 +966,11 @@ public sealed class TuiApplicationTests
 
         public int ExternalResumptions { get; private set; }
 
+        public int BellCount { get; private set; }
+
         public bool TimeoutNextTimedRead { get; set; }
+
+        public Action<TimeSpan>? OnTimedRead { get; init; }
 
         public int TimedReadCount { get; private set; }
 
@@ -811,6 +979,7 @@ public sealed class TuiApplicationTests
         public ConsoleKeyInfo? ReadKey(TimeSpan timeout)
         {
             TimedReadCount++;
+            OnTimedRead?.Invoke(timeout);
             if (TimeoutNextTimedRead)
             {
                 TimeoutNextTimedRead = false;
@@ -844,6 +1013,8 @@ public sealed class TuiApplicationTests
             Themes.Add(theme);
         }
 
+        public void RingBell() => BellCount++;
+
         public void ShowSplash(string logo, TuiTheme theme)
         {
             SplashShown = true;
@@ -857,5 +1028,16 @@ public sealed class TuiApplicationTests
         public void SuspendForExternalProcess() => ExternalSuspensions++;
 
         public void ResumeAfterExternalProcess() => ExternalResumptions++;
+    }
+
+    private sealed class MemoryTimeLogFileStore : IWeeklyTimeLogFileStore
+    {
+        public Dictionary<string, string> Files { get; } = [];
+
+        public bool FileExists(string path) => Files.ContainsKey(path);
+
+        public string ReadAllText(string path) => Files[path];
+
+        public void WriteAllTextAtomically(string path, string contents) => Files[path] = contents;
     }
 }

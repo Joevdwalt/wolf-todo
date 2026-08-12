@@ -115,6 +115,50 @@ public sealed class ApplicationCommandReducerTests
         result.ProjectTitle.Should().Be("Personal Admin");
     }
 
+    [Theory]
+    [InlineData(":pomodoro 45", 45, false)]
+    [InlineData(":pomodoro 10 --untracked", 10, true)]
+    public void Reduce_parses_numeric_pomodoro_commands(string value, int minutes, bool untracked)
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, value, null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.StartPomodoro);
+        result.PomodoroDurationSource.Should().Be(PomodoroDurationSource.ExplicitMinutes);
+        result.PomodoroMinutes.Should().Be(minutes);
+        result.PomodoroUntracked.Should().Be(untracked);
+    }
+
+    [Fact]
+    public void Reduce_parses_selected_task_duration_for_a_pomodoro()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":pomodoro task", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.StartPomodoro);
+        result.PomodoroDurationSource.Should().Be(PomodoroDurationSource.SelectedTask);
+    }
+
+    [Theory]
+    [InlineData(":pomodoro")]
+    [InlineData(":pomodoro 0")]
+    [InlineData(":pomodoro 961")]
+    [InlineData(":pomodoro task --untracked")]
+    public void Reduce_rejects_invalid_pomodoro_commands(string value)
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, value, null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.None);
+        result.State.Error.Should().NotBeNullOrWhiteSpace();
+    }
+
     [Fact]
     public void Reduce_cancels_and_keeps_the_colon_when_backspacing()
     {

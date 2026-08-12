@@ -34,7 +34,10 @@ public sealed record TuiKeyBindings(
     ImmutableArray<KeyGesture> ToggleDetails,
     ImmutableArray<KeyGesture> RollProjectToday,
     ImmutableArray<KeyGesture> RemoveContent,
-    ImmutableArray<KeyGesture> SaveForm)
+    ImmutableArray<KeyGesture> SaveForm,
+    ImmutableArray<KeyGesture> ToggleTimer,
+    ImmutableArray<KeyGesture> StartPomodoro,
+    ImmutableArray<KeyGesture> StartUntrackedPomodoro)
 {
     public static TuiKeyBindings CreateDefaults(string quitCommand) => new(
         quitCommand,
@@ -68,7 +71,10 @@ public sealed record TuiKeyBindings(
         Gestures("v"),
         Gestures("R"),
         Gestures("d"),
-        Gestures("Ctrl+S"));
+        Gestures("Ctrl+S"),
+        Gestures("Ctrl+T"),
+        Gestures("Ctrl+P"),
+        Gestures("Ctrl+Shift+P"));
 
     public bool MatchesMoveUp(ConsoleKeyInfo key) => Matches(MoveUp, key);
 
@@ -127,6 +133,12 @@ public sealed record TuiKeyBindings(
     public bool MatchesRemoveContent(ConsoleKeyInfo key) => Matches(RemoveContent, key);
 
     public bool MatchesSaveForm(ConsoleKeyInfo key) => Matches(SaveForm, key);
+
+    public bool MatchesToggleTimer(ConsoleKeyInfo key) => Matches(ToggleTimer, key);
+
+    public bool MatchesStartPomodoro(ConsoleKeyInfo key) => Matches(StartPomodoro, key);
+
+    public bool MatchesStartUntrackedPomodoro(ConsoleKeyInfo key) => Matches(StartUntrackedPomodoro, key);
 
     public static string ShortestDisplayName(ImmutableArray<KeyGesture> gestures) => gestures
         .Select((gesture, index) => (gesture.DisplayName, Index: index))

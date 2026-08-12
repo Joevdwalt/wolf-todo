@@ -452,6 +452,40 @@ public sealed class SpectreTerminalUiTests
         lines.Should().ContainSingle(line => line.Contains('…'));
     }
 
+    [Fact]
+    public void ShowPlanner_renders_the_active_pomodoro_first_in_the_now_marker_with_timer_color()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var now = new DateTime(2026, 7, 15, 9, 15, 0);
+        var agenda = new PlannerCalendarAgenda(
+            [],
+            [new PlannerCalendarMeeting("Team meeting", new TimeOnly(10, 0), new TimeOnly(10, 30))],
+            PlannerCalendarSyncState.Ready);
+        var focus = new PlannerFocusBlock(now.AddMinutes(-5), now.AddMinutes(25), "Deep work");
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 13 },
+            agenda,
+            activeFocusBlock: focus);
+        var theme = TuiThemes.Wolf with
+        {
+            Now = new Color(16, 17, 18),
+            Timer = new Color(19, 20, 21)
+        };
+        StartRecording(100, 24);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 24, () => date, () => now)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
+        var output = AnsiConsole.ExportText()[start..];
+        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+
+        output.Should().Contain("NOW · ◷ 25:00 · Deep work · NEXT 45m · Team meeting");
+        StyleBefore(html, "now").Should().Contain("#101112");
+        StyleBefore(html, "◷ 25:00").Should().Contain("#131415");
+        StyleBefore(html, "next 45m").Should().Contain("#101112");
+    }
+
     [Theory]
     [InlineData(5, 15, 0, "06:00", true)]
     [InlineData(14, 30, 34, "14:30", true)]

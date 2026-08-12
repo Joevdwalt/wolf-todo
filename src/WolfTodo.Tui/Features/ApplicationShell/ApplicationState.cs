@@ -13,5 +13,9 @@ public sealed record ApplicationState(TabHostState Tabs, BrowserState Browser)
     public PlannerState Planner { get; init; } = PlannerState.CreateInitial(
         DateOnly.FromDateTime(DateTime.Today));
 
+    public ActiveTimer? Timer { get; init; }
+
+    public PomodoroPromptState? PomodoroPrompt { get; init; }
+
     public static ApplicationState CreateInitial(TabHostState tabs) => new(tabs, BrowserState.Initial);
 }

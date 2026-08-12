@@ -144,6 +144,13 @@ public sealed class SpectreTerminalUi : ITerminalUi
         SetCursorVisible(false);
     }
 
+    public void RingBell()
+    {
+        var writer = AnsiConsole.Profile.Out.Writer;
+        writer.Write('\a');
+        writer.Flush();
+    }
+
     public ConsoleKeyInfo ReadKey() => inputReader.ReadKey();
 
     public ConsoleKeyInfo? ReadKey(TimeSpan timeout) => inputReader.ReadKey(timeout);

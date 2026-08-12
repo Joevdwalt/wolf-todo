@@ -68,4 +68,37 @@ public sealed class StatusRendererTests
             .Should().ContainSingle()
             .Which.Text.Should().Contain("Calendar unavailable").And.Contain("r RETRY");
     }
+
+    [Fact]
+    public void BrowserStatus_places_an_active_timer_on_its_own_first_line()
+    {
+        var bindings = TuiKeyBindings.CreateDefaults(":q");
+        var view = new BrowserView(BrowserState.Initial, [], [], null, "All", null, null, "Empty")
+        {
+            TimerStatus = "TIMER 00:01 · Deep work",
+            TimerIsBright = true
+        };
+
+        var lines = renderer.BrowserStatus(view, bindings, false, 120, 30);
+
+        lines.Should().HaveCountGreaterThan(1);
+        lines[0].Should().Be(new BrowserStatusLine("TIMER 00:01 · Deep work", BrowserStatusRole.TimerActive));
+        lines[1].Text.Should().NotContain("TIMER");
+    }
+
+    [Fact]
+    public void PlannerStatus_places_a_dim_timer_on_its_own_first_line()
+    {
+        var bindings = TuiKeyBindings.CreateDefaults(":q");
+        var view = new PlannerView(PlannerState.CreateInitial(new DateOnly(2026, 8, 4)), [], [], [])
+        {
+            TimerStatus = "TIMER 00:01 · Deep work",
+            TimerIsBright = false
+        };
+
+        var lines = renderer.PlannerStatus(view, bindings, 120, 30);
+
+        lines[0].Should().Be(new BrowserStatusLine("TIMER 00:01 · Deep work", BrowserStatusRole.TimerInactive));
+        lines[1].Text.Should().NotContain("TIMER");
+    }
 }

@@ -13,6 +13,8 @@ public sealed record ApplicationConfiguration(
 
     public PlannerConfiguration Planner { get; init; } = PlannerConfiguration.Default;
 
+    public TimerConfiguration? Timer { get; init; }
+
     public ImmutableArray<SavedSidebarView> SidebarItems { get; init; } = [];
 
     public ApplicationConfiguration(ImmutableArray<string> projectFiles, string quitCommand)
