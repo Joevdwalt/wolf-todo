@@ -4,6 +4,9 @@ public enum ApplicationActionId
 {
     Exit,
     ToggleCompleted,
+    ToggleTimer,
+    StartPomodoro,
+    StartUntrackedPomodoro,
     NextTab,
     PreviousTab,
     BrowserFilter,

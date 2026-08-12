@@ -17,6 +17,14 @@ public sealed record PlannerView(
 
     public CommandPaletteView? CommandPalette { get; init; }
 
+    public string? TimerStatus { get; init; }
+
+    public bool TimerIsBright { get; init; }
+
+    public PomodoroPromptState? PomodoroPrompt { get; init; }
+
+    public PlannerFocusBlock? ActiveFocusBlock { get; init; }
+
     public int OpenTodoCount { get; init; }
 
     public int ProjectErrorCount { get; init; }

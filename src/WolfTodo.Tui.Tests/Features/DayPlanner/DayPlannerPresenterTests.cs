@@ -189,6 +189,32 @@ public sealed class DayPlannerPresenterTests
     }
 
     [Fact]
+    public void CreateView_adds_and_clips_the_active_pomodoro_as_a_read_only_timeline_block()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var focus = new PlannerFocusBlock(
+            date.ToDateTime(new TimeOnly(9, 7)),
+            date.ToDateTime(new TimeOnly(9, 52)),
+            "Deep work");
+
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date),
+            activeFocusBlock: focus);
+
+        var items = view.Slots.SelectMany(slot => slot.Items)
+            .Where(item => item.ItemType == PlannerItemType.Pomodoro)
+            .ToArray();
+        items.Should().HaveCount(4);
+        items.Should().OnlyContain(item => item.Assignment == null && item.Meeting == null);
+        items[0].Start.Should().Be(new TimeOnly(9, 7));
+        items[0].IntervalState.Should().Be(PlannerIntervalState.Start);
+        items[^1].End.Should().Be(new TimeOnly(9, 52));
+        items[^1].IntervalState.Should().Be(PlannerIntervalState.End);
+        view.ActiveFocusBlock.Should().Be(focus);
+    }
+
+    [Fact]
     public void CreateView_exposes_conflicting_external_assignments()
     {
         var date = new DateOnly(2026, 7, 15);

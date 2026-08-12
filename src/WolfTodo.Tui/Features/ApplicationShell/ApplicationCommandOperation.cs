@@ -7,5 +7,6 @@ public enum ApplicationCommandOperation
     ToggleCompleted,
     OpenPalette,
     MoveTodoProject,
-    RollProjectToday
+    RollProjectToday,
+    StartPomodoro
 }

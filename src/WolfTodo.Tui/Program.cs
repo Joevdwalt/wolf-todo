@@ -25,6 +25,8 @@ builder.Services.AddSingleton<DayPlannerReducer>();
 builder.Services.AddSingleton<DayScheduleMarkdownRenderer>();
 builder.Services.AddSingleton<IDayScheduleMarkdownFileStore, PhysicalDayScheduleMarkdownFileStore>();
 builder.Services.AddSingleton<DayScheduleExportService>();
+builder.Services.AddSingleton<IWeeklyTimeLogFileStore, PhysicalWeeklyTimeLogFileStore>();
+builder.Services.AddSingleton<WeeklyTimeLogService>();
 builder.Services.AddSingleton<IPlannerCalendarAgendaProvider>(
     new GoogleCalendarAgendaProvider(GlobalGoogleCalendarTokenPath.Resolve()));
 builder.Services.AddSingleton<PlannerCalendarAgendaCache>();
@@ -75,7 +77,8 @@ builder.Services.AddSingleton(serviceProvider =>
         serviceProvider.GetRequiredService<ApplicationCommandReducer>(),
         externalEditorLauncher: serviceProvider.GetRequiredService<IExternalEditorLauncher>(),
         plannerCalendarCache: serviceProvider.GetRequiredService<PlannerCalendarAgendaCache>(),
-        dayScheduleExportService: serviceProvider.GetRequiredService<DayScheduleExportService>()));
+        dayScheduleExportService: serviceProvider.GetRequiredService<DayScheduleExportService>(),
+        weeklyTimeLogService: serviceProvider.GetRequiredService<WeeklyTimeLogService>()));
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();

@@ -40,6 +40,7 @@ public sealed class TuiThemesTests
         theme.Info.Should().Be(new Color(95, 168, 211));
         theme.Date.Should().Be(theme.Info);
         theme.Now.Should().Be(new Color(255, 92, 168));
+        theme.Timer.Should().Be(new Color(198, 243, 106));
     }
 
     [Fact]
@@ -66,7 +67,8 @@ public sealed class TuiThemesTests
             theme.BorderActive,
             theme.AccentBright,
             theme.Info,
-            theme.Now
+            theme.Now,
+            theme.Timer
         }.Should().OnlyContain(color => color == Color.Default);
     }
 

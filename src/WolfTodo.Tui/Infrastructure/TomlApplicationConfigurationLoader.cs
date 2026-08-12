@@ -34,7 +34,8 @@ public sealed class TomlApplicationConfigurationLoader(
         "border_active",
         "accent_bright",
         "info",
-        "now"
+        "now",
+        "timer"
     ];
 
     private static readonly HashSet<string> GoogleCalendarKeys =
@@ -76,12 +77,14 @@ public sealed class TomlApplicationConfigurationLoader(
         var theme = ReadTheme(document);
         var googleCalendar = ReadGoogleCalendar(document);
         var planner = ReadPlanner(document);
+        var timer = ReadTimer(document);
         var sidebarItems = ReadSidebarItems(document);
         return new ApplicationConfiguration(files, bindings)
         {
             Theme = theme,
             GoogleCalendar = googleCalendar,
             Planner = planner,
+            Timer = timer,
             SidebarItems = sidebarItems
         };
     }
@@ -218,6 +221,32 @@ public sealed class TomlApplicationConfigurationLoader(
         };
     }
 
+    private static TimerConfiguration? ReadTimer(TomlTable document)
+    {
+        if (!document.TryGetValue("timer", out var timerValue)) return null;
+        if (timerValue is not TomlTable timer)
+            throw new InvalidDataException("Invalid configuration file: timer must be a TOML table.");
+        var unknownKey = timer.Keys.FirstOrDefault(key => key is not ("notes_directory" or "pomodoro_minutes" or "bell"));
+        if (unknownKey is not null)
+            throw new InvalidDataException($"Invalid configuration file: timer.{unknownKey} is not supported.");
+        if (!timer.TryGetValue("notes_directory", out var directoryValue) ||
+            directoryValue is not string directory || string.IsNullOrWhiteSpace(directory) || !Path.IsPathRooted(directory))
+            throw new InvalidDataException("Invalid configuration file: timer.notes_directory must be an absolute path.");
+        var pomodoroMinutes = timer.TryGetValue("pomodoro_minutes", out var minutesValue)
+            ? minutesValue is long minutes and >= 1 and <= 180
+                ? (int)minutes
+                : throw new InvalidDataException(
+                    "Invalid configuration file: timer.pomodoro_minutes must be from 1 through 180.")
+            : 25;
+        var bell = timer.TryGetValue("bell", out var bellValue)
+            ? bellValue is bool enabled
+                ? enabled
+                : throw new InvalidDataException(
+                    "Invalid configuration file: timer.bell must be true or false.")
+            : true;
+        return new TimerConfiguration(Path.GetFullPath(directory), pomodoroMinutes, bell);
+    }
+
     private static DayScheduleExportConfiguration? ReadDayScheduleExport(TomlTable planner)
     {
         if (!planner.TryGetValue("export", out var exportValue))
@@ -350,7 +379,8 @@ public sealed class TomlApplicationConfigurationLoader(
             BorderActive = ReadThemeColor(theme, "border_active", preset.BorderActive),
             AccentBright = ReadThemeColor(theme, "accent_bright", preset.AccentBright),
             Info = ReadThemeColor(theme, "info", preset.Info),
-            Now = ReadThemeColor(theme, "now", preset.Now)
+            Now = ReadThemeColor(theme, "now", preset.Now),
+            Timer = ReadThemeColor(theme, "timer", preset.Timer)
         };
     }
 
@@ -500,7 +530,11 @@ public sealed class TomlApplicationConfigurationLoader(
                 keybindings, "roll_project_today", defaults.RollProjectToday),
             RemoveContent = ReadGestures(
                 keybindings, "remove_content", defaults.RemoveContent),
-            SaveForm = ReadGestures(keybindings, "save_form", defaults.SaveForm)
+            SaveForm = ReadGestures(keybindings, "save_form", defaults.SaveForm),
+            ToggleTimer = ReadGestures(keybindings, "toggle_timer", defaults.ToggleTimer),
+            StartPomodoro = ReadGestures(keybindings, "start_pomodoro", defaults.StartPomodoro),
+            StartUntrackedPomodoro = ReadGestures(
+                keybindings, "start_untracked_pomodoro", defaults.StartUntrackedPomodoro)
         };
 
         ValidateCommands(result);
@@ -623,7 +657,10 @@ public sealed class TomlApplicationConfigurationLoader(
             ("roll_project_today", bindings.RollProjectToday),
             ("remove_content", bindings.RemoveContent),
             ("jump_top", bindings.JumpTop),
-            ("jump_bottom", bindings.JumpBottom)
+            ("jump_bottom", bindings.JumpBottom),
+            ("toggle_timer", bindings.ToggleTimer),
+            ("start_pomodoro", bindings.StartPomodoro),
+            ("start_untracked_pomodoro", bindings.StartUntrackedPomodoro)
         };
         var owners = new Dictionary<KeyGesture, string>();
 

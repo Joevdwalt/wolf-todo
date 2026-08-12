@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Splash;
@@ -29,7 +30,9 @@ public sealed class TuiApplication(
     IExternalEditorLauncher? externalEditorLauncher = null,
     PlannerCalendarAgendaCache? plannerCalendarCache = null,
     Func<DateOnly>? todayProvider = null,
-    DayScheduleExportService? dayScheduleExportService = null)
+    DayScheduleExportService? dayScheduleExportService = null,
+    WeeklyTimeLogService? weeklyTimeLogService = null,
+    Func<DateTime>? nowProvider = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -52,6 +55,8 @@ public sealed class TuiApplication(
     private readonly PlannerCalendarAgendaCache plannerCalendarCache = plannerCalendarCache ??
         new PlannerCalendarAgendaCache(new DisabledPlannerCalendarAgendaProvider());
     private readonly DayScheduleExportService? dayScheduleExportService = dayScheduleExportService;
+    private readonly WeeklyTimeLogService? weeklyTimeLogService = weeklyTimeLogService;
+    private readonly Func<DateTime> nowProvider = nowProvider ?? (() => DateTime.Now);
 
     public int Run()
     {
@@ -91,6 +96,7 @@ public sealed class TuiApplication(
             while (true)
             {
                 EnsureSupportedTab(state.Tabs.ActiveTab);
+                state = CompletePomodoro(state, configuration);
                 var tabView = tabPresenter.CreateView(Tabs, state.Tabs);
                 BrowserView? browserView = null;
                 PlannerView? plannerView = null;
@@ -105,13 +111,18 @@ public sealed class TuiApplication(
                         paletteView = palettePresenter.CreateView(
                             state.Palette,
                             actionCatalog.Create(true, browserView, null, configuration.KeyBindings,
-                                configuration.Planner.Export is not null));
+                                configuration.Planner.Export is not null,
+                                configuration.Timer is not null,
+                                state.Timer is not null));
                     }
                     var renderedBrowserView = browserView with
                     {
                         GlobalCommand = state.Command.IsActive ? state.Command.Value : null,
                         GlobalError = state.Command.Error,
-                        CommandPalette = paletteView
+                        CommandPalette = paletteView,
+                        TimerStatus = TimerStatus(state.Timer),
+                        TimerIsBright = TimerIsBright(state.Timer),
+                        PomodoroPrompt = state.PomodoroPrompt
                     };
                     terminalUi.ShowBrowser(
                         tabView,
@@ -124,20 +135,30 @@ public sealed class TuiApplication(
                     var agenda = plannerCalendarCache.GetAgenda(
                         configuration.GoogleCalendar,
                         state.Planner.SelectedDate);
-                    plannerView = plannerPresenter.CreateView(catalog, state.Planner, agenda, configuration.Planner);
+                    plannerView = plannerPresenter.CreateView(
+                        catalog,
+                        state.Planner,
+                        agenda,
+                        configuration.Planner,
+                        ActiveFocusBlock(state.Timer));
                     state = state with { Planner = plannerView.State };
                     if (state.Palette.IsOpen)
                     {
                         paletteView = palettePresenter.CreateView(
                             state.Palette,
                             actionCatalog.Create(false, null, plannerView, configuration.KeyBindings,
-                                configuration.Planner.Export is not null));
+                                configuration.Planner.Export is not null,
+                                configuration.Timer is not null,
+                                state.Timer is not null));
                     }
                     var renderedPlannerView = plannerView with
                     {
                         GlobalCommand = state.Command.IsActive ? state.Command.Value : null,
                         GlobalError = state.Command.Error,
-                        CommandPalette = paletteView
+                        CommandPalette = paletteView,
+                        TimerStatus = TimerStatus(state.Timer),
+                        TimerIsBright = TimerIsBright(state.Timer),
+                        PomodoroPrompt = state.PomodoroPrompt
                     };
                     terminalUi.ShowPlanner(
                         tabView,
@@ -146,17 +167,25 @@ public sealed class TuiApplication(
                         configuration.Theme);
                 }
 
-                var pendingKey = state.Tabs.ActiveTab == PlannerTab
-                    ? terminalUi.ReadKey(plannerCalendarCache.IsRefreshing
-                        ? TimeSpan.FromMilliseconds(250)
-                        : TimeSpan.FromMinutes(1))
-                    : terminalUi.ReadKey();
+                var pendingKey = state.Timer is not null
+                    ? terminalUi.ReadKey(TimeSpan.FromSeconds(1))
+                    : state.Tabs.ActiveTab == PlannerTab
+                        ? terminalUi.ReadKey(plannerCalendarCache.IsRefreshing
+                            ? TimeSpan.FromMilliseconds(250)
+                            : TimeSpan.FromMinutes(1))
+                        : terminalUi.ReadKey();
                 if (pendingKey is null)
                 {
                     continue;
                 }
 
                 var key = pendingKey.Value;
+                if (state.PomodoroPrompt is not null)
+                {
+                    state = ReducePomodoroPrompt(state, key, configuration);
+                    continue;
+                }
+
                 var featureCapturesInput = state.Tabs.ActiveTab == TodosTab
                     ? state.Browser.IsFilterMode || state.Browser.IsSortMode ||
                       state.Browser.Editor is not null
@@ -172,7 +201,9 @@ public sealed class TuiApplication(
                     state = state with { Command = commandTransition.State };
                     if (commandTransition.Operation == ApplicationCommandOperation.Exit)
                     {
-                        return 0;
+                        state = StopTimer(state, configuration);
+                        if (state.Timer is null) return 0;
+                        continue;
                     }
 
                     if (commandTransition.Operation == ApplicationCommandOperation.ToggleCompleted)
@@ -235,6 +266,17 @@ public sealed class TuiApplication(
                         }
                     }
 
+                    if (commandTransition.Operation == ApplicationCommandOperation.StartPomodoro)
+                    {
+                        state = StartPomodoroCommand(
+                            state,
+                            browserView,
+                            plannerView,
+                            catalog,
+                            configuration,
+                            commandTransition);
+                    }
+
                     continue;
                 }
 
@@ -248,7 +290,9 @@ public sealed class TuiApplication(
                             browserView,
                             plannerView,
                             configuration.KeyBindings,
-                            configuration.Planner.Export is not null));
+                            configuration.Planner.Export is not null,
+                            configuration.Timer is not null,
+                            state.Timer is not null));
                     var paletteTransition = paletteReducer.Reduce(
                         state.Palette,
                         key,
@@ -263,7 +307,27 @@ public sealed class TuiApplication(
                     var action = paletteTransition.Action.Value;
                     if (action == ApplicationActionId.Exit)
                     {
-                        return 0;
+                        state = StopTimer(state, configuration);
+                        if (state.Timer is null) return 0;
+                        continue;
+                    }
+
+                    if (action == ApplicationActionId.ToggleTimer)
+                    {
+                        state = ToggleTimer(state, browserView, plannerView, catalog, configuration);
+                        continue;
+                    }
+
+                    if (action is ApplicationActionId.StartPomodoro or ApplicationActionId.StartUntrackedPomodoro)
+                    {
+                        state = OpenPomodoroPrompt(
+                            state,
+                            browserView,
+                            plannerView,
+                            catalog,
+                            configuration,
+                            action == ApplicationActionId.StartUntrackedPomodoro);
+                        continue;
                     }
 
                     if (action == ApplicationActionId.ToggleCompleted)
@@ -372,6 +436,26 @@ public sealed class TuiApplication(
                 if (state.Command.Error is not null)
                 {
                     state = state with { Command = state.Command with { Error = null } };
+                }
+
+                if (!featureCapturesInput && configuration.KeyBindings.MatchesToggleTimer(key))
+                {
+                    state = ToggleTimer(state, browserView, plannerView, catalog, configuration);
+                    continue;
+                }
+
+                if (!featureCapturesInput &&
+                    (configuration.KeyBindings.MatchesStartPomodoro(key) ||
+                     configuration.KeyBindings.MatchesStartUntrackedPomodoro(key)))
+                {
+                    state = OpenPomodoroPrompt(
+                        state,
+                        browserView,
+                        plannerView,
+                        catalog,
+                        configuration,
+                        configuration.KeyBindings.MatchesStartUntrackedPomodoro(key));
+                    continue;
                 }
 
                 var inputRoute = inputRouter.Route(
@@ -853,6 +937,303 @@ public sealed class TuiApplication(
             ? null
             : Flatten(project.Todos).FirstOrDefault(todo => todo.SourceLine == identity.SourceLine);
     }
+
+    private ApplicationState ToggleTimer(
+        ApplicationState state,
+        BrowserView? browser,
+        PlannerView? planner,
+        ProjectCatalog catalog,
+        ApplicationConfiguration configuration)
+    {
+        if (configuration.Timer is null)
+        {
+            return TimerFailure(state, "Task timing requires a [timer] notes_directory configuration.");
+        }
+
+        var target = BuildTimerTarget(browser, planner, catalog, state.Tabs.ActiveTab);
+        if (state.Timer is not null)
+        {
+            var activeWasPomodoro = state.Timer.IsPomodoro;
+            var activeIdentity = state.Timer.TodoIdentity;
+            if (!state.Timer.IsTaskLinked)
+            {
+                return state with { Timer = null };
+            }
+
+            if (weeklyTimeLogService is null)
+            {
+                return TimerFailure(state, "Could not write the active task timer.");
+            }
+
+            var result = weeklyTimeLogService.Record(
+                state.Timer,
+                state.Timer.RecordingEnd(nowProvider()),
+                configuration.Timer);
+            if (!result.Succeeded)
+            {
+                return TimerFailure(state, result.Error ?? "Could not write task time.");
+            }
+
+            state = state with { Timer = null };
+            if (activeWasPomodoro || target is null || target.TodoIdentity == activeIdentity)
+            {
+                return state;
+            }
+        }
+
+        if (target is null)
+        {
+            return TimerFailure(state, "Select a todo before starting the timer.");
+        }
+
+        if (weeklyTimeLogService is null)
+        {
+            return TimerFailure(state, "Task timing is unavailable.");
+        }
+
+        return state with { Timer = new ActiveTimer(target.TodoIdentity, target.ProjectTitle, target.TodoTitle, nowProvider()) };
+    }
+
+    private ApplicationState OpenPomodoroPrompt(
+        ApplicationState state,
+        BrowserView? browser,
+        PlannerView? planner,
+        ProjectCatalog catalog,
+        ApplicationConfiguration configuration,
+        bool untracked)
+    {
+        if (configuration.Timer is null)
+        {
+            return TimerFailure(state, "Pomodoro timing requires a [timer] configuration.");
+        }
+
+        if (state.Timer is not null)
+        {
+            return TimerFailure(state, "Stop the active timer before starting a Pomodoro.");
+        }
+
+        var target = untracked
+            ? null
+            : BuildTimerTarget(browser, planner, catalog, state.Tabs.ActiveTab);
+        if (target is not null && weeklyTimeLogService is null)
+        {
+            return TimerFailure(state, "Task timing is unavailable.");
+        }
+
+        var duration = target?.Duration ?? configuration.Timer.PomodoroDuration;
+        var label = target is null
+            ? "POMODORO MINUTES"
+            : $"POMODORO MINUTES · {target.TodoTitle}";
+        return state with
+        {
+            PomodoroPrompt = new PomodoroPromptState(
+                TextBox.Create(
+                    label,
+                    true,
+                    ((int)duration.TotalMinutes).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    true),
+                target?.TodoIdentity,
+                target?.ProjectTitle,
+                target?.TodoTitle)
+        };
+    }
+
+    private ApplicationState ReducePomodoroPrompt(
+        ApplicationState state,
+        ConsoleKeyInfo key,
+        ApplicationConfiguration configuration)
+    {
+        var prompt = state.PomodoroPrompt!;
+        var transition = TextBox.Default.Reduce(prompt.Input, key, configuration.KeyBindings);
+        if (transition.Outcome == TextBoxOutcome.Cancelled)
+        {
+            return state with { PomodoroPrompt = null };
+        }
+
+        var nextInput = transition.State ?? prompt.Input;
+        if (transition.Outcome != TextBoxOutcome.Accepted)
+        {
+            return state with
+            {
+                PomodoroPrompt = prompt with { Input = nextInput, Error = null }
+            };
+        }
+
+        if (!int.TryParse(nextInput.Text, out var minutes) || minutes is < 1 or > 960)
+        {
+            return state with
+            {
+                PomodoroPrompt = prompt with
+                {
+                    Input = nextInput,
+                    Error = "Enter a whole number from 1 through 960."
+                }
+            };
+        }
+
+        var target = prompt.IsTaskLinked
+            ? new TimerTarget(prompt.TodoIdentity!, prompt.ProjectTitle!, prompt.TodoTitle!, null)
+            : null;
+        return StartPomodoroImmediately(
+            state with { PomodoroPrompt = null },
+            target,
+            TimeSpan.FromMinutes(minutes),
+            configuration);
+    }
+
+    private ApplicationState StartPomodoroCommand(
+        ApplicationState state,
+        BrowserView? browser,
+        PlannerView? planner,
+        ProjectCatalog catalog,
+        ApplicationConfiguration configuration,
+        ApplicationCommandTransition command)
+    {
+        if (configuration.Timer is null)
+        {
+            return TimerFailure(state, "Pomodoro timing requires a [timer] configuration.");
+        }
+
+        if (state.Timer is not null)
+        {
+            return TimerFailure(state, "Stop the active timer before starting a Pomodoro.");
+        }
+
+        var selectedTarget = BuildTimerTarget(browser, planner, catalog, state.Tabs.ActiveTab);
+        if (command.PomodoroDurationSource == PomodoroDurationSource.SelectedTask)
+        {
+            if (selectedTarget is null)
+            {
+                return TimerFailure(state, "Select a todo with a duration before using :pomodoro task.");
+            }
+
+            if (selectedTarget.Duration is null)
+            {
+                return TimerFailure(state, "The selected todo has no ⏱ duration.");
+            }
+
+            return StartPomodoroImmediately(state, selectedTarget, selectedTarget.Duration.Value, configuration);
+        }
+
+        var duration = TimeSpan.FromMinutes(command.PomodoroMinutes!.Value);
+        var target = command.PomodoroUntracked ? null : selectedTarget;
+        return StartPomodoroImmediately(state, target, duration, configuration);
+    }
+
+    private ApplicationState StartPomodoroImmediately(
+        ApplicationState state,
+        TimerTarget? target,
+        TimeSpan duration,
+        ApplicationConfiguration configuration)
+    {
+        if (configuration.Timer is null)
+        {
+            return TimerFailure(state, "Pomodoro timing requires a [timer] configuration.");
+        }
+
+        if (state.Timer is not null)
+        {
+            return TimerFailure(state, "Stop the active timer before starting a Pomodoro.");
+        }
+
+        if (target is not null && weeklyTimeLogService is null)
+        {
+            return TimerFailure(state, "Task timing is unavailable.");
+        }
+
+        return state with
+        {
+            Timer = new ActiveTimer(
+                target?.TodoIdentity,
+                target?.ProjectTitle,
+                target?.TodoTitle,
+                nowProvider(),
+                duration),
+            PomodoroPrompt = null
+        };
+    }
+
+    private ApplicationState CompletePomodoro(ApplicationState state, ApplicationConfiguration configuration)
+    {
+        if (state.Timer is not { IsPomodoro: true, CompletionHandled: false } timer ||
+            !timer.IsComplete(nowProvider()))
+        {
+            return state;
+        }
+
+        state = state with { Timer = timer with { CompletionHandled = true } };
+        if (configuration.Timer?.Bell != false)
+        {
+            terminalUi.RingBell();
+        }
+
+        return StopTimer(state, configuration);
+    }
+
+    private ApplicationState StopTimer(ApplicationState state, ApplicationConfiguration configuration)
+    {
+        if (state.Timer is null) return state;
+        if (!state.Timer.IsTaskLinked) return state with { Timer = null };
+        if (configuration.Timer is null || weeklyTimeLogService is null)
+            return TimerFailure(state, "Could not write the active task timer.");
+        var result = weeklyTimeLogService.Record(
+            state.Timer,
+            state.Timer.RecordingEnd(nowProvider()),
+            configuration.Timer);
+        return result.Succeeded ? state with { Timer = null } : TimerFailure(state, result.Error ?? "Could not write task time.");
+    }
+
+    private static TimerTarget? BuildTimerTarget(BrowserView? browser, PlannerView? planner, ProjectCatalog catalog, TabId tab)
+    {
+        if (tab == TodosTab && browser?.SelectedTodoIdentity is { } identity && browser.SelectedTodo is { } todo)
+        {
+            var project = catalog.Projects.FirstOrDefault(candidate => candidate.Path == identity.ProjectPath);
+            return project is null ? null : new TimerTarget(identity, project.Title, todo.Title, todo.Duration);
+        }
+
+        return tab == PlannerTab && planner?.SelectedFocusedAssignment is { } assignment
+            ? new TimerTarget(
+                assignment.Identity,
+                assignment.ProjectTitle,
+                assignment.Todo.Title,
+                assignment.Todo.Duration)
+            : null;
+    }
+
+    private static ApplicationState TimerFailure(ApplicationState state, string error) => state.Tabs.ActiveTab == TodosTab
+        ? state with { Browser = state.Browser with { Error = error } }
+        : state with { Planner = state.Planner with { Error = error } };
+
+    private string? TimerStatus(ActiveTimer? timer)
+    {
+        if (timer is null) return null;
+        if (timer.IsPomodoro)
+        {
+            var remaining = timer.Remaining(nowProvider());
+            var totalSeconds = (int)Math.Ceiling(remaining.TotalSeconds);
+            var countdown = totalSeconds >= 3600
+                ? $"{totalSeconds / 3600:00}:{totalSeconds % 3600 / 60:00}:{totalSeconds % 60:00}"
+                : $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";
+            var title = timer.TodoTitle is null ? string.Empty : $" · {timer.TodoTitle}";
+            return $"POMODORO {countdown}{title}";
+        }
+
+        var elapsed = timer.Elapsed(nowProvider());
+        return $"TIMER {((int)elapsed.TotalHours):00}:{elapsed.Minutes:00} · {timer.TodoTitle}";
+    }
+
+    private bool TimerIsBright(ActiveTimer? timer) => timer is not null && nowProvider().Second % 2 == 0;
+
+    private static PlannerFocusBlock? ActiveFocusBlock(ActiveTimer? timer) =>
+        timer is { IsPomodoro: true, EndsAt: { } endsAt }
+            ? new PlannerFocusBlock(timer.StartedAt, endsAt, timer.TodoTitle)
+            : null;
+
+    private sealed record TimerTarget(
+        TodoIdentity TodoIdentity,
+        string ProjectTitle,
+        string TodoTitle,
+        TimeSpan? Duration);
 
     private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
     {

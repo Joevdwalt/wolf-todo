@@ -171,6 +171,27 @@ public sealed class CommandPaletteReducerTests
         items.Single(item => item.Action == ApplicationActionId.PlannerToggleDetails).Label.Should().Be("Hide details");
     }
 
+    [Fact]
+    public void ActionCatalog_offers_linked_and_untracked_pomodoros()
+    {
+        var browser = BrowserView(BrowserState.Initial);
+
+        var items = new ApplicationActionCatalog().Create(
+            true,
+            browser,
+            null,
+            Bindings,
+            timerEnabled: true);
+
+        var linked = items.Single(item => item.Action == ApplicationActionId.StartPomodoro);
+        var untracked = items.Single(item => item.Action == ApplicationActionId.StartUntrackedPomodoro);
+        linked.IsEnabled.Should().BeTrue();
+        linked.Description.Should().Contain("untracked when none");
+        linked.Binding.Should().Be("Ctrl+P");
+        untracked.IsEnabled.Should().BeTrue();
+        untracked.Binding.Should().Be("Ctrl+Shift+P");
+    }
+
     private static BrowserView BrowserView(BrowserState state) => new(
         state,
         [new ProjectRow("All", 0, null, null, true)],

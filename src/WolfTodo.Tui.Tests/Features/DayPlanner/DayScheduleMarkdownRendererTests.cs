@@ -69,6 +69,32 @@ public sealed class DayScheduleMarkdownRendererTests
             .And.Contain("**09:00 - 09:30** - ~~Complete proposal~~ · Management meeting");
     }
 
+    [Fact]
+    public void Render_excludes_temporary_pomodoro_blocks()
+    {
+        var pomodoro = new PlannerTimelineItemView(
+            PlannerItemType.Pomodoro,
+            "pomodoro",
+            "Deep work",
+            new TimeOnly(9, 0),
+            new TimeOnly(9, 30),
+            PlannerTimeShape.Duration,
+            PlannerIntervalState.Start,
+            false,
+            false);
+        var view = new PlannerView(
+            PlannerState.CreateInitial(new DateOnly(2026, 7, 13)),
+            [Slot(new TimeOnly(9, 0), pomodoro)],
+            [],
+            []);
+
+        var result = new DayScheduleMarkdownRenderer().Render(
+            view,
+            new DayScheduleExportConfiguration("/notes", []));
+
+        result.Should().NotContain("Deep work");
+    }
+
     private static PlannerSlotView Slot(TimeOnly time, params PlannerTimelineItemView[] items) =>
         new(time, [], false) { Items = [.. items] };
 

@@ -64,6 +64,51 @@ public sealed class TomlApplicationConfigurationLoaderTests
     }
 
     [Fact]
+    public void Load_reads_pomodoro_duration_and_bell_configuration()
+    {
+        var path = Path.GetFullPath("todo.md");
+        var notes = Path.GetFullPath("time-logs");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [timer]
+            notes_directory = "{{notes}}"
+            pomodoro_minutes = 40
+            bell = false
+            """);
+
+        loader.Load().Timer.Should().Be(new TimerConfiguration(notes, 40, false));
+    }
+
+    [Theory]
+    [InlineData("pomodoro_minutes = 0", "*pomodoro_minutes*1 through 180*")]
+    [InlineData("pomodoro_minutes = 181", "*pomodoro_minutes*1 through 180*")]
+    [InlineData("bell = \"yes\"", "*timer.bell*true or false*")]
+    public void Load_rejects_invalid_pomodoro_configuration(string setting, string expectedMessage)
+    {
+        var path = Path.GetFullPath("todo.md");
+        var notes = Path.GetFullPath("time-logs");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [timer]
+            notes_directory = "{{notes}}"
+            {{setting}}
+            """);
+
+        loader.Invoking(candidate => candidate.Load())
+            .Should().Throw<InvalidDataException>().WithMessage(expectedMessage);
+    }
+
+    [Fact]
     public void Load_reads_day_schedule_export_configuration()
     {
         var path = Path.GetFullPath("todo.md");
@@ -222,6 +267,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
             border_active = "#0A0B0C"
             info = "#0D0E0F"
             now = "#101112"
+            timer = "#131415"
             """);
 
         var result = loader.Load();
@@ -237,6 +283,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.Theme.BorderActive.Should().Be(new Color(10, 11, 12));
         result.Theme.Info.Should().Be(new Color(13, 14, 15));
         result.Theme.Now.Should().Be(new Color(16, 17, 18));
+        result.Theme.Timer.Should().Be(new Color(19, 20, 21));
         result.Theme.Error.Should().Be(Color.Red);
     }
 
@@ -287,6 +334,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
             edit_todo_external = ["Ctrl+X"]
             toggle_details = ["Ctrl+V"]
             roll_project_today = ["Ctrl+R"]
+            start_pomodoro = ["F9"]
+            start_untracked_pomodoro = ["Shift+F9"]
             """);
 
         var result = loader.Load();
@@ -299,6 +348,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesToggleDetails(Key(ConsoleKey.V, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesRollProjectToday(Key(ConsoleKey.R, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesRollProjectToday(Key('R')).Should().BeFalse();
+        result.KeyBindings.MatchesStartPomodoro(Key(ConsoleKey.F9)).Should().BeTrue();
+        result.KeyBindings.MatchesStartUntrackedPomodoro(Key(ConsoleKey.F9, shift: true)).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('n')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeFalse();
         result.KeyBindings.MatchesMoveDown(Key(ConsoleKey.J, control: true)).Should().BeTrue();

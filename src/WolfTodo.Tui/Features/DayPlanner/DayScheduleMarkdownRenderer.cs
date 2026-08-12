@@ -22,6 +22,7 @@ public sealed class DayScheduleMarkdownRenderer
                 .SelectMany(slot => slot.Items)
                 .GroupBy(item => item.Identity, StringComparer.Ordinal)
                 .Select(group => group.First())
+                .Where(item => item.ItemType != PlannerItemType.Pomodoro)
                 .Where(item => Occupies(item, start, end))
                 .OrderBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(item => item.Identity, StringComparer.Ordinal)

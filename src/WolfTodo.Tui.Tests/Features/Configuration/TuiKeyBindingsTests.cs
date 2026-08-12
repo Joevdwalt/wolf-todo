@@ -37,6 +37,9 @@ public sealed class TuiKeyBindingsTests
         bindings.MatchesRemoveContent(Key('d')).Should().BeTrue();
         bindings.MatchesCommandPalette(Key('?')).Should().BeTrue();
         bindings.MatchesSaveForm(Key(ConsoleKey.S, control: true)).Should().BeTrue();
+        bindings.MatchesToggleTimer(Key(ConsoleKey.T, control: true)).Should().BeTrue();
+        bindings.MatchesStartPomodoro(Key(ConsoleKey.P, control: true)).Should().BeTrue();
+        bindings.MatchesStartUntrackedPomodoro(Key(ConsoleKey.P, shift: true, control: true)).Should().BeTrue();
         bindings.HelpCommand.Should().Be(":help");
     }
 

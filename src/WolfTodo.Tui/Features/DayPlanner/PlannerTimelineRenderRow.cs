@@ -131,9 +131,12 @@ public static class PlannerTimelineRenderModel
         var hasContent = item.IntervalState is not PlannerIntervalState.Continue and not PlannerIntervalState.End;
         var status = !hasContent
             ? string.Empty
-            : item.ItemType == PlannerItemType.Task
-                ? item.IsCompleted ? "✓" : "○"
-                : "⬥";
+            : item.ItemType switch
+            {
+                PlannerItemType.Task => item.IsCompleted ? "✓" : "○",
+                PlannerItemType.Pomodoro => "◷",
+                _ => "⬥"
+            };
         var metadata = item.IntervalState == PlannerIntervalState.StartAndEnd && item.Duration is { } duration
             ? $"· {(int)duration.TotalMinutes}m"
             : string.Empty;

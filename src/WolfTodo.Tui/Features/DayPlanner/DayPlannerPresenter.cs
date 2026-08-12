@@ -13,10 +13,12 @@ public sealed class DayPlannerPresenter
         ProjectCatalog catalog,
         PlannerState state,
         PlannerCalendarAgenda? calendarAgenda = null,
-        PlannerConfiguration? plannerConfiguration = null)
+        PlannerConfiguration? plannerConfiguration = null,
+        PlannerFocusBlock? activeFocusBlock = null)
     {
         
         var agenda = calendarAgenda ?? PlannerCalendarAgenda.Disabled;
+        var focusInterval = ClipFocusBlock(activeFocusBlock, state.SelectedDate);
         
         var assignments = catalog.Projects
             .SelectMany(project => Flatten(project.Todos)
@@ -52,12 +54,16 @@ public sealed class DayPlannerPresenter
                     .ThenBy(meeting => meeting.End)
                     .ThenBy(meeting => meeting.Title, StringComparer.OrdinalIgnoreCase)
                     .ToImmutableArray();
+                var focusItems = focusInterval is { } focus && focus.Start < slotEnd && focus.End > time
+                    ? new[] { FocusItem(activeFocusBlock!, focus.Start, focus.End, time) }
+                    : [];
                 var timelineItems = items
                     .OrderBy(assignment => assignment.ProjectTitle, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(assignment => assignment.Todo.Title, NaturalStringComparer.Instance)
                     .ThenBy(assignment => assignment.Todo.SourceLine)
                     .Select(assignment => TaskItem(assignment, time))
                     .Concat(meetings.Select(meeting => MeetingItem(meeting, time)))
+                    .Concat(focusItems)
                     .ToImmutableArray();
                 return new PlannerSlotView(
                     time,
@@ -131,7 +137,8 @@ public sealed class DayPlannerPresenter
         {
             OpenTodoCount = assignments.Count(assignment => !assignment.Todo.IsCompleted),
             ProjectErrorCount = catalog.Errors.Length,
-            CalendarAgenda = agenda with { AllDayItems = allDayItems }
+            CalendarAgenda = agenda with { AllDayItems = allDayItems },
+            ActiveFocusBlock = activeFocusBlock
         };
     }
 
@@ -182,6 +189,43 @@ public sealed class DayPlannerPresenter
             false,
             null,
             meeting);
+    }
+
+    private static PlannerTimelineItemView FocusItem(
+        PlannerFocusBlock focusBlock,
+        TimeOnly start,
+        TimeOnly end,
+        TimeOnly time) =>
+        new(
+            PlannerItemType.Pomodoro,
+            $"pomodoro:{focusBlock.StartedAt.Ticks}",
+            focusBlock.Title,
+            start,
+            end,
+            PlannerTimeShape.Duration,
+            IntervalState(start, end, end - start, time),
+            false,
+            false);
+
+    private static (TimeOnly Start, TimeOnly End)? ClipFocusBlock(
+        PlannerFocusBlock? focusBlock,
+        DateOnly date)
+    {
+        if (focusBlock is null)
+        {
+            return null;
+        }
+
+        var plannerStart = date.ToDateTime(new TimeOnly(6, 0));
+        var plannerEnd = date.ToDateTime(new TimeOnly(22, 0));
+        var start = focusBlock.StartedAt > plannerStart ? focusBlock.StartedAt : plannerStart;
+        var end = focusBlock.EndsAt < plannerEnd ? focusBlock.EndsAt : plannerEnd;
+        if (end <= start)
+        {
+            return null;
+        }
+
+        return (TimeOnly.FromDateTime(start), TimeOnly.FromDateTime(end));
     }
 
     private static PlannerIntervalState IntervalState(TimeOnly start, TimeOnly end, TimeSpan? duration, TimeOnly time)

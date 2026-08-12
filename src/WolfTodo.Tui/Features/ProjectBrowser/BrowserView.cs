@@ -20,6 +20,12 @@ public sealed record BrowserView(
 
     public CommandPaletteView? CommandPalette { get; init; }
 
+    public string? TimerStatus { get; init; }
+
+    public bool TimerIsBright { get; init; }
+
+    public PomodoroPromptState? PomodoroPrompt { get; init; }
+
     public int SelectableTodoCount => Todos.Count(row => row.Todo is not null);
 
     public TodoIdentity? SelectedTodoIdentity => Todos.FirstOrDefault(row => row.IsSelected)?.Identity;

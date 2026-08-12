@@ -6,7 +6,8 @@ public enum PlannerItemType
 {
     Task,
     Meeting,
-    CalendarEvent
+    CalendarEvent,
+    Pomodoro
 }
 
 public enum PlannerTimeShape
