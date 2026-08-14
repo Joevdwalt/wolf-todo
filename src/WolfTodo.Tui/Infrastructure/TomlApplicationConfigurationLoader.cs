@@ -41,7 +41,8 @@ public sealed class TomlApplicationConfigurationLoader(
     private static readonly HashSet<string> GoogleCalendarKeys =
     [
         "enabled",
-        "oauth_client_file"
+        "oauth_client_file",
+        "additional_calendar_ids"
     ];
 
     private static readonly HashSet<string> PlannerKeys = ["default_duration_minutes", "export"];
@@ -327,7 +328,37 @@ public sealed class TomlApplicationConfigurationLoader(
                 "Invalid configuration file: google_calendar.oauth_client_file must be an absolute path when enabled.");
         }
 
-        return new GoogleCalendarConfiguration(enabled, oauthClientFile);
+        var additionalCalendarIds = calendar.TryGetValue("additional_calendar_ids", out var calendarIdsValue)
+            ? ReadAdditionalCalendarIds(calendarIdsValue)
+            : [];
+        return new GoogleCalendarConfiguration(enabled, oauthClientFile)
+        {
+            AdditionalCalendarIds = additionalCalendarIds
+        };
+    }
+
+    private static ImmutableArray<string> ReadAdditionalCalendarIds(object? value)
+    {
+        if (value is not TomlArray ids || ids.Any(id => id is not string text || string.IsNullOrWhiteSpace(text)))
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: google_calendar.additional_calendar_ids must be an array of non-empty strings.");
+        }
+
+        var result = ids.Cast<string>().Select(id => id.Trim()).ToImmutableArray();
+        if (result.Any(id => string.Equals(id, "primary", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: google_calendar.additional_calendar_ids must not include primary.");
+        }
+
+        if (result.Distinct(StringComparer.OrdinalIgnoreCase).Count() != result.Length)
+        {
+            throw new InvalidDataException(
+                "Invalid configuration file: google_calendar.additional_calendar_ids must not contain duplicates.");
+        }
+
+        return result;
     }
 
     private static TuiTheme ReadTheme(TomlTable document)

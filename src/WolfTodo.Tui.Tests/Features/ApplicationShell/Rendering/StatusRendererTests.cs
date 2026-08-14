@@ -71,6 +71,27 @@ public sealed class StatusRendererTests
     }
 
     [Fact]
+    public void PlannerStatus_appends_calendar_warning_without_replacing_normal_hints()
+    {
+        var bindings = TuiKeyBindings.CreateDefaults(":q");
+        var view = new PlannerView(
+            PlannerState.CreateInitial(new DateOnly(2026, 8, 4)),
+            [new PlannerSlotView(new TimeOnly(9, 0), [], true)],
+            [],
+            [])
+        {
+            CalendarAgenda = new PlannerCalendarAgenda(
+                [], [], PlannerCalendarSyncState.Ready, Warning: "Secondary calendar unavailable")
+        };
+
+        var lines = renderer.PlannerStatus(view, bindings, 240, 30);
+
+        lines.Should().HaveCount(2);
+        lines[0].Text.Should().Contain("ASSIGN/MOVE").And.Contain("CALENDAR READY");
+        lines[1].Text.Should().Contain("Secondary calendar unavailable").And.Contain("r RETRY");
+    }
+
+    [Fact]
     public void BrowserStatus_places_an_active_timer_on_its_own_first_line()
     {
         var bindings = TuiKeyBindings.CreateDefaults(":q");

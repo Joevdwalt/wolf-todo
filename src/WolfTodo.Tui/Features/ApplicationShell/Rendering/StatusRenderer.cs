@@ -160,6 +160,15 @@ public sealed class StatusRenderer
                         : $"  {Shortest(keyBindings.PlannerRefreshCalendar)} CALENDAR {CalendarStatus(view.CalendarAgenda)}")
                 ]
             };
+
+            if (view.CalendarAgenda.Warning is not null)
+            {
+                status =
+                [
+                    .. status,
+                    $"{view.CalendarAgenda.Warning}  {Shortest(keyBindings.PlannerRefreshCalendar)} RETRY"
+                ];
+            }
         }
 
         var statusWidth = Math.Max(1, terminalWidth - 4);

@@ -1,17 +1,14 @@
-using Google.Apis.Auth.OAuth2;
-using Google.Apis.Calendar.v3;
+using System.Collections.Immutable;
 using Google.Apis.Calendar.v3.Data;
-using Google.Apis.Services;
-using Google.Apis.Util.Store;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.DayPlanner;
 
 namespace WolfTodo.Tui.Infrastructure;
 
-public sealed class GoogleCalendarAgendaProvider(string tokenDirectory) : IPlannerCalendarAgendaProvider
+public sealed class GoogleCalendarAgendaProvider(
+    IGoogleCalendarEventSourceFactory eventSourceFactory,
+    GoogleCalendarEventMapper eventMapper) : IPlannerCalendarAgendaProvider
 {
-    private static readonly string[] Scopes = [CalendarService.Scope.CalendarEventsReadonly];
-
     public async Task<PlannerCalendarAgenda> LoadAsync(
         GoogleCalendarConfiguration configuration,
         DateOnly date,
@@ -22,97 +19,59 @@ public sealed class GoogleCalendarAgendaProvider(string tokenDirectory) : IPlann
             return PlannerCalendarAgenda.Disabled;
         }
 
-        if (configuration.OAuthClientFile is null || !File.Exists(configuration.OAuthClientFile))
+        if (configuration.OAuthClientFile is null)
         {
             throw new FileNotFoundException("Google OAuth client file was not found.", configuration.OAuthClientFile);
         }
 
-        await using var clientFile = File.OpenRead(configuration.OAuthClientFile);
-        var secrets = GoogleClientSecrets.FromStream(clientFile).Secrets;
-        var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
-            secrets,
-            Scopes,
-            "wtodo",
-            cancellationToken,
-            new FileDataStore(tokenDirectory, true));
-        using var service = new CalendarService(new BaseClientService.Initializer
-        {
-            HttpClientInitializer = credential,
-            ApplicationName = "Wolf Todo"
-        });
-
-        var localStart = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local);
-        var localEnd = localStart.AddDays(1);
-        var request = service.Events.List("primary");
-        request.TimeMinDateTimeOffset = new DateTimeOffset(localStart);
-        request.TimeMaxDateTimeOffset = new DateTimeOffset(localEnd);
-        request.SingleEvents = true;
-        request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
-        request.ShowDeleted = false;
-        var response = await request.ExecuteAsync(cancellationToken);
+        await using var eventSource = await eventSourceFactory.CreateAsync(
+            configuration.OAuthClientFile,
+            cancellationToken);
         var allDay = new List<PlannerCalendarAllDayItem>();
         var meetings = new List<PlannerCalendarMeeting>();
+        var unavailableCalendars = new List<string>();
 
-        foreach (var calendarEvent in response.Items ?? [])
+        var primaryEvents = await eventSource.LoadEventsAsync("primary", date, cancellationToken);
+        AddAgenda(eventMapper.Map("primary", primaryEvents), allDay, meetings);
+        foreach (var calendarId in configuration.AdditionalCalendarIds)
         {
-            if (IsDeclined(calendarEvent))
+            ImmutableArray<Event> events;
+            try
             {
+                events = await eventSource.LoadEventsAsync(calendarId, date, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                unavailableCalendars.Add(calendarId);
                 continue;
             }
 
-            var title = string.IsNullOrWhiteSpace(calendarEvent.Summary) ? "Busy" : calendarEvent.Summary;
-            var kind = ItemKind(calendarEvent.EventType);
-            var attendees = AttendeeNames(calendarEvent);
-            if (calendarEvent.Start?.DateTimeDateTimeOffset is null || kind != PlannerCalendarItemKind.Event)
-            {
-                allDay.Add(new PlannerCalendarAllDayItem(title, kind)
-                {
-                    EventId = calendarEvent.Id,
-                    Location = calendarEvent.Location,
-                    Attendees = [.. attendees],
-                    Description = calendarEvent.Description
-                });
-                continue;
-            }
-
-            var start = TimeOnly.FromDateTime(calendarEvent.Start.DateTimeDateTimeOffset.Value.LocalDateTime);
-            var end = calendarEvent.End?.DateTimeDateTimeOffset is { } endDateTime
-                ? TimeOnly.FromDateTime(endDateTime.LocalDateTime)
-                : start.AddMinutes(30);
-            if (end <= start)
-            {
-                end = start.AddMinutes(30);
-            }
-
-            meetings.Add(new PlannerCalendarMeeting(title, start, end)
-            {
-                EventId = calendarEvent.Id,
-                Location = calendarEvent.Location,
-                Attendees = [.. attendees],
-                Description = calendarEvent.Description
-            });
+            AddAgenda(eventMapper.Map(calendarId, events), allDay, meetings);
         }
 
-        return new PlannerCalendarAgenda([.. allDay], [.. meetings], PlannerCalendarSyncState.Ready);
+        return new PlannerCalendarAgenda(
+            [.. allDay.OrderBy(item => item.Title, StringComparer.OrdinalIgnoreCase)],
+            [.. meetings
+                .OrderBy(meeting => meeting.Start)
+                .ThenBy(meeting => meeting.End)
+                .ThenBy(meeting => meeting.Title, StringComparer.OrdinalIgnoreCase)],
+            PlannerCalendarSyncState.Ready,
+            null,
+            unavailableCalendars.Count == 0
+                ? null
+                : $"Google Calendar unavailable: {string.Join(", ", unavailableCalendars)}.");
     }
 
-    private static string[] AttendeeNames(Event calendarEvent) =>
-        [.. (calendarEvent.Attendees ?? [])
-            .Where(attendee => attendee.ResponseStatus != "declined")
-            .Select(attendee => string.IsNullOrWhiteSpace(attendee.DisplayName)
-                ? attendee.Email
-                : attendee.DisplayName)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(name => name!)];
-
-    private static bool IsDeclined(Event calendarEvent) =>
-        calendarEvent.Attendees?.Any(attendee => attendee.Self == true && attendee.ResponseStatus == "declined") == true;
-
-    private static PlannerCalendarItemKind ItemKind(string? eventType) => eventType switch
+    private static void AddAgenda(
+        PlannerCalendarAgenda agenda,
+        List<PlannerCalendarAllDayItem> allDay,
+        List<PlannerCalendarMeeting> meetings)
     {
-        "focusTime" => PlannerCalendarItemKind.FocusTime,
-        "outOfOffice" => PlannerCalendarItemKind.OutOfOffice,
-        _ => PlannerCalendarItemKind.Event
-    };
+        allDay.AddRange(agenda.AllDayItems);
+        meetings.AddRange(agenda.Meetings);
+    }
 }
