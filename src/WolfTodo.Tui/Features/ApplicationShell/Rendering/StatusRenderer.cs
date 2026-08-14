@@ -20,17 +20,17 @@ public sealed class StatusRenderer
     {
         if (view.CommandPalette is not null)
         {
-            return WithTimer(DefaultStatusLines([CommandPaletteFooter(keyBindings)]), view.TimerStatus, view.TimerIsBright);
+            return WithTimer(DefaultStatusLines([CommandPaletteFooter(keyBindings)]), view.TimerStatus, view.TimerIsBright, view.PomodoroCompletion);
         }
 
         if (view.GlobalCommand is not null)
         {
-            return WithTimer([new BrowserStatusLine(view.GlobalCommand)], view.TimerStatus, view.TimerIsBright);
+            return WithTimer([new BrowserStatusLine(view.GlobalCommand)], view.TimerStatus, view.TimerIsBright, view.PomodoroCompletion);
         }
 
         if (view.GlobalError is not null)
         {
-            return WithTimer(DefaultStatusLines(Wrap(view.GlobalError, Math.Max(1, terminalWidth - 4))), view.TimerStatus, view.TimerIsBright);
+            return WithTimer(DefaultStatusLines(Wrap(view.GlobalError, Math.Max(1, terminalWidth - 4))), view.TimerStatus, view.TimerIsBright, view.PomodoroCompletion);
         }
 
         if (view.State.Editor is not null)
@@ -43,7 +43,7 @@ public sealed class StatusRenderer
                     .ToArray(),
                 keyBindings,
                 terminalWidth,
-                terminalHeight), view.TimerStatus, view.TimerIsBright);
+                terminalHeight), view.TimerStatus, view.TimerIsBright, view.PomodoroCompletion);
         }
 
         if (view.State.IsSortMode)
@@ -68,7 +68,7 @@ public sealed class StatusRenderer
 
             return WithTimer(DefaultStatusLines(menuLines
                 .SelectMany(line => Wrap(line, Math.Max(1, terminalWidth - 4)))
-                .ToArray()), view.TimerStatus, view.TimerIsBright);
+                .ToArray()), view.TimerStatus, view.TimerIsBright, view.PomodoroCompletion);
         }
 
         var status = view.State switch
@@ -85,7 +85,8 @@ public sealed class StatusRenderer
         return WithTimer(
             DefaultStatusLines(Wrap(status, Math.Max(1, terminalWidth - 4))),
             view.TimerStatus,
-            view.TimerIsBright);
+            view.TimerIsBright,
+            view.PomodoroCompletion);
     }
 
     public IReadOnlyList<BrowserStatusLine> PlannerStatus(
@@ -97,7 +98,7 @@ public sealed class StatusRenderer
         IReadOnlyList<string> status;
         if (view.CommandPalette is not null)
         {
-            return WithTimer(DefaultStatusLines([CommandPaletteFooter(keyBindings)]), view.TimerStatus, view.TimerIsBright);
+            return WithTimer(DefaultStatusLines([CommandPaletteFooter(keyBindings)]), view.TimerStatus, view.TimerIsBright, view.PomodoroCompletion);
         }
 
         if (view.State.Editor is not null)
@@ -109,7 +110,7 @@ public sealed class StatusRenderer
                     .ToArray(),
                 keyBindings,
                 terminalWidth,
-                terminalHeight), view.TimerStatus, view.TimerIsBright);
+                terminalHeight), view.TimerStatus, view.TimerIsBright, view.PomodoroCompletion);
         }
 
         if (view.GlobalCommand is not null)
@@ -165,7 +166,8 @@ public sealed class StatusRenderer
         return WithTimer(
             DefaultStatusLines(status.SelectMany(line => Wrap(line, statusWidth))),
             view.TimerStatus,
-            view.TimerIsBright);
+            view.TimerIsBright,
+            view.PomodoroCompletion);
     }
 
     public string BrowserMode(BrowserView view) => view switch
@@ -290,11 +292,14 @@ public sealed class StatusRenderer
     private static IReadOnlyList<BrowserStatusLine> WithTimer(
         IReadOnlyList<BrowserStatusLine> lines,
         string? timerStatus,
-        bool timerIsBright) => timerStatus is null
-        ? lines
-        : [new BrowserStatusLine(
+        bool timerIsBright,
+        PomodoroCompletion? completion) => timerStatus is not null
+        ? [new BrowserStatusLine(
             timerStatus,
-            timerIsBright ? BrowserStatusRole.TimerActive : BrowserStatusRole.TimerInactive), .. lines];
+            timerIsBright ? BrowserStatusRole.TimerActive : BrowserStatusRole.TimerInactive), .. lines]
+        : completion is not null
+            ? [new BrowserStatusLine(completion.Status, BrowserStatusRole.PomodoroComplete), .. lines]
+            : lines;
 
     public string NormalStatus(TuiKeyBindings bindings, BrowserState state) =>
         $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} NAVIGATE  " +
@@ -387,6 +392,7 @@ public sealed class StatusRenderer
                 BrowserStatusRole.ContentWarning => themeRenderer.Style(theme.Warning, Decoration.Bold),
                 BrowserStatusRole.TimerActive => themeRenderer.Style(theme.Timer, Decoration.Bold),
                 BrowserStatusRole.TimerInactive => themeRenderer.Style(theme.Timer, Decoration.Dim),
+                BrowserStatusRole.PomodoroComplete => themeRenderer.Style(theme.Timer, Decoration.Bold),
                 _ => defaultStyle
             }));
         themeRenderer.WriteSurface(

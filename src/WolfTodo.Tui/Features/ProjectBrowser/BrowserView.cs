@@ -26,6 +26,8 @@ public sealed record BrowserView(
 
     public PomodoroPromptState? PomodoroPrompt { get; init; }
 
+    public PomodoroCompletion? PomodoroCompletion { get; init; }
+
     public int SelectableTodoCount => Todos.Count(row => row.Todo is not null);
 
     public TodoIdentity? SelectedTodoIdentity => Todos.FirstOrDefault(row => row.IsSelected)?.Identity;

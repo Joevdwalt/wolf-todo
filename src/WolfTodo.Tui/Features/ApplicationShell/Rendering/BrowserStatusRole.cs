@@ -11,5 +11,6 @@ public enum BrowserStatusRole
     FormError,
     ContentWarning,
     TimerActive,
-    TimerInactive
+    TimerInactive,
+    PomodoroComplete
 }

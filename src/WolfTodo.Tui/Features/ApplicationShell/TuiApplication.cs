@@ -32,7 +32,8 @@ public sealed class TuiApplication(
     Func<DateOnly>? todayProvider = null,
     DayScheduleExportService? dayScheduleExportService = null,
     WeeklyTimeLogService? weeklyTimeLogService = null,
-    Func<DateTime>? nowProvider = null)
+    Func<DateTime>? nowProvider = null,
+    IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -57,6 +58,7 @@ public sealed class TuiApplication(
     private readonly DayScheduleExportService? dayScheduleExportService = dayScheduleExportService;
     private readonly WeeklyTimeLogService? weeklyTimeLogService = weeklyTimeLogService;
     private readonly Func<DateTime> nowProvider = nowProvider ?? (() => DateTime.Now);
+    private readonly IPomodoroCompletionNotifier? pomodoroCompletionNotifier = pomodoroCompletionNotifier;
 
     public int Run()
     {
@@ -122,7 +124,8 @@ public sealed class TuiApplication(
                         CommandPalette = paletteView,
                         TimerStatus = TimerStatus(state.Timer),
                         TimerIsBright = TimerIsBright(state.Timer),
-                        PomodoroPrompt = state.PomodoroPrompt
+                        PomodoroPrompt = state.PomodoroPrompt,
+                        PomodoroCompletion = state.PomodoroCompletion
                     };
                     terminalUi.ShowBrowser(
                         tabView,
@@ -158,7 +161,8 @@ public sealed class TuiApplication(
                         CommandPalette = paletteView,
                         TimerStatus = TimerStatus(state.Timer),
                         TimerIsBright = TimerIsBright(state.Timer),
-                        PomodoroPrompt = state.PomodoroPrompt
+                        PomodoroPrompt = state.PomodoroPrompt,
+                        PomodoroCompletion = state.PomodoroCompletion
                     };
                     terminalUi.ShowPlanner(
                         tabView,
@@ -180,6 +184,10 @@ public sealed class TuiApplication(
                 }
 
                 var key = pendingKey.Value;
+                if (state.PomodoroCompletion is not null)
+                {
+                    state = state with { PomodoroCompletion = null };
+                }
                 if (state.PomodoroPrompt is not null)
                 {
                     state = ReducePomodoroPrompt(state, key, configuration);
@@ -1162,12 +1170,15 @@ public sealed class TuiApplication(
         }
 
         state = state with { Timer = timer with { CompletionHandled = true } };
-        if (configuration.Timer?.Bell != false)
-        {
+        var completion = new PomodoroCompletion(
+            timer.TodoTitle,
+            timer.Duration ?? TimeSpan.Zero,
+            nowProvider());
+        pomodoroCompletionNotifier?.Notify(completion, configuration.Timer?.Bell != false);
+        if (pomodoroCompletionNotifier is null && configuration.Timer?.Bell != false)
             terminalUi.RingBell();
-        }
 
-        return StopTimer(state, configuration);
+        return StopTimer(state, configuration) with { PomodoroCompletion = completion };
     }
 
     private ApplicationState StopTimer(ApplicationState state, ApplicationConfiguration configuration)

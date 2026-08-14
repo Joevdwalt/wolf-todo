@@ -2,6 +2,7 @@ using FluentAssertions;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 
 namespace WolfTodo.Tui.Tests.Features.ApplicationShell.Rendering;
@@ -100,5 +101,20 @@ public sealed class StatusRendererTests
 
         lines[0].Should().Be(new BrowserStatusLine("TIMER 00:01 · Deep work", BrowserStatusRole.TimerInactive));
         lines[1].Text.Should().NotContain("TIMER");
+    }
+
+    [Fact]
+    public void BrowserStatus_shows_a_persistent_pomodoro_completion_when_no_timer_is_active()
+    {
+        var view = new BrowserView(BrowserState.Initial, [], [], null, "All", null, null, "Empty")
+        {
+            PomodoroCompletion = new PomodoroCompletion("Deep work", TimeSpan.FromMinutes(25), DateTime.Now)
+        };
+
+        var lines = renderer.BrowserStatus(view, TuiKeyBindings.CreateDefaults(":q"), false, 120, 30);
+
+        lines[0].Should().Be(new BrowserStatusLine(
+            "✓ POMODORO COMPLETE · 25m · Deep work",
+            BrowserStatusRole.PomodoroComplete));
     }
 }
