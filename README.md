@@ -165,7 +165,8 @@ project_links = [
 notes_directory = "/absolute/path/to/time-logs"
 # Focus countdown length, from 1 through 180 minutes.
 pomodoro_minutes = 25
-# Ring the terminal bell when a Pomodoro finishes.
+# Play an audible completion alert when a Pomodoro finishes.
+# Wolf Todo uses a native system sound and falls back to the terminal bell.
 bell = true
 ```
 
@@ -203,8 +204,10 @@ the prompt default; otherwise it uses `pomodoro_minutes` (25 by default).
 `:pomodoro 45` for an immediate one-off countdown, `:pomodoro task` to use the
 selected todo's `⏱` duration, or `:pomodoro 10 --untracked` to start without a
 todo. One-off values may be from 1 through 960 minutes and do not change the
-configured default. The countdown rings the terminal bell when `bell` is
-enabled. Task-linked Pomodoros are written to the weekly log; untracked
+configured default. Completion shows a persistent in-app banner until your
+next keypress and requests a desktop notification. When `bell` is enabled,
+Wolf Todo plays a native completion sound (falling back to the terminal bell if
+needed). Task-linked Pomodoros are written to the weekly log; untracked
 Pomodoros are not. Wolf Todo records an active task-linked timer when it exits
 normally.
 

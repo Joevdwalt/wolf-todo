@@ -24,8 +24,10 @@ selected todo when available unless `--untracked` is present.
 
 Only one stopwatch or Pomodoro may run. Pomodoros display
 `POMODORO MM:SS · <todo title>` for linked sessions and omit the title for
-untracked sessions. At zero, the application rings the terminal bell once and
-stops the countdown. A task-linked Pomodoro writes its exact interval to the
+untracked sessions. At zero, the application shows a completion banner until
+the next keypress, requests a desktop notification, and stops the countdown.
+When `bell` is enabled, it plays a platform-native completion sound, falling
+back to the terminal bell if the native sound cannot start. A task-linked Pomodoro writes its exact interval to the
 weekly Markdown time log; an untracked Pomodoro does not write a log entry.
 `Ctrl+T` stops either kind of active timer early. Stopping a linked Pomodoro
 records its elapsed time; stopping an untracked Pomodoro discards it.
@@ -55,3 +57,4 @@ information is removed before the NOW and Pomodoro countdown.
 5. Active Pomodoros appear in the schedule and in the mixed-color `◷` NOW marker.
 6. Stopping or completing removes both planner indicators.
 7. Starting another Pomodoro is blocked while any timer is active.
+8. Completion remains visible as `✓ POMODORO COMPLETE · <duration> · <task>` until the next keypress.

@@ -23,6 +23,8 @@ public sealed record PlannerView(
 
     public PomodoroPromptState? PomodoroPrompt { get; init; }
 
+    public PomodoroCompletion? PomodoroCompletion { get; init; }
+
     public PlannerFocusBlock? ActiveFocusBlock { get; init; }
 
     public int OpenTodoCount { get; init; }

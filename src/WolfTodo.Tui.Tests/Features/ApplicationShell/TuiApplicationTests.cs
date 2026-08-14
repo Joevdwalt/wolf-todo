@@ -166,6 +166,9 @@ public sealed class TuiApplicationTests
         result.Should().Be(0);
         terminal.BellCount.Should().Be(0);
         terminal.BrowserViews.Should().Contain(view => view.TimerStatus == "POMODORO 25:00");
+        terminal.BrowserViews.Should().Contain(view =>
+            view.PomodoroCompletion != null &&
+            view.PomodoroCompletion.Status == "✓ POMODORO COMPLETE · 25m");
         terminal.BrowserViews.Last().TimerStatus.Should().BeNull();
         store.Files.Should().BeEmpty();
     }
@@ -202,6 +205,37 @@ public sealed class TuiApplicationTests
         terminal.BrowserViews.Should().Contain(view => view.TimerStatus == "POMODORO 25:00 · Deep work");
         store.Files.Should().ContainSingle();
         store.Files.Values.Single().Should().Contain("09:00–09:25 · 25m — project · Deep work");
+    }
+
+    [Fact]
+    public void Run_notifies_once_and_clears_the_completion_banner_before_the_next_key()
+    {
+        var now = new DateTime(2026, 8, 12, 9, 0, 0);
+        var notifier = new FakePomodoroCompletionNotifier();
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(ConsoleKey.P, control: true, shift: true),
+            Key(ConsoleKey.Enter),
+            Key('j'),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter))
+        {
+            TimeoutNextTimedRead = true,
+            OnTimedRead = _ => now = now.AddMinutes(25)
+        };
+        var application = CreateApplication(
+            new FixedConfigurationLoader(timer: new TimerConfiguration("/logs")),
+            terminal,
+            weeklyTimeLogService: new WeeklyTimeLogService(new MemoryTimeLogFileStore()),
+            nowProvider: () => now,
+            pomodoroCompletionNotifier: notifier);
+
+        application.Run();
+
+        notifier.Notifications.Should().ContainSingle();
+        notifier.Notifications.Single().Completion.Status.Should().Be("✓ POMODORO COMPLETE · 25m");
+        notifier.Notifications.Single().PlaySound.Should().BeTrue();
+        terminal.BrowserViews.Should().Contain(view => view.PomodoroCompletion != null);
+        terminal.BrowserViews.Last().PomodoroCompletion.Should().BeNull();
     }
 
     [Fact]
@@ -824,7 +858,8 @@ public sealed class TuiApplicationTests
         IProjectFileSystem? projectFileSystem = null,
         Func<DateOnly>? todayProvider = null,
         WeeklyTimeLogService? weeklyTimeLogService = null,
-        Func<DateTime>? nowProvider = null)
+        Func<DateTime>? nowProvider = null,
+        IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null)
     {
         var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
         var reader = new MarkdownTodoProjectReader();
@@ -844,7 +879,8 @@ public sealed class TuiApplicationTests
             externalEditorLauncher: externalEditorLauncher,
             todayProvider: todayProvider,
             weeklyTimeLogService: weeklyTimeLogService,
-            nowProvider: nowProvider);
+            nowProvider: nowProvider,
+            pomodoroCompletionNotifier: pomodoroCompletionNotifier);
     }
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem1, false, false, false);
@@ -1039,5 +1075,13 @@ public sealed class TuiApplicationTests
         public string ReadAllText(string path) => Files[path];
 
         public void WriteAllTextAtomically(string path, string contents) => Files[path] = contents;
+    }
+
+    private sealed class FakePomodoroCompletionNotifier : IPomodoroCompletionNotifier
+    {
+        public List<(PomodoroCompletion Completion, bool PlaySound)> Notifications { get; } = [];
+
+        public void Notify(PomodoroCompletion completion, bool playSound) =>
+            Notifications.Add((completion, playSound));
     }
 }
