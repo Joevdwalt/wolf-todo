@@ -37,13 +37,15 @@ Google Calendar all-day items are selectable and expose available type,
 location, attendee, and description details in the Inspector. They are
 read-only; mutation actions show a clear error.
 
-An optional, read-only Google Calendar primary-calendar overlay may display
-timed meetings as duration blocks spanning their overlapping slots. It uses desktop OAuth configured by
-an absolute client JSON path, stores refresh credentials in application state,
-and refreshes with the configured `r` binding. Meetings produce overlap
-warnings only; they never reserve slots or block todo assignment. The planner
-shows syncing, sign-in, configuration, and offline states without making the
-planner unusable.
+An optional, read-only Google Calendar overlay may display timed meetings from
+the primary calendar and configured additional calendar IDs as duration blocks
+spanning their overlapping slots. It uses desktop OAuth configured by an
+absolute client JSON path, stores refresh credentials in application state, and
+refreshes with the configured `r` binding. Meetings produce overlap warnings
+only; they never reserve slots or block todo assignment. An unavailable
+additional calendar leaves successfully loaded calendar events visible and
+identifies the failed calendar in the planner status. The planner shows syncing,
+sign-in, configuration, and offline states without making the planner unusable.
 
 On today, add a logical current-time row immediately before the next quarter-hour
 slot. Show the exact `HH:mm` value in the time column and fill the plan column

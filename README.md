@@ -143,10 +143,15 @@ now = "#FF5CA8"
 timer = "#C6F36A"
 
 [google_calendar]
-# Optional: show primary Google Calendar meetings in the Day Planner.
+# Optional: show primary and additional Google Calendar meetings in the Day Planner.
 enabled = false
 # Required when enabled. Download this desktop OAuth client JSON from Google Cloud.
 oauth_client_file = "/absolute/path/to/google-oauth-client.json"
+# Calendar IDs to overlay in addition to the implicit primary calendar.
+additional_calendar_ids = [
+  "team@example.com",
+  "abc123@group.calendar.google.com"
+]
 
 [planner]
 # New tasks created from Day Planner receive this explicit ⏱ duration.
@@ -186,12 +191,16 @@ uses the terminal foreground; using it for a surface makes that layer
 transparent to its enclosing or terminal background. Unknown presets, keys, or
 color values are configuration errors.
 
-The optional `[google_calendar]` table adds a read-only primary Google Calendar
-overlay to Day Planner. Set `enabled = true` and provide an absolute path to a
+The optional `[google_calendar]` table adds a read-only Google Calendar overlay
+to Day Planner. It always loads the primary calendar, plus any IDs in
+`additional_calendar_ids` (find an ID in the calendar's Google Calendar
+integration settings). Set `enabled = true` and provide an absolute path to a
 Desktop OAuth client JSON file. The first refresh opens Google's consent flow;
 the refresh token is stored in Wolf Todo's application-state directory, not in
 the project Markdown. `r` refreshes the selected day. Calendar meetings only
-warn when a todo shares their time; they never prevent scheduling.
+warn when a todo shares their time; they never prevent scheduling. If an
+additional calendar is unavailable, successfully loaded calendars stay visible
+and the planner identifies the failed calendar in its status line.
 
 The optional `[timer]` table enables one active task timer. `Ctrl+T` starts or
 stops the selected todo (or switches to another selected todo), shows elapsed

@@ -28,8 +28,10 @@ builder.Services.AddSingleton<DayScheduleExportService>();
 builder.Services.AddSingleton<IWeeklyTimeLogFileStore, PhysicalWeeklyTimeLogFileStore>();
 builder.Services.AddSingleton<WeeklyTimeLogService>();
 builder.Services.AddSingleton<IPomodoroCompletionNotifier, PlatformPomodoroCompletionNotifier>();
-builder.Services.AddSingleton<IPlannerCalendarAgendaProvider>(
-    new GoogleCalendarAgendaProvider(GlobalGoogleCalendarTokenPath.Resolve()));
+builder.Services.AddSingleton<IGoogleCalendarEventSourceFactory>(
+    new GoogleCalendarEventSourceFactory(GlobalGoogleCalendarTokenPath.Resolve()));
+builder.Services.AddSingleton<GoogleCalendarEventMapper>();
+builder.Services.AddSingleton<IPlannerCalendarAgendaProvider, GoogleCalendarAgendaProvider>();
 builder.Services.AddSingleton<PlannerCalendarAgendaCache>();
 builder.Services.AddSingleton<ProjectTodoMutationService>();
 builder.Services.AddSingleton<TabHostPresenter>();

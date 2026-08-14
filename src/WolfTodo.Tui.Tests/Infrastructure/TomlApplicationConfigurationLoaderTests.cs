@@ -212,11 +212,15 @@ public sealed class TomlApplicationConfigurationLoaderTests
             [google_calendar]
             enabled = true
             oauth_client_file = "{{clientFile}}"
+            additional_calendar_ids = ["team@example.com", "abc123@group.calendar.google.com"]
             """);
 
         var result = loader.Load();
 
-        result.GoogleCalendar.Should().Be(new GoogleCalendarConfiguration(true, clientFile));
+        result.GoogleCalendar.Should().BeEquivalentTo(new GoogleCalendarConfiguration(true, clientFile)
+        {
+            AdditionalCalendarIds = ["team@example.com", "abc123@group.calendar.google.com"]
+        });
     }
 
     [Theory]
@@ -241,6 +245,29 @@ public sealed class TomlApplicationConfigurationLoaderTests
         var action = loader.Invoking(candidate => candidate.Load());
 
         action.Should().Throw<InvalidDataException>().WithMessage(expectedMessage);
+    }
+
+    [Theory]
+    [InlineData("additional_calendar_ids = \"team@example.com\"", "*additional_calendar_ids*array*")]
+    [InlineData("additional_calendar_ids = [\"\"]", "*additional_calendar_ids*non-empty strings*")]
+    [InlineData("additional_calendar_ids = [\"primary\"]", "*additional_calendar_ids*must not include primary*")]
+    [InlineData("additional_calendar_ids = [\"team@example.com\", \"TEAM@example.com\"]", "*additional_calendar_ids*duplicates*")]
+    public void Load_rejects_invalid_additional_google_calendar_ids(string setting, string expectedMessage)
+    {
+        var path = Path.GetFullPath("todo.md");
+        var loader = Loader($$"""
+            [projects]
+            files = ["{{path}}"]
+
+            [keybindings]
+            quit = ":q"
+
+            [google_calendar]
+            {{setting}}
+            """);
+
+        loader.Invoking(candidate => candidate.Load())
+            .Should().Throw<InvalidDataException>().WithMessage(expectedMessage);
     }
 
     [Fact]
