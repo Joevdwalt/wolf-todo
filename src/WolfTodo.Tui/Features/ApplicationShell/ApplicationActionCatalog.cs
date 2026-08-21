@@ -23,6 +23,9 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         var browserReason = browserActive ? null : "Available in the Todos tab.";
         var plannerReason = browserActive ? "Available in the Day Planner tab." : null;
         var selectedReason = browserReason ?? (browser?.SelectedTodo is null ? "Select a todo first." : null);
+        var markedReason = browserReason ?? (browser?.State.MarkedTodos.Count > 0
+            ? null
+            : "Mark at least one todo first.");
         var selectedProject = browser?.Projects.FirstOrDefault(project => project.IsSelected)?.Project;
         var rollReason = browserReason ?? (selectedProject is null
             ? "Select a project first."
@@ -102,6 +105,15 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
                 "Open the Markdown source at the selected todo", Shortest(bindings.EditTodoExternal), selectedReason),
             Item(ApplicationActionId.BrowserToggleCompleted, "Todos", "Toggle selected todo",
                 "Change the selected checkbox", Shortest(bindings.ToggleTodo), selectedReason),
+            Item(ApplicationActionId.BrowserToggleSelection, "Todos", "Mark or unmark todo",
+                "Toggle the cursor task in the bulk selection",
+                Shortest(bindings.ToggleTodoSelection), selectedReason),
+            Item(ApplicationActionId.BrowserBulkEdit, "Todos", "Bulk edit marked tasks",
+                "Update schedule, tags, priority, or completion",
+                Shortest(bindings.BulkEditTodos), markedReason),
+            Item(ApplicationActionId.BrowserClearSelection, "Todos", "Clear task marks",
+                "Remove every task from the bulk selection",
+                Shortest(bindings.ClearTodoSelection), markedReason),
             Item(ApplicationActionId.BrowserRollProjectToday, "Todos", "Roll project to today",
                 "Move incomplete overdue tasks in the selected project to today",
                 Shortest(bindings.RollProjectToday), rollReason),

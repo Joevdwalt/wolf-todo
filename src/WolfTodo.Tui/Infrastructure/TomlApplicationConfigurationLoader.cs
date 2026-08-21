@@ -555,6 +555,12 @@ public sealed class TomlApplicationConfigurationLoader(
             EditTodoExternal = ReadGestures(
                 keybindings, "edit_todo_external", defaults.EditTodoExternal),
             ToggleTodo = ReadGestures(keybindings, "toggle_todo", defaults.ToggleTodo),
+            ToggleTodoSelection = ReadGestures(
+                keybindings, "toggle_todo_selection", defaults.ToggleTodoSelection),
+            BulkEditTodos = ReadGestures(
+                keybindings, "bulk_edit_todos", defaults.BulkEditTodos),
+            ClearTodoSelection = ReadGestures(
+                keybindings, "clear_todo_selection", defaults.ClearTodoSelection),
             ToggleDetails = ReadGestures(
                 keybindings, "toggle_details", defaults.ToggleDetails),
             RollProjectToday = ReadGestures(
@@ -684,6 +690,9 @@ public sealed class TomlApplicationConfigurationLoader(
             ("edit_todo_content", bindings.EditTodoContent),
             ("edit_todo_external", bindings.EditTodoExternal),
             ("toggle_todo", bindings.ToggleTodo),
+            ("toggle_todo_selection", bindings.ToggleTodoSelection),
+            ("bulk_edit_todos", bindings.BulkEditTodos),
+            ("clear_todo_selection", bindings.ClearTodoSelection),
             ("toggle_details", bindings.ToggleDetails),
             ("roll_project_today", bindings.RollProjectToday),
             ("remove_content", bindings.RemoveContent),

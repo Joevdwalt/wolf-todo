@@ -21,4 +21,15 @@ public sealed class MultilineTextBoxStateTests
         new MultilineTextBoxState("Notes", "Text", -1, true).ClampedCursor.Should().Be(0);
         new MultilineTextBoxState("Notes", "Text", 8, true).ClampedCursor.Should().Be(4);
     }
+
+    [Fact]
+    public void Selection_properties_clamp_and_normalize_the_anchor_and_cursor()
+    {
+        var state = new MultilineTextBoxState("Notes", "First\nSecond", 3, true, SelectionAnchor: 20);
+
+        state.HasSelection.Should().BeTrue();
+        state.ClampedSelectionAnchor.Should().Be(state.Text.Length);
+        state.SelectionStart.Should().Be(3);
+        state.SelectionLength.Should().Be(state.Text.Length - 3);
+    }
 }

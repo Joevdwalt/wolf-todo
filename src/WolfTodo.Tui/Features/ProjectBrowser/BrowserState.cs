@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace WolfTodo.Tui.Features.ProjectBrowser;
 
 public sealed record BrowserState(
@@ -14,6 +16,12 @@ public sealed record BrowserState(
     string? Error)
 {
     public TodoTaskEditorState? Editor { get; init; }
+
+    public TodoBulkEditorState? BulkEditor { get; init; }
+
+    public ImmutableHashSet<TodoIdentity> MarkedTodos { get; init; } = [];
+
+    public string? StatusMessage { get; init; }
 
     public bool ShowDetails { get; init; } = true;
 

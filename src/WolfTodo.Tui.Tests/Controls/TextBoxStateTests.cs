@@ -21,4 +21,21 @@ public sealed class TextBoxStateTests
         new TextBoxState("Title", true, "Plan", 0).Edit.Should().BeTrue();
         new TextBoxState("Title", false, "Plan", 0).Edit.Should().BeFalse();
     }
+
+    [Fact]
+    public void Selection_properties_clamp_and_normalize_the_anchor_and_cursor()
+    {
+        var forward = new TextBoxState("Title", true, "Plan", 4, SelectionAnchor: -2);
+        var backward = new TextBoxState("Title", true, "Plan", 1, SelectionAnchor: 10);
+        var collapsed = new TextBoxState("Title", true, "Plan", 2, SelectionAnchor: 2);
+
+        forward.HasSelection.Should().BeTrue();
+        forward.SelectionStart.Should().Be(0);
+        forward.SelectionLength.Should().Be(4);
+        backward.HasSelection.Should().BeTrue();
+        backward.SelectionStart.Should().Be(1);
+        backward.SelectionLength.Should().Be(3);
+        collapsed.HasSelection.Should().BeFalse();
+        collapsed.SelectionLength.Should().Be(0);
+    }
 }

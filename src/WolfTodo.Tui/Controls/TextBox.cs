@@ -37,25 +37,67 @@ public sealed class TextBox : ITuiComponent<TextBoxState, TextBoxOutcome>
             return new(state, TextBoxOutcome.Accepted);
         }
 
+        if (IsSelectAll(key))
+        {
+            var selected = state.Text.Length == 0
+                ? state with { SelectionAnchor = null }
+                : state with { Cursor = state.Text.Length, SelectionAnchor = 0 };
+            return new(selected, TextBoxOutcome.Editing);
+        }
+
+        if (state.HasSelection)
+        {
+            if (key.Key is ConsoleKey.LeftArrow or ConsoleKey.Home)
+            {
+                return new(state with { Cursor = state.SelectionStart, SelectionAnchor = null }, TextBoxOutcome.Editing);
+            }
+
+            if (key.Key is ConsoleKey.RightArrow or ConsoleKey.End)
+            {
+                return new(state with
+                {
+                    Cursor = state.SelectionStart + state.SelectionLength,
+                    SelectionAnchor = null
+                }, TextBoxOutcome.Editing);
+            }
+
+            if (key.Key is ConsoleKey.Backspace or ConsoleKey.Delete)
+            {
+                return new(ReplaceSelection(state, string.Empty), TextBoxOutcome.Editing);
+            }
+
+            if (!char.IsControl(key.KeyChar))
+            {
+                return new(ReplaceSelection(state, key.KeyChar.ToString()), TextBoxOutcome.Editing);
+            }
+        }
+
         var next = key.Key switch
         {
-            ConsoleKey.LeftArrow => state with { Cursor = Math.Max(0, cursor - 1) },
-            ConsoleKey.RightArrow => state with { Cursor = Math.Min(state.Text.Length, cursor + 1) },
-            ConsoleKey.Home => state with { Cursor = 0 },
-            ConsoleKey.End => state with { Cursor = state.Text.Length },
+            ConsoleKey.LeftArrow => state with { Cursor = Math.Max(0, cursor - 1), SelectionAnchor = null },
+            ConsoleKey.RightArrow => state with
+            {
+                Cursor = Math.Min(state.Text.Length, cursor + 1),
+                SelectionAnchor = null
+            },
+            ConsoleKey.Home => state with { Cursor = 0, SelectionAnchor = null },
+            ConsoleKey.End => state with { Cursor = state.Text.Length, SelectionAnchor = null },
             ConsoleKey.Backspace when cursor > 0 => state with
             {
                 Text = state.Text.Remove(cursor - 1, 1),
-                Cursor = cursor - 1
+                Cursor = cursor - 1,
+                SelectionAnchor = null
             },
             ConsoleKey.Delete when cursor < state.Text.Length => state with
             {
-                Text = state.Text.Remove(cursor, 1)
+                Text = state.Text.Remove(cursor, 1),
+                SelectionAnchor = null
             },
             _ when !char.IsControl(key.KeyChar) => state with
             {
                 Text = state.Text.Insert(cursor, key.KeyChar.ToString()),
-                Cursor = cursor + 1
+                Cursor = cursor + 1,
+                SelectionAnchor = null
             },
             _ => state
         };
@@ -101,6 +143,11 @@ public sealed class TextBox : ITuiComponent<TextBoxState, TextBoxOutcome>
             return state.Text[..Math.Min(state.Text.Length, contentWidth)].PadRight(contentWidth);
         }
 
+        if (state.HasSelection)
+        {
+            return SelectedDisplayText(state, contentWidth);
+        }
+
         var display = EditableDisplay(state, contentWidth);
         return (display.Before + display.Cursor + display.After).PadRight(contentWidth);
     }
@@ -113,6 +160,11 @@ public sealed class TextBox : ITuiComponent<TextBoxState, TextBoxOutcome>
         if (!state.Edit)
         {
             return new Text(DisplayText(state, width), textStyle);
+        }
+
+        if (state.HasSelection)
+        {
+            return CreateSelectionRenderable(state, theme, textStyle, width);
         }
 
         var display = EditableDisplay(state, width);
@@ -141,4 +193,55 @@ public sealed class TextBox : ITuiComponent<TextBoxState, TextBoxOutcome>
             : string.Empty;
         return (before, cursorCharacter, after);
     }
+
+    private static bool IsSelectAll(ConsoleKeyInfo key) =>
+        key.Key == ConsoleKey.A && key.Modifiers.HasFlag(ConsoleModifiers.Control);
+
+    private static TextBoxState ReplaceSelection(TextBoxState state, string value)
+    {
+        var text = state.Text.Remove(state.SelectionStart, state.SelectionLength)
+            .Insert(state.SelectionStart, value);
+        return state with
+        {
+            Text = text,
+            Cursor = state.SelectionStart + value.Length,
+            SelectionAnchor = null
+        };
+    }
+
+    private static string SelectedDisplayText(TextBoxState state, int width)
+    {
+        var start = SelectionViewportStart(state, width);
+        return state.Text.Substring(start, Math.Min(width, state.Text.Length - start)).PadRight(width);
+    }
+
+    private static IRenderable CreateSelectionRenderable(
+        TextBoxState state,
+        TuiTheme theme,
+        Style textStyle,
+        int width)
+    {
+        var start = SelectionViewportStart(state, width);
+        var length = Math.Min(width, state.Text.Length - start);
+        var visible = state.Text.Substring(start, length);
+        var selectionStart = Math.Clamp(state.SelectionStart - start, 0, length);
+        var selectionEnd = Math.Clamp(
+            state.SelectionStart + state.SelectionLength - start,
+            selectionStart,
+            length);
+        var selectionStyle = new Style(theme.Background, theme.AccentBright, Decoration.Bold);
+        return new Columns(
+        [
+            new Text(visible[..selectionStart], textStyle),
+            new Text(visible[selectionStart..selectionEnd], selectionStyle),
+            new Text(visible[selectionEnd..].PadRight(width - selectionEnd), textStyle)
+        ])
+        {
+            Padding = new Padding(0),
+            Expand = false
+        };
+    }
+
+    private static int SelectionViewportStart(TextBoxState state, int width) =>
+        Math.Clamp(state.ClampedCursor - width, 0, Math.Max(0, state.Text.Length - width));
 }

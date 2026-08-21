@@ -25,8 +25,10 @@ after selected content; when a field is selected, it appends to the outline.
 Open and edit change the selected field or item's text. Notes open in a native
 multiline text box: Enter creates a new line, Ctrl+S accepts that text into the
 task draft, and Escape cancels the text edit. Subtasks use the same text box in
-single-line mode. Space toggles a subtask and reports an error when the
-selection is a field or note.
+single-line mode. Ctrl+A selects the complete value in both modes; typing or a
+multiline Enter replaces the selection, Backspace or Delete removes it, and
+cursor movement collapses it. Space toggles a subtask and reports an error when
+the selection is a field or note.
 
 Use the shared form hierarchy: heading styling for the outline and picker
 labels, bright accent for the selection, secondary text for other items, muted

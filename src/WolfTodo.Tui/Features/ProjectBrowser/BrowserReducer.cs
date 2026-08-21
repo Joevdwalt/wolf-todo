@@ -1,11 +1,13 @@
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.ProjectBrowser.Controls;
 
 namespace WolfTodo.Tui.Features.ProjectBrowser;
 
 public sealed class BrowserReducer
 {
     private readonly TodoEditorReducer todoEditorReducer;
+    private readonly TodoBulkEditorReducer bulkEditorReducer;
     private readonly Func<DateOnly> todayProvider;
 
     public BrowserReducer(Func<DateOnly>? todayProvider = null)
@@ -13,12 +15,16 @@ public sealed class BrowserReducer
         this.todayProvider = todayProvider ??
             (() => DateOnly.FromDateTime(DateTime.Today));
         todoEditorReducer = new TodoEditorReducer(this.todayProvider);
+        bulkEditorReducer = new TodoBulkEditorReducer(this.todayProvider);
     }
 
     public BrowserTransition ReduceAction(
         BrowserState state,
         BrowserAction action,
-        BrowserView view) => action switch
+        BrowserView view)
+    {
+        state = state with { StatusMessage = null };
+        return action switch
         {
             BrowserAction.Filter => Transition(state with
             {
@@ -48,12 +54,16 @@ public sealed class BrowserReducer
                     BrowserOperation.ToggleCompleted,
                     view.SelectedTodoIdentity.ProjectPath,
                     view.SelectedTodoIdentity),
+            BrowserAction.ToggleSelection => ToggleSelection(state, view),
+            BrowserAction.BulkEdit => OpenBulkEditor(state),
+            BrowserAction.ClearSelection => ClearSelection(state),
             BrowserAction.RollProjectToday => RollProjectToday(state, view),
             BrowserAction.ToggleDetails => ToggleDetails(state),
             BrowserAction.JumpTop => Jump(state, view, false),
             BrowserAction.JumpBottom => Jump(state, view, true),
             _ => Transition(state with { Error = "The selected action is not available." })
         };
+    }
 
     public BrowserTransition Reduce(
         BrowserState state,
@@ -62,6 +72,7 @@ public sealed class BrowserReducer
         BrowserView view)
     {
         var bindings = configuration.KeyBindings;
+        state = state with { StatusMessage = null };
 
         if (state.Editor is not null)
         {
@@ -72,6 +83,13 @@ public sealed class BrowserReducer
                     key,
                     bindings,
                     EditorProjects(view)));
+        }
+
+        if (state.BulkEditor is not null)
+        {
+            return ApplyBulkEditorTransition(
+                state,
+                bulkEditorReducer.Reduce(state.BulkEditor, key, bindings));
         }
 
         if (state.IsFilterMode)
@@ -101,6 +119,21 @@ public sealed class BrowserReducer
                 IsSortMode = true,
                 Error = null
             });
+        }
+
+        if (bindings.MatchesToggleTodoSelection(key))
+        {
+            return ToggleSelection(state, view);
+        }
+
+        if (bindings.MatchesBulkEditTodos(key) && !bindings.MatchesBack(key))
+        {
+            return OpenBulkEditor(state);
+        }
+
+        if (bindings.MatchesClearTodoSelection(key))
+        {
+            return ClearSelection(state);
         }
 
         if (bindings.MatchesCreateTodo(key))
@@ -248,6 +281,66 @@ public sealed class BrowserReducer
             transition.ProjectPath,
             transition.Target,
             transition.Update);
+
+    private static BrowserTransition ApplyBulkEditorTransition(
+        BrowserState state,
+        TodoBulkEditorTransition transition)
+    {
+        if (transition.Outcome == TodoBulkEditorOutcome.Cancelled)
+        {
+            return Transition(state with { BulkEditor = null, Error = null });
+        }
+
+        if (transition.Outcome != TodoBulkEditorOutcome.Accepted || transition.Update is null)
+        {
+            return Transition(state with { BulkEditor = transition.State, Error = null });
+        }
+
+        return new BrowserTransition(
+            state with { BulkEditor = transition.State, Error = null, StatusMessage = null },
+            BrowserOperation.BulkUpdate,
+            TodoIdentities: [.. state.MarkedTodos],
+            BulkUpdate: transition.Update);
+    }
+
+    private static BrowserTransition ToggleSelection(BrowserState state, BrowserView view)
+    {
+        var selectedRow = view.Todos.FirstOrDefault(row => row.IsSelected && row.Identity is not null);
+        if (selectedRow?.Identity is not { } identity)
+        {
+            return Transition(state with { Error = "Select a todo to mark.", StatusMessage = null });
+        }
+
+        var itemTransition = TodoListItem.Default.ToggleMark(
+            new TodoListItemState(selectedRow, view.SelectedProjectPath is null, 80));
+        var marked = itemTransition.State!.Row.IsMarked
+            ? state.MarkedTodos.Add(identity)
+            : state.MarkedTodos.Remove(identity);
+        return Transition(state with
+        {
+            MarkedTodos = marked,
+            Error = null,
+            StatusMessage = marked.Count == 0 ? "No tasks marked." : $"{marked.Count} task(s) marked."
+        });
+    }
+
+    private static BrowserTransition OpenBulkEditor(BrowserState state) =>
+        state.MarkedTodos.Count == 0
+            ? Transition(state with { Error = "Mark at least one todo before bulk editing.", StatusMessage = null })
+            : Transition(state with
+            {
+                BulkEditor = TodoBulkEditorState.Create(state.MarkedTodos.Count),
+                Error = null,
+                StatusMessage = null
+            });
+
+    private static BrowserTransition ClearSelection(BrowserState state) => Transition(state with
+    {
+        MarkedTodos = [],
+        BulkEditor = null,
+        Error = null,
+        StatusMessage = "Task marks cleared."
+    });
 
     private static BrowserTransition ReduceSort(BrowserState state, ConsoleKeyInfo key, BrowserView view)
     {

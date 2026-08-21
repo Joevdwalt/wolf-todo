@@ -14,10 +14,12 @@ public sealed class TodoRowRenderer
     private const string CompletedTodoGlyph = "✓";
     private static readonly SurfaceThemeRenderer ThemeRenderer = new();
 
+    public static TodoRowRenderer Default { get; } = new();
+
     public TodoColumnLayout Columns(int contentWidth, bool includeProject) =>
         new(
             contentWidth,
-            Math.Max(1, contentWidth - (6 +
+            Math.Max(1, contentWidth - (8 +
                 (includeProject && contentWidth >= 52 ? 12 : 0) +
                 (contentWidth >= 44 ? 18 : 0))),
             includeProject && contentWidth >= 52,
@@ -28,7 +30,7 @@ public sealed class TodoRowRenderer
     public IRenderable ColumnHeader(TodoColumnLayout layout, TuiTheme theme) =>
         new Text(
             Truncate(
-                $"  S P {FitColumn("TASK", layout.TaskWidth)}" +
+                $"  S P {FitColumn("TASK", layout.TaskWidth)} M" +
                 (layout.ShowProject ? $"  {FitColumn("PROJECT", layout.ProjectWidth)}" : string.Empty) +
                 (layout.ShowSchedule ? $"  {FitColumn("SCHEDULED", layout.ScheduleWidth)}" : string.Empty),
                 layout.ContentWidth),
@@ -38,6 +40,7 @@ public sealed class TodoRowRenderer
     {
         var todo = row.Todo!;
         var cursor = row.IsSelected ? ">" : " ";
+        var mark = row.IsMarked ? "*" : " ";
         var treePrefix = TodoTreeFormatter.Format(row.TreePath);
         var status = StatusGlyph(todo.IsCompleted);
         var priority = PriorityCode(todo.Priority);
@@ -48,7 +51,7 @@ public sealed class TodoRowRenderer
         var title = prefixWidth >= layout.TaskWidth
             ? string.Empty
             : FitColumn(todo.Title, layout.TaskWidth - prefixWidth);
-        var selectedColor = row.IsSelected ? theme.AccentBright : theme.Text;
+        var selectedColor = row.IsSelected ? theme.AccentBright : row.IsMarked ? theme.Accent : theme.Text;
         var baseColor = todo.IsCompleted ? theme.Muted : selectedColor;
         var treeColor = row.IsSelected ? theme.AccentBright : theme.Muted;
         var decoration = row.IsSelected
@@ -66,6 +69,8 @@ public sealed class TodoRowRenderer
         ThemeRenderer.AppendStyled(line, " ", baseColor, decoration);
         ThemeRenderer.AppendStyled(line, visiblePrefix, treeColor, decoration);
         ThemeRenderer.AppendStyled(line, title, baseColor, decoration);
+        ThemeRenderer.AppendStyled(line, $" {mark}", row.IsMarked ? theme.AccentBright : baseColor,
+            row.IsMarked ? Decoration.Bold : decoration);
         if (layout.ShowProject)
         {
             ThemeRenderer.AppendStyled(
@@ -87,7 +92,9 @@ public sealed class TodoRowRenderer
         }
 
         var content = (IRenderable)new Markup(line.ToString());
-        return row.IsSelected ? ThemeRenderer.OnSurface(content, theme.Surface2, true) : content;
+        return row.IsSelected
+            ? ThemeRenderer.OnSurface(content, theme.Surface2, true)
+            : row.IsMarked ? ThemeRenderer.OnSurface(content, theme.Surface, true) : content;
     }
 
     public IRenderable TagsRow(TodoRow row, TodoColumnLayout layout, TuiTheme theme)
@@ -99,7 +106,9 @@ public sealed class TodoRowRenderer
         var visibleTree = FitColumn(treeContinuation, visibleTreeWidth);
         var tagWidth = layout.TaskWidth - visibleTreeWidth;
         var tags = string.Join(' ', todo.Tags.Select(tag => $"#{tag}"));
-        var tagColor = row.IsSelected ? theme.AccentBright : todo.IsCompleted ? theme.Muted : theme.Tag;
+        var tagColor = row.IsSelected
+            ? theme.AccentBright
+            : row.IsMarked ? theme.Accent : todo.IsCompleted ? theme.Muted : theme.Tag;
         var treeColor = row.IsSelected ? theme.AccentBright : theme.Muted;
         var decoration = row.IsSelected
             ? Decoration.Bold
@@ -108,9 +117,12 @@ public sealed class TodoRowRenderer
         ThemeRenderer.AppendStyled(line, new string(' ', 6), tagColor, decoration);
         ThemeRenderer.AppendStyled(line, visibleTree, treeColor, decoration);
         ThemeRenderer.AppendStyled(line, FitColumn(tags, tagWidth), tagColor, decoration);
+        ThemeRenderer.AppendStyled(line, "  ", tagColor, decoration);
 
         var content = (IRenderable)new Markup(line.ToString());
-        return row.IsSelected ? ThemeRenderer.OnSurface(content, theme.Surface2, true) : content;
+        return row.IsSelected
+            ? ThemeRenderer.OnSurface(content, theme.Surface2, true)
+            : row.IsMarked ? ThemeRenderer.OnSurface(content, theme.Surface, true) : content;
     }
 
     public IRenderable DetailLine(

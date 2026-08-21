@@ -31,7 +31,11 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         var markedRows = todoRows
             .Select(row => row.Todo is null
                 ? row
-                : row with { IsSelected = ReferenceEquals(row.Todo, selectedTodo) })
+                : row with
+                {
+                    IsSelected = ReferenceEquals(row.Todo, selectedTodo),
+                    IsMarked = row.Identity is not null && state.MarkedTodos.Contains(row.Identity)
+                })
             .ToImmutableArray();
 
         var emptyMessage = catalog.Projects.Length == 0

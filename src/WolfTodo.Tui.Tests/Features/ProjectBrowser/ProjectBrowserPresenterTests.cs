@@ -9,6 +9,26 @@ public sealed class ProjectBrowserPresenterTests
     private readonly ProjectBrowserPresenter presenter = new();
 
     [Fact]
+    public void CreateView_projects_marked_identities_independently_from_the_cursor()
+    {
+        var catalog = new ProjectCatalog(
+            [Project("Alpha", Todo("First"), Todo("Second") with { SourceLine = 2 })], []);
+        var marked = new TodoIdentity("/Alpha.md", 2);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 2,
+            MarkedTodos = [marked]
+        };
+
+        var result = presenter.CreateView(catalog, state);
+        var rows = result.Todos.Where(row => row.Todo is not null).ToArray();
+
+        rows[0].IsSelected.Should().BeTrue();
+        rows[0].IsMarked.Should().BeFalse();
+        rows[1].IsMarked.Should().BeTrue();
+    }
+
+    [Fact]
     public void CreateView_adds_today_below_all_and_aggregates_tasks_scheduled_today()
     {
         var today = new DateOnly(2026, 7, 19);

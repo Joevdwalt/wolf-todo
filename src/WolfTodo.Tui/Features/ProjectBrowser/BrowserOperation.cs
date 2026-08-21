@@ -7,5 +7,6 @@ public enum BrowserOperation
     Update,
     EditExternal,
     ToggleCompleted,
+    BulkUpdate,
     RollProjectToday
 }
