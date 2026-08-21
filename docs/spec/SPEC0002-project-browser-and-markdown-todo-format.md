@@ -257,6 +257,8 @@ are uppercase; task and project values preserve their source case.
 - The configured command-mode gesture enters command mode using the behavior
   defined by SPEC0001.
 - `:completed` toggles completed todos.
+- The configured mark, bulk-edit, and clear-mark gestures provide the transient
+  task selection and shared updates defined by SPEC0018.
 - The configured quit command, `:q` by default, exits with code `0`.
 
 The splash-dismissal key must still be consumed before browser interaction.
@@ -315,6 +317,7 @@ Markdown source order.
 - [SPEC0007: Configurable TUI Themes](SPEC0007-configurable-tui-themes.md)
 - [SPEC0008: Todo Scheduling Metadata](SPEC0008-todo-scheduling-metadata.md)
 - [SPEC0010: Writable Todo Workflows](SPEC0010-writable-todo-workflows.md)
+- [SPEC0018: Multi-Select Task Updates](SPEC0018-multi-select-task-updates.md)
 - [ADR0001: Use .NET and Spectre.Console](../adr/ADR0001-use-dotnet-and-spectre-console.md)
 - [ADR0003: Structure Source Code for Testability](../adr/ADR0003-structure-source-code-for-testability.md)
 - [ADR0004: Use a Global TOML Configuration](../adr/ADR0004-use-a-global-toml-configuration.md)

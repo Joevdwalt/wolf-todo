@@ -17,6 +17,76 @@ public sealed partial class ProjectTodoMutationService(
     public TodoMutationResult SetCompleted(string path, TodoItem expected, bool isCompleted) =>
         MutateExisting(path, expected, todo => Serialize(todo with { IsCompleted = isCompleted }));
 
+    public TodoMutationResult UpdateMany(
+        string path,
+        IReadOnlyList<TodoItem> expected,
+        TodoBulkUpdate update)
+    {
+        if (expected.Count == 0)
+        {
+            return TodoMutationResult.Failure("Select at least one todo to update.");
+        }
+
+        var validationError = ValidateBulkUpdate(update);
+        if (validationError is not null)
+        {
+            return TodoMutationResult.Failure(validationError);
+        }
+
+        if (expected.Select(todo => todo.SourceLine).Distinct().Count() != expected.Count)
+        {
+            return TodoMutationResult.Failure("The bulk update contains a duplicate todo.");
+        }
+
+        try
+        {
+            var contents = fileSystem.ReadAllText(path);
+            var parsed = reader.Parse(path, contents);
+            if (parsed.Project is null)
+            {
+                return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
+            }
+
+            var currentByLine = Flatten(parsed.Project.Todos).ToDictionary(todo => todo.SourceLine);
+            if (expected.Any(todo =>
+                    !currentByLine.TryGetValue(todo.SourceLine, out var current) ||
+                    !SameTarget(current, todo)))
+            {
+                return TodoMutationResult.Failure(
+                    "A selected todo changed on disk. Reload it before saving the bulk update.");
+            }
+
+            var lines = SplitLines(contents);
+            foreach (var expectedTodo in expected)
+            {
+                var lineIndex = expectedTodo.SourceLine - 1;
+                if (lineIndex < 0 || lineIndex >= lines.Count)
+                {
+                    return TodoMutationResult.Failure(
+                        "A selected todo no longer exists at its original source line.");
+                }
+
+                var prefix = TaskPrefixPattern().Match(lines[lineIndex]);
+                if (!prefix.Success)
+                {
+                    return TodoMutationResult.Failure(
+                        "A selected todo source line is no longer a Markdown task.");
+                }
+
+                lines[lineIndex] = prefix.Groups[1].Value + Serialize(
+                    ApplyBulkUpdate(currentByLine[expectedTodo.SourceLine], update));
+            }
+
+            Write(path, lines, DetectNewline(contents), contents.EndsWith('\n'));
+            return TodoMutationResult.Success();
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return TodoMutationResult.Failure($"Cannot update project: {exception.Message}");
+        }
+    }
+
     public TodoMutationResult RollOverdueToDate(
         string path,
         TodoProject expected,
@@ -617,6 +687,78 @@ public sealed partial class ProjectTodoMutationService(
         current.Notes.SequenceEqual(expected.Notes) &&
         current.Subtasks.Length == expected.Subtasks.Length &&
         current.Subtasks.Zip(expected.Subtasks).All(pair => SameTree(pair.First, pair.Second));
+
+    private static string? ValidateBulkUpdate(TodoBulkUpdate update)
+    {
+        if (!update.HasChanges)
+        {
+            return "Choose at least one bulk change.";
+        }
+
+        if (update.ScheduleMode == TodoBulkScheduleMode.SetDate && update.ScheduledDate is null)
+        {
+            return "A scheduled date is required when setting the date.";
+        }
+
+        if (update.PriorityMode == TodoBulkPriorityMode.Set && update.Priority is null)
+        {
+            return "A priority is required when setting priority.";
+        }
+
+        if (update.TagMode is TodoBulkTagMode.Add or TodoBulkTagMode.Remove &&
+            NormalizeTags(update.Tags).Length == 0)
+        {
+            return "Add and remove tag updates require at least one tag.";
+        }
+
+        return null;
+    }
+
+    private static TodoItem ApplyBulkUpdate(TodoItem todo, TodoBulkUpdate update)
+    {
+        var schedule = update.ScheduleMode switch
+        {
+            TodoBulkScheduleMode.SetDate => new TodoSchedule(update.ScheduledDate!.Value, todo.Schedule?.Time),
+            TodoBulkScheduleMode.Clear => null,
+            _ => todo.Schedule
+        };
+        var priority = update.PriorityMode switch
+        {
+            TodoBulkPriorityMode.Set => update.Priority,
+            TodoBulkPriorityMode.Clear => null,
+            _ => todo.Priority
+        };
+
+        return todo with
+        {
+            Schedule = schedule,
+            Priority = priority,
+            Tags = ApplyTagUpdate(todo.Tags, update),
+            IsCompleted = update.Complete || todo.IsCompleted
+        };
+    }
+
+    private static ImmutableArray<string> ApplyTagUpdate(
+        ImmutableArray<string> current,
+        TodoBulkUpdate update)
+    {
+        var tags = NormalizeTags(update.Tags);
+        return update.TagMode switch
+        {
+            TodoBulkTagMode.Add =>
+                [.. current.Concat(tags.Where(tag => !current.Contains(tag, StringComparer.OrdinalIgnoreCase)))],
+            TodoBulkTagMode.Remove =>
+                [.. current.Where(tag => !tags.Contains(tag, StringComparer.OrdinalIgnoreCase))],
+            TodoBulkTagMode.Replace => tags,
+            _ => current
+        };
+    }
+
+    private static ImmutableArray<string> NormalizeTags(IEnumerable<string> tags) =>
+        [.. tags
+            .Select(tag => tag.Trim().TrimStart('#'))
+            .Where(tag => tag.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
 
     private static IEnumerable<int> ContentSourceLines(TodoItem todo)
     {

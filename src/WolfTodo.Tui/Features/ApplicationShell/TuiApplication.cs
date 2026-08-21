@@ -196,7 +196,7 @@ public sealed class TuiApplication(
 
                 var featureCapturesInput = state.Tabs.ActiveTab == TodosTab
                     ? state.Browser.IsFilterMode || state.Browser.IsSortMode ||
-                      state.Browser.Editor is not null
+                      state.Browser.Editor is not null || state.Browser.BulkEditor is not null
                     : state.Planner.CapturesInput;
 
                 if (state.Command.IsActive ||
@@ -358,7 +358,14 @@ public sealed class TuiApplication(
                         var direction = action == ApplicationActionId.NextTab
                             ? TabDirection.Next
                             : TabDirection.Previous;
-                        state = state with { Tabs = tabReducer.Move(state.Tabs, Tabs, direction) };
+                        var tabs = tabReducer.Move(state.Tabs, Tabs, direction);
+                        state = state with
+                        {
+                            Tabs = tabs,
+                            Browser = tabs.ActiveTab == TodosTab
+                                ? state.Browser
+                                : ClearBrowserMarks(state.Browser)
+                        };
                         continue;
                     }
 
@@ -372,6 +379,9 @@ public sealed class TuiApplication(
                             ApplicationActionId.BrowserEdit => BrowserAction.Edit,
                             ApplicationActionId.BrowserEditExternal => BrowserAction.EditExternal,
                             ApplicationActionId.BrowserToggleCompleted => BrowserAction.ToggleCompleted,
+                            ApplicationActionId.BrowserToggleSelection => BrowserAction.ToggleSelection,
+                            ApplicationActionId.BrowserBulkEdit => BrowserAction.BulkEdit,
+                            ApplicationActionId.BrowserClearSelection => BrowserAction.ClearSelection,
                             ApplicationActionId.BrowserRollProjectToday => BrowserAction.RollProjectToday,
                             ApplicationActionId.BrowserToggleDetails => BrowserAction.ToggleDetails,
                             ApplicationActionId.BrowserJumpTop => BrowserAction.JumpTop,
@@ -476,7 +486,14 @@ public sealed class TuiApplication(
                     var direction = inputRoute == ApplicationInputRoute.PreviousTab
                         ? TabDirection.Previous
                         : TabDirection.Next;
-                    state = state with { Tabs = tabReducer.Move(state.Tabs, Tabs, direction) };
+                    var tabs = tabReducer.Move(state.Tabs, Tabs, direction);
+                    state = state with
+                    {
+                        Tabs = tabs,
+                        Browser = tabs.ActiveTab == TodosTab
+                            ? state.Browser
+                            : ClearBrowserMarks(state.Browser)
+                    };
                     continue;
                 }
 
@@ -765,6 +782,16 @@ public sealed class TuiApplication(
             return ApplyExternalEdit(state, transition, ref catalog, configuration);
         }
 
+        if (transition.Operation == BrowserOperation.BulkUpdate)
+        {
+            return ApplyBrowserBulkUpdate(
+                state,
+                transition,
+                ref catalog,
+                configuration,
+                service);
+        }
+
         var expectedCatalog = catalog;
         var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
         catalog = latestCatalog;
@@ -788,7 +815,10 @@ public sealed class TuiApplication(
                     ? new TodoIdentity(transition.ProjectPath, result.SourceLine.Value)
                     : result.Succeeded && transition.Operation == BrowserOperation.RollProjectToday
                         ? transition.TodoIdentity
-                        : null
+                        : null,
+                MarkedTodos = result.Succeeded ? [] : state.Browser.MarkedTodos,
+                BulkEditor = result.Succeeded ? null : state.Browser.BulkEditor,
+                StatusMessage = result.Succeeded ? "Todo update saved." : null
             }
         };
         if (result.Succeeded)
@@ -797,6 +827,160 @@ public sealed class TuiApplication(
         }
 
         return state;
+    }
+
+    private ApplicationState ApplyBrowserBulkUpdate(
+        ApplicationState state,
+        BrowserTransition transition,
+        ref ProjectCatalog catalog,
+        ApplicationConfiguration configuration,
+        ProjectTodoMutationService? service)
+    {
+        if (service is null || transition.BulkUpdate is null || transition.TodoIdentities.IsDefaultOrEmpty)
+        {
+            return state with
+            {
+                Browser = state.Browser with
+                {
+                    Error = "Bulk todo writing is unavailable.",
+                    StatusMessage = null
+                }
+            };
+        }
+
+        var expectedCatalog = catalog;
+        catalog = catalogLoader.Load(configuration.ProjectFiles);
+        var identities = transition.TodoIdentities.ToHashSet();
+        if (HasBulkScheduleConflict(
+                catalog,
+                identities,
+                transition.BulkUpdate,
+                configuration.Planner.DefaultDuration))
+        {
+            return state with
+            {
+                Browser = state.Browser with
+                {
+                    Error = "The bulk scheduled date would create an occupied timeslot.",
+                    BulkEditor = state.Browser.BulkEditor is null
+                        ? null
+                        : state.Browser.BulkEditor with
+                        {
+                            Error = "The bulk scheduled date would create an occupied timeslot."
+                        },
+                    StatusMessage = null
+                }
+            };
+        }
+
+        var succeeded = new HashSet<TodoIdentity>();
+        var failures = new List<string>();
+        foreach (var group in transition.TodoIdentities.GroupBy(identity => identity.ProjectPath))
+        {
+            var groupIdentities = group.ToArray();
+            var expected = groupIdentities
+                .Select(identity => FindTodo(expectedCatalog, identity))
+                .ToArray();
+            TodoMutationResult result;
+            if (expected.Any(todo => todo is null))
+            {
+                result = TodoMutationResult.Failure("A selected todo cannot be found.");
+            }
+            else
+            {
+                result = service.UpdateMany(group.Key, expected.Select(todo => todo!).ToArray(), transition.BulkUpdate);
+            }
+
+            if (result.Succeeded)
+            {
+                succeeded.UnionWith(groupIdentities);
+            }
+            else
+            {
+                failures.Add($"{Path.GetFileNameWithoutExtension(group.Key)}: {result.Error}");
+            }
+        }
+
+        if (succeeded.Count > 0)
+        {
+            catalog = catalogLoader.Load(configuration.ProjectFiles);
+        }
+
+        var remaining = state.Browser.MarkedTodos.Except(succeeded).ToImmutableHashSet();
+        var successText = $"Updated {succeeded.Count} task(s) in " +
+                          $"{transition.TodoIdentities.Where(succeeded.Contains).Select(id => id.ProjectPath).Distinct().Count()} project(s).";
+        var error = failures.Count == 0
+            ? null
+            : $"{successText} {remaining.Count} task(s) failed. {string.Join(" ", failures)}";
+        return state with
+        {
+            Browser = state.Browser with
+            {
+                MarkedTodos = remaining,
+                BulkEditor = failures.Count == 0
+                    ? null
+                    : state.Browser.BulkEditor is null
+                        ? null
+                        : state.Browser.BulkEditor with
+                        {
+                            SelectedCount = remaining.Count,
+                            Error = error
+                        },
+                Error = error,
+                StatusMessage = error is null ? successText : null,
+                PendingTodoSelection = null
+            }
+        };
+    }
+
+    private static bool HasBulkScheduleConflict(
+        ProjectCatalog catalog,
+        IReadOnlySet<TodoIdentity> selected,
+        TodoBulkUpdate update,
+        TimeSpan defaultDuration)
+    {
+        if (update.ScheduleMode != TodoBulkScheduleMode.SetDate || update.ScheduledDate is null)
+        {
+            return false;
+        }
+
+        var todos = catalog.Projects
+            .SelectMany(project => Flatten(project.Todos)
+                .Select(todo => (Identity: new TodoIdentity(project.Path, todo.SourceLine), Todo: todo)))
+            .ToArray();
+        foreach (var candidate in todos.Where(candidate => selected.Contains(candidate.Identity)))
+        {
+            if (candidate.Todo.Schedule?.Time is not { } start)
+            {
+                continue;
+            }
+
+            var duration = candidate.Todo.Duration ?? defaultDuration;
+            if (duration > new TimeOnly(22, 0).ToTimeSpan() - start.ToTimeSpan())
+            {
+                return true;
+            }
+
+            var end = start.Add(duration);
+            foreach (var other in todos.Where(other => other.Identity != candidate.Identity))
+            {
+                var otherDate = selected.Contains(other.Identity)
+                    ? update.ScheduledDate
+                    : other.Todo.Schedule?.Date;
+                if (otherDate != update.ScheduledDate || other.Todo.Schedule?.Time is not { } otherStart)
+                {
+                    continue;
+                }
+
+                var otherEnd = otherStart.Add(other.Todo.Duration ?? defaultDuration);
+                if (otherStart < end && otherEnd > start)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private ApplicationState ApplyExternalEdit(
@@ -838,10 +1022,20 @@ public sealed class TuiApplication(
             Browser = state.Browser with
             {
                 PendingTodoSelection = null,
-                Error = result.Error
+                Error = result.Error,
+                MarkedTodos = result.Started ? [] : state.Browser.MarkedTodos,
+                BulkEditor = result.Started ? null : state.Browser.BulkEditor,
+                StatusMessage = null
             }
         };
     }
+
+    private static BrowserState ClearBrowserMarks(BrowserState state) => state with
+    {
+        MarkedTodos = [],
+        BulkEditor = null,
+        StatusMessage = null
+    };
 
     private ApplicationState MoveSelectedTodoToProject(
         ApplicationState state,
@@ -887,7 +1081,10 @@ public sealed class TuiApplication(
                 ProjectIndex = Math.Max(0, targetIndex),
                 TodoIndex = 0,
                 PendingTodoSelection = null,
-                Error = null
+                Error = null,
+                MarkedTodos = [],
+                BulkEditor = null,
+                StatusMessage = "Todo moved."
             }
         };
     }

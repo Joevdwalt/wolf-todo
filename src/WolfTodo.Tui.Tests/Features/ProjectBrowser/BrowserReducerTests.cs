@@ -686,6 +686,45 @@ public sealed class BrowserReducerTests
         result.State.ShowDetails.Should().BeFalse();
     }
 
+    [Fact]
+    public void Reduce_marks_tasks_opens_bulk_edit_and_clears_marks()
+    {
+        var identity = new TodoIdentity("/work.md", 4);
+        var view = SelectedView(identity);
+
+        var marked = reducer.Reduce(BrowserState.Initial, Key('m'), Configuration, view);
+        var bulk = reducer.Reduce(marked.State, Key('b'), Configuration, view);
+        var cleared = reducer.Reduce(marked.State, Key(ConsoleKey.M, control: true), Configuration, view);
+
+        marked.State.MarkedTodos.Should().Contain(identity);
+        marked.State.StatusMessage.Should().Contain("1 task");
+        bulk.State.BulkEditor.Should().NotBeNull();
+        bulk.State.BulkEditor!.SelectedCount.Should().Be(1);
+        cleared.State.MarkedTodos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Reduce_bulk_save_emits_all_marked_identities_and_the_update()
+    {
+        var first = new TodoIdentity("/alpha.md", 1);
+        var second = new TodoIdentity("/beta.md", 2);
+        var state = BrowserState.Initial with
+        {
+            MarkedTodos = [first, second],
+            BulkEditor = TodoBulkEditorState.Create(2) with { Complete = true }
+        };
+
+        var result = reducer.Reduce(
+            state,
+            Key(ConsoleKey.S, control: true),
+            Configuration,
+            SelectedView(first));
+
+        result.Operation.Should().Be(BrowserOperation.BulkUpdate);
+        result.TodoIdentities.Should().BeEquivalentTo([first, second]);
+        result.BulkUpdate!.Complete.Should().BeTrue();
+    }
+
     private static BrowserView EmptyView() => new(
         BrowserState.Initial,
         [new ProjectRow("All", 0, null, null, true)],

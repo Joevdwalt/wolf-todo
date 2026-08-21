@@ -12,6 +12,8 @@ public sealed record TodoRow(
 {
     public string? ProjectTitle { get; init; }
 
+    public bool IsMarked { get; init; }
+
     public int Depth => TreePath.Length;
 }
 

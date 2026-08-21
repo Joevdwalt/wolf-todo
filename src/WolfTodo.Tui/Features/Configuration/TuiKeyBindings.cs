@@ -31,6 +31,9 @@ public sealed record TuiKeyBindings(
     ImmutableArray<KeyGesture> EditTodoContent,
     ImmutableArray<KeyGesture> EditTodoExternal,
     ImmutableArray<KeyGesture> ToggleTodo,
+    ImmutableArray<KeyGesture> ToggleTodoSelection,
+    ImmutableArray<KeyGesture> BulkEditTodos,
+    ImmutableArray<KeyGesture> ClearTodoSelection,
     ImmutableArray<KeyGesture> ToggleDetails,
     ImmutableArray<KeyGesture> RollProjectToday,
     ImmutableArray<KeyGesture> RemoveContent,
@@ -68,6 +71,9 @@ public sealed record TuiKeyBindings(
         Gestures("E"),
         Gestures("Ctrl+E"),
         Gestures("Spacebar"),
+        Gestures("m"),
+        Gestures("b"),
+        Gestures("Ctrl+M"),
         Gestures("v"),
         Gestures("R"),
         Gestures("d"),
@@ -125,6 +131,12 @@ public sealed record TuiKeyBindings(
     public bool MatchesEditTodoExternal(ConsoleKeyInfo key) => Matches(EditTodoExternal, key);
 
     public bool MatchesToggleTodo(ConsoleKeyInfo key) => Matches(ToggleTodo, key);
+
+    public bool MatchesToggleTodoSelection(ConsoleKeyInfo key) => Matches(ToggleTodoSelection, key);
+
+    public bool MatchesBulkEditTodos(ConsoleKeyInfo key) => Matches(BulkEditTodos, key);
+
+    public bool MatchesClearTodoSelection(ConsoleKeyInfo key) => Matches(ClearTodoSelection, key);
 
     public bool MatchesToggleDetails(ConsoleKeyInfo key) => Matches(ToggleDetails, key);
 

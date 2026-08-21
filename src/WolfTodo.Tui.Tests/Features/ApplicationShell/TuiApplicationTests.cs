@@ -850,6 +850,30 @@ public sealed class TuiApplicationTests
         fileSystem.Contents.Should().Contain($"Deep work ⏰ 06:15 ⏱ 60m ⏳ {date:yyyy-MM-dd}");
     }
 
+    [Fact]
+    public void Run_bulk_completes_marked_tasks_in_one_project()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] First\n- [ ] Second\n");
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('m'), Key('j'), Key('m'), Key('b'),
+            Key('j'), Key('j'), Key('j'), Key('l'),
+            Key(ConsoleKey.S, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain("- [x] First").And.Contain("- [x] Second");
+        terminal.BrowserViews.Should().Contain(view => view.State.MarkedTodos.Count == 2);
+        terminal.BrowserViews.Last().State.MarkedTodos.Should().BeEmpty();
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal,

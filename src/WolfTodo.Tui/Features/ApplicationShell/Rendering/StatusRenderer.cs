@@ -75,6 +75,7 @@ public sealed class StatusRenderer
         {
             { IsFilterMode: true } => $"/{view.State.FilterDraft}",
             { Error: not null } => view.State.Error,
+            { StatusMessage: not null } => view.State.StatusMessage,
             { FilterText.Length: > 0 } =>
                 $"FILTER: /{view.State.FilterText}  {Shortest(keyBindings.FilterMode)} EDIT  " +
                 $"EMPTY Enter CLEARS  {SortHint(view.State, keyBindings)}",
@@ -187,6 +188,7 @@ public sealed class StatusRenderer
         { GlobalError: not null } => "ERROR",
         { State.Editor.IsCreate: true } => "CREATE",
         { State.Editor: not null } => "EDIT",
+        { State.BulkEditor: not null } => "BULK",
         { State.IsFilterMode: true } => "FILTER",
         { State.IsSortMode: true } => "SORT",
         { State.Error: not null } => "ERROR",
@@ -315,6 +317,7 @@ public sealed class StatusRenderer
         $"{Shortest(bindings.FocusNext)} PANE  {Shortest(bindings.Open)} OPEN  {Shortest(bindings.Back)} BACK  " +
         $"{Shortest(bindings.FilterMode)} FILTER  {Shortest(bindings.CommandMode)} COMMAND  " +
         $"{Shortest(bindings.ToggleDetails)} DETAILS  " +
+        $"{MarkedHint(state, bindings)}" +
         $"{bindings.ToggleCompletedCommand}  {bindings.QuitCommand}  {SortHint(state, bindings)}";
 
     public string CompactStatus(TuiKeyBindings bindings, BrowserState state) =>
@@ -322,7 +325,15 @@ public sealed class StatusRenderer
         $"{Shortest(bindings.Back)}/{Shortest(bindings.Open)} BACK/OPEN  " +
         $"{Shortest(bindings.FilterMode)} FILTER  {Shortest(bindings.ToggleDetails)} DETAILS  " +
         $"{Shortest(bindings.CommandMode)} COMMANDS  " +
+        $"{MarkedHint(state, bindings)}" +
         SortHint(state, bindings);
+
+    private string MarkedHint(BrowserState state, TuiKeyBindings bindings) =>
+        state.MarkedTodos.Count == 0
+            ? string.Empty
+            : $"{state.MarkedTodos.Count} MARKED  {Shortest(bindings.ToggleTodoSelection)} MARK  " +
+              $"{Shortest(bindings.BulkEditTodos)} BULK  " +
+              $"{Shortest(bindings.ClearTodoSelection)} CLEAR  ";
 
     public void WriteBrowserStatus(
         IReadOnlyList<BrowserStatusLine> lines,
@@ -342,6 +353,7 @@ public sealed class StatusRenderer
                 themeRenderer.Style(theme.Error, Decoration.Bold),
             _ when view.GlobalCommand is not null || view.CommandPalette is not null => themeRenderer.Style(theme.Accent),
             { Error: not null } => themeRenderer.Style(theme.Error, Decoration.Bold),
+            { StatusMessage: not null } => themeRenderer.Style(theme.Success, Decoration.Bold),
             { IsFilterMode: true } => themeRenderer.Style(theme.Accent),
             { IsSortMode: true } => themeRenderer.Style(theme.Accent),
             { Editor: not null } => themeRenderer.Style(theme.Accent),

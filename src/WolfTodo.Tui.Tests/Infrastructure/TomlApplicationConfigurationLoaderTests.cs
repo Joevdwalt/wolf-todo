@@ -361,6 +361,9 @@ public sealed class TomlApplicationConfigurationLoaderTests
             edit_todo_external = ["Ctrl+X"]
             toggle_details = ["Ctrl+V"]
             roll_project_today = ["Ctrl+R"]
+            toggle_todo_selection = ["F6"]
+            bulk_edit_todos = ["F7"]
+            clear_todo_selection = ["F8"]
             start_pomodoro = ["F9"]
             start_untracked_pomodoro = ["Shift+F9"]
             """);
@@ -375,6 +378,9 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesToggleDetails(Key(ConsoleKey.V, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesRollProjectToday(Key(ConsoleKey.R, control: true)).Should().BeTrue();
         result.KeyBindings.MatchesRollProjectToday(Key('R')).Should().BeFalse();
+        result.KeyBindings.MatchesToggleTodoSelection(Key(ConsoleKey.F6)).Should().BeTrue();
+        result.KeyBindings.MatchesBulkEditTodos(Key(ConsoleKey.F7)).Should().BeTrue();
+        result.KeyBindings.MatchesClearTodoSelection(Key(ConsoleKey.F8)).Should().BeTrue();
         result.KeyBindings.MatchesStartPomodoro(Key(ConsoleKey.F9)).Should().BeTrue();
         result.KeyBindings.MatchesStartUntrackedPomodoro(Key(ConsoleKey.F9, shift: true)).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('n')).Should().BeTrue();
@@ -402,6 +408,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
     [InlineData("toggle_completed = \":q\"", "*quit*toggle_completed*different*")]
     [InlineData("help = \":roll-today\"", "*built-in commands*")]
     [InlineData("roll_project_today = [\"G\"]", "*both*roll_project_today*jump_bottom*")]
+    [InlineData("bulk_edit_todos = [\"m\"]", "*both*toggle_todo_selection*bulk_edit_todos*")]
     public void Load_rejects_invalid_or_conflicting_bindings(string binding, string expectedMessage)
     {
         var path = Path.GetFullPath("todo.md");

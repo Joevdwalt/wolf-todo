@@ -33,6 +33,9 @@ public sealed class TuiKeyBindingsTests
         bindings.MatchesEditTodoContent(Key('E')).Should().BeTrue();
         bindings.MatchesEditTodoExternal(Key(ConsoleKey.E, control: true)).Should().BeTrue();
         bindings.MatchesToggleTodo(Key(ConsoleKey.Spacebar)).Should().BeTrue();
+        bindings.MatchesToggleTodoSelection(Key('m')).Should().BeTrue();
+        bindings.MatchesBulkEditTodos(Key('b')).Should().BeTrue();
+        bindings.MatchesClearTodoSelection(Key(ConsoleKey.M, control: true)).Should().BeTrue();
         bindings.MatchesToggleDetails(Key('v')).Should().BeTrue();
         bindings.MatchesRemoveContent(Key('d')).Should().BeTrue();
         bindings.MatchesCommandPalette(Key('?')).Should().BeTrue();

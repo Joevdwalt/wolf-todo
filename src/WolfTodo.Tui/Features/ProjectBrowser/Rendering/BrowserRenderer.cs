@@ -7,6 +7,7 @@ using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.ProjectBrowser.Controls;
 using WolfTodo.Tui.Features.Tabs;
 using WolfTodo.Tui.Rendering;
 
@@ -164,10 +165,20 @@ public sealed class BrowserRenderer
         BrowserView view,
         TuiKeyBindings keyBindings,
         int width,
-        int height) =>
-        view.State.Editor is { } editor
+        int height)
+    {
+        if (view.State.BulkEditor?.FieldTextBox is { } bulkTextBox)
+        {
+            return new TodoTaskEditorDialogView(
+                [new("Enter accepts this field; Esc returns to the bulk form.", TodoTaskEditorDialogRole.Hint)],
+                [bulkTextBox],
+                Math.Max(3, width - 4));
+        }
+
+        return view.State.Editor is { } editor
             ? TodoTaskEditorDialog.Create(editor, keyBindings, width, height)
             : null;
+    }
 
     public static int BrowserContentHeight(
         int terminalHeight,
@@ -185,6 +196,11 @@ public sealed class BrowserRenderer
         if (view.CommandPalette is not null)
         {
             return CommandPaletteSelectList(view.CommandPalette, bindings);
+        }
+
+        if (view.State.BulkEditor is { FieldTextBox: null } bulkEditor)
+        {
+            return BulkEditorSelectList(bulkEditor, bindings);
         }
 
         return view.State.Editor is null
@@ -210,6 +226,27 @@ public sealed class BrowserRenderer
             "No matching actions",
             CommandPaletteFooter(bindings),
             palette.State.Error);
+
+    public static SelectListView BulkEditorSelectList(
+        TodoBulkEditorState editor,
+        TuiKeyBindings bindings) => new(
+        $"Bulk update {editor.SelectedCount} task(s)",
+        [
+            new SelectOption("Scheduled date", BulkValue(editor.ScheduledDate, "-", "CLEAR")),
+            new SelectOption("Tags", editor.Tags.Length == 0 ? "UNCHANGED" : editor.Tags),
+            new SelectOption("Priority", BulkValue(editor.Priority, "-", "CLEAR")),
+            new SelectOption("Completion", editor.Complete ? "COMPLETE" : "UNCHANGED")
+        ],
+        editor.SelectedIndex,
+        null,
+        "No bulk fields",
+        $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
+        $"{Shortest(bindings.Open)} EDIT  {Shortest(bindings.SaveForm)} APPLY  " +
+        $"{Shortest(bindings.Back)} CANCEL",
+        editor.Error);
+
+    private static string BulkValue(string value, string clearValue, string clearLabel) =>
+        value.Length == 0 ? "UNCHANGED" : value == clearValue ? clearLabel : value;
 
     public static SelectListView? TodoEditorSelectList(
         TodoTaskEditorState editor,
@@ -555,10 +592,10 @@ public sealed class BrowserRenderer
             return [new TodoLineGroup([new Text(view.EmptyMessage, ThemeStyle(theme.Muted))], true)];
         }
 
-        var layout = TodoColumns(contentWidth, view.SelectedProjectPath is null);
+        var layout = TodoRowRenderer.Default.Columns(contentWidth, view.SelectedProjectPath is null);
         var groups = new List<TodoLineGroup>
         {
-            new([TodoColumnHeader(layout, theme)], false)
+            new([TodoRowRenderer.Default.ColumnHeader(layout, theme)], false)
         };
         groups.AddRange(view.Todos.Select(row =>
         {
@@ -569,16 +606,10 @@ public sealed class BrowserRenderer
                     false);
             }
 
-            var lines = new List<IRenderable> { TodoListRow(
-                row,
-                layout,
-                theme) };
-            if (row.Todo!.Tags.Length > 0)
-            {
-                lines.Add(TodoTagsRow(row, layout, theme));
-            }
-
-            return new TodoLineGroup(lines, row.IsSelected);
+            var item = new TodoListItemState(row, view.SelectedProjectPath is null, contentWidth);
+            return new TodoLineGroup(
+                TodoListItem.Default.RenderLines(item, theme),
+                row.IsSelected);
         }));
         return groups;
     }
@@ -772,134 +803,6 @@ public sealed class BrowserRenderer
         {
             table.AddEmptyRow();
         }
-    }
-
-    public static TodoColumnLayout TodoColumns(int contentWidth, bool includeProject)
-    {
-        var showProject = includeProject && contentWidth >= 52;
-        var showSchedule = contentWidth >= 44;
-        const int projectWidth = 10;
-        const int scheduleWidth = 16;
-        var fixedWidth = 6 + (showProject ? projectWidth + 2 : 0) +
-                         (showSchedule ? scheduleWidth + 2 : 0);
-        return new TodoColumnLayout(
-            contentWidth,
-            Math.Max(1, contentWidth - fixedWidth),
-            showProject,
-            projectWidth,
-            showSchedule,
-            scheduleWidth);
-    }
-
-    public static IRenderable TodoColumnHeader(TodoColumnLayout layout, TuiTheme theme)
-    {
-        var text = $"  S P {FitColumn("TASK", layout.TaskWidth)}";
-        if (layout.ShowProject)
-        {
-            text += $"  {FitColumn("PROJECT", layout.ProjectWidth)}";
-        }
-
-        if (layout.ShowSchedule)
-        {
-            text += $"  {FitColumn("SCHEDULED", layout.ScheduleWidth)}";
-        }
-
-        return new Text(Truncate(text, layout.ContentWidth), ThemeStyle(theme.Heading, Decoration.Bold));
-    }
-
-    public static IRenderable TodoListRow(
-        TodoRow row,
-        TodoColumnLayout layout,
-        TuiTheme theme)
-    {
-        var todo = row.Todo!;
-        var cursor = row.IsSelected ? ">" : " ";
-        var treePrefix = TodoTreeFormatter.Format(row.TreePath);
-        var status = TodoStatusGlyph(todo.IsCompleted);
-        var priority = PriorityCode(todo.Priority);
-        var prefixWidth = DisplayWidth(treePrefix);
-        var visiblePrefix = prefixWidth >= layout.TaskWidth
-            ? FitColumn(treePrefix, layout.TaskWidth)
-            : treePrefix;
-        var title = prefixWidth >= layout.TaskWidth
-            ? string.Empty
-            : FitColumn(todo.Title, layout.TaskWidth - prefixWidth);
-        var selectedColor = row.IsSelected ? theme.AccentBright : theme.Text;
-        var baseColor = todo.IsCompleted ? theme.Muted : selectedColor;
-        var treeColor = row.IsSelected ? theme.AccentBright : theme.Muted;
-        var decoration = row.IsSelected
-            ? Decoration.Bold
-            : todo.IsCompleted ? Decoration.Dim : Decoration.None;
-        var line = new System.Text.StringBuilder();
-        AppendStyled(line, $"{cursor} ", baseColor, decoration);
-        AppendStyled(line, status, baseColor, decoration);
-        AppendStyled(line, " ", baseColor, decoration);
-        AppendStyled(
-            line,
-            priority,
-            row.IsSelected || todo.IsCompleted ? baseColor : PriorityColor(todo.Priority, theme),
-            decoration);
-        AppendStyled(line, " ", baseColor, decoration);
-        AppendStyled(line, visiblePrefix, treeColor, decoration);
-        AppendStyled(line, title, baseColor, decoration);
-        if (layout.ShowProject)
-        {
-            AppendStyled(
-                line,
-                $"  {FitColumn(row.ProjectTitle ?? "-", layout.ProjectWidth)}",
-                baseColor,
-                decoration);
-        }
-
-        if (layout.ShowSchedule)
-        {
-            var schedule = todo.Schedule is null
-                ? "-"
-                : FormatSchedule(todo.Schedule);
-            var scheduleColor = row.IsSelected || todo.IsCompleted
-                ? baseColor
-                : theme.Date;
-            AppendStyled(
-                line,
-                $"  {FitColumn(schedule, layout.ScheduleWidth)}",
-                scheduleColor,
-                decoration);
-        }
-
-        var content = (IRenderable)new Markup(line.ToString());
-        return row.IsSelected
-            ? OnSurface(content, theme.Surface2, true)
-            : content;
-    }
-
-    public static IRenderable TodoTagsRow(
-        TodoRow row,
-        TodoColumnLayout layout,
-        TuiTheme theme)
-    {
-        var todo = row.Todo!;
-        var treeContinuation = TodoTreeFormatter.FormatContinuation(row.TreePath);
-        var treeWidth = DisplayWidth(treeContinuation);
-        var visibleTreeWidth = Math.Min(treeWidth, Math.Max(0, layout.TaskWidth - 1));
-        var visibleTree = FitColumn(treeContinuation, visibleTreeWidth);
-        var tagWidth = layout.TaskWidth - visibleTreeWidth;
-        var tags = string.Join(' ', todo.Tags.Select(tag => $"#{tag}"));
-        var tagColor = row.IsSelected
-            ? theme.AccentBright
-            : todo.IsCompleted ? theme.Muted : theme.Tag;
-        var treeColor = row.IsSelected ? theme.AccentBright : theme.Muted;
-        var decoration = row.IsSelected
-            ? Decoration.Bold
-            : todo.IsCompleted ? Decoration.Dim : Decoration.None;
-        var line = new System.Text.StringBuilder();
-        AppendStyled(line, new string(' ', 6), tagColor, decoration);
-        AppendStyled(line, visibleTree, treeColor, decoration);
-        AppendStyled(line, FitColumn(tags, tagWidth), tagColor, decoration);
-
-        var content = (IRenderable)new Markup(line.ToString());
-        return row.IsSelected
-            ? OnSurface(content, theme.Surface2, true)
-            : content;
     }
 
     public static string FitColumn(string value, int width)

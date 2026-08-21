@@ -18,6 +18,11 @@ Change only the target task line, preserve surrounding content and newline
 conventions, and replace the file atomically through a temporary sibling file.
 Preserve Unix file permissions during replacement.
 
+For a multi-task change, group targets by project file. Re-read and validate
+every expected target in that file before changing any line, then write all
+changed task lines through one atomic replacement. A failed validation leaves
+that project file unchanged; atomicity does not extend across different files.
+
 Notes carry source-line identities. Structured content saves validate the
 complete selected subtree, then apply note and direct-subtask edits as one
 bottom-up line mutation. Unchanged descendant lines retain their original

@@ -45,8 +45,12 @@ Markdown todos.
   ```
 
   Textboxes are read-only while browsing and editable when opened. The
-  Reference textbox contains the bare identifier; Markdown writes it as
-  `(REFERENCE) ` before the task title. Empty values display as `—`. A field
+  focused editable textbox supports Ctrl+A to select its complete value.
+  Typing replaces the selection, Backspace or Delete removes it, and cursor
+  movement collapses it in the movement direction. The visible selection uses
+  the active accent styling. Read-only textboxes do not accept selection or
+  editing input. The Reference textbox contains the bare identifier; Markdown
+  writes it as `(REFERENCE) ` before the task title. Empty values display as `—`. A field
   viewport keeps the selected textbox visible on shorter terminals; moving
   through the fields scrolls that viewport. Explicitly wrap hints and
   validation errors so the status panel remains within the terminal viewport.
@@ -86,9 +90,13 @@ Markdown todos.
 Root-todo deletion, project/section movement, and content reordering remain out
 of scope.
 
+Multi-task schedule, tag, priority, and completion changes use the selection,
+form, and per-project atomicity rules in SPEC0018.
+
 ## References
 
 - [ADR0009: Use Conflict-Safe Markdown Mutations](../adr/ADR0009-use-conflict-safe-markdown-mutations.md)
 - [ADR0010: Edit Markdown with the Configured External Editor](../adr/ADR0010-edit-markdown-with-the-configured-external-editor.md)
 - [SPEC0002: Project Browser](SPEC0002-project-browser-and-markdown-todo-format.md)
 - [SPEC0009: Day Planner](SPEC0009-day-planner.md)
+- [SPEC0018: Multi-Select Task Updates](SPEC0018-multi-select-task-updates.md)

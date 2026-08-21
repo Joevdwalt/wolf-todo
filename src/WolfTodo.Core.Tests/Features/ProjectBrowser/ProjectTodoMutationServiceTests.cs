@@ -7,6 +7,92 @@ namespace WolfTodo.Core.Tests.Features.ProjectBrowser;
 public sealed class ProjectTodoMutationServiceTests
 {
     [Fact]
+    public void UpdateMany_applies_shared_fields_to_multiple_tasks_in_one_write()
+    {
+        const string path = "/todos/work.md";
+        const string markdown =
+            "- [ ] Timed ⏰ 09:30 #work ⏳ 2026-08-01\r\n" +
+            "- [x] All day #home\r\n";
+        var parser = new MarkdownTodoProjectReader();
+        var expected = parser.Parse(path, markdown).Project!.Todos;
+        var fileSystem = new WritableFileSystem(path, markdown);
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+
+        var result = service.UpdateMany(
+            path,
+            expected,
+            new TodoBulkUpdate(
+                TodoBulkScheduleMode.SetDate,
+                new DateOnly(2026, 8, 20),
+                TodoBulkTagMode.Add,
+                ["focus", "WORK"],
+                TodoBulkPriorityMode.Set,
+                TodoPriority.High,
+                Complete: true));
+
+        result.Succeeded.Should().BeTrue();
+        fileSystem.WriteCount.Should().Be(1);
+        fileSystem.Contents.Should().Be(
+            "- [x] Timed ⏰ 09:30 ⏫ #work #focus ⏳ 2026-08-20\r\n" +
+            "- [x] All day ⏫ #home #focus #WORK ⏳ 2026-08-20\r\n");
+    }
+
+    [Fact]
+    public void UpdateMany_replaces_or_clears_tags_and_schedule()
+    {
+        const string path = "/todos/work.md";
+        const string markdown = "- [ ] Task #one #two ⏳ 2026-08-01\n";
+        var parser = new MarkdownTodoProjectReader();
+        var expected = parser.Parse(path, markdown).Project!.Todos;
+        var fileSystem = new WritableFileSystem(path, markdown);
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+
+        var result = service.UpdateMany(
+            path,
+            expected,
+            new TodoBulkUpdate(
+                TodoBulkScheduleMode.Clear,
+                null,
+                TodoBulkTagMode.Replace,
+                [],
+                TodoBulkPriorityMode.Clear,
+                null,
+                Complete: false));
+
+        result.Succeeded.Should().BeTrue();
+        fileSystem.Contents.Should().Be("- [ ] Task\n");
+    }
+
+    [Fact]
+    public void UpdateMany_rejects_the_complete_project_group_when_one_target_is_stale()
+    {
+        const string path = "/todos/work.md";
+        const string original = "- [ ] First\n- [ ] Second\n";
+        const string changed = "- [ ] First\n- [ ] Changed externally\n";
+        var parser = new MarkdownTodoProjectReader();
+        var expected = parser.Parse(path, original).Project!.Todos;
+        var fileSystem = new WritableFileSystem(path, changed);
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+
+        var result = service.UpdateMany(
+            path,
+            expected,
+            new TodoBulkUpdate(
+                TodoBulkScheduleMode.Unchanged,
+                null,
+                TodoBulkTagMode.Unchanged,
+                [],
+                TodoBulkPriorityMode.Set,
+                TodoPriority.High,
+                Complete: false));
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("changed on disk");
+        fileSystem.WriteCount.Should().Be(0);
+        fileSystem.Contents.Should().Be(changed);
+    }
+
+    [Fact]
     public void RollOverdueToDate_updates_incomplete_root_and_nested_tasks_in_one_write()
     {
         const string path = "/todos/work.md";

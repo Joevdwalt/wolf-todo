@@ -22,6 +22,53 @@ public sealed class TextBoxTests
     }
 
     [Fact]
+    public void Reduce_selects_all_and_printable_input_replaces_the_selection()
+    {
+        var state = TextBox.Create("Task name", editable: true, "Plan review");
+
+        var selected = TextBox.Reduce(state, Key(ConsoleKey.A, control: true)).State!;
+        var replaced = TextBox.Reduce(selected, Key('R')).State!;
+
+        selected.HasSelection.Should().BeTrue();
+        selected.SelectionStart.Should().Be(0);
+        selected.SelectionLength.Should().Be(state.Text.Length);
+        replaced.Text.Should().Be("R");
+        replaced.Cursor.Should().Be(1);
+        replaced.HasSelection.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(ConsoleKey.Backspace)]
+    [InlineData(ConsoleKey.Delete)]
+    public void Reduce_deletes_the_complete_selection(ConsoleKey key)
+    {
+        var state = TextBox.Create("Task name", editable: true, "Plan review");
+        state = TextBox.Reduce(state, Key(ConsoleKey.A, control: true)).State!;
+
+        var deleted = TextBox.Reduce(state, Key(key)).State!;
+
+        deleted.Text.Should().BeEmpty();
+        deleted.Cursor.Should().Be(0);
+        deleted.HasSelection.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(ConsoleKey.LeftArrow, 0)]
+    [InlineData(ConsoleKey.Home, 0)]
+    [InlineData(ConsoleKey.RightArrow, 11)]
+    [InlineData(ConsoleKey.End, 11)]
+    public void Reduce_collapses_the_selection_in_the_navigation_direction(ConsoleKey key, int expectedCursor)
+    {
+        var state = TextBox.Create("Task name", editable: true, "Plan review");
+        state = TextBox.Reduce(state, Key(ConsoleKey.A, control: true)).State!;
+
+        var moved = TextBox.Reduce(state, Key(key)).State!;
+
+        moved.Cursor.Should().Be(expectedCursor);
+        moved.HasSelection.Should().BeFalse();
+    }
+
+    [Fact]
     public void Reduce_accepts_and_cancels_without_mutating_the_original_state()
     {
         var state = TextBox.Create("Task name", editable: true, "Prepare workshop");
@@ -44,6 +91,16 @@ public sealed class TextBoxTests
     }
 
     [Fact]
+    public void DisplayText_keeps_the_active_end_of_a_selection_visible()
+    {
+        var state = TextBox.Create("Task name", editable: true, "Prepare workshop");
+        state = TextBox.Reduce(state, Key(ConsoleKey.A, control: true)).State!;
+
+        TextBox.DisplayText(state, 6).Should().Be("rkshop");
+        TextBox.CreateRenderable(state, TuiThemes.Wolf, 8).Should().BeOfType<Rows>();
+    }
+
+    [Fact]
     public void Reduce_ignores_all_input_when_the_textbox_is_read_only()
     {
         var state = TextBox.Create("Task name", editable: false, "Prepare workshop");
@@ -51,6 +108,7 @@ public sealed class TextBoxTests
         var typed = TextBox.Reduce(state, Key('x'));
         var accepted = TextBox.Reduce(state, Key(ConsoleKey.Enter));
         var cancelled = TextBox.Reduce(state, Key(ConsoleKey.Escape));
+        var selected = TextBox.Reduce(state, Key(ConsoleKey.A, control: true));
 
         typed.Outcome.Should().Be(TextBoxOutcome.Editing);
         typed.State.Should().Be(state);
@@ -58,6 +116,8 @@ public sealed class TextBoxTests
         accepted.State.Should().Be(state);
         cancelled.Outcome.Should().Be(TextBoxOutcome.Editing);
         cancelled.State.Should().Be(state);
+        selected.State.Should().Be(state);
+        selected.State!.HasSelection.Should().BeFalse();
     }
 
     [Fact]
@@ -102,7 +162,7 @@ public sealed class TextBoxTests
         transition.Outcome.Should().Be(TextBoxOutcome.Accepted);
     }
 
-    private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+    private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false) => new('\0', key, false, false, control);
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem2, false, false, false);
 }
