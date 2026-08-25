@@ -874,6 +874,33 @@ public sealed class TuiApplicationTests
         terminal.BrowserViews.Last().State.MarkedTodos.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Run_bulk_schedules_overlapping_timed_tasks()
+    {
+        var date = new DateOnly(2026, 8, 24);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] First ⏰ 09:00 ⏱ 60m ⏳ 2026-08-20\n" +
+            "- [ ] Second ⏰ 09:00 ⏱ 60m ⏳ 2026-08-21\n");
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key('m'), Key('j'), Key('m'), Key('b'), Key('l'),
+            Key('t'), Key(ConsoleKey.Enter), Key(ConsoleKey.S, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem,
+            todayProvider: () => date);
+
+        application.Run();
+
+        fileSystem.Contents.Should()
+            .Contain("First ⏰ 09:00 ⏱ 60m ⏳ 2026-08-24")
+            .And.Contain("Second ⏰ 09:00 ⏱ 60m ⏳ 2026-08-24");
+        terminal.BrowserViews.Last().State.Error.Should().BeNull();
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal,

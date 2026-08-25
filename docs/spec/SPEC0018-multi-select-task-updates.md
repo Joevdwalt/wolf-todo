@@ -41,9 +41,8 @@ scheduled date, tag change, priority, or completion update from the Todos view.
 - Configured move and open gestures navigate and edit the bulk form. Ctrl+S (or
   the configured save gesture) applies it; Escape (or the configured back
   gesture) cancels without clearing marks. At least one change is required.
-- Setting a date for timed tasks performs a global schedule-conflict preflight,
-  including conflicts between marked tasks. A conflict rejects the complete
-  bulk edit before any file is written.
+- Setting a date for timed tasks preserves each task's time and allows tasks to
+  share a timeslot. Bulk updates do not run a schedule-conflict preflight.
 - Marked identities are grouped by Markdown project. Each project is re-read;
   every selected target in that file is validated against its parsed snapshot;
   and all task-line changes are applied through one atomic file replacement.
@@ -65,8 +64,8 @@ scheduled date, tag change, priority, or completion update from the Todos view.
    completed.
 5. A stale task rejects its complete project group without writing that file,
    while valid project groups succeed and only failed marks remain.
-6. A proposed timed schedule conflict rejects the complete operation before any
-   project write.
+6. Setting the same date for overlapping timed tasks succeeds and preserves
+   each task's time and duration.
 7. Sorting, filtering, and switching browser views retain marks and show their
    total count; leaving Todos clears them.
 8. Narrow and wide layouts distinguish cursor, marked, completed, and tagged
