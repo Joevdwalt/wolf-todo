@@ -71,9 +71,9 @@ public sealed class ApplicationCommandReducerTests
         var second = reducer.Reduce(first.State, Key(ConsoleKey.Tab), Bindings);
         var typed = reducer.Reduce(second.State, Key('x'), Bindings);
 
-        first.State.Value.Should().Be(":completed");
-        second.State.Value.Should().Be(":help");
-        typed.State.Value.Should().Be(":helpx");
+        first.State.Value.Should().Be(":archive");
+        second.State.Value.Should().Be(":completed");
+        typed.State.Value.Should().Be(":completedx");
         typed.State.CompletionSeed.Should().BeNull();
         typed.State.CompletionIndex.Should().Be(-1);
     }
@@ -100,6 +100,18 @@ public sealed class ApplicationCommandReducerTests
             Bindings);
 
         result.Operation.Should().Be(ApplicationCommandOperation.RollProjectToday);
+        result.State.Should().Be(ApplicationCommandState.Initial);
+    }
+
+    [Fact]
+    public void Reduce_submits_the_archive_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":archive", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.ArchiveCompleted);
         result.State.Should().Be(ApplicationCommandState.Initial);
     }
 

@@ -5,6 +5,7 @@ namespace WolfTodo.Tui.Features.ApplicationShell;
 
 public static class ApplicationCommandCatalog
 {
+    public const string Archive = ":archive";
     public const string MoveTodoProject = ":move-todo-project";
     public const string Pomodoro = ":pomodoro";
     public const string RollToday = ":roll-today";
@@ -16,6 +17,7 @@ public static class ApplicationCommandCatalog
             bindings.QuitCommand,
             bindings.ToggleCompletedCommand,
             bindings.HelpCommand,
+            Archive,
             MoveTodoProject,
             Pomodoro,
             RollToday

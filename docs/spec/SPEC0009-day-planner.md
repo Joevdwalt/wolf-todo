@@ -74,8 +74,12 @@ Show details for the selected assignment by default. Wide terminals place an
 `INSPECTOR` beside the timeline; narrower terminals show a compact `SELECTED`
 summary beneath it. Timeline assignments show compact state and priority before
 their title. `v` hides or restores only the Inspector for the current session;
-the functional all-day pane remains accessible. Conflicting slots
-show a diagnostic instead of exposing an ambiguous todo.
+the functional all-day pane remains accessible. When multiple todos overlap in
+the selected timeline slot, `j` and `k` select the next or prior stacked todo
+in the planner's stable display order. At either end, they continue to the
+adjacent timeline slot. The Inspector shows the selected todo and a stack-count
+hint, so edit, completion, move, unschedule, timer, and external-editor actions
+target that todo.
 
 When a meeting-only slot is selected, the Inspector shows its title, time range,
 duration, location, attendees, and a short description preview. Concurrent
@@ -92,8 +96,8 @@ After rescheduling through the field editor, Planner follows the todo to its new
 date and slot. Clearing both schedule fields on an existing todo unschedules it.
 
 All actions use configured bindings. Picker, move, and create input capture
-keystrokes before application-tab switching. Conflicting assignments are
-rendered as diagnostics and block further assignment to that slot.
+keystrokes before application-tab switching. Intentional overlapping todo
+assignments remain editable after selecting one with `j` or `k`.
 
 When no planner modal is active, the configured command launcher opens global
 command mode. Quit, completed visibility, cancellation, and unknown-command
@@ -124,6 +128,8 @@ feedback match the Todos view.
     Markdown todo scheduling.
 11. Todos move between timed and all-day destinations without losing duration,
     and multiple todos may share one all-day destination.
+12. Overlapping timed todos remain individually selectable with `j` and `k`,
+    and each selected todo supports the normal task actions.
 
 ## References
 

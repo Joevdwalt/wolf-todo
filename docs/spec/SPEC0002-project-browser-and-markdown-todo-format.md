@@ -257,6 +257,8 @@ are uppercase; task and project values preserve their source case.
 - The configured command-mode gesture enters command mode using the behavior
   defined by SPEC0001.
 - `:completed` toggles completed todos.
+- `:archive` archives eligible completed task trees from the selected concrete
+  project according to SPEC0010.
 - The configured mark, bulk-edit, and clear-mark gestures provide the transient
   task selection and shared updates defined by SPEC0018.
 - The configured quit command, `:q` by default, exits with code `0`.

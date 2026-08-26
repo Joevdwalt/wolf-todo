@@ -1,7 +1,9 @@
 using FluentAssertions;
+using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.DayPlanner.Rendering;
+using WolfTodo.Tui.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Tests.Features.DayPlanner.Rendering;
 
@@ -122,4 +124,26 @@ public sealed class PlannerRendererTests
                 narrowAllDayHeight: 5)
             .Should().Be(7);
     }
+
+    [Fact]
+    public void PlannerDetailLines_shows_normal_details_for_a_selected_stacked_task()
+    {
+        var date = new DateOnly(2026, 8, 4);
+        var schedule = new TodoSchedule(date, new TimeOnly(6, 0));
+        var first = Todo("First") with { Schedule = schedule };
+        var second = Todo("Second") with { SourceLine = 2, Schedule = schedule };
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [first, second])], []),
+            PlannerState.CreateInitial(date) with
+            {
+                SelectedTimelineTodo = new TodoIdentity("/todos/work.md", 2)
+            });
+
+        var lines = new PlannerRenderer().PlannerDetailLines(view, TuiThemes.Wolf);
+
+        lines.Should().HaveCountGreaterThan(2);
+    }
+
+    private static TodoItem Todo(string title) => new(
+        1, false, null, title, null, [], null, null, string.Empty, [], []);
 }

@@ -232,6 +232,26 @@ public sealed class DayPlannerPresenterTests
     }
 
     [Fact]
+    public void CreateView_uses_the_explicit_selection_for_stacked_tasks()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var schedule = new TodoSchedule(date, new TimeOnly(6, 0));
+        var first = Todo("First") with { Schedule = schedule };
+        var second = Todo("Second") with { SourceLine = 2, Schedule = schedule };
+        var state = PlannerState.CreateInitial(date) with
+        {
+            SelectedTimelineTodo = new TodoIdentity("/todos/work.md", 2)
+        };
+
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [first, second])], []),
+            state);
+
+        view.SelectedAssignment!.Todo.Title.Should().Be("Second");
+        view.SelectedSlot.Items.Single(item => item.Assignment?.Todo.Title == "Second").IsSelected.Should().BeTrue();
+    }
+
+    [Fact]
     public void CreateView_exposes_project_health_for_the_operational_header()
     {
         var date = new DateOnly(2026, 7, 15);

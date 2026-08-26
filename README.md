@@ -341,7 +341,10 @@ contain an executable name or path without additional arguments.
 
 Command mode belongs to the application shell: `:q`, `:completed`, and unknown
 command feedback work from either Todos or Day Planner. Pomodoro commands also
-work from either tab. An active feature
+work from either tab. `:archive` is available only from a selected concrete
+Todos project: it moves completed task trees into a sibling archive file such
+as `work.archive.md`, leaving completed subtasks under open parents in place.
+An active feature
 picker, filter, move, or edit form receives input before global commands.
 While command mode is active, Tab completes a unique command prefix and cycles
 ambiguous matches. In the Todos tab, `:roll-today` changes every incomplete
@@ -351,6 +354,8 @@ subtasks are included, and the project is written atomically. The same action
 is available through the command palette and the configured
 `roll_project_today` binding (`R` by default). Select a concrete project first;
 aggregate and saved views cannot be rolled.
+Similarly, aggregate/saved views and Day Planner cannot archive tasks; select a
+concrete project first.
 `?` or `:help` opens the global searchable command palette. Disabled actions
 remain visible with a reason; `/` searches and Enter runs the selected action.
 In the Todos tab, `v` hides or restores the detail preview for the current
