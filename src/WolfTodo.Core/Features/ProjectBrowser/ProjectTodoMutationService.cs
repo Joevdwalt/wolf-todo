@@ -17,6 +17,78 @@ public sealed partial class ProjectTodoMutationService(
     public TodoMutationResult SetCompleted(string path, TodoItem expected, bool isCompleted) =>
         MutateExisting(path, expected, todo => Serialize(todo with { IsCompleted = isCompleted }));
 
+    public TodoArchiveResult ArchiveCompleted(string path)
+    {
+        var archivePath = ArchivePath(path);
+        var archivedCount = 0;
+        var archiveWritten = false;
+        try
+        {
+            var sourceContents = fileSystem.ReadAllText(path);
+            var source = reader.Parse(path, sourceContents);
+            if (source.Project is null)
+            {
+                return TodoArchiveResult.Failure(
+                    archivePath,
+                    0,
+                    source.Error ?? "Project cannot be parsed.");
+            }
+
+            var archivedTodos = source.Project.Todos
+                .Where(todo => todo.IsCompleted && IsCompletedTree(todo))
+                .ToArray();
+            if (archivedTodos.Length == 0)
+            {
+                return TodoArchiveResult.Success(archivePath, 0);
+            }
+
+            archivedCount = archivedTodos.Length;
+
+            var sourceLines = SplitLines(sourceContents);
+            var blocks = archivedTodos
+                .Select(todo =>
+                {
+                    var sourceIndex = todo.SourceLine - 1;
+                    if (sourceIndex < 0 || sourceIndex >= sourceLines.Count)
+                    {
+                        throw new InvalidDataException("A completed todo no longer exists at its original source line.");
+                    }
+
+                    var indent = LeadingWhitespace(sourceLines[sourceIndex]).Length;
+                    var end = FindTodoBlockEnd(sourceLines, sourceIndex, indent);
+                    return (Start: sourceIndex, End: end, Lines: sourceLines[sourceIndex..end].ToArray());
+                })
+                .ToArray();
+
+            var archiveContents = fileSystem.FileExists(archivePath)
+                ? fileSystem.ReadAllText(archivePath)
+                : CreateArchiveDocument(source.Project.Title, DetectNewline(sourceContents));
+            var archiveNewline = DetectNewline(archiveContents);
+            fileSystem.WriteAllTextAtomically(
+                archivePath,
+                AppendArchiveBlocks(archiveContents, archiveNewline, blocks.Select(block => block.Lines)));
+            archiveWritten = true;
+
+            foreach (var block in blocks.OrderByDescending(block => block.Start))
+            {
+                sourceLines.RemoveRange(block.Start, block.End - block.Start);
+            }
+
+            Write(path, sourceLines, DetectNewline(sourceContents), sourceContents.EndsWith('\n'));
+            return TodoArchiveResult.Success(archivePath, archivedCount);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or NotSupportedException or InvalidDataException)
+        {
+            return TodoArchiveResult.Failure(
+                archivePath,
+                archiveWritten ? archivedCount : 0,
+                archiveWritten
+                    ? $"Archive copy was written, but the source project was not changed: {exception.Message}"
+                    : $"Cannot archive completed todos: {exception.Message}");
+        }
+    }
+
     public TodoMutationResult UpdateMany(
         string path,
         IReadOnlyList<TodoItem> expected,
@@ -800,6 +872,36 @@ public sealed partial class ProjectTodoMutationService(
         }
 
         return lines.Count;
+    }
+
+    private static bool IsCompletedTree(TodoItem todo) =>
+        todo.IsCompleted && todo.Subtasks.All(IsCompletedTree);
+
+    private static string ArchivePath(string sourcePath)
+    {
+        var directory = Path.GetDirectoryName(sourcePath) ?? string.Empty;
+        var extension = Path.GetExtension(sourcePath);
+        return Path.Combine(
+            directory,
+            $"{Path.GetFileNameWithoutExtension(sourcePath)}.archive" +
+            (extension.Length == 0 ? ".md" : extension));
+    }
+
+    private static string CreateArchiveDocument(string projectTitle, string newline) =>
+        $"# {projectTitle} Archive{newline}{newline}## Archived{newline}";
+
+    private static string AppendArchiveBlocks(
+        string archiveContents,
+        string newline,
+        IEnumerable<IReadOnlyList<string>> blocks)
+    {
+        var content = archiveContents.TrimEnd('\r', '\n');
+        var blockText = string.Join(
+            newline + newline,
+            blocks.Select(block => string.Join(newline, block).TrimEnd()));
+        return content.Length == 0
+            ? blockText + newline
+            : content + newline + newline + blockText + newline;
     }
 
     private static string ReplaceNoteText(string line, string text)

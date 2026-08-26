@@ -67,6 +67,10 @@ public sealed class ApplicationCommandReducer
                     ApplicationCommandOperation.ToggleCompleted,
                 var command when command == bindings.HelpCommand => ApplicationCommandOperation.OpenPalette,
                 var command when command.Equals(
+                    ApplicationCommandCatalog.Archive,
+                    StringComparison.OrdinalIgnoreCase) =>
+                    ApplicationCommandOperation.ArchiveCompleted,
+                var command when command.Equals(
                     ApplicationCommandCatalog.RollToday,
                     StringComparison.OrdinalIgnoreCase) =>
                     ApplicationCommandOperation.RollProjectToday,

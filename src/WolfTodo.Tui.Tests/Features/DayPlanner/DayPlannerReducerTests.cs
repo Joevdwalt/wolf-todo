@@ -140,6 +140,32 @@ public sealed class DayPlannerReducerTests
     }
 
     [Fact]
+    public void Reduce_cycles_stacked_tasks_then_moves_to_the_adjacent_slot()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var first = Todo("First") with { Schedule = new TodoSchedule(Today, new TimeOnly(6, 0)) };
+        var second = Todo("Second") with
+        {
+            SourceLine = 2,
+            Schedule = new TodoSchedule(Today, new TimeOnly(6, 0))
+        };
+        var state = PlannerState.CreateInitial(Today);
+
+        var secondSelected = reducer.Reduce(state, Key('j'), Bindings, View(state, first, second)).State;
+        var secondView = View(secondSelected, first, second);
+        var completed = reducer.Reduce(secondSelected, Key(ConsoleKey.Spacebar), Bindings, secondView);
+        var nextSlot = reducer.Reduce(secondSelected, Key('j'), Bindings, secondView).State;
+        var firstSelected = reducer.Reduce(secondSelected, Key('k'), Bindings, secondView).State;
+
+        secondView.SelectedAssignment!.Todo.Title.Should().Be("Second");
+        completed.Operation.Should().Be(PlannerOperation.ToggleCompleted);
+        completed.TodoIdentity.Should().Be(secondView.SelectedAssignment.Identity);
+        nextSlot.SlotIndex.Should().Be(1);
+        nextSlot.SelectedTimelineTodo.Should().BeNull();
+        View(firstSelected, first, second).SelectedAssignment!.Todo.Title.Should().Be("First");
+    }
+
+    [Fact]
     public void Reduce_toggles_planner_details_without_changing_the_selected_slot()
     {
         var reducer = new DayPlannerReducer(() => Today);

@@ -68,6 +68,15 @@ Markdown todos.
   leave completed, unscheduled, current-day, and future todos unchanged.
   Revalidate the complete eligible set and apply it in one atomic project
   write; stale content aborts the rollover without partial changes.
+- `:archive` moves every completed top-level todo whose descendants are also
+  completed from the selected concrete project into its companion archive file.
+  For `work.md`, use `work.archive.md` in the same directory. Create it with
+  `# <project> Archive` and `## Archived` when absent, then append later task
+  blocks. Keep completed subtasks beneath an open parent in the source project.
+  Write the archive first, then rewrite the source; if source removal fails,
+  retain the archive copy and report the duplicate-safe failure. Archive files
+  are not configured projects and `:archive` is unavailable from aggregate,
+  saved, or Planner views.
 - Within the editor, `a` opens a configured-binding picker for a note or
   subtask. It inserts after selected content or appends when a field is selected.
   Add, edit, remove, field, schedule, and subtask completion changes are written

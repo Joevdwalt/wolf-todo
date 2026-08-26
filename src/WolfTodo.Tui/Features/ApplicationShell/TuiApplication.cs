@@ -247,6 +247,16 @@ public sealed class TuiApplication(
                             mutationService);
                     }
 
+                    if (commandTransition.Operation == ApplicationCommandOperation.ArchiveCompleted)
+                    {
+                        state = ArchiveCompletedProject(
+                            state,
+                            browserView,
+                            ref catalog,
+                            configuration,
+                            mutationService);
+                    }
+
                     if (commandTransition.Operation == ApplicationCommandOperation.RollProjectToday)
                     {
                         if (state.Tabs.ActiveTab != TodosTab || browserView is null)
@@ -1013,6 +1023,68 @@ public sealed class TuiApplication(
                 MarkedTodos = [],
                 BulkEditor = null,
                 StatusMessage = "Todo moved."
+            }
+        };
+    }
+
+    private ApplicationState ArchiveCompletedProject(
+        ApplicationState state,
+        BrowserView? view,
+        ref ProjectCatalog catalog,
+        ApplicationConfiguration configuration,
+        ProjectTodoMutationService? service)
+    {
+        if (state.Tabs.ActiveTab != TodosTab)
+        {
+            return state with
+            {
+                Command = state.Command with { Error = "Open Todos and select a project before archiving." }
+            };
+        }
+
+        var selectedProject = view?.Projects.FirstOrDefault(project => project.IsSelected);
+        if (selectedProject?.Kind != ProjectRowKind.Project || selectedProject.Project is null)
+        {
+            return state with
+            {
+                Browser = state.Browser with { Error = "Select a concrete project before archiving completed tasks." }
+            };
+        }
+
+        if (service is null)
+        {
+            return state with { Browser = state.Browser with { Error = "Todo writing is unavailable." } };
+        }
+
+        var result = service.ArchiveCompleted(selectedProject.Project.Path);
+        if (!result.Succeeded)
+        {
+            return state with { Browser = state.Browser with { Error = result.Error } };
+        }
+
+        if (result.ArchivedCount == 0)
+        {
+            return state with
+            {
+                Browser = state.Browser with
+                {
+                    Error = null,
+                    StatusMessage = "No completed task trees to archive."
+                }
+            };
+        }
+
+        catalog = catalogLoader.Load(configuration.ProjectFiles);
+        return state with
+        {
+            Browser = state.Browser with
+            {
+                TodoIndex = 0,
+                PendingTodoSelection = null,
+                MarkedTodos = [],
+                BulkEditor = null,
+                Error = null,
+                StatusMessage = $"Archived {result.ArchivedCount} task(s) to {Path.GetFileName(result.ArchivePath)}."
             }
         };
     }

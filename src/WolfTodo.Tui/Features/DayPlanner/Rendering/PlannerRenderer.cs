@@ -615,16 +615,6 @@ public sealed class PlannerRenderer
             return calendarItemRenderer.AllDayDetailLines(view, theme);
         }
 
-        if (view.SelectedSlot.Assignments.Length > 1)
-        {
-            return
-            [
-                new Text("CONFLICTING ASSIGNMENTS", themeRenderer.Style(theme.Error, Decoration.Bold)),
-                new Text("Resolve the duplicate schedule metadata before editing this slot.",
-                    themeRenderer.Style(theme.Error))
-            ];
-        }
-
         if (view.SelectedAssignment is null)
         {
             return view.SelectedMeeting is null
@@ -638,6 +628,13 @@ public sealed class PlannerRenderer
         {
             new Text(todo.Title, themeRenderer.Style(theme.Heading, Decoration.Bold))
         };
+        if (view.SelectedSlot.Assignments.Length > 1)
+        {
+            lines.Add(new Text(
+                $"{view.SelectedSlot.Assignments.Length} STACKED TASKS · J/K SELECT",
+                themeRenderer.Style(theme.Info, Decoration.Bold)));
+        }
+
         calendarItemRenderer.AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
         if (!string.IsNullOrEmpty(todo.SectionPath))
         {
@@ -740,13 +737,6 @@ public sealed class PlannerRenderer
                 themeRenderer.Style(item.Assignment is null ? theme.Info : theme.Heading, Decoration.Bold)).Ellipsis();
         }
 
-        if (view.SelectedSlot.Assignments.Length > 1)
-        {
-            return new Text(
-                $"{view.SelectedSlot.Assignments.Length} conflicting assignments",
-                themeRenderer.Style(theme.Error, Decoration.Bold)).Ellipsis();
-        }
-
         if (view.SelectedAssignment is null)
         {
             if (view.SelectedMeeting is null)
@@ -772,6 +762,15 @@ public sealed class PlannerRenderer
         };
         var line = new System.Text.StringBuilder();
         themeRenderer.AppendStyled(line, todo.Title, theme.Heading, Decoration.Bold);
+        if (view.SelectedSlot.Assignments.Length > 1)
+        {
+            themeRenderer.AppendStyled(
+                line,
+                $"  {view.SelectedSlot.Assignments.Length} STACKED · J/K SELECT",
+                theme.Info,
+                Decoration.Bold);
+        }
+
         themeRenderer.AppendStyled(
             line,
             $"  {string.Join(" · ", metadata.Where(value => !string.IsNullOrEmpty(value)))}",

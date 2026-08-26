@@ -506,6 +506,68 @@ public sealed class ProjectTodoMutationServiceTests
         fileSystem.Contents.Should().Be(changed);
     }
 
+    [Fact]
+    public void ArchiveCompleted_moves_only_completed_top_level_trees_to_a_companion_file()
+    {
+        const string path = "/todos/work.md";
+        const string archivePath = "/todos/work.archive.md";
+        const string markdown =
+            "# Work\n\n" +
+            "- [x] Finished\n  - completed note\n  - [x] Finished child\n" +
+            "- [x] Parent with open child\n  - [ ] Still active\n" +
+            "- [ ] Open task\n";
+        var fileSystem = new ArchiveFileSystem(path, markdown);
+        var result = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader())
+            .ArchiveCompleted(path);
+
+        result.Succeeded.Should().BeTrue();
+        result.ArchivedCount.Should().Be(1);
+        result.ArchivePath.Should().Be(archivePath);
+        fileSystem.Files[path].Should()
+            .NotContain("Finished\n  - completed note")
+            .And.Contain("Parent with open child")
+            .And.Contain("Open task");
+        fileSystem.Files[archivePath].Should()
+            .Contain("# work Archive")
+            .And.Contain("## Archived")
+            .And.Contain("- [x] Finished\n  - completed note\n  - [x] Finished child");
+    }
+
+    [Fact]
+    public void ArchiveCompleted_appends_to_an_existing_companion_file()
+    {
+        const string path = "/todos/work.md";
+        const string archivePath = "/todos/work.archive.md";
+        var fileSystem = new ArchiveFileSystem(path, "# Work\n\n- [x] Finished\n");
+        fileSystem.Files[archivePath] = "# Work Archive\n\n## Archived\n\n- [x] Previous\n";
+
+        var result = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader())
+            .ArchiveCompleted(path);
+
+        result.Succeeded.Should().BeTrue();
+        fileSystem.Files[archivePath].Should().Contain("- [x] Previous").And.Contain("- [x] Finished");
+        fileSystem.Files[archivePath].Split("## Archived", StringSplitOptions.None).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void ArchiveCompleted_keeps_the_source_when_removing_it_fails_after_writing_the_archive()
+    {
+        const string path = "/todos/work.md";
+        var fileSystem = new ArchiveFileSystem(path, "# Work\n\n- [x] Finished\n")
+        {
+            FailSourceWrites = true
+        };
+
+        var result = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader())
+            .ArchiveCompleted(path);
+
+        result.Succeeded.Should().BeFalse();
+        result.ArchivedCount.Should().Be(1);
+        result.Error.Should().Contain("Archive copy was written");
+        fileSystem.Files[path].Should().Contain("- [x] Finished");
+        fileSystem.Files["/todos/work.archive.md"].Should().Contain("- [x] Finished");
+    }
+
     private sealed class WritableFileSystem(string path, string contents) : IProjectFileSystem
     {
         public string Contents { get; private set; } = contents;
@@ -524,6 +586,34 @@ public sealed class ProjectTodoMutationServiceTests
             candidate.Should().Be(path);
             Contents = value;
             WriteCount++;
+        }
+    }
+
+    private sealed class ArchiveFileSystem(string path, string contents) : IProjectFileSystem
+    {
+        public Dictionary<string, string> Files { get; } = new(StringComparer.Ordinal)
+        {
+            [path] = contents
+        };
+
+        public bool FailSourceWrites { get; init; }
+
+        public bool FileExists(string candidate) => Files.ContainsKey(candidate);
+
+        public string GetFullPath(string candidate) => candidate;
+
+        public string ReadAllText(string candidate) => Files.TryGetValue(candidate, out var value)
+            ? value
+            : throw new FileNotFoundException();
+
+        public void WriteAllTextAtomically(string candidate, string value)
+        {
+            if (FailSourceWrites && candidate == path)
+            {
+                throw new IOException("disk full");
+            }
+
+            Files[candidate] = value;
         }
     }
 }

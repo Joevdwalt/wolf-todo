@@ -376,6 +376,30 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_archives_completed_task_trees_for_the_selected_project()
+    {
+        var fileSystem = new ArchiveProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [x] Finished\n  - [x] Finished child\n- [ ] Open\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key(':'), Key('a'), Key('r'), Key('c'), Key('h'), Key('i'), Key('v'), Key('e'),
+            Key(ConsoleKey.Enter), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            new FakeApplicationStateStore("/todos/project.md"),
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Files["/todos/project.md"].Should().NotContain("Finished").And.Contain("- [ ] Open");
+        fileSystem.Files["/todos/project.archive.md"].Should()
+            .Contain("# project Archive")
+            .And.Contain("- [x] Finished\n  - [x] Finished child");
+        terminal.BrowserViews.Should().Contain(view => view.State.StatusMessage == "Archived 1 task(s) to project.archive.md.");
+    }
+
+    [Fact]
     public void Run_opens_the_global_palette_and_executes_its_selected_action()
     {
         var terminal = new FakeTerminal(Key('x'), Key('?'), Key(ConsoleKey.Enter));
@@ -594,6 +618,30 @@ public sealed class TuiApplicationTests
         launcher.Calls.Should().ContainSingle().Which.Should().Be(("/todos/project.md", 3));
         terminal.ExternalSuspensions.Should().Be(1);
         terminal.ExternalResumptions.Should().Be(1);
+    }
+
+    [Fact]
+    public void Run_completes_the_task_selected_from_a_stacked_planner_slot()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            $"# Work\n\n- [ ] First ⏳ {today:yyyy-MM-dd} ⏰ 06:00\n" +
+            $"- [ ] Second ⏳ {today:yyyy-MM-dd} ⏰ 06:00\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('L'), Key('j'), Key(ConsoleKey.Spacebar),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should()
+            .Contain("- [ ] First")
+            .And.Contain("- [x] Second");
+        terminal.PlannerViews.Any(view => view.SelectedAssignment?.Todo.Title == "Second").Should().BeTrue();
     }
 
     [Fact]
@@ -991,6 +1039,24 @@ public sealed class TuiApplicationTests
         public string ReadAllText(string candidate) => Contents;
 
         public void WriteAllTextAtomically(string candidate, string updated) => Contents = updated;
+    }
+
+    private sealed class ArchiveProjectFileSystem(string path, string contents) : IProjectFileSystem
+    {
+        public Dictionary<string, string> Files { get; } = new(StringComparer.Ordinal)
+        {
+            [path] = contents
+        };
+
+        public bool FileExists(string candidate) => Files.ContainsKey(candidate);
+
+        public string GetFullPath(string candidate) => candidate;
+
+        public string ReadAllText(string candidate) => Files.TryGetValue(candidate, out var value)
+            ? value
+            : throw new FileNotFoundException();
+
+        public void WriteAllTextAtomically(string candidate, string updated) => Files[candidate] = updated;
     }
 
     private sealed class FailingWriteProjectFileSystem(string path, string contents) : IProjectFileSystem

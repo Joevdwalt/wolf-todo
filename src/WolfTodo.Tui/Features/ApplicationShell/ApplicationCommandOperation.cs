@@ -6,6 +6,7 @@ public enum ApplicationCommandOperation
     Exit,
     ToggleCompleted,
     OpenPalette,
+    ArchiveCompleted,
     MoveTodoProject,
     RollProjectToday,
     StartPomodoro

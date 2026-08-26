@@ -196,6 +196,32 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
         {
             var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
+            if (state.Mode == PlannerMode.Browse &&
+                state.Focus == PlannerFocus.Timeline &&
+                IsStackSelectionKey(key) &&
+                view.SelectedSlot.Assignments.Length > 1)
+            {
+                var selectedIndex = Array.FindIndex(
+                    view.SelectedSlot.Assignments.ToArray(),
+                    assignment => assignment.Identity == view.SelectedAssignment?.Identity);
+                var nextIndex = selectedIndex + offset;
+                if (nextIndex >= 0 && nextIndex < view.SelectedSlot.Assignments.Length)
+                {
+                    return Transition(state with
+                    {
+                        SelectedTimelineTodo = view.SelectedSlot.Assignments[nextIndex].Identity,
+                        Error = null
+                    });
+                }
+
+                return Transition(state with
+                {
+                    SlotIndex = MoveIndex(state.SlotIndex, offset, DayPlannerPresenter.SlotCount),
+                    SelectedTimelineTodo = null,
+                    Error = null
+                });
+            }
+
             return Transition(state with
             {
                 SlotIndex = state.Focus == PlannerFocus.Timeline
@@ -363,6 +389,9 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
     private static int MoveIndex(int current, int offset, int count) =>
         count == 0 ? 0 : Math.Clamp(current + offset, 0, count - 1);
 
+    private static bool IsStackSelectionKey(ConsoleKeyInfo key) =>
+        key.KeyChar is 'j' or 'J' or 'k' or 'K';
+
     private static TodoSchedule SelectedSchedule(PlannerState state) =>
         state.Focus == PlannerFocus.AllDay
             ? new TodoSchedule(state.SelectedDate)
@@ -401,8 +430,6 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             ? "Calendar all-day items are read-only."
             : view.State.Focus == PlannerFocus.AllDay
                 ? "No todo is selected in All Day."
-            : view.SelectedSlot.Assignments.Length > 1
-            ? "Resolve this conflicting timeslot before editing."
             : "No todo is assigned to this timeslot.";
 
     private static bool IsReadOnlyAllDaySelection(PlannerView view) =>
