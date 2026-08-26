@@ -850,28 +850,6 @@ public sealed class TuiApplication(
 
         var expectedCatalog = catalog;
         catalog = catalogLoader.Load(configuration.ProjectFiles);
-        var identities = transition.TodoIdentities.ToHashSet();
-        if (HasBulkScheduleConflict(
-                catalog,
-                identities,
-                transition.BulkUpdate,
-                configuration.Planner.DefaultDuration))
-        {
-            return state with
-            {
-                Browser = state.Browser with
-                {
-                    Error = "The bulk scheduled date would create an occupied timeslot.",
-                    BulkEditor = state.Browser.BulkEditor is null
-                        ? null
-                        : state.Browser.BulkEditor with
-                        {
-                            Error = "The bulk scheduled date would create an occupied timeslot."
-                        },
-                    StatusMessage = null
-                }
-            };
-        }
 
         var succeeded = new HashSet<TodoIdentity>();
         var failures = new List<string>();
@@ -931,56 +909,6 @@ public sealed class TuiApplication(
                 PendingTodoSelection = null
             }
         };
-    }
-
-    private static bool HasBulkScheduleConflict(
-        ProjectCatalog catalog,
-        IReadOnlySet<TodoIdentity> selected,
-        TodoBulkUpdate update,
-        TimeSpan defaultDuration)
-    {
-        if (update.ScheduleMode != TodoBulkScheduleMode.SetDate || update.ScheduledDate is null)
-        {
-            return false;
-        }
-
-        var todos = catalog.Projects
-            .SelectMany(project => Flatten(project.Todos)
-                .Select(todo => (Identity: new TodoIdentity(project.Path, todo.SourceLine), Todo: todo)))
-            .ToArray();
-        foreach (var candidate in todos.Where(candidate => selected.Contains(candidate.Identity)))
-        {
-            if (candidate.Todo.Schedule?.Time is not { } start)
-            {
-                continue;
-            }
-
-            var duration = candidate.Todo.Duration ?? defaultDuration;
-            if (duration > new TimeOnly(22, 0).ToTimeSpan() - start.ToTimeSpan())
-            {
-                return true;
-            }
-
-            var end = start.Add(duration);
-            foreach (var other in todos.Where(other => other.Identity != candidate.Identity))
-            {
-                var otherDate = selected.Contains(other.Identity)
-                    ? update.ScheduledDate
-                    : other.Todo.Schedule?.Date;
-                if (otherDate != update.ScheduledDate || other.Todo.Schedule?.Time is not { } otherStart)
-                {
-                    continue;
-                }
-
-                var otherEnd = otherStart.Add(other.Todo.Duration ?? defaultDuration);
-                if (otherStart < end && otherEnd > start)
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     private ApplicationState ApplyExternalEdit(
