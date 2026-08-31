@@ -2,7 +2,10 @@
 .SYNOPSIS
 Runs the Wolf Todo command-line interface.
 #>
-param()
+param(
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$CliArguments
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -13,7 +16,7 @@ $project = Join-Path $repositoryRoot 'src/WolfTodo.Cli/WolfTodo.Cli.csproj'
 Push-Location $repositoryRoot
 
 try {
-    dotnet run --project $project
+    dotnet run --project $project -- @CliArguments
 
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE

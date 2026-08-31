@@ -247,6 +247,76 @@ The TUI remembers the selected project and todo sort between runs in a separate
 still opens the Todos tab with keyboard focus in its todo list. This session
 state does not modify project Markdown files or `config.toml`.
 
+## Loading tasks from the CLI
+
+The `wtodo` CLI writes tasks into the same configured Markdown projects loaded
+by `wtodo-tui`. Install it with:
+
+```text
+task install-cli
+```
+
+This creates `~/.local/bin/wtodo` on macOS and Linux or
+`%USERPROFILE%\bin\wtodo.cmd` on Windows. Set `WTODO_CLI_INSTALL_DIR` or
+`WTODO_LINK_DIR` to override the publish or launcher directory.
+
+Create one task by configured project title or absolute configured path:
+
+```text
+wtodo add --project "Client Work" --title "Prepare proposal" \
+  --reference EXT-42 --priority high --tag now \
+  --scheduled 2026-09-01 --time 09:30 --duration-minutes 30 \
+  --note "Review scope" --subtask "Draft proposal"
+```
+
+For agent-oriented batches, pass a strict JSON document through a file or
+standard input:
+
+```json
+{
+  "project": "Client Work",
+  "tasks": [
+    {
+      "title": "Prepare proposal",
+      "reference": "EXT-42",
+      "priority": "high",
+      "tags": ["now", "client"],
+      "schedule": { "date": "2026-09-01", "time": "09:30" },
+      "duration_minutes": 30,
+      "content": [
+        { "type": "note", "text": "Review scope" },
+        { "type": "subtask", "title": "Draft proposal", "completed": false }
+      ]
+    }
+  ]
+}
+```
+
+```text
+wtodo import --file tasks.json
+# or
+wtodo import --stdin < tasks.json
+```
+
+List all configured tasks, including nested subtasks:
+
+```text
+wtodo list
+wtodo list --project "Client Work"
+```
+
+Each invocation targets one project. A batch is validated completely and
+written through one atomic Markdown replacement; a failure creates no tasks.
+Unknown JSON properties are rejected. Timed schedules must use a quarter-hour
+from 06:00 through 21:45 and cannot occupy a slot already used by a configured
+task or another task in the batch. Durations are 15-minute multiples from 15
+through 960 minutes. Exact duplicate tasks are allowed.
+
+Commands emit one JSON result. Exit code `0` means success, `2` means invalid
+arguments or input, and `1` means configuration, project, parsing, conflict, or
+write failure. An already-running TUI does not watch files; imported tasks
+appear on its next normal catalog reload or launch.
+
 The project sidebar includes a virtual `@today` view directly below `All`.
 It gathers tasks scheduled for the current local date from every valid project,
 keeps project grouping and the active sort, and combines with the `/` filter.

@@ -378,6 +378,72 @@ public sealed class ProjectTodoMutationServiceTests
     }
 
     [Fact]
+    public void CreateMany_writes_the_complete_batch_once_and_returns_source_lines()
+    {
+        const string path = "/todos/work.md";
+        var fileSystem = new WritableFileSystem(path, "# Work\n");
+        var service = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader());
+
+        var result = service.CreateMany(path,
+        [
+            new TodoTaskUpdate(
+                new TodoUpdate("First", null, TodoPriority.High, ["now"], null, null),
+                new TodoContentUpdate([new TodoNoteUpdate(null, "context\ncontinued")])),
+            new TodoTaskUpdate(
+                new TodoUpdate("Second", "EXT-2", null, [], null, null),
+                new TodoContentUpdate([new TodoSubtaskUpdate(null, "step", true)]))
+        ]);
+
+        result.Succeeded.Should().BeTrue();
+        result.SourceLines.Should().Equal(5, 8);
+        fileSystem.WriteCount.Should().Be(1);
+        fileSystem.Contents.Should().Be(
+            "# Work\n\n## Inbox\n\n" +
+            "- [ ] First ⏫ #now\n" +
+            "  - context\n" +
+            "    continued\n" +
+            "- [ ] (EXT-2) Second\n" +
+            "  - [x] step\n");
+    }
+
+    [Fact]
+    public void CreateMany_rejects_any_invalid_item_without_writing()
+    {
+        const string path = "/todos/work.md";
+        var fileSystem = new WritableFileSystem(path, "# Work\n");
+        var service = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader());
+
+        var result = service.CreateMany(path,
+        [
+            new TodoTaskUpdate(
+                new TodoUpdate("Valid", null, null, [], null, null),
+                new TodoContentUpdate([])),
+            new TodoTaskUpdate(
+                new TodoUpdate(" ", null, null, [], null, null),
+                new TodoContentUpdate([]))
+        ]);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().StartWith("Todo 2:");
+        fileSystem.WriteCount.Should().Be(0);
+        fileSystem.Contents.Should().Be("# Work\n");
+    }
+
+    [Fact]
+    public void CreateMany_rejects_an_empty_batch_without_reading_or_writing()
+    {
+        const string path = "/todos/work.md";
+        var fileSystem = new WritableFileSystem(path, "# Work\n");
+
+        var result = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader())
+            .CreateMany(path, []);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Be("Create at least one todo.");
+        fileSystem.WriteCount.Should().Be(0);
+    }
+
+    [Fact]
     public void UpdateContent_edits_and_adds_direct_content_without_rewriting_descendants()
     {
         const string path = "/todos/work.md";

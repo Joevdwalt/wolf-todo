@@ -485,26 +485,28 @@ public sealed partial class ProjectTodoMutationService(
 
     public TodoMutationResult Create(string path, TodoTaskUpdate update)
     {
-        if (string.IsNullOrWhiteSpace(update.Fields.Title))
+        var result = CreateMany(path, [update]);
+        return result.Succeeded
+            ? TodoMutationResult.Success(result.SourceLines[0])
+            : TodoMutationResult.Failure(result.Error!);
+    }
+
+    public TodoBatchMutationResult CreateMany(
+        string path,
+        IReadOnlyList<TodoTaskUpdate> updates)
+    {
+        if (updates.Count == 0)
         {
-            return TodoMutationResult.Failure("Todo title must not be empty.");
+            return TodoBatchMutationResult.Failure("Create at least one todo.");
         }
 
-        if (update.Content.Items.Any(item => item.SourceLine is not null))
+        for (var index = 0; index < updates.Count; index++)
         {
-            return TodoMutationResult.Failure("New todo content must not have source identities.");
-        }
-
-        if (update.Content.Items.Any(item => item is not TodoNoteUpdate and not TodoSubtaskUpdate))
-        {
-            return TodoMutationResult.Failure("The new todo content contains an unsupported item.");
-        }
-
-        if (update.Content.Items.OfType<TodoNoteUpdate>().Any(note => string.IsNullOrWhiteSpace(note.Text)) ||
-            update.Content.Items.OfType<TodoSubtaskUpdate>()
-                .Any(subtask => string.IsNullOrWhiteSpace(subtask.Title)))
-        {
-            return TodoMutationResult.Failure("New todo content must not be empty.");
+            var validationError = ValidateNewTodo(updates[index]);
+            if (validationError is not null)
+            {
+                return TodoBatchMutationResult.Failure($"Todo {index + 1}: {validationError}");
+            }
         }
 
         try
@@ -513,70 +515,118 @@ public sealed partial class ProjectTodoMutationService(
             var parsed = reader.Parse(path, contents);
             if (parsed.Project is null)
             {
-                return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
+                return TodoBatchMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
             }
 
             var newline = DetectNewline(contents);
             var lines = SplitLines(contents);
-            var inboxes = lines
-                .Select((line, index) => (line, index))
-                .Where(candidate => InboxHeadingPattern().IsMatch(candidate.line))
-                .ToArray();
-
-            if (inboxes.Length > 1)
+            int insertionIndex;
+            try
             {
-                return TodoMutationResult.Failure("Project contains more than one ## Inbox heading.");
+                insertionIndex = InboxInsertionIndex(lines);
+            }
+            catch (InvalidDataException exception)
+            {
+                return TodoBatchMutationResult.Failure(exception.Message);
             }
 
-            var insertionIndex = lines.Count;
-            if (inboxes.Length == 0)
+            var insertedLines = new List<string>();
+            var sourceLines = new List<int>(updates.Count);
+            foreach (var update in updates)
             {
-                if (lines.Count > 0 && lines[^1].Length > 0)
+                sourceLines.Add(insertionIndex + insertedLines.Count + 1);
+                var item = new TodoItem(
+                    insertionIndex + insertedLines.Count + 1,
+                    false,
+                    NullIfWhiteSpace(update.Fields.ExternalReference),
+                    update.Fields.Title.Trim(),
+                    update.Fields.Priority,
+                    update.Fields.Tags,
+                    update.Fields.StartDate,
+                    update.Fields.DueDate,
+                    "Inbox",
+                    [],
+                    [])
                 {
-                    lines.Add(string.Empty);
-                }
-
-                lines.Add("## Inbox");
-                lines.Add(string.Empty);
-                insertionIndex = lines.Count;
-            }
-            else
-            {
-                insertionIndex = FindSectionEnd(lines, inboxes[0].index + 1);
-                while (insertionIndex > inboxes[0].index + 1 && lines[insertionIndex - 1].Length == 0)
+                    Schedule = update.Fields.Schedule,
+                    Duration = update.Fields.Duration
+                };
+                insertedLines.Add($"- [ ] {SerializeBody(item)}");
+                foreach (var content in update.Content.Items)
                 {
-                    insertionIndex--;
+                    insertedLines.AddRange(SerializeContentItem(content, "  ").Split('\n'));
                 }
             }
 
-            var item = new TodoItem(
-                insertionIndex + 1,
-                false,
-                NullIfWhiteSpace(update.Fields.ExternalReference),
-                update.Fields.Title.Trim(),
-                update.Fields.Priority,
-                update.Fields.Tags,
-                update.Fields.StartDate,
-                update.Fields.DueDate,
-                "Inbox",
-                [],
-                [])
-            {
-                Schedule = update.Fields.Schedule,
-                Duration = update.Fields.Duration
-            };
-            lines.Insert(insertionIndex, $"- [ ] {SerializeBody(item)}");
-            lines.InsertRange(
-                insertionIndex + 1,
-                update.Content.Items.Select(content => SerializeContentItem(content, "  ")));
+            lines.InsertRange(insertionIndex, insertedLines);
             Write(path, lines, newline, finalNewline: true);
-            return TodoMutationResult.Success(insertionIndex + 1);
+            return TodoBatchMutationResult.Success(sourceLines);
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            return TodoMutationResult.Failure($"Cannot update project: {exception.Message}");
+            return TodoBatchMutationResult.Failure($"Cannot update project: {exception.Message}");
         }
+    }
+
+    private static string? ValidateNewTodo(TodoTaskUpdate update)
+    {
+        if (string.IsNullOrWhiteSpace(update.Fields.Title))
+        {
+            return "Todo title must not be empty.";
+        }
+
+        if (update.Fields.Title.IndexOfAny(['\r', '\n']) >= 0)
+        {
+            return "Todo title must stay on one line.";
+        }
+
+        if (update.Fields.ExternalReference?.IndexOfAny([')', '\r', '\n']) >= 0)
+        {
+            return "External reference must not contain a closing parenthesis or line break.";
+        }
+
+        if (update.Fields.Tags.Any(tag =>
+                string.IsNullOrWhiteSpace(tag) ||
+                tag.TrimStart('#').Length == 0 ||
+                tag.Any(char.IsWhiteSpace)))
+        {
+            return "Tags must be non-empty hashtags without whitespace.";
+        }
+
+        if (update.Fields.Schedule?.Time is { } time &&
+            (time.Minute is not (0 or 15 or 30 or 45) ||
+             time < new TimeOnly(6, 0) ||
+             time > new TimeOnly(21, 45)))
+        {
+            return "Scheduled time must be a quarter-hour from 06:00 through 21:45.";
+        }
+
+        if (update.Fields.Duration is { } duration &&
+            (duration.TotalMinutes is < 15 or > 960 || duration.TotalMinutes % 15 != 0))
+        {
+            return "Duration must be a 15-minute value from 15 through 960 minutes.";
+        }
+
+        if (update.Content.Items.Any(item => item.SourceLine is not null))
+        {
+            return "New todo content must not have source identities.";
+        }
+
+        if (update.Content.Items.Any(item => item is not TodoNoteUpdate and not TodoSubtaskUpdate))
+        {
+            return "The new todo content contains an unsupported item.";
+        }
+
+        if (update.Content.Items.OfType<TodoNoteUpdate>().Any(note => string.IsNullOrWhiteSpace(note.Text)) ||
+            update.Content.Items.OfType<TodoSubtaskUpdate>().Any(subtask =>
+                string.IsNullOrWhiteSpace(subtask.Title) ||
+                subtask.Title.IndexOfAny(['\r', '\n']) >= 0))
+        {
+            return "New todo content must not be empty.";
+        }
+
+        return null;
     }
 
     private TodoMutationResult MutateExisting(
