@@ -30,7 +30,10 @@ formatting; removing a subtask removes its identified descendant subtree.
 
 New todos are appended beneath a case-insensitive `## Inbox` heading. Create
 the heading when absent and reject files containing multiple matching Inbox
-headings.
+headings. A batch creation validates every proposed todo before reading or
+writing, re-parses the destination once, appends the complete ordered batch,
+and replaces the project through one atomic write. Any validation, parse, or
+write failure leaves the complete batch unapplied.
 
 ## Consequences
 
@@ -40,6 +43,8 @@ headings.
   write.
 - Task-line metadata is normalized when that todo is edited.
 - Note identities allow precise edits without normalizing unrelated content.
+- Agent imports can add several tasks without exposing a partially written
+  batch in one project.
 
 ## References
 
