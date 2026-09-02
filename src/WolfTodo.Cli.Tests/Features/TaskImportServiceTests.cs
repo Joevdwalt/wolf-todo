@@ -95,21 +95,4 @@ public sealed class TaskImportServiceTests
             new ProjectTodoMutationService(fileSystem, reader));
     }
 
-    private sealed class MemoryFileSystem(string path, string contents) : IProjectFileSystem
-    {
-        public int WriteCount { get; private set; }
-        public bool FileExists(string candidate) => candidate == path;
-        public string GetFullPath(string candidate) => candidate;
-        public string ReadAllText(string candidate) => candidate == path ? contents : throw new FileNotFoundException();
-        public void WriteAllTextAtomically(string candidate, string value) => WriteCount++;
-    }
-
-    private sealed class MultiFileSystem(IReadOnlyDictionary<string, string> files) : IProjectFileSystem
-    {
-        public bool FileExists(string candidate) => files.ContainsKey(candidate);
-        public string GetFullPath(string candidate) => candidate;
-        public string ReadAllText(string candidate) => files[candidate];
-        public void WriteAllTextAtomically(string candidate, string value) =>
-            throw new InvalidOperationException("No write expected.");
-    }
 }

@@ -8,26 +8,26 @@ public sealed class TaskImportService(
     ProjectCatalogLoader catalogLoader,
     ProjectTodoMutationService mutationService)
 {
-    public Result Import(string projectTarget, IReadOnlyList<TodoTaskUpdate> tasks)
+    public TaskImportResult Import(string projectTarget, IReadOnlyList<TodoTaskUpdate> tasks)
     {
         var catalog = catalogLoader.Load(configurationLoader.Load());
         var resolution = ProjectTargetResolver.Resolve(catalog, projectTarget);
         if (resolution.Error is not null)
         {
-            return Result.Failure(resolution.ErrorCode!, resolution.Error);
+            return TaskImportResult.Failure(resolution.ErrorCode!, resolution.Error);
         }
 
         var project = resolution.Project!;
         var collision = FindScheduleCollision(catalog, tasks);
         if (collision is not null)
         {
-            return Result.Failure("schedule_conflict", collision);
+            return TaskImportResult.Failure("schedule_conflict", collision);
         }
 
         var mutation = mutationService.CreateMany(project.Path, tasks);
         return mutation.Succeeded
-            ? Result.Success(project, mutation.SourceLines)
-            : Result.Failure("mutation_failed", mutation.Error!);
+            ? TaskImportResult.Success(project, mutation.SourceLines)
+            : TaskImportResult.Failure("mutation_failed", mutation.Error!);
     }
 
     private static string? FindScheduleCollision(
@@ -65,18 +65,4 @@ public sealed class TaskImportService(
         }
     }
 
-    public sealed record Result(
-        bool Succeeded,
-        string? ErrorCode,
-        string? Error,
-        string? ProjectTitle,
-        string? ProjectPath,
-        IReadOnlyList<int> SourceLines)
-    {
-        public static Result Success(TodoProject project, IReadOnlyList<int> sourceLines) =>
-            new(true, null, null, project.Title, project.Path, sourceLines);
-
-        public static Result Failure(string code, string error) =>
-            new(false, code, error, null, null, []);
-    }
 }

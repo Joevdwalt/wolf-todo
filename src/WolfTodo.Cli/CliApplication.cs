@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using McMaster.Extensions.CommandLineUtils;
+using Microsoft.Extensions.DependencyInjection;
 using WolfTodo.Cli.Features;
 using WolfTodo.Cli.Infrastructure;
 using WolfTodo.Cli.Infrastructure.Commands;
@@ -14,7 +16,7 @@ public sealed class CliApplication(
     TaskListService listService,
     TextReader input,
     TextWriter output,
-    Func<string, string> readAllText)
+    Func<string, string> readAllText) : ICliCommandRunner
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -26,24 +28,31 @@ public sealed class CliApplication(
     {
         try
         {
-            if (ShouldRunHelp(args, out var run))
+            if (args.Length == 0 || args is ["--help"] or ["-h"] or ["help"])
             {
-                return run;
+                output.WriteLine(CliHelpText.Text);
+                return 0;
             }
 
-            if (!Enum.TryParse <CommandsEnum>(args[0],ignoreCase: true, out var command))
-            {
-                WriteError(2, "unknown_command", $"Unknown command '{args[0]}'.");
-            }
-            
-            return command switch
-            {
-                CommandsEnum.Add => RunAdd(args[1..]),
-                CommandsEnum.Import => RunImport(args[1..]),
-                CommandsEnum.List => RunList(args[1..]),
-                _ => WriteError(2, "unknown_command", $"Unknown command '{args[0]}'.")
-            };
+            var console = new CliConsole(input, output);
+            using var services = new ServiceCollection()
+                .AddSingleton<ICliCommandRunner>(this)
+                .AddSingleton(new CliInvocation(args))
+                .AddSingleton<IConsole>(console)
+                .BuildServiceProvider();
 
+            using var application = new CommandLineApplication<RootCommand>(console);
+            application.Conventions
+                .UseDefaultConventions()
+                .UseConstructorInjection(services);
+            application.MakeSuggestionsInErrorMessage = false;
+            return application.Execute(args);
+
+        }
+        catch (CommandParsingException exception)
+        {
+            var mapped = CommandParsingErrorMapper.Map(args, exception);
+            return WriteError(2, mapped.Code, mapped.Message);
         }
         catch (CommandException exception)
         {
@@ -54,18 +63,6 @@ public sealed class CliApplication(
         {
             return WriteError(1, "operation_failed", exception.Message);
         }
-    }
-
-    public bool ShouldRunHelp(string[] args, out int run)
-    {
-        if (args.Length == 0 || args is ["--help"] or ["-h"] or ["help"])
-        {
-            output.WriteLine(HelpText);
-            run = 0;
-            return true;
-        }
-        run = 1;
-        return false;
     }
 
     private int RunAdd(string[] args)
@@ -213,7 +210,6 @@ public sealed class CliApplication(
             }
         }
     }
-
 
 
     private static TodoTaskUpdate BuildTask(AddOptions options) => BuildTask(new TaskInput
@@ -386,10 +382,6 @@ public sealed class CliApplication(
         return parsed;
     }
 
-
-
-
-
     private int WriteError(int exitCode, string code, string message)
     {
         WriteJson(new { ok = false, error = new { code, message } });
@@ -398,50 +390,10 @@ public sealed class CliApplication(
 
     private void WriteJson(object value) => output.WriteLine(JsonSerializer.Serialize(value, JsonOptions));
 
-    private const string HelpText = """
-                                    Wolf Todo CLI
+    int ICliCommandRunner.RunAdd(string[] args) => RunAdd(args);
+    int ICliCommandRunner.RunImport(string[] args) => RunImport(args);
+    int ICliCommandRunner.RunList(string[] args) => RunList(args);
 
-                                    wtodo add --project <title|absolute-path> --title <text> [options]
-                                    wtodo import --file <path>
-                                    wtodo import --stdin
-                                    wtodo list [--project <title|absolute-path>]
-
-                                    Add options:
-                                      --reference <text>
-                                      --priority <lowest|low|medium|high|highest>
-                                      --tag <tag>                         Repeatable
-                                      --scheduled <YYYY-MM-DD>
-                                      --time <HH:mm>
-                                      --duration-minutes <minutes>
-                                      --note <text>                       Repeatable and ordered
-                                      --subtask <title>                   Repeatable and ordered
-                                      --completed-subtask <title>         Repeatable and ordered
-                                    """;
-
-
-
-    private sealed class ImportDocument
-    {
-        public string? Project { get; init; }
-        public List<TaskInput?>? Tasks { get; init; }
-    }
-
-    private sealed class TaskInput
-    {
-        public string? Title { get; init; }
-        public string? Reference { get; init; }
-        public string? Priority { get; init; }
-        public List<string?>? Tags { get; init; }
-        public ScheduleInput? Schedule { get; init; }
-        public int? DurationMinutes { get; init; }
-        public List<ContentInput?>? Content { get; init; }
-    }
-
-    private sealed class ScheduleInput
-    {
-        public string? Date { get; init; }
-        public string? Time { get; init; }
-    }
 }
 
 
