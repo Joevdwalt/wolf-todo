@@ -26,19 +26,24 @@ public sealed class CliApplication(
     {
         try
         {
-            if (args.Length == 0 || args is ["--help"] or ["-h"] or ["help"])
+            if (ShouldRunHelp(args, out var run))
             {
-                output.WriteLine(HelpText);
-                return 0;
+                return run;
             }
 
-            return args[0] switch
+            if (!Enum.TryParse <CommandsEnum>(args[0],ignoreCase: true, out var command))
             {
-                "add" => RunAdd(args[1..]),
-                "import" => RunImport(args[1..]),
-                "list" => RunList(args[1..]),
+                WriteError(2, "unknown_command", $"Unknown command '{args[0]}'.");
+            }
+            
+            return command switch
+            {
+                CommandsEnum.Add => RunAdd(args[1..]),
+                CommandsEnum.Import => RunImport(args[1..]),
+                CommandsEnum.List => RunList(args[1..]),
                 _ => WriteError(2, "unknown_command", $"Unknown command '{args[0]}'.")
             };
+
         }
         catch (CommandException exception)
         {
@@ -49,6 +54,18 @@ public sealed class CliApplication(
         {
             return WriteError(1, "operation_failed", exception.Message);
         }
+    }
+
+    public bool ShouldRunHelp(string[] args, out int run)
+    {
+        if (args.Length == 0 || args is ["--help"] or ["-h"] or ["help"])
+        {
+            output.WriteLine(HelpText);
+            run = 0;
+            return true;
+        }
+        run = 1;
+        return false;
     }
 
     private int RunAdd(string[] args)
