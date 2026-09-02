@@ -53,6 +53,16 @@ public sealed class SavedTodoQueryTests
     }
 
     [Theory]
+    [InlineData("priority:low", true)]
+    [InlineData("priority:medium", false)]
+    public void Matches_treats_missing_priority_as_low(string source, bool expected)
+    {
+        SavedTodoQuery.TryParse(source, out var query, out _).Should().BeTrue();
+
+        query.Matches(Todo("Task"), "Work", Today).Should().Be(expected);
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("yesterday")]
     [InlineData("due:t-1")]

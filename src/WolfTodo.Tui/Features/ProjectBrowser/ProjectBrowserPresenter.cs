@@ -368,7 +368,7 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         TodoPriority? left,
         TodoPriority? right,
         int direction) =>
-        (left ?? TodoPriority.Medium).CompareTo(right ?? TodoPriority.Medium) * direction;
+        (left ?? TodoPriority.Low).CompareTo(right ?? TodoPriority.Low) * direction;
 
     private static int CompareOptionalSchedules(TodoSchedule? left, TodoSchedule? right, int direction)
     {

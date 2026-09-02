@@ -47,8 +47,8 @@ next launch. A missing or invalid saved sort uses source order.
 - Compare scheduled values chronologically by date and then time. Unscheduled
   todos appear last in both directions.
 - Compare priorities by severity. Ascending orders Lowest through Highest;
-  descending orders Highest through Lowest. Todos without priority appear last
-  in both directions.
+  descending orders Highest through Lowest. Treat todos without priority as Low;
+  they retain Markdown source order relative to explicitly Low-priority todos.
 - For tags, case-insensitively deduplicate and naturally order each todo's tags,
   then compare the normalized tag sets. Untagged todos appear last in both
   directions.
@@ -67,8 +67,8 @@ available.
 2. `d` and `D` order scheduled todos in the requested direction and keep
    unscheduled todos last. Existing persisted numeric start-date sorts map to
    scheduled sorting because the enum position is retained.
-3. `p` orders Lowest through Highest and `P` reverses that order; both keep
-   unprioritized todos last.
+3. `p` orders Lowest through Highest and `P` reverses that order; both treat
+   unprioritized todos as Low and preserve source order for equal priorities.
 4. `t` and `T` inside the dialog order normalized tag sets and keep untagged
    todos last.
 5. `f` and `F` order `All` project groups by Markdown filename.

@@ -124,7 +124,7 @@ public sealed record SavedTodoQueryTerm(
 
     private bool MatchesPriority(TodoPriority? priority) =>
         Enum.TryParse<TodoPriority>(Value, true, out var expected) &&
-        (priority ?? TodoPriority.Medium) == expected;
+        (priority ?? TodoPriority.Low) == expected;
 
     private bool MatchesText(TodoItem todo) =>
         Contains(todo.Title, Value) || Contains(todo.ExternalReference, Value) ||
