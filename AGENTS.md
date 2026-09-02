@@ -8,6 +8,10 @@ the application's purpose, structure, and AI guidance.
 Build a todo manager that stores todos as Markdown files. Keep the Markdown-file
 storage model central to implementation decisions.
 
+## On documentation
+
+Do not over elaborate on a point. Write documentation in a compact but still readable way. Also review for duplicate or irrelavant docs that still exist and update
+
 ## Repository Layout
 
 - `src/`: application source code.

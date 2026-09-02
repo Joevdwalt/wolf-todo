@@ -16,47 +16,17 @@ Markdown todos.
   task editor with its selected schedule pre-filled and required.
 - New todos are appended under `## Inbox`. Planner creation also applies the
   selected schedule.
-- `e` and its compatibility alias `E` open one editor for title, external
-  reference, priority, tags, scheduled date/time, direct notes, and direct
-  subtasks. Project, section, and compatibility-only start/due metadata remain
+- `e` and its compatibility alias `E` open the unified task editor described in
+  [SPEC0011](SPEC0011-structured-todo-content-editor.md) for title, external
+  reference, priority, tags, scheduled date/time, Content, and subtasks.
+  Project, section, and compatibility-only start/due metadata remain
   unchanged. The command palette exposes one Edit todo action.
 - Spacebar toggles the selected Markdown checkbox. `:completed` continues to
   control completed-todo visibility only.
-- The bottom editor uses configured movement and open/back gestures and one
-  cursor across seven field textboxes and the ordered content outline. Ctrl+S
-  saves; cancellation performs no write. Every task field uses the same
-  textbox presentation:
-
-  ```text
-  Title
-  ╭──────────────────╮
-  │Renew contract    │
-  ╰──────────────────╯
-  Reference
-  ╭──────────────────╮
-  │EXT-42            │
-  ╰──────────────────╯
-  Priority
-  ╭──────────────────╮
-  │—                 │
-  ╰──────────────────╯
-    CONTENT
-    • Review current contract
-  ```
-
-  Textboxes are read-only while browsing and editable when opened. The
-  focused editable textbox supports Ctrl+A to select its complete value.
-  Typing replaces the selection, Backspace or Delete removes it, and cursor
-  movement collapses it in the movement direction. The visible selection uses
-  the active accent styling. Read-only textboxes do not accept selection or
-  editing input. The Reference textbox contains the bare identifier; Markdown
-  writes it as `(REFERENCE) ` before the task title. Empty values display as `—`. A field
-  viewport keeps the selected textbox visible on shorter terminals; moving
-  through the fields scrolls that viewport. Explicitly wrap hints and
-  validation errors so the status panel remains within the terminal viewport.
-  Use the configured theme hierarchy: white labels and active text, subdued
-  white read-only text, dim muted styling for hints, and bold error styling for
-  validation failures.
+- The unified editor uses configured movement and open/back gestures. Ctrl+S
+  saves the draft and cancellation performs no write. Its presentation,
+  multiline Content behavior, subtask-only Add action, validation, and removal
+  rules are defined by SPEC0011.
 - Successful changes reload the catalog and restore selection to the resulting
   source identity. Validation, stale targets, and I/O failures remain visible
   without discarding external content or the active form. Schedule writes also
@@ -77,12 +47,6 @@ Markdown todos.
   retain the archive copy and report the duplicate-safe failure. Archive files
   are not configured projects and `:archive` is unavailable from aggregate,
   saved, or Planner views.
-- Within the editor, `a` opens a configured-binding picker for a note or
-  subtask. It inserts after selected content or appends when a field is selected.
-  Add, edit, remove, field, schedule, and subtask completion changes are written
-  together with Ctrl+S; Escape discards them.
-- Removing a subtask includes its descendant subtree and requires confirmation
-  when nested content exists.
 - Ctrl+E opens the selected todo's canonical Markdown project at its one-based
   source line in the executable named by `$EDITOR`. Suspend terminal rendering,
   wait for the editor, then reset the terminal and reload the catalog.
@@ -96,7 +60,7 @@ Markdown todos.
   failures keep the active draft open with its error;
   successful writes close the editor and retain the selected date and slot.
 
-Root-todo deletion, project/section movement, and content reordering remain out
+Root-todo deletion, project/section movement, and subtask reordering remain out
 of scope.
 
 Multi-task schedule, tag, priority, and completion changes use the selection,
@@ -108,4 +72,5 @@ form, and per-project atomicity rules in SPEC0018.
 - [ADR0010: Edit Markdown with the Configured External Editor](../adr/ADR0010-edit-markdown-with-the-configured-external-editor.md)
 - [SPEC0002: Project Browser](SPEC0002-project-browser-and-markdown-todo-format.md)
 - [SPEC0009: Day Planner](SPEC0009-day-planner.md)
+- [SPEC0011: Structured Todo Content Editor](SPEC0011-structured-todo-content-editor.md)
 - [SPEC0018: Multi-Select Task Updates](SPEC0018-multi-select-task-updates.md)

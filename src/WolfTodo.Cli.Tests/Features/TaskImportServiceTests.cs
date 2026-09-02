@@ -18,7 +18,7 @@ public sealed class TaskImportServiceTests
             new TodoUpdate(
                 "Collision", null, null, [], null, null,
                 new TodoSchedule(new DateOnly(2026, 9, 1), new TimeOnly(9, 30))),
-            new TodoContentUpdate([]));
+            new TodoContentUpdate(string.Empty, []));
 
         var result = service.Import("Work", [task]);
 
@@ -35,7 +35,7 @@ public sealed class TaskImportServiceTests
 
         var result = CreateService(fileSystem, path).Import(
             "/todos/other.md",
-            [new TodoTaskUpdate(new TodoUpdate("Task", null, null, [], null, null), new TodoContentUpdate([]))]);
+            [new TodoTaskUpdate(new TodoUpdate("Task", null, null, [], null, null), new TodoContentUpdate(string.Empty, []))]);
 
         result.ErrorCode.Should().Be("project_not_configured");
     }
@@ -48,7 +48,7 @@ public sealed class TaskImportServiceTests
         var schedule = new TodoSchedule(new DateOnly(2026, 9, 1), new TimeOnly(9, 30));
         TodoTaskUpdate Task(string title) => new(
             new TodoUpdate(title, null, null, [], null, null, schedule),
-            new TodoContentUpdate([]));
+            new TodoContentUpdate(string.Empty, []));
 
         var result = CreateService(fileSystem, path).Import("Work", [Task("First"), Task("Second")]);
 
@@ -78,7 +78,7 @@ public sealed class TaskImportServiceTests
 
         var result = service.Import(
             "Work",
-            [new TodoTaskUpdate(new TodoUpdate("Task", null, null, [], null, null), new TodoContentUpdate([]))]);
+            [new TodoTaskUpdate(new TodoUpdate("Task", null, null, [], null, null), new TodoContentUpdate(string.Empty, []))]);
 
         result.ErrorCode.Should().Be("ambiguous_project");
     }
