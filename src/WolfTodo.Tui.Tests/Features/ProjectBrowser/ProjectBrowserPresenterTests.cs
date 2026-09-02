@@ -482,11 +482,11 @@ public sealed class ProjectBrowserPresenterTests
     [Theory]
     [InlineData(
         TodoSortDirection.Ascending,
-        "Lowest,Low,None,Medium,High,Highest")]
+        "Lowest,None,Low,Medium,High,Highest")]
     [InlineData(
         TodoSortDirection.Descending,
-        "Highest,High,None,Medium,Low,Lowest")]
-    public void CreateView_sorts_priorities_treating_unprioritized_todos_as_medium(
+        "Highest,High,Medium,None,Low,Lowest")]
+    public void CreateView_sorts_priorities_treating_unprioritized_todos_as_low(
         TodoSortDirection direction,
         string expectedOrder)
     {

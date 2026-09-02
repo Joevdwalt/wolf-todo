@@ -32,7 +32,7 @@ Supported fields are:
 - `project`: a case-insensitive project-title substring;
 - `text`: a case-insensitive title, reference, section, or tag substring; and
 - `priority`: `lowest`, `low`, `medium`, `high`, or `highest`, with missing
-  priorities treated as medium.
+  priorities treated as low.
 
 Relative dates use `t`, `t+n`, `t-n`, `w+n`, `w-n`, and English weekday names
 or abbreviations such as `mon` and `monday`. Weekday expressions resolve to the
