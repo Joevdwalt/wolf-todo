@@ -115,7 +115,7 @@ public sealed class CliApplicationTests
     [Fact]
     public void Import_rejects_unknown_json_properties_without_writing()
     {
-        var fixture = new CliApplicationFixture(markdown: """
+        var fixture = new CliApplicationFixture(stdin: """
             { "project": "Work", "tasks": [{ "title": "Task", "hallucinated": true }] }
             """);
 
@@ -135,6 +135,30 @@ public sealed class CliApplicationTests
 
         exitCode.Should().Be(2);
         fixture.Output.ToString().Should().Contain("\"code\":\"missing_option\"");
+    }
+
+    [Fact]
+    public void Add_rejects_duplicate_scalar_options()
+    {
+        var fixture = new CliApplicationFixture();
+
+        var exitCode = fixture.Application.Run(
+            ["add", "--project", "Work", "--project", "Other", "--title", "Task"]);
+
+        exitCode.Should().Be(2);
+        fixture.Output.ToString().Should().Contain("\"code\":\"duplicate_option\"");
+        fixture.FileSystem.WriteCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void Import_rejects_duplicate_stdin_options()
+    {
+        var fixture = new CliApplicationFixture("{}");
+
+        var exitCode = fixture.Application.Run(["import", "--stdin", "--stdin"]);
+
+        exitCode.Should().Be(2);
+        fixture.Output.ToString().Should().Contain("\"code\":\"duplicate_option\"");
     }
 
     [Fact]

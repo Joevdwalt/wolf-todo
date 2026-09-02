@@ -1,4 +1,4 @@
-namespace WolfTodo.Cli.Infrastructure.Commands;
+namespace WolfTodo.Cli.Infrastructure.Commands.Import;
 
 public sealed class ImportDocument
 {
