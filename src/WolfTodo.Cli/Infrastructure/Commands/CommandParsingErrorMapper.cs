@@ -24,7 +24,7 @@ public static class CommandParsingErrorMapper
         var valueOptions = new HashSet<string>(StringComparer.Ordinal)
         {
             "--project", "--title", "--reference", "--priority", "--scheduled",
-            "--time", "--duration-minutes", "--note", "--subtask", "--completed-subtask", "--file"
+            "--time", "--duration-minutes", "--content", "--subtask", "--completed-subtask", "--file"
         };
 
         for (var index = 1; index < args.Length; index++)

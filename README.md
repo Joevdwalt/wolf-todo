@@ -266,7 +266,7 @@ Create one task by configured project title or absolute configured path:
 wtodo add --project "Client Work" --title "Prepare proposal" \
   --reference EXT-42 --priority high --tag now \
   --scheduled 2026-09-01 --time 09:30 --duration-minutes 30 \
-  --note "Review scope" --subtask "Draft proposal"
+  --content "Review scope" --subtask "Draft proposal"
 ```
 
 For agent-oriented batches, pass a strict JSON document through a file or
@@ -283,9 +283,9 @@ standard input:
       "tags": ["now", "client"],
       "schedule": { "date": "2026-09-01", "time": "09:30" },
       "duration_minutes": 30,
-      "content": [
-        { "type": "note", "text": "Review scope" },
-        { "type": "subtask", "title": "Draft proposal", "completed": false }
+      "content": "Review scope",
+      "subtasks": [
+        { "title": "Draft proposal", "completed": false }
       ]
     }
   ]

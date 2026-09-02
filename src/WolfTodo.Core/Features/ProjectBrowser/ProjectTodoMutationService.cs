@@ -296,26 +296,23 @@ public sealed partial class ProjectTodoMutationService(
         string path,
         TodoItem expected,
         TodoTaskUpdate update)
+        => UpdateUnifiedTask(path, expected, update);
+
+    private TodoMutationResult UpdateUnifiedTask(
+        string path,
+        TodoItem expected,
+        TodoTaskUpdate update)
     {
         if (string.IsNullOrWhiteSpace(update.Fields.Title))
         {
             return TodoMutationResult.Failure("Todo title must not be empty.");
         }
 
-        if (update.Content.Items.OfType<TodoNoteUpdate>().Any(note => string.IsNullOrWhiteSpace(note.Text)))
+        if (update.Content.Subtasks.Any(subtask =>
+                string.IsNullOrWhiteSpace(subtask.Title) ||
+                subtask.Title.IndexOfAny(['\r', '\n']) >= 0))
         {
-            return TodoMutationResult.Failure("Notes must not be empty.");
-        }
-
-        if (update.Content.Items.OfType<TodoSubtaskUpdate>()
-            .Any(subtask => string.IsNullOrWhiteSpace(subtask.Title)))
-        {
-            return TodoMutationResult.Failure("Subtask titles must not be empty.");
-        }
-
-        if (update.Content.Items.Any(item => item is not TodoNoteUpdate and not TodoSubtaskUpdate))
-        {
-            return TodoMutationResult.Failure("The todo content draft contains an unsupported item.");
+            return TodoMutationResult.Failure("Subtask titles must not be empty or multiline.");
         }
 
         try
@@ -335,28 +332,18 @@ public sealed partial class ProjectTodoMutationService(
                     "The todo content changed on disk. Reload it before saving your change.");
             }
 
-            var currentItems = current.Notes
-                .Select(note => (note.SourceLine, IsNote: true))
-                .Concat(current.Subtasks.Select(todo => (todo.SourceLine, IsNote: false)))
-                .OrderBy(item => item.SourceLine)
+            var currentLines = current.Subtasks.Select(subtask => subtask.SourceLine).ToArray();
+            var updatedLines = update.Content.Subtasks
+                .Where(subtask => subtask.SourceLine is not null)
+                .Select(subtask => subtask.SourceLine!.Value)
                 .ToArray();
-            var currentByLine = currentItems.ToDictionary(item => item.SourceLine);
-            var updatedExisting = update.Content.Items
-                .Where(item => item.SourceLine is not null)
-                .ToArray();
-            var updatedLines = updatedExisting.Select(item => item.SourceLine!.Value).ToArray();
-            var retainedLines = updatedLines.ToHashSet();
-            var expectedOrder = currentItems
-                .Where(item => retainedLines.Contains(item.SourceLine))
-                .Select(item => item.SourceLine)
-                .ToArray();
+            var currentSet = currentLines.ToHashSet();
+            var retainedOrder = currentLines.Where(line => updatedLines.Contains(line)).ToArray();
             if (updatedLines.Distinct().Count() != updatedLines.Length ||
-                updatedExisting.Any(item =>
-                    !currentByLine.TryGetValue(item.SourceLine!.Value, out var currentItem) ||
-                    currentItem.IsNote != (item is TodoNoteUpdate)) ||
-                !updatedLines.SequenceEqual(expectedOrder))
+                updatedLines.Any(line => !currentSet.Contains(line)) ||
+                !updatedLines.SequenceEqual(retainedOrder))
             {
-                return TodoMutationResult.Failure("The todo content draft contains stale items.");
+                return TodoMutationResult.Failure("The todo subtask draft contains stale items.");
             }
 
             var newline = DetectNewline(contents);
@@ -372,56 +359,62 @@ public sealed partial class ProjectTodoMutationService(
             var targetIndent = LeadingWhitespace(lines[targetIndex]);
             var childIndent = targetIndent + "  ";
             var blockEnd = FindTodoBlockEnd(lines, targetIndex, targetIndent.Length);
-            var replacements = new Dictionary<int, string>();
+            var replacements = new Dictionary<int, string>
+            {
+                [targetIndex] = targetPrefix.Groups[1].Value + Serialize(current with
+                {
+                    Title = update.Fields.Title.Trim(),
+                    ExternalReference = NullIfWhiteSpace(update.Fields.ExternalReference),
+                    Priority = update.Fields.Priority,
+                    Tags = update.Fields.Tags,
+                    StartDate = update.Fields.StartDate,
+                    DueDate = update.Fields.DueDate,
+                    Schedule = update.Fields.Schedule,
+                    Duration = update.Fields.Duration
+                })
+            };
             var removals = new HashSet<int>();
             var insertions = new Dictionary<int, List<string>>();
-            replacements[targetIndex] = targetPrefix.Groups[1].Value + Serialize(current with
-            {
-                Title = update.Fields.Title.Trim(),
-                ExternalReference = NullIfWhiteSpace(update.Fields.ExternalReference),
-                Priority = update.Fields.Priority,
-                Tags = update.Fields.Tags,
-                StartDate = update.Fields.StartDate,
-                DueDate = update.Fields.DueDate,
-                Schedule = update.Fields.Schedule,
-                Duration = update.Fields.Duration
-            });
 
-            foreach (var note in current.Notes)
+            void AddInsertion(int index, IEnumerable<string> values)
             {
-                var replacement = update.Content.Items
-                    .OfType<TodoNoteUpdate>()
-                    .FirstOrDefault(candidate => candidate.SourceLine == note.SourceLine);
-                if (replacement is null)
+                if (!insertions.TryGetValue(index, out var existing))
+                {
+                    existing = [];
+                    insertions[index] = existing;
+                }
+
+                existing.AddRange(values);
+            }
+
+            var currentContent = string.Join('\n', current.Notes.Select(note => note.Text));
+            if (!string.Equals(currentContent, update.Content.Content, StringComparison.Ordinal))
+            {
+                foreach (var note in current.Notes)
                 {
                     foreach (var line in Enumerable.Range(note.SourceLine - 1, note.LineCount))
                     {
                         removals.Add(line);
                     }
-                    continue;
                 }
 
-                replacements[note.SourceLine - 1] = ReplaceNoteText(
-                    lines[note.SourceLine - 1],
-                    replacement.Text);
-                foreach (var line in Enumerable.Range(note.SourceLine, note.LineCount - 1))
+                if (update.Content.Content.Length > 0)
                 {
-                    removals.Add(line);
+                    var firstSubtaskLine = current.Subtasks.FirstOrDefault()?.SourceLine;
+                    var insertionIndex = firstSubtaskLine is null ? blockEnd : firstSubtaskLine.Value - 1;
+                    AddInsertion(insertionIndex,
+                        [SerializeNote(update.Content.Content, $"{childIndent}- ", childIndent + "  ")]);
                 }
             }
 
+            var updatedByLine = update.Content.Subtasks
+                .Where(subtask => subtask.SourceLine is not null)
+                .ToDictionary(subtask => subtask.SourceLine!.Value);
             foreach (var subtask in current.Subtasks)
             {
-                var replacement = update.Content.Items
-                    .OfType<TodoSubtaskUpdate>()
-                    .FirstOrDefault(candidate => candidate.SourceLine == subtask.SourceLine);
-                if (replacement is null)
+                if (!updatedByLine.TryGetValue(subtask.SourceLine, out var replacement))
                 {
-                    foreach (var line in ContentSourceLines(subtask))
-                    {
-                        removals.Add(line - 1);
-                    }
-
+                    foreach (var line in ContentSourceLines(subtask)) removals.Add(line - 1);
                     continue;
                 }
 
@@ -434,40 +427,30 @@ public sealed partial class ProjectTodoMutationService(
                 });
             }
 
-            var pendingInsertions = new List<string>();
-            foreach (var item in update.Content.Items)
+            var pending = new List<string>();
+            foreach (var subtask in update.Content.Subtasks)
             {
-                if (item.SourceLine is null)
+                if (subtask.SourceLine is null)
                 {
-                    pendingInsertions.Add(SerializeContentItem(item, childIndent));
+                    pending.Add($"{childIndent}- [{(subtask.IsCompleted ? 'x' : ' ')}] {subtask.Title.Trim()}");
                     continue;
                 }
 
-                if (pendingInsertions.Count > 0)
+                if (pending.Count > 0)
                 {
-                    insertions[item.SourceLine.Value - 1] = [.. pendingInsertions];
-                    pendingInsertions.Clear();
+                    AddInsertion(subtask.SourceLine.Value - 1, pending);
+                    pending.Clear();
                 }
             }
 
-            if (pendingInsertions.Count > 0)
-            {
-                insertions[blockEnd] = [.. pendingInsertions];
-            }
+            if (pending.Count > 0) AddInsertion(blockEnd, pending);
 
-            var newItemCount = update.Content.Items.Count(item => item.SourceLine is null);
-            var output = new List<string>(lines.Count + newItemCount);
+            var output = new List<string>(lines.Count + pending.Count);
             for (var index = 0; index <= lines.Count; index++)
             {
-                if (insertions.TryGetValue(index, out var insertedLines))
-                {
-                    output.AddRange(insertedLines);
-                }
-
+                if (insertions.TryGetValue(index, out var inserted)) output.AddRange(inserted);
                 if (index < lines.Count && !removals.Contains(index))
-                {
                     output.Add(replacements.GetValueOrDefault(index, lines[index]));
-                }
             }
 
             Write(path, output, newline, finalNewline);
@@ -481,7 +464,7 @@ public sealed partial class ProjectTodoMutationService(
     }
 
     public TodoMutationResult Create(string path, TodoUpdate update)
-        => Create(path, new TodoTaskUpdate(update, new TodoContentUpdate([])));
+        => Create(path, new TodoTaskUpdate(update, new TodoContentUpdate(string.Empty, [])));
 
     public TodoMutationResult Create(string path, TodoTaskUpdate update)
     {
@@ -552,10 +535,13 @@ public sealed partial class ProjectTodoMutationService(
                     Duration = update.Fields.Duration
                 };
                 insertedLines.Add($"- [ ] {SerializeBody(item)}");
-                foreach (var content in update.Content.Items)
+                if (update.Content.Content.Length > 0)
                 {
-                    insertedLines.AddRange(SerializeContentItem(content, "  ").Split('\n'));
+                    insertedLines.AddRange(SerializeNote(update.Content.Content, "  - ", "    ").Split('\n'));
                 }
+
+                insertedLines.AddRange(update.Content.Subtasks.Select(subtask =>
+                    $"  - [{(subtask.IsCompleted ? 'x' : ' ')}] {subtask.Title.Trim()}"));
             }
 
             lines.InsertRange(insertionIndex, insertedLines);
@@ -608,22 +594,11 @@ public sealed partial class ProjectTodoMutationService(
             return "Duration must be a 15-minute value from 15 through 960 minutes.";
         }
 
-        if (update.Content.Items.Any(item => item.SourceLine is not null))
-        {
-            return "New todo content must not have source identities.";
-        }
-
-        if (update.Content.Items.Any(item => item is not TodoNoteUpdate and not TodoSubtaskUpdate))
-        {
-            return "The new todo content contains an unsupported item.";
-        }
-
-        if (update.Content.Items.OfType<TodoNoteUpdate>().Any(note => string.IsNullOrWhiteSpace(note.Text)) ||
-            update.Content.Items.OfType<TodoSubtaskUpdate>().Any(subtask =>
+        if (update.Content.Subtasks.Any(subtask =>
                 string.IsNullOrWhiteSpace(subtask.Title) ||
                 subtask.Title.IndexOfAny(['\r', '\n']) >= 0))
         {
-            return "New todo content must not be empty.";
+            return "New todo subtask titles must be non-empty and stay on one line.";
         }
 
         return null;
@@ -954,23 +929,7 @@ public sealed partial class ProjectTodoMutationService(
             : content + newline + newline + blockText + newline;
     }
 
-    private static string ReplaceNoteText(string line, string text)
-    {
-        var match = NoteLinePattern().Match(line);
-        return match.Success
-            ? SerializeNote(text, match.Groups[1].Value + match.Groups[2].Value, LeadingWhitespace(line) + "  ")
-            : line;
-    }
-
     private static string LeadingWhitespace(string line) => line[..(line.Length - line.TrimStart().Length)];
-
-    private static string SerializeContentItem(TodoContentItemUpdate item, string indent) => item switch
-    {
-        TodoNoteUpdate note => SerializeNote(note.Text, $"{indent}- ", indent + "  "),
-        TodoSubtaskUpdate subtask =>
-            $"{indent}- [{(subtask.IsCompleted ? 'x' : ' ')}] {subtask.Title.Trim()}",
-        _ => throw new InvalidOperationException("Unsupported todo content item.")
-    };
 
     private static string SerializeNote(string text, string prefix, string continuationIndent)
     {
@@ -989,13 +948,11 @@ public sealed partial class ProjectTodoMutationService(
         todo.Schedule);
 
     private static TodoContentUpdate ContentUpdate(TodoItem todo) => new(
-        [.. todo.Notes
-            .Select(note => (TodoContentItemUpdate)new TodoNoteUpdate(note.SourceLine, note.Text))
-            .Concat(todo.Subtasks.Select(subtask => (TodoContentItemUpdate)new TodoSubtaskUpdate(
-                subtask.SourceLine,
-                subtask.Title,
-                subtask.IsCompleted)))
-            .OrderBy(item => item.SourceLine)]);
+        string.Join('\n', todo.Notes.Select(note => note.Text)),
+        [.. todo.Subtasks.Select(subtask => new TodoSubtaskUpdate(
+            subtask.SourceLine,
+            subtask.Title,
+            subtask.IsCompleted))]);
 
     private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
     {

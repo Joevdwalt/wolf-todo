@@ -547,22 +547,7 @@ public sealed class PlannerRenderer
                 editor.Error);
         }
 
-        if (editor.Mode != TodoTaskEditorMode.ChooseContentType)
-        {
-            return null;
-        }
-
-        return new SelectListView(
-            "Add content",
-            Enum.GetValues<ContentItemKind>()
-                .Select(kind => new SelectOption(kind.ToString().ToUpperInvariant()))
-                .ToArray(),
-            (int)editor.AddKind,
-            null,
-            "No content types available",
-            $"{statusRenderer.Shortest(bindings.MoveDown)}/{statusRenderer.Shortest(bindings.MoveUp)} MOVE  " +
-            $"{statusRenderer.Shortest(bindings.Open)} SELECT  {statusRenderer.Shortest(bindings.Back)} CANCEL",
-            editor.Error);
+        return null;
     }
 
     public MultilineTextBoxState? PlannerTextBox(PlannerView view) =>

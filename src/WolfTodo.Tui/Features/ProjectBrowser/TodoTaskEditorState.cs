@@ -10,15 +10,15 @@ public sealed record TodoTaskEditorState(
     int ProjectPickerIndex,
     int SelectedIndex,
     TodoTaskEditorMode Mode,
-    ContentItemKind AddKind,
-    bool IsAddingContent,
-    string Draft,
+    bool IsAddingSubtask,
+    string Content,
     TodoUpdate Values,
     TodoIdentity? Target,
-    ImmutableArray<ContentItemDraft> Items,
+    ImmutableArray<TodoSubtaskDraft> Subtasks,
     string? Error)
 {
     public const int FieldCount = 7;
+    public const int ContentIndex = FieldCount;
 
     public bool IsChoosingProject => ProjectPath is null;
 
@@ -36,15 +36,21 @@ public sealed record TodoTaskEditorState(
 
     internal TextBoxState? FieldTextBox { get; init; }
 
-    public bool IsEditingContent => ContentTextBox is not null;
+    internal TextBoxState? SubtaskTextBox { get; init; }
 
-    public int SelectableCount => FieldCount + Items.Length;
+    public bool IsEditingContent => ContentTextBox is not null;
 
     public bool IsFieldSelected => SelectedIndex < FieldCount;
 
-    public TodoFormField SelectedField => (TodoFormField)Math.Clamp(SelectedIndex, 0, FieldCount - 1);
+    public bool IsContentSelected => SelectedIndex == ContentIndex;
 
-    public int SelectedContentIndex => SelectedIndex - FieldCount;
+    public bool IsSubtaskSelected => SelectedIndex > ContentIndex && SelectedSubtaskIndex < Subtasks.Length;
+
+    public int SelectedSubtaskIndex => SelectedIndex - ContentIndex - 1;
+
+    public int SelectableCount => FieldCount + 1 + Subtasks.Length;
+
+    public TodoFormField SelectedField => (TodoFormField)Math.Clamp(SelectedIndex, 0, FieldCount - 1);
 
     public static TodoTaskEditorState Create(
         string? projectPath,
@@ -57,7 +63,6 @@ public sealed record TodoTaskEditorState(
         0,
         0,
         TodoTaskEditorMode.Browse,
-        ContentItemKind.Note,
         false,
         string.Empty,
         new TodoUpdate(string.Empty, null, null, [], null, null, schedule, duration),
@@ -74,9 +79,8 @@ public sealed record TodoTaskEditorState(
         0,
         0,
         TodoTaskEditorMode.Browse,
-        ContentItemKind.Note,
         false,
-        string.Empty,
+        string.Join('\n', todo.Notes.Select(note => note.Text)),
         new TodoUpdate(
             todo.Title,
             todo.ExternalReference,
@@ -87,30 +91,21 @@ public sealed record TodoTaskEditorState(
             todo.Schedule,
             todo.Duration),
         identity,
-        OrderedItems(todo),
+        [.. todo.Subtasks.Select(subtask => new TodoSubtaskDraft(
+            subtask.SourceLine,
+            subtask.Title,
+            subtask.IsCompleted,
+            DescendantCount(subtask)))],
         null);
 
     public TodoTaskUpdate ToUpdate(TodoSchedule? schedule) => new(
         Values with { Schedule = schedule },
         new TodoContentUpdate(
-            [.. Items.Select(item => item switch
-            {
-                ContentNoteDraft note =>
-                    (TodoContentItemUpdate)new TodoNoteUpdate(note.SourceLine, note.Text),
-                ContentSubtaskDraft subtask =>
-                    new TodoSubtaskUpdate(subtask.SourceLine, subtask.Title, subtask.IsCompleted),
-                _ => throw new InvalidOperationException("Unsupported todo content item.")
-            })]));
-
-    private static ImmutableArray<ContentItemDraft> OrderedItems(TodoItem todo) =>
-        [.. todo.Notes
-            .Select(note => (ContentItemDraft)new ContentNoteDraft(note.SourceLine, note.Text))
-            .Concat(todo.Subtasks.Select(subtask => (ContentItemDraft)new ContentSubtaskDraft(
+            Content,
+            [.. Subtasks.Select(subtask => new TodoSubtaskUpdate(
                 subtask.SourceLine,
                 subtask.Title,
-                subtask.IsCompleted,
-                DescendantCount(subtask))))
-            .OrderBy(item => item.SourceLine)];
+                subtask.IsCompleted))]));
 
     private static int DescendantCount(TodoItem todo) =>
         todo.Notes.Length + todo.Subtasks.Length + todo.Subtasks.Sum(DescendantCount);
@@ -119,7 +114,6 @@ public sealed record TodoTaskEditorState(
 public enum TodoTaskEditorMode
 {
     Browse,
-    ChooseContentType,
     Edit,
     ConfirmRemoval
 }
@@ -131,18 +125,8 @@ public enum TodoScheduleRequirement
     DateAndTime
 }
 
-public enum ContentItemKind
-{
-    Note,
-    Subtask
-}
-
-public abstract record ContentItemDraft(int? SourceLine);
-
-public sealed record ContentNoteDraft(int? SourceLine, string Text) : ContentItemDraft(SourceLine);
-
-public sealed record ContentSubtaskDraft(
+public sealed record TodoSubtaskDraft(
     int? SourceLine,
     string Title,
     bool IsCompleted,
-    int DescendantCount) : ContentItemDraft(SourceLine);
+    int DescendantCount);

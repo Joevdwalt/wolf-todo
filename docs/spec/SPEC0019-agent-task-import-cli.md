@@ -13,8 +13,9 @@ configured Markdown projects loaded by `wtodo-tui`.
 
 `wtodo add` creates one task. It requires `--project` and `--title` and accepts
 `--reference`, `--priority`, repeated `--tag`, `--scheduled`, `--time`,
-`--duration-minutes`, and ordered repeated `--note`, `--subtask`, and
-`--completed-subtask` options.
+`--duration-minutes`, optional multiline `--content`, repeated `--subtask`, and
+repeated `--completed-subtask` options. Content is written before the direct
+subtasks; the CLI does not support interleaving them.
 
 `wtodo import` accepts exactly one of `--file <path>` or `--stdin`. Its UTF-8
 JSON document contains one non-empty `project` and one non-empty `tasks` array.
@@ -28,9 +29,9 @@ Each task may contain:
   "tags": ["now"],
   "schedule": { "date": "2026-09-01", "time": "09:30" },
   "duration_minutes": 30,
-  "content": [
-    { "type": "note", "text": "Review scope" },
-    { "type": "subtask", "title": "Draft", "completed": false }
+  "content": "Review scope",
+  "subtasks": [
+    { "title": "Draft", "completed": false }
   ]
 }
 ```
@@ -38,8 +39,8 @@ Each task may contain:
 JSON uses the exact snake-case names above and rejects unknown properties.
 Priority values are `lowest`, `low`, `medium`, `high`, and `highest`.
 Schedules use ISO dates and optional `HH:mm` times; relative TUI date
-expressions are not accepted. Content order is preserved and subtasks are
-direct children only.
+expressions are not accepted. `content` is one multiline string and
+`subtasks` are direct children only, in array order.
 
 `wtodo list` returns every task from configured projects. An optional
 `--project <title|absolute-path>` limits the result to one resolved configured

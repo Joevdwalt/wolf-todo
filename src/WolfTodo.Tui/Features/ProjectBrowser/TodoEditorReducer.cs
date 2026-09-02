@@ -63,21 +63,16 @@ public sealed class TodoEditorReducer
             return ReduceFieldTextBox(editor, key, bindings);
         }
 
-        if (editor.Mode == TodoTaskEditorMode.Edit)
+        if (editor.SubtaskTextBox is not null)
         {
-            return ReduceDraft(editor, key);
-        }
-
-        if (editor.Mode == TodoTaskEditorMode.ChooseContentType)
-        {
-            return ReduceContentTypePicker(editor, key, bindings);
+            return ReduceSubtaskTextBox(editor, key, bindings);
         }
 
         if (editor.Mode == TodoTaskEditorMode.ConfirmRemoval)
         {
             if (bindings.MatchesOpen(key))
             {
-                return Transition(RemoveSelectedContent(editor) with
+                return Transition(RemoveSelectedSubtask(editor) with
                 {
                     Mode = TodoTaskEditorMode.Browse,
                     Error = null
@@ -94,9 +89,10 @@ public sealed class TodoEditorReducer
             return new TodoEditorTransition(null);
         }
 
-        if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
+        if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key) ||
+            bindings.MatchesFocusPrevious(key) || bindings.MatchesFocusNext(key))
         {
-            var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
+            var offset = bindings.MatchesMoveUp(key) || bindings.MatchesFocusPrevious(key) ? -1 : 1;
             return Transition(editor with
             {
                 SelectedIndex = Math.Clamp(
@@ -109,70 +105,63 @@ public sealed class TodoEditorReducer
 
         if (bindings.MatchesCreateTodo(key))
         {
-            return Transition(editor with
-            {
-                Mode = TodoTaskEditorMode.ChooseContentType,
-                AddKind = ContentItemKind.Note,
-                Error = null
-            });
+            return BeginSubtaskAdd(editor);
         }
 
-        if (bindings.MatchesEditTodo(key) || bindings.MatchesEditTodoContent(key) || bindings.MatchesOpen(key))
+        if (bindings.MatchesEditTodo(key) ||
+            bindings.MatchesEditTodoContent(key) ||
+            bindings.MatchesOpen(key))
         {
-            if (!editor.IsFieldSelected)
+            if (editor.IsFieldSelected)
             {
-                var selected = editor.Items[editor.SelectedContentIndex];
                 return Transition(editor with
                 {
-                    ContentTextBox = MultilineTextBoxState.Create(
-                        ContentTextBoxLabel(editor),
-                        SelectedValue(editor),
-                        selected is ContentNoteDraft),
+                    FieldTextBox = TextBox.Create(
+                        FieldLabel(editor.SelectedField),
+                        true,
+                        SelectedFieldValue(editor),
+                        isActive: true),
                     Error = null
                 });
             }
 
-            return Transition(editor with
+            if (editor.IsContentSelected)
             {
-                Mode = TodoTaskEditorMode.Edit,
-                IsAddingContent = false,
-                Draft = SelectedValue(editor),
-                FieldTextBox = TextBox.Create(FieldLabel(editor.SelectedField), true, SelectedValue(editor), isActive: true),
-                Error = null
-            });
+                return Transition(editor with
+                {
+                    ContentTextBox = MultilineTextBoxState.Create("Content", editor.Content, true),
+                    Error = null
+                });
+            }
+
+            return BeginSubtaskEdit(editor);
         }
 
         if (bindings.MatchesRemoveContent(key))
         {
-            if (editor.IsFieldSelected)
+            if (!editor.IsSubtaskSelected)
             {
-                return Transition(editor with { Error = "Select a note or subtask to remove." });
+                return Transition(editor with { Error = "Select a subtask to remove." });
             }
 
-            var selected = editor.Items[editor.SelectedContentIndex];
-            return selected is ContentSubtaskDraft { DescendantCount: > 0 }
+            var selected = editor.Subtasks[editor.SelectedSubtaskIndex];
+            return selected.DescendantCount > 0
                 ? Transition(editor with { Mode = TodoTaskEditorMode.ConfirmRemoval, Error = null })
-                : Transition(RemoveSelectedContent(editor));
+                : Transition(RemoveSelectedSubtask(editor));
         }
 
         if (bindings.MatchesToggleTodo(key))
         {
-            if (editor.IsFieldSelected)
+            if (!editor.IsSubtaskSelected)
             {
                 return Transition(editor with { Error = "Select a subtask to change completion." });
             }
 
-            var selected = editor.Items[editor.SelectedContentIndex];
-            if (selected is not ContentSubtaskDraft subtask)
-            {
-                return Transition(editor with { Error = "Only subtasks can be completed." });
-            }
-
+            var index = editor.SelectedSubtaskIndex;
+            var subtask = editor.Subtasks[index];
             return Transition(editor with
             {
-                Items = editor.Items.SetItem(
-                    editor.SelectedContentIndex,
-                    subtask with { IsCompleted = !subtask.IsCompleted }),
+                Subtasks = editor.Subtasks.SetItem(index, subtask with { IsCompleted = !subtask.IsCompleted }),
                 Error = null
             });
         }
@@ -235,39 +224,6 @@ public sealed class TodoEditorReducer
         };
     }
 
-    private TodoEditorTransition ReduceDraft(TodoTaskEditorState editor, ConsoleKeyInfo key)
-    {
-        if (key.Key == ConsoleKey.Escape)
-        {
-            return Transition(editor with
-            {
-                Mode = TodoTaskEditorMode.Browse,
-                AddKind = ContentItemKind.Note,
-                IsAddingContent = false,
-                Draft = string.Empty,
-                Error = null
-            });
-        }
-
-        if (key.Key == ConsoleKey.Enter)
-        {
-            return CommitDraft(editor);
-        }
-
-        if (key.Key == ConsoleKey.Backspace)
-        {
-            return Transition(editor with
-            {
-                Draft = editor.Draft.Length == 0 ? string.Empty : editor.Draft[..^1],
-                Error = null
-            });
-        }
-
-        return char.IsControl(key.KeyChar)
-            ? Transition(editor)
-            : Transition(editor with { Draft = editor.Draft + key.KeyChar, Error = null });
-    }
-
     private TodoEditorTransition ReduceFieldTextBox(
         TodoTaskEditorState editor,
         ConsoleKeyInfo key,
@@ -276,12 +232,7 @@ public sealed class TodoEditorReducer
         var transition = TextBox.Default.Reduce(editor.FieldTextBox!, key, bindings);
         if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
-            return Transition(editor with
-            {
-                Mode = TodoTaskEditorMode.Browse,
-                FieldTextBox = null,
-                Error = null
-            });
+            return Transition(editor with { FieldTextBox = null, Error = null });
         }
 
         if (transition.Outcome == TextBoxOutcome.Accepted)
@@ -289,122 +240,13 @@ public sealed class TodoEditorReducer
             var updated = CommitField(editor, transition.State!.Text.Trim());
             if (updated.Error is not null)
             {
-                return Transition(updated with { FieldTextBox = transition.State, Mode = TodoTaskEditorMode.Edit });
+                return Transition(updated with { Mode = TodoTaskEditorMode.Edit, FieldTextBox = transition.State });
             }
 
-            return Transition(updated with
-            {
-                Mode = TodoTaskEditorMode.Browse,
-                FieldTextBox = null,
-                Error = null
-            });
+            return Transition(updated with { FieldTextBox = null, Error = null });
         }
 
         return Transition(editor with { FieldTextBox = transition.State, Error = null });
-    }
-
-    private static TodoEditorTransition ReduceContentTypePicker(
-        TodoTaskEditorState editor,
-        ConsoleKeyInfo key,
-        TuiKeyBindings bindings)
-    {
-        var options = Enum.GetValues<ContentItemKind>();
-        var transition = SelectList.Default.Reduce(
-            new SelectListView(
-                "Add content",
-                options.Select(kind => new SelectOption(kind.ToString())).ToArray(),
-                (int)editor.AddKind,
-                null,
-                "No content types available.",
-                string.Empty),
-            key,
-            bindings);
-
-        return transition.Outcome switch
-        {
-            SelectListOutcome.Cancelled => Transition(editor with
-            {
-                Mode = TodoTaskEditorMode.Browse,
-                AddKind = ContentItemKind.Note,
-                Error = null
-            }),
-            SelectListOutcome.SelectionChanged => Transition(editor with
-            {
-                AddKind = options[transition.State!.ClampedSelectedIndex],
-                Error = null
-            }),
-            SelectListOutcome.Accepted => Transition(editor with
-            {
-                Mode = TodoTaskEditorMode.Browse,
-                IsAddingContent = true,
-                ContentTextBox = MultilineTextBoxState.Create(
-                    $"Add {options[transition.State!.ClampedSelectedIndex]}",
-                    string.Empty,
-                    options[transition.State.ClampedSelectedIndex] == ContentItemKind.Note),
-                Error = null
-            }),
-            _ => Transition(editor)
-        };
-    }
-
-    private TodoEditorTransition CommitDraft(TodoTaskEditorState editor)
-    {
-        var value = editor.Draft.Trim();
-        if (editor.IsAddingContent)
-        {
-            if (value.Length == 0)
-            {
-                return Transition(editor with { Error = "Content must not be empty." });
-            }
-
-            var item = editor.AddKind == ContentItemKind.Note
-                ? (ContentItemDraft)new ContentNoteDraft(null, value)
-                : new ContentSubtaskDraft(null, value, false, 0);
-            var insertionIndex = editor.IsFieldSelected || editor.Items.Length == 0
-                ? editor.Items.Length
-                : Math.Min(editor.SelectedContentIndex + 1, editor.Items.Length);
-            editor = editor with
-            {
-                Items = editor.Items.Insert(insertionIndex, item),
-                SelectedIndex = TodoTaskEditorState.FieldCount + insertionIndex
-            };
-        }
-        else if (editor.IsFieldSelected)
-        {
-            editor = CommitField(editor, value);
-            if (editor.Error is not null)
-            {
-                return Transition(editor);
-            }
-        }
-        else
-        {
-            if (value.Length == 0)
-            {
-                return Transition(editor with { Error = "Content must not be empty." });
-            }
-
-            var selected = editor.Items[editor.SelectedContentIndex];
-            var updated = selected switch
-            {
-                ContentNoteDraft note => (ContentItemDraft)(note with { Text = value }),
-                ContentSubtaskDraft subtask => subtask with { Title = value },
-                _ => throw new InvalidOperationException("Unsupported todo content item.")
-            };
-            editor = editor with
-            {
-                Items = editor.Items.SetItem(editor.SelectedContentIndex, updated)
-            };
-        }
-
-        return Transition(editor with
-        {
-            Mode = TodoTaskEditorMode.Browse,
-            AddKind = ContentItemKind.Note,
-            IsAddingContent = false,
-            Draft = string.Empty,
-            Error = null
-        });
     }
 
     private TodoEditorTransition ReduceContentTextBox(
@@ -415,55 +257,100 @@ public sealed class TodoEditorReducer
         var transition = MultilineTextBox.Default.Reduce(editor.ContentTextBox!, key, bindings);
         if (transition.Outcome == MultilineTextBoxOutcome.Cancelled)
         {
-            return Transition(editor with { ContentTextBox = null, IsAddingContent = false, Error = null });
+            return Transition(editor with { ContentTextBox = null, Error = null });
         }
 
         if (transition.Outcome == MultilineTextBoxOutcome.Accepted)
         {
-            var value = editor.ContentTextBox!.Text.Trim();
-            if (value.Length == 0)
-            {
-                return Transition(editor with { Error = "Content must not be empty." });
-            }
-
-            if (editor.IsAddingContent)
-            {
-                var item = editor.AddKind == ContentItemKind.Note
-                    ? (ContentItemDraft)new ContentNoteDraft(null, value)
-                    : new ContentSubtaskDraft(null, value, false, 0);
-                var insertionIndex = editor.IsFieldSelected || editor.Items.Length == 0
-                    ? editor.Items.Length
-                    : Math.Min(editor.SelectedContentIndex + 1, editor.Items.Length);
-                editor = editor with
-                {
-                    Items = editor.Items.Insert(insertionIndex, item),
-                    SelectedIndex = TodoTaskEditorState.FieldCount + insertionIndex
-                };
-            }
-            else
-            {
-                var selected = editor.Items[editor.SelectedContentIndex];
-                var item = selected switch
-                {
-                    ContentNoteDraft note => (ContentItemDraft)(note with { Text = value }),
-                    ContentSubtaskDraft subtask => subtask with { Title = value },
-                    _ => throw new InvalidOperationException("Unsupported todo content item.")
-                };
-                editor = editor with { Items = editor.Items.SetItem(editor.SelectedContentIndex, item) };
-            }
-
             return Transition(editor with
             {
-                Mode = TodoTaskEditorMode.Browse,
+                Content = transition.State!.Text.Trim(),
                 ContentTextBox = null,
-                IsAddingContent = false,
-                AddKind = ContentItemKind.Note,
                 Error = null
             });
         }
 
         return Transition(editor with { ContentTextBox = transition.State, Error = null });
     }
+
+    private TodoEditorTransition ReduceSubtaskTextBox(
+        TodoTaskEditorState editor,
+        ConsoleKeyInfo key,
+        TuiKeyBindings bindings)
+    {
+        var transition = TextBox.Default.Reduce(editor.SubtaskTextBox!, key, bindings);
+        if (transition.Outcome == TextBoxOutcome.Cancelled)
+        {
+            return Transition(editor with
+            {
+                SubtaskTextBox = null,
+                IsAddingSubtask = false,
+                Error = null
+            });
+        }
+
+        if (transition.Outcome != TextBoxOutcome.Accepted)
+        {
+            return Transition(editor with { SubtaskTextBox = transition.State, Error = null });
+        }
+
+        var title = transition.State!.Text.Trim();
+        if (title.Length == 0)
+        {
+            return Transition(editor with { SubtaskTextBox = transition.State, Error = "Subtask title must not be empty." });
+        }
+
+        if (title.IndexOfAny(['\r', '\n']) >= 0)
+        {
+            return Transition(editor with { SubtaskTextBox = transition.State, Error = "Subtask title must stay on one line." });
+        }
+
+        if (editor.IsAddingSubtask)
+        {
+            var insertionIndex = editor.IsSubtaskSelected
+                ? editor.SelectedSubtaskIndex + 1
+                : editor.Subtasks.Length;
+            var updated = editor with
+            {
+                Subtasks = editor.Subtasks.Insert(insertionIndex, new TodoSubtaskDraft(null, title, false, 0)),
+                SelectedIndex = TodoTaskEditorState.ContentIndex + 1 + insertionIndex
+            };
+            return Transition(updated with
+            {
+                SubtaskTextBox = null,
+                IsAddingSubtask = false,
+                Error = null
+            });
+        }
+
+        var index = editor.SelectedSubtaskIndex;
+        return Transition(editor with
+        {
+            Subtasks = editor.Subtasks.SetItem(index, editor.Subtasks[index] with { Title = title }),
+            SubtaskTextBox = null,
+            Error = null
+        });
+    }
+
+    private static TodoEditorTransition BeginSubtaskAdd(TodoTaskEditorState editor) =>
+        Transition(editor with
+        {
+            Mode = TodoTaskEditorMode.Edit,
+            IsAddingSubtask = true,
+            SubtaskTextBox = TextBox.Create("Add subtask", true, string.Empty, isActive: true),
+            Error = null
+        });
+
+    private static TodoEditorTransition BeginSubtaskEdit(TodoTaskEditorState editor) =>
+        Transition(editor with
+        {
+            SubtaskTextBox = TextBox.Create(
+                "Subtask",
+                true,
+                editor.Subtasks[editor.SelectedSubtaskIndex].Title,
+                isActive: true),
+            Error = null
+        });
 
     private TodoTaskEditorState CommitField(TodoTaskEditorState editor, string value)
     {
@@ -473,27 +360,18 @@ public sealed class TodoEditorReducer
         {
             case TodoFormField.Title:
                 values = values with { Title = value };
-                if (value.Length == 0)
-                {
-                    error = "Title is required.";
-                }
+                if (value.Length == 0) error = "Title is required.";
                 break;
             case TodoFormField.Reference:
                 values = values with { ExternalReference = NullIfEmpty(value) };
                 break;
             case TodoFormField.Priority:
                 if (value.Length == 0)
-                {
                     values = values with { Priority = null };
-                }
                 else if (Enum.TryParse<TodoPriority>(value, true, out var priority))
-                {
                     values = values with { Priority = priority };
-                }
                 else
-                {
                     error = "Priority must be Highest, High, Medium, Low, Lowest, or empty.";
-                }
                 break;
             case TodoFormField.Tags:
                 values = values with
@@ -519,47 +397,28 @@ public sealed class TodoEditorReducer
         return editor with { Values = values, Error = error };
     }
 
-    private static TodoTaskEditorState RemoveSelectedContent(TodoTaskEditorState editor)
+    private static TodoTaskEditorState RemoveSelectedSubtask(TodoTaskEditorState editor)
     {
-        var items = editor.Items.RemoveAt(editor.SelectedContentIndex);
+        var subtasks = editor.Subtasks.RemoveAt(editor.SelectedSubtaskIndex);
         return editor with
         {
-            Items = items,
-            SelectedIndex = Math.Clamp(
-                editor.SelectedIndex,
-                0,
-                TodoTaskEditorState.FieldCount + items.Length - 1),
+            Subtasks = subtasks,
+            SelectedIndex = Math.Clamp(editor.SelectedIndex, 0, TodoTaskEditorState.ContentIndex + subtasks.Length),
             Error = null
         };
     }
 
-    private static string SelectedValue(TodoTaskEditorState editor)
+    private static string SelectedFieldValue(TodoTaskEditorState editor) => editor.SelectedField switch
     {
-        if (!editor.IsFieldSelected)
-        {
-            return editor.Items[editor.SelectedContentIndex] switch
-            {
-                ContentNoteDraft note => note.Text,
-                ContentSubtaskDraft subtask => subtask.Title,
-                _ => string.Empty
-            };
-        }
-
-        return editor.SelectedField switch
-        {
-            TodoFormField.Title => editor.Values.Title,
-            TodoFormField.Reference => editor.Values.ExternalReference ?? string.Empty,
-            TodoFormField.Priority => editor.Values.Priority?.ToString() ?? string.Empty,
-            TodoFormField.Tags => string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}")),
-            TodoFormField.ScheduledDate => editor.ScheduledDate,
-            TodoFormField.ScheduledTime => editor.ScheduledTime,
-            TodoFormField.Duration => editor.Duration,
-            _ => string.Empty
-        };
-    }
-
-    private static string ContentTextBoxLabel(TodoTaskEditorState editor) =>
-        editor.Items[editor.SelectedContentIndex] is ContentNoteDraft ? "Edit note" : "Edit subtask";
+        TodoFormField.Title => editor.Values.Title,
+        TodoFormField.Reference => editor.Values.ExternalReference ?? string.Empty,
+        TodoFormField.Priority => editor.Values.Priority?.ToString() ?? string.Empty,
+        TodoFormField.Tags => string.Join(' ', editor.Values.Tags.Select(tag => $"#{tag}")),
+        TodoFormField.ScheduledDate => editor.ScheduledDate,
+        TodoFormField.ScheduledTime => editor.ScheduledTime,
+        TodoFormField.Duration => editor.Duration,
+        _ => string.Empty
+    };
 
     private static string FieldLabel(TodoFormField field) => field switch
     {
@@ -581,12 +440,9 @@ public sealed class TodoEditorReducer
         if (!hasDate && !hasTime)
         {
             if (editor.ScheduleRequirement != TodoScheduleRequirement.None)
-            {
                 error = editor.ScheduleRequirement == TodoScheduleRequirement.Date
                     ? "A scheduled date is required."
                     : "A scheduled date and time are required.";
-            }
-
             return null;
         }
 
@@ -609,16 +465,11 @@ public sealed class TodoEditorReducer
                 error = "A scheduled date and time are required.";
                 return null;
             }
-
             return new TodoSchedule(date);
         }
 
-        if (!TimeOnly.TryParseExact(
-                editor.ScheduledTime,
-                "HH:mm",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var time))
+        if (!TimeOnly.TryParseExact(editor.ScheduledTime, "HH:mm", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var time))
         {
             error = "Schedule must use YYYY-MM-DD and HH:mm.";
             return null;
@@ -636,16 +487,8 @@ public sealed class TodoEditorReducer
     private static string ParseDateText(string value, DateOnly today, out string? error)
     {
         error = null;
-        if (value.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        if (DateExpression.TryParse(value, today, out var date))
-        {
-            return date.ToString("yyyy-MM-dd");
-        }
-
+        if (value.Length == 0) return string.Empty;
+        if (DateExpression.TryParse(value, today, out var date)) return date.ToString("yyyy-MM-dd");
         error = "Date must use YYYY-MM-DD, t, t+N, w+N, or be empty.";
         return value;
     }
@@ -653,24 +496,10 @@ public sealed class TodoEditorReducer
     private static string ParseTimeText(string value, out string? error)
     {
         error = null;
-        if (value.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        if (TimeOnly.TryParseExact(
-                value,
-                "HH:mm",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var time) &&
-            time.Minute is 0 or 15 or 30 or 45 &&
-            time >= new TimeOnly(6, 0) &&
-            time <= new TimeOnly(21, 45))
-        {
+        if (value.Length == 0) return string.Empty;
+        if (TimeOnly.TryParseExact(value, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time) &&
+            time.Minute is 0 or 15 or 30 or 45 && time >= new TimeOnly(6, 0) && time <= new TimeOnly(21, 45))
             return time.ToString("HH:mm");
-        }
-
         error = "Time must use HH:mm on a quarter-hour from 06:00 through 21:45, or be empty.";
         return value;
     }
@@ -678,18 +507,11 @@ public sealed class TodoEditorReducer
     private static TimeSpan? ParseDurationText(string value, out string? error)
     {
         error = null;
-        if (value.Length == 0)
-        {
-            return null;
-        }
-
+        if (value.Length == 0) return null;
         var number = value.EndsWith('m') ? value[..^1] : value;
         if (int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) &&
             minutes is >= 15 and <= 960 && minutes % 15 == 0)
-        {
             return TimeSpan.FromMinutes(minutes);
-        }
-
         error = "Duration must be a 15-minute value from 15m through 960m, or be empty.";
         return null;
     }

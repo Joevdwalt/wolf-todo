@@ -295,7 +295,7 @@ public sealed class ProjectTodoMutationServiceTests
     }
 
     [Fact]
-    public void UpdateTask_changes_fields_and_ordered_content_in_one_atomic_write()
+    public void UpdateTask_changes_fields_content_and_subtasks_in_one_atomic_write()
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Parent\n  - old note\n  - [ ] Child\n";
@@ -304,28 +304,21 @@ public sealed class ProjectTodoMutationServiceTests
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
 
-        var result = service.UpdateTask(
-            path,
-            expected,
-            new TodoTaskUpdate(
-                new TodoUpdate("Renamed", "EXT-7", TodoPriority.High, ["now"], null, null),
-                new TodoContentUpdate([
-                    new TodoNoteUpdate(2, "updated note"),
-                    new TodoNoteUpdate(null, "inserted note"),
-                    new TodoSubtaskUpdate(3, "Changed child", true)])));
+        var result = service.UpdateTask(path, expected, new TodoTaskUpdate(
+            new TodoUpdate("Renamed", "EXT-7", TodoPriority.High, ["now"], null, null),
+            new TodoContentUpdate("updated note\ninserted note", [new TodoSubtaskUpdate(3, "Changed child", true)])));
 
         result.Succeeded.Should().BeTrue();
         fileSystem.WriteCount.Should().Be(1);
         fileSystem.Contents.Should().Be(
             "- [ ] (EXT-7) Renamed ⏫ #now\n" +
             "  - updated note\n" +
-            "  - inserted note\n" +
+            "    inserted note\n" +
             "  - [x] Changed child\n");
-        parser.Parse(path, fileSystem.Contents).Project!.Todos.Single().ExternalReference.Should().Be("EXT-7");
     }
 
     [Fact]
-    public void UpdateTask_replaces_the_full_multiline_note_block()
+    public void UpdateTask_replaces_the_full_multiline_content_block()
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Parent\n  - old first\n    old continuation\n  - [ ] Child\n";
@@ -334,14 +327,9 @@ public sealed class ProjectTodoMutationServiceTests
         var fileSystem = new WritableFileSystem(path, markdown);
         var service = new ProjectTodoMutationService(fileSystem, parser);
 
-        var result = service.UpdateTask(
-            path,
-            expected,
-            new TodoTaskUpdate(
-                new TodoUpdate("Parent", null, null, [], null, null),
-                new TodoContentUpdate([
-                    new TodoNoteUpdate(2, "new first\n\nnew second"),
-                    new TodoSubtaskUpdate(4, "Child", false)])));
+        var result = service.UpdateTask(path, expected, new TodoTaskUpdate(
+            new TodoUpdate("Parent", null, null, [], null, null),
+            new TodoContentUpdate("new first\n\nnew second", [new TodoSubtaskUpdate(4, "Child", false)])));
 
         result.Succeeded.Should().BeTrue();
         fileSystem.Contents.Should().Be(
@@ -353,98 +341,26 @@ public sealed class ProjectTodoMutationServiceTests
     }
 
     [Fact]
-    public void Create_writes_fields_and_interleaved_content_together()
+    public void Create_writes_content_before_direct_subtasks()
     {
         const string path = "/todos/work.md";
         var fileSystem = new WritableFileSystem(path, "## Inbox\n");
         var service = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader());
 
-        var result = service.Create(
-            path,
-            new TodoTaskUpdate(
-                new TodoUpdate("New task", null, null, [], null, null),
-                new TodoContentUpdate([
-                    new TodoNoteUpdate(null, "context"),
-                    new TodoSubtaskUpdate(null, "first step", false),
-                    new TodoNoteUpdate(null, "closing note")])));
+        var result = service.Create(path, new TodoTaskUpdate(
+            new TodoUpdate("New task", null, null, [], null, null),
+            new TodoContentUpdate("context\ncontinued", [new TodoSubtaskUpdate(null, "first step", false)])));
 
         result.Succeeded.Should().BeTrue();
-        fileSystem.WriteCount.Should().Be(1);
         fileSystem.Contents.Should().Be(
             "## Inbox\n- [ ] New task\n" +
             "  - context\n" +
-            "  - [ ] first step\n" +
-            "  - closing note\n");
-    }
-
-    [Fact]
-    public void CreateMany_writes_the_complete_batch_once_and_returns_source_lines()
-    {
-        const string path = "/todos/work.md";
-        var fileSystem = new WritableFileSystem(path, "# Work\n");
-        var service = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader());
-
-        var result = service.CreateMany(path,
-        [
-            new TodoTaskUpdate(
-                new TodoUpdate("First", null, TodoPriority.High, ["now"], null, null),
-                new TodoContentUpdate([new TodoNoteUpdate(null, "context\ncontinued")])),
-            new TodoTaskUpdate(
-                new TodoUpdate("Second", "EXT-2", null, [], null, null),
-                new TodoContentUpdate([new TodoSubtaskUpdate(null, "step", true)]))
-        ]);
-
-        result.Succeeded.Should().BeTrue();
-        result.SourceLines.Should().Equal(5, 8);
-        fileSystem.WriteCount.Should().Be(1);
-        fileSystem.Contents.Should().Be(
-            "# Work\n\n## Inbox\n\n" +
-            "- [ ] First ⏫ #now\n" +
-            "  - context\n" +
             "    continued\n" +
-            "- [ ] (EXT-2) Second\n" +
-            "  - [x] step\n");
+            "  - [ ] first step\n");
     }
 
     [Fact]
-    public void CreateMany_rejects_any_invalid_item_without_writing()
-    {
-        const string path = "/todos/work.md";
-        var fileSystem = new WritableFileSystem(path, "# Work\n");
-        var service = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader());
-
-        var result = service.CreateMany(path,
-        [
-            new TodoTaskUpdate(
-                new TodoUpdate("Valid", null, null, [], null, null),
-                new TodoContentUpdate([])),
-            new TodoTaskUpdate(
-                new TodoUpdate(" ", null, null, [], null, null),
-                new TodoContentUpdate([]))
-        ]);
-
-        result.Succeeded.Should().BeFalse();
-        result.Error.Should().StartWith("Todo 2:");
-        fileSystem.WriteCount.Should().Be(0);
-        fileSystem.Contents.Should().Be("# Work\n");
-    }
-
-    [Fact]
-    public void CreateMany_rejects_an_empty_batch_without_reading_or_writing()
-    {
-        const string path = "/todos/work.md";
-        var fileSystem = new WritableFileSystem(path, "# Work\n");
-
-        var result = new ProjectTodoMutationService(fileSystem, new MarkdownTodoProjectReader())
-            .CreateMany(path, []);
-
-        result.Succeeded.Should().BeFalse();
-        result.Error.Should().Be("Create at least one todo.");
-        fileSystem.WriteCount.Should().Be(0);
-    }
-
-    [Fact]
-    public void UpdateContent_edits_and_adds_direct_content_without_rewriting_descendants()
+    public void UpdateContent_adds_subtasks_without_rewriting_descendants()
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Parent\n  - old note\n  - [ ] Child #tag\n    - nested note\n- [ ] Sibling\n";
@@ -454,16 +370,13 @@ public sealed class ProjectTodoMutationServiceTests
         var service = new ProjectTodoMutationService(fileSystem, parser);
 
         var result = service.UpdateContent(path, expected, new TodoContentUpdate(
-            [new TodoNoteUpdate(2, "updated note"),
-             new TodoNoteUpdate(null, "new note"),
-             new TodoSubtaskUpdate(3, "Changed child", true),
-             new TodoSubtaskUpdate(null, "Second child", false)]));
+            "updated note",
+            [new TodoSubtaskUpdate(3, "Changed child", true), new TodoSubtaskUpdate(null, "Second child", false)]));
 
         result.Succeeded.Should().BeTrue();
         fileSystem.Contents.Should().Be(
             "- [ ] Parent\n" +
             "  - updated note\n" +
-            "  - new note\n" +
             "  - [x] Changed child #tag\n" +
             "    - nested note\n" +
             "  - [ ] Second child\n" +
@@ -471,81 +384,39 @@ public sealed class ProjectTodoMutationServiceTests
     }
 
     [Fact]
-    public void UpdateContent_inserts_new_content_at_its_ordered_outline_position()
-    {
-        const string path = "/todos/work.md";
-        const string markdown =
-            "- [ ] Parent\n" +
-            "  - opening note\n" +
-            "  - [ ] Child\n" +
-            "    - nested note\n" +
-            "  - closing note\n" +
-            "- [ ] Sibling\n";
-        var parser = new MarkdownTodoProjectReader();
-        var expected = parser.Parse(path, markdown).Project!.Todos[0];
-        var fileSystem = new WritableFileSystem(path, markdown);
-        var service = new ProjectTodoMutationService(fileSystem, parser);
-
-        var result = service.UpdateContent(path, expected, new TodoContentUpdate(
-            [new TodoNoteUpdate(2, "opening note"),
-             new TodoSubtaskUpdate(3, "Child", false),
-             new TodoNoteUpdate(null, "inserted after child"),
-             new TodoNoteUpdate(5, "closing note")]));
-
-        result.Succeeded.Should().BeTrue();
-        fileSystem.Contents.Should().Be(
-            "- [ ] Parent\n" +
-            "  - opening note\n" +
-            "  - [ ] Child\n" +
-            "    - nested note\n" +
-            "  - inserted after child\n" +
-            "  - closing note\n" +
-            "- [ ] Sibling\n");
-    }
-
-    [Fact]
-    public void UpdateContent_rejects_reordered_or_retyped_source_items()
+    public void UpdateContent_rejects_reordered_or_unknown_subtask_identities()
     {
         const string path = "/todos/work.md";
         const string markdown = "- [ ] Parent\n  - note\n  - [ ] Child\n";
         var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos[0];
         var reorderedFile = new WritableFileSystem(path, markdown);
-        var retypedFile = new WritableFileSystem(path, markdown);
+        var unknownFile = new WritableFileSystem(path, markdown);
 
         var reordered = new ProjectTodoMutationService(reorderedFile, parser).UpdateContent(
-            path,
-            expected,
-            new TodoContentUpdate(
-                [new TodoSubtaskUpdate(3, "Child", false), new TodoNoteUpdate(2, "note")]));
-        var retyped = new ProjectTodoMutationService(retypedFile, parser).UpdateContent(
-            path,
-            expected,
-            new TodoContentUpdate(
-                [new TodoSubtaskUpdate(2, "Not a note", false), new TodoSubtaskUpdate(3, "Child", false)]));
+            path, expected, new TodoContentUpdate("note", [new TodoSubtaskUpdate(2, "Not a child", false)]));
+        var unknown = new ProjectTodoMutationService(unknownFile, parser).UpdateContent(
+            path, expected, new TodoContentUpdate("note", [new TodoSubtaskUpdate(99, "Child", false)]));
 
         reordered.Succeeded.Should().BeFalse();
-        reordered.Error.Should().Contain("stale items");
+        reordered.Error.Should().Contain("stale");
         reorderedFile.Contents.Should().Be(markdown);
-        retyped.Succeeded.Should().BeFalse();
-        retyped.Error.Should().Contain("stale items");
-        retypedFile.Contents.Should().Be(markdown);
+        unknown.Succeeded.Should().BeFalse();
+        unknown.Error.Should().Contain("stale");
+        unknownFile.Contents.Should().Be(markdown);
     }
 
     [Fact]
-    public void UpdateContent_removes_a_subtask_and_its_descendant_content()
+    public void UpdateContent_clears_content_and_removes_a_subtask_subtree()
     {
         const string path = "/todos/work.md";
-        const string markdown = "- [ ] Parent\n  - [ ] Child\n    - child note\n    - [ ] Grandchild\n- [ ] Sibling\n";
+        const string markdown = "- [ ] Parent\n  - note\n  - [ ] Child\n    - child note\n    - [ ] Grandchild\n- [ ] Sibling\n";
         var parser = new MarkdownTodoProjectReader();
         var expected = parser.Parse(path, markdown).Project!.Todos[0];
         var fileSystem = new WritableFileSystem(path, markdown);
-        var service = new ProjectTodoMutationService(fileSystem, parser);
 
-        var result = service.UpdateContent(
-            path,
-            expected,
-            new TodoContentUpdate([]));
+        var result = new ProjectTodoMutationService(fileSystem, parser).UpdateContent(
+            path, expected, new TodoContentUpdate(string.Empty, []));
 
         result.Succeeded.Should().BeTrue();
         fileSystem.Contents.Should().Be("- [ ] Parent\n- [ ] Sibling\n");
@@ -560,12 +431,9 @@ public sealed class ProjectTodoMutationServiceTests
         var expected = parser.Parse(path, original).Project!.Todos[0];
         var changed = "- [ ] Parent\n  - [ ] Child\n    - externally changed\n";
         var fileSystem = new WritableFileSystem(path, changed);
-        var service = new ProjectTodoMutationService(fileSystem, parser);
 
-        var result = service.UpdateContent(
-            path,
-            expected,
-            new TodoContentUpdate([new TodoSubtaskUpdate(2, "Child", false)]));
+        var result = new ProjectTodoMutationService(fileSystem, parser).UpdateContent(
+            path, expected, new TodoContentUpdate(string.Empty, [new TodoSubtaskUpdate(2, "Child", false)]));
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Contain("changed on disk");

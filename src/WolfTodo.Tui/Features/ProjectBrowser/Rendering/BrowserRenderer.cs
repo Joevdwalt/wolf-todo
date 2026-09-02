@@ -271,22 +271,7 @@ public sealed class BrowserRenderer
                 editor.Error);
         }
 
-        if (editor.Mode != TodoTaskEditorMode.ChooseContentType)
-        {
-            return null;
-        }
-
-        return new SelectListView(
-            "Add content",
-            Enum.GetValues<ContentItemKind>()
-                .Select(kind => new SelectOption(kind.ToString().ToUpperInvariant()))
-                .ToArray(),
-            (int)editor.AddKind,
-            null,
-            "No content types available",
-            $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} MOVE  " +
-            $"{Shortest(bindings.Open)} SELECT  {Shortest(bindings.Back)} CANCEL",
-            editor.Error);
+        return null;
     }
 
     public static string CommandPaletteFooter(TuiKeyBindings bindings) =>

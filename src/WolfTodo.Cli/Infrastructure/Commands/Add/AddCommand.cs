@@ -20,7 +20,7 @@ public sealed class AddCommand(AddCommandHandler handler, CliInvocation invocati
 
     [Option("--duration-minutes", CommandOptionType.MultipleValue)] public string[] DurationMinutes { get; set; } = [];
 
-    [Option("--note", CommandOptionType.MultipleValue)] public string[] Notes { get; set; } = [];
+    [Option("--content", CommandOptionType.MultipleValue)] public string[] Content { get; set; } = [];
 
     [Option("--subtask", CommandOptionType.MultipleValue)] public string[] Subtasks { get; set; } = [];
 

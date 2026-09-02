@@ -108,6 +108,15 @@ public sealed class MultilineTextBoxTests
         component.Render(selected, TuiThemes.Wolf, new TuiComponentConstraints(30, 4)).Should().NotBeNull();
     }
 
+    [Fact]
+    public void Component_renders_when_the_cursor_is_at_the_start_of_a_leading_empty_line()
+    {
+        var state = new MultilineTextBoxState("Notes", "\nSecond", 0, true);
+
+        MultilineTextBox.Default.Render(state, TuiThemes.Wolf, new TuiComponentConstraints(30, 4))
+            .Should().NotBeNull();
+    }
+
     private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false) => new('\0', key, false, false, control);
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem2, false, false, false);

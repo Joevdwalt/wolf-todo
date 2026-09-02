@@ -16,7 +16,11 @@ public sealed class TaskUpdateFactory
         var scheduled = CommandOptionValues.OptionalSingle(command.Scheduled, "--scheduled");
         var time = CommandOptionValues.OptionalSingle(command.Time, "--time");
         var duration = CommandOptionValues.OptionalSingle(command.DurationMinutes, "--duration-minutes");
-        var content = CommandArguments.OrderedContent(arguments);
+        var content = CommandOptionValues.OptionalSingle(command.Content, "--content");
+        var subtasks = command.Subtasks
+            .Select(title => new SubtaskInput { Title = title, Completed = false })
+            .Concat(command.CompletedSubtasks.Select(title => new SubtaskInput { Title = title, Completed = true }))
+            .ToArray();
 
         return FromTask(new TaskInput
         {
@@ -26,7 +30,8 @@ public sealed class TaskUpdateFactory
             Tags = [.. command.Tags],
             Schedule = scheduled is null && time is null ? null : new ScheduleInput { Date = scheduled, Time = time },
             DurationMinutes = ParseOptionalInteger(duration, "--duration-minutes"),
-            Content = [.. content]
+            Content = content,
+            Subtasks = [.. subtasks]
         }, null);
     }
 
@@ -83,27 +88,28 @@ public sealed class TaskUpdateFactory
         if (tags.Any(tag => tag.Length == 0 || tag.Any(char.IsWhiteSpace)))
             throw new CommandException("invalid_task", prefix + "tags must be non-empty hashtags without whitespace.");
 
-        var content = (task.Content ?? []).Select((item, index) => item is null
-            ? throw new CommandException("invalid_task", $"{prefix}content item {index + 1} must be an object.")
-            : BuildContent(item, prefix, index + 1)).ToImmutableArray();
+        var content = task.Content ?? string.Empty;
+        if (content.Contains('\r'))
+            content = content.Replace("\r\n", "\n").Replace('\r', '\n');
+
+        var subtasks = (task.Subtasks ?? []).Select((item, index) => item is null
+            ? throw new CommandException("invalid_task", $"{prefix}subtask {index + 1} must be an object.")
+            : BuildSubtask(item, prefix, index + 1)).ToImmutableArray();
 
         return new TodoTaskUpdate(
             new TodoUpdate(task.Title, task.Reference, priority, tags, null, null, schedule,
                 task.DurationMinutes is null ? null : TimeSpan.FromMinutes(task.DurationMinutes.Value)),
-            new TodoContentUpdate(content));
+            new TodoContentUpdate(content, [.. subtasks]));
     }
 
-    private static TodoContentItemUpdate BuildContent(ContentInput item, string prefix, int index) => item.Type switch
+    private static TodoSubtaskUpdate BuildSubtask(SubtaskInput item, string prefix, int index)
     {
-        "note" when !string.IsNullOrWhiteSpace(item.Text) && item.Title is null && item.Completed is null =>
-            new TodoNoteUpdate(null, item.Text),
-        "subtask" when !string.IsNullOrWhiteSpace(item.Title) &&
-                       item.Title.IndexOfAny(['\r', '\n']) < 0 && item.Text is null =>
-            new TodoSubtaskUpdate(null, item.Title, item.Completed ?? false),
-        "note" => throw new CommandException("invalid_task", $"{prefix}content item {index} must contain text and only text."),
-        "subtask" => throw new CommandException("invalid_task", $"{prefix}content item {index} must contain title and optional completed."),
-        _ => throw new CommandException("invalid_task", $"{prefix}content item {index} type must be note or subtask.")
-    };
+        if (string.IsNullOrWhiteSpace(item.Title))
+            throw new CommandException("invalid_task", $"{prefix}subtask {index} title must be a non-empty string.");
+        if (item.Title.IndexOfAny(['\r', '\n']) >= 0)
+            throw new CommandException("invalid_task", $"{prefix}subtask {index} title must stay on one line.");
+        return new TodoSubtaskUpdate(null, item.Title.Trim(), item.Completed ?? false);
+    }
 
     private static int? ParseOptionalInteger(string? value, string option)
     {

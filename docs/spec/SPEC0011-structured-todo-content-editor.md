@@ -6,67 +6,126 @@ Accepted
 
 ## Purpose
 
-Edit Markdown-backed notes and nested subtasks without requiring an external
-editor or replacing unrelated project content.
+Edit Markdown-backed task fields, multiline content, and nested subtasks without
+requiring an external editor or replacing unrelated project content.
+
+## Design
+
+                    WOLF TODO COMPONENTS // TASK EDIT DIALOG
+                Sandbox only — Markdown files are never changed.
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ EDIT TASK // Prepare customer workshop                                       │
+│ Title                                                                        │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │Prepare customer workshop                                                 │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Reference                                                                    │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ACME-42                                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Priority                                                                     │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │High                                                                      │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Tags                                                                         │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │#client #workshop                                                         │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Scheduled date (YYYY-MM-DD, t+1, w+1, mon)                                   │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │2026-07-30                                                                │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Scheduled time                                                               │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │10:30                                                                     │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Duration                                                                     │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │90m                                                                       │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ Content                                                                      │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │some content here in multi line                                           │ │
+│ │                                                                          │ │
+│ │                                                                          │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│ SUBTASKS                                                                     │
+│  ├─ ◯ - Decide on rules                                                      │
+│  ├─ ✓ - Send pre-read material                                               │
+│  └─ ◯ - Prisesk                                                              │
+│                                                                              │
+│ j/k MOVE  l EDIT  a ADD  d REMOVE  Space TOGGLE  Ctrl+S SAVE  h CANCEL       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+
 
 ## Behavior
 
 `e` opens the unified bottom-panel task draft; `E` remains an alias for
-configuration compatibility. Direct notes and subtasks appear below the six
-editable task fields in one outline ordered by their Markdown source lines,
-with one cursor and a viewport that keeps the selection visible. Notes use `•`;
-open and completed subtasks use `◯` and `✓`. Subtasks with descendants show
-a nested-item count.
+configuration compatibility. The draft contains the seven editable task
+fields, one `Content` textbox, and a separate `SUBTASKS` list. The Content
+textbox contains the task's direct notes as one plain-text multiline value.
+Direct subtasks appear in their Markdown source order with one cursor across
+the fields, Content, and direct subtasks; a viewport keeps the selection
+visible. Open and completed subtasks use `◯` and `✓`. Subtasks with descendants
+show a nested-item count.
 
-Movement, open, back, create, edit, completion, removal, and save use configured
-bindings. Creating opens a two-item Note/Subtask picker controlled by configured
-move, open, and back actions; it defaults to Note. The accepted item is inserted
-after selected content; when a field is selected, it appends to the outline.
-Open and edit change the selected field or item's text. Notes open in a native
-multiline text box: Enter creates a new line, Ctrl+S accepts that text into the
-task draft, and Escape cancels the text edit. Subtasks use the same text box in
-single-line mode. Ctrl+A selects the complete value in both modes; typing or a
-multiline Enter replaces the selection, Backspace or Delete removes it, and
-cursor movement collapses it. Space toggles a subtask and reports an error when
-the selection is a field or note.
+Movement, open, back, add, edit, completion, removal, and save use configured
+bindings. Tab and Shift+Tab move through the fields, Content, and direct
+subtasks. While browsing, the fields and Content textbox are read-only. Enter
+opens the selected field, Content textbox, or subtask for editing. Content uses a native
+multiline text box: Enter creates a new line, Ctrl+S accepts the text into the
+task draft, and Escape cancels the text edit. Users enter only the content
+text; Markdown list markers and indentation are not required. Ctrl+A selects
+the complete value, typing or Enter replaces the selection, Backspace or
+Delete removes it, and cursor movement collapses it.
 
-Use the shared form hierarchy: heading styling for the outline and picker
-labels, bright accent for the selection, secondary text for other items, muted
-hints and empty states, error styling for validation, and warning styling for
-destructive confirmation.
+`a` opens a single-line subtask textbox directly; it never opens a content-type
+picker. The new subtask is unchecked and is inserted after the selected direct
+subtask, or appended when a field or Content is selected. Editing a selected
+subtask changes its title and does not permit line breaks. Space toggles a
+subtask and reports an error when the selection is a field or Content.
 
-Notes are non-empty and may contain multiple lines. Their first line is stored
-as an indented Markdown list item, while each continuation line is indented
-below that item. New subtasks are unchecked titles; their other fields can be
-changed by opening that subtask in the same editor. Opening the editor on a
-subtask supports arbitrary nesting. Existing items cannot change type.
-Reordering is not supported.
+Use the shared form hierarchy: heading styling for section labels, bright
+accent for the selection, secondary text for other items, muted hints and
+empty states, error styling for validation, and warning styling for destructive
+confirmation.
+
+Content may be empty and may contain multiple lines. Existing direct notes are
+combined in source order into the Content value. When changed, the value is
+stored as one indented Markdown note block: its first line is the list item and
+each continuation line is indented below it. New subtasks are unchecked titles.
+Opening a subtask in the editor supports arbitrary nesting; its descendants
+remain attached to it. Content and subtasks cannot be reordered through this
+editor.
 
 Removing a subtask removes its complete subtree. A subtask with nested notes or
 children requires confirmation through configured open/back gestures. Changes
 remain in memory until Ctrl+S; cancellation writes nothing.
 
-Saving fields and content re-reads the project, validates the complete original subtree and the
-ordered direct-item identities, and applies all changed source lines atomically.
-Retained items keep their source order and subtask descendant blocks remain
-unchanged. New items are inserted before the next retained item or at the end
-of the direct-content block. Stale, duplicated, retyped, or reordered source
-items reject the entire save. Unchanged Markdown, newline conventions, and
-permissions are preserved.
+Saving fields, Content, and subtasks re-reads the project, validates the
+complete original subtree and the ordered direct-subtask identities, and
+applies all changed source lines atomically. Retained subtasks keep their
+source order and descendant blocks remain unchanged. New subtasks are inserted
+before the next retained direct subtask or at the end of the direct-subtask
+block. Stale, duplicated, or reordered subtask identities reject the entire
+save. Unchanged Markdown, newline conventions, and permissions are preserved.
 
 ## Acceptance Scenarios
 
-1. Interleaved notes and direct subtasks appear in Markdown source order with
-   one selection.
-2. The type picker adds a note or subtask immediately after the selected item.
-3. Items can be edited and removed; subtask completion can be toggled before
-   saving, while attempting to toggle a note reports an error.
-4. Nested subtree removal requires confirmation and removes every descendant.
-5. Fields and ordered content can be changed in one draft; Ctrl+S performs one
-   atomic write and Escape discards it.
-6. External changes or invalid ordered identities reject the save without loss.
-7. A note can be edited across multiple lines, saved into its task draft with
-   Ctrl+S, and cancelled with Escape without changing that draft.
+1. Task fields, one multiline Content textbox, and direct subtasks appear as
+   separate editor sections with one visible selection.
+2. Existing direct notes are combined into Content, and Content can be edited
+   as multiline plain text without entering Markdown list syntax.
+3. `a` opens only subtask entry and inserts an unchecked subtask after the
+   selected subtask or appends it from field/Content focus.
+4. Subtask titles can be edited, completion can be toggled, and attempting to
+   toggle a field or Content reports an error.
+5. Nested subtree removal requires confirmation and removes every descendant.
+6. Fields, Content, and subtasks can be changed in one draft; Ctrl+S performs
+   one atomic write and Escape discards it.
+7. External changes or invalid subtask identities reject the save without loss.
 
 ## References
 
