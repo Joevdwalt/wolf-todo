@@ -10,10 +10,67 @@ namespace WolfTodo.Cli.Tests;
 
 public sealed class CliApplicationTests
 {
+    [Theory]
+    [InlineData("help")]
+    [InlineData("-h")]
+    [InlineData("--help")]
+    public void Help_aliases_write_the_legacy_help_text(string help)
+    {
+        var fixture = new CliApplicationFixture();
+
+        var exitCode = fixture.Application.Run([help]);
+
+        exitCode.Should().Be(0);
+        fixture.Output.ToString().Should().Contain("Wolf Todo CLI");
+        fixture.Output.ToString().Should().Contain("wtodo import --stdin");
+    }
+
+    [Fact]
+    public void Unknown_command_writes_one_structured_error()
+    {
+        var fixture = new CliApplicationFixture();
+
+        var exitCode = fixture.Application.Run(["unknown"]);
+
+        exitCode.Should().Be(2);
+        using var output = JsonDocument.Parse(fixture.Output.ToString());
+        output.RootElement.GetProperty("error").GetProperty("code").GetString().Should().Be("unknown_command");
+    }
+
+    [Fact]
+    public void Missing_option_value_keeps_the_structured_error_code()
+    {
+        var fixture = new CliApplicationFixture();
+
+        var exitCode = fixture.Application.Run(["list", "--project"]);
+
+        exitCode.Should().Be(2);
+        fixture.Output.ToString().Should().Contain("\"code\":\"missing_value\"");
+    }
+
+    [Fact]
+    public void Add_preserves_interleaved_content_option_order()
+    {
+        var fixture = new CliApplicationFixture();
+
+        var exitCode = fixture.Application.Run(
+        [
+            "add", "--project", "Work", "--title", "Task",
+            "--subtask", "First", "--note", "Context", "--completed-subtask", "Done"
+        ]);
+
+        exitCode.Should().Be(0);
+        fixture.FileSystem.Contents.Should().Contain(
+            "- [ ] Task\n" +
+            "  - [ ] First\n" +
+            "  - Context\n" +
+            "  - [x] Done\n");
+    }
+
     [Fact]
     public void Add_creates_a_full_task_and_returns_machine_readable_result()
     {
-        var fixture = new Fixture();
+        var fixture = new CliApplicationFixture();
 
         var exitCode = fixture.Application.Run(
         [
@@ -46,7 +103,7 @@ public sealed class CliApplicationTests
               ]
             }
             """;
-        var fixture = new Fixture(json);
+        var fixture = new CliApplicationFixture(json);
 
         var exitCode = fixture.Application.Run(["import", "--stdin"]);
 
@@ -58,7 +115,7 @@ public sealed class CliApplicationTests
     [Fact]
     public void Import_rejects_unknown_json_properties_without_writing()
     {
-        var fixture = new Fixture(markdown: """
+        var fixture = new CliApplicationFixture(markdown: """
             { "project": "Work", "tasks": [{ "title": "Task", "hallucinated": true }] }
             """);
 
@@ -72,7 +129,7 @@ public sealed class CliApplicationTests
     [Fact]
     public void Add_rejects_missing_required_options_with_exit_code_two()
     {
-        var fixture = new Fixture();
+        var fixture = new CliApplicationFixture();
 
         var exitCode = fixture.Application.Run(["add", "--title", "Task"]);
 
@@ -83,7 +140,7 @@ public sealed class CliApplicationTests
     [Fact]
     public void Add_rejects_invalid_task_fields_with_exit_code_two()
     {
-        var fixture = new Fixture();
+        var fixture = new CliApplicationFixture();
 
         var exitCode = fixture.Application.Run(
             ["add", "--project", "Work", "--title", "Task", "--duration-minutes", "17"]);
@@ -96,7 +153,7 @@ public sealed class CliApplicationTests
     [Fact]
     public void List_returns_all_configured_tasks_with_their_markdown_metadata()
     {
-        var fixture = new Fixture(markdown: """
+        var fixture = new CliApplicationFixture(markdown: """
             ---
             title: Work
             ---
@@ -127,7 +184,7 @@ public sealed class CliApplicationTests
     [Fact]
     public void List_rejects_unknown_options_with_exit_code_two()
     {
-        var fixture = new Fixture();
+        var fixture = new CliApplicationFixture();
 
         var exitCode = fixture.Application.Run(["list", "--unknown"]);
 
@@ -135,64 +192,4 @@ public sealed class CliApplicationTests
         fixture.Output.ToString().Should().Contain("\"code\":\"unknown_option\"");
     }
 
-    private sealed class Fixture
-    {
-        private const string ProjectPath = "/todos/work.md";
-        private const string Markdown = "---\ntitle: Work\n---\n\n# Work\n";
-        private readonly StringReader input;
-
-        public Fixture(string stdin = "", string? markdown = null)
-        {
-            input = new StringReader(stdin);
-            FileSystem = new MemoryProjectFileSystem(ProjectPath, markdown ?? Markdown);
-        }
-
-        public MemoryProjectFileSystem FileSystem { get; }
-        public StringWriter Output { get; } = new();
-
-        public CliApplication Application
-        {
-            get
-            {
-                var reader = new MarkdownTodoProjectReader();
-                var repository = new MarkdownTodoProjectRepository(FileSystem, reader);
-                var configuration = new TomlProjectConfigurationLoader(
-                    "/config.toml",
-                    candidate => candidate == "/config.toml",
-                    candidate => candidate == "/config.toml"
-                        ? "[projects]\nfiles = [\"/todos/work.md\"]\n"
-                        : throw new FileNotFoundException());
-                var service = new TaskImportService(
-                    configuration,
-                    new ProjectCatalogLoader(repository),
-                    new ProjectTodoMutationService(FileSystem, reader));
-                var listService = new TaskListService(configuration, new ProjectCatalogLoader(repository));
-                return new CliApplication(
-                    service,
-                    listService,
-                    input,
-                    Output,
-                    path => throw new FileNotFoundException(path));
-            }
-        }
-    }
-
-    private sealed class MemoryProjectFileSystem(string path, string contents) : IProjectFileSystem
-    {
-        public string Contents { get; private set; } = contents;
-        public int WriteCount { get; private set; }
-
-        public bool FileExists(string candidate) => candidate == path;
-        public string GetFullPath(string candidate) => candidate;
-        public string ReadAllText(string candidate) => candidate == path
-            ? Contents
-            : throw new FileNotFoundException(candidate);
-
-        public void WriteAllTextAtomically(string candidate, string value)
-        {
-            candidate.Should().Be(path);
-            Contents = value;
-            WriteCount++;
-        }
-    }
 }
