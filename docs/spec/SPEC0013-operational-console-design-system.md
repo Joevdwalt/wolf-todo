@@ -49,7 +49,11 @@ title row. Selected tag lines share the elevated selection surface; completed
 tag lines are muted and dim. Preserve applicable ancestor and following-sibling
 continuation bars in the tag-line tree gutter.
 Inspector field labels and section headings are uppercase; values retain
-their original case.
+their original case. All headings and title-like labels are single-line
+renderables. They are truncated with an ellipsis using terminal display-cell
+width after borders and padding are accounted for; they must never wrap or
+increase a panel's measured height. This visual truncation never changes the
+stored Markdown text.
 
 The project navigator renders the virtual `@today` entry with the semantic date
 foreground while it is inactive. The normal bright accent and elevated surface
