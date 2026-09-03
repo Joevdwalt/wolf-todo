@@ -99,6 +99,35 @@ All actions use configured bindings. Picker, move, and create input capture
 keystrokes before application-tab switching. Intentional overlapping todo
 assignments remain editable after selecting one with `j` or `k`.
 
+### Overlapping Timed Items
+
+When multiple timed items occupy the same quarter-hour slot, the timeline grows
+vertically. Each item receives one physical plan row; items are never placed in
+a temporary horizontal lane. The time label and minor-tick marker appear only
+on the first row in the slot group. Every following row keeps the same fixed
+time-column width and remains part of the same slot group.
+
+Todos, meetings, calendar events, and duration continuations use the same row
+grammar. A continuing duration contributes its vertical spine, while items
+that start in the slot use the ordinary tree branches. The selected item uses
+`├▶`; other stacked items use `├─` and `└─` according to their position. The
+stable display order is preserved, and `j`/`k` continues to select individual
+items in that order.
+
+The intended 80-column shape is:
+
+```text
+│ 12:30    │ ├─ ◯ Prepare presentation                                │
+│          │ ├▶ ◯ Review presentation                                 │
+│          │ └─ ⬥ Client meeting                                      │
+│     —    │ │                                                        │
+```
+
+The extra rows may increase the timeline height, but they must not change its
+width, wrap item titles, or disturb the surrounding panel borders. The current
+time marker remains a separate timeline row and is not merged into an overlap
+group.
+
 When no planner modal is active, the configured command launcher opens global
 command mode. Quit, completed visibility, cancellation, and unknown-command
 feedback match the Todos view.

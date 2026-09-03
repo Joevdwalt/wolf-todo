@@ -46,7 +46,7 @@ WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03 SEP
 │ 08:00    │ ├─ ⬥ NEC XON Conference and Lunch with the team…                  │
 │     —    │ │  ├─ ⬥ Joe social                                                │
 │ 10:00    │ │  ├─ ⬥ weekly catch up                                           │
-│ 10:51    │ ┣━━ NOW · 39m · Sales Sprint Planning ━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ 10:51    │ ┣━━ NOW · 39m · Sales Sprint Planning ━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
 │ 11:30    │ │  ├─ ⬥ Sales Sprint Planning                                     │
 │ 13:00    │ │  ├─ ⬥ Performance Review                                        │
 │ 15:00    │ │  ├─ ⬥ Joe Office hours                                          │
@@ -71,7 +71,7 @@ the column for today:
 ```text
 WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03–FRI 04 SEP
 ┌──────────┬─────────────────────────────┬─────────────────────────────────────┐
-│ TIME     │ THU 03                      │ FRI 04                             │
+│ TIME     │ THU 03                      │ FRI 04                              │
 ├──────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ 08:00    │ ├─ ⬥ Team planning          │                                     │
 │     —    │ │  ├─ ⬥ Prepare agenda      │ ├─ ⬥ Catch up                       │
@@ -83,7 +83,7 @@ WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03–FRI 04 SEP
 │ THU 03 · EMPTY TIMESLOT                                                      │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌─ALL DAY──────────────────────────────────────────────────────────────────────┐
-│ THU 03  ◆ Natasha Collins's birthday                                        │
+│ THU 03  ◆ Natasha Collins's birthday                                         │
 │ FRI 04  —                                                                    │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -199,11 +199,59 @@ the selected date and, when applicable, the selected time and item source.
 The current-time marker is rendered only in today's date column. If today is
 outside the selected range, the timeline has no current-time marker.
 
+### Overlapping Items Across Date Columns
+
+Multiday columns use the single-day overlap rules from SPEC0009. When several
+items occupy one slot in a date column, that column grows vertically by one
+physical row per item. No column creates a secondary horizontal lane. The time
+label is shown once for the slot group, and additional rows keep a blank,
+fixed-width time cell so all date-column separators remain aligned.
+
+The same rule applies to todos, meetings, calendar events, and duration
+continuations. A selected item retains the `├▶` cursor, ordinary stacked items
+use `├─`/`└─`, and a continuing duration retains its vertical spine. Stable
+display order and `j`/`k` item selection are unchanged.
+
+For each shared timeline slot, the multiday renderer uses the greatest number
+of physical rows required by any visible date. A date with fewer items receives
+blank cells for the remaining rows; it must not collapse, wrap, or move its
+border independently of the other date columns.
+
+The intended 80-column shape is:
+
+```text
+│ 12:30    │ ├─ ◯ Prepare presentation │ ├─ ⬥ Client meeting      │
+│          │ ├▶ ◯ Review presentation  │                          │
+│          │ └─ ◯ Send follow-up       │                          │
+│     —    │ │                         │                          │
+```
+
+Vertical growth is therefore local to the slot group while the overall
+multiday grid remains a single aligned table. Long titles are truncated to
+their date-column width and never cause a column or the timeline to widen.
+
 The multiday view uses the same task state, priority, completion, schedule,
 calendar, and selection styling as the single-day planner. It uses the shared
 visual rules in [SPEC0013: Operational Console Design System](SPEC0013-operational-console-design-system.md).
 
 ## Navigation and Selection
+
+In multiday mode, the selected date is also the active date-column cursor. The
+planner previous-column and next-column bindings (default h and l) move this
+cursor one date column at a time. They preserve the selected timeline slot,
+while all-day focus returns to the first valid all-day item for the new date.
+When the cursor moves beyond the current range, the adjacent date is loaded
+and the range window shifts by one day. The single-day meaning of h and l is
+unchanged.
+
+The active date column is visually marked in the date header and in the
+selected timeline cell. The all-day section marks the active date group as
+well. While moving a todo, horizontal date movement changes the destination
+date without leaving Move mode; confirming the move schedules the todo at the
+active date and selected time, or as an all-day item when all-day focus is
+active. Enter remains Open/Confirm and Escape remains Back/Cancel. The
+previous-day and next-day bindings continue to navigate dates in single-day
+mode; they are not used as the multiday column cursor.
 
 The multiday view uses configured planner navigation bindings wherever they
 already have a matching single-day meaning. It must provide access to:
@@ -215,10 +263,14 @@ already have a matching single-day meaning. It must provide access to:
 - switching to the single-day detail view;
 - switching back to the multiday overview.
 
-A new configurable planner-view binding is added for switching between the
-single-day and multiday views. Existing bindings are not repurposed. The
-default gesture is determined during implementation and documented in the
-final design and configuration documentation.
+A new configurable `planner_toggle_view` binding is added for switching
+between the single-day and multiday views. Its default gesture is `s` and
+existing bindings are not repurposed. The configurable
+`planner_increase_range` and `planner_decrease_range` bindings default to `+`
+and `-` and change the selected range maximum between one and three days.
+
+The configurable planner_previous_column and planner_next_column bindings
+default to h and l and are available in multiday mode only.
 
 When the overview has no valid task or calendar item at the current position,
 the selected date and empty scheduling destination remain navigable. Empty
