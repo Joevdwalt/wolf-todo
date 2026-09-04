@@ -34,18 +34,18 @@ public sealed class TodoTaskEditorDialogTests
     }
 
     [Fact]
-    public void Create_renders_content_type_and_removal_modes()
+    public void Create_renders_content_and_subtask_sections_and_removal_mode()
     {
-        var picker = TodoTaskEditorDialog.Create(
-            Editor() with { Mode = TodoTaskEditorMode.ChooseContentType }, Bindings, 80, 24);
         var confirmation = TodoTaskEditorDialog.Create(
             Editor() with
             {
-                SelectedIndex = TodoTaskEditorState.FieldCount + 1,
+                SelectedIndex = TodoTaskEditorState.ContentIndex + 1,
                 Mode = TodoTaskEditorMode.ConfirmRemoval
             }, Bindings, 80, 24);
 
-        picker.Lines.Should().Contain(line => line.Text.Contains("SELECT", StringComparison.Ordinal));
+        var form = TodoTaskEditorDialog.Create(Editor(), Bindings, 80, 40);
+        form.Lines.Should().Contain(line => line.Text.Contains("CONTENT", StringComparison.Ordinal));
+        form.Lines.Should().Contain(line => line.Text.Contains("SUBTASKS", StringComparison.Ordinal));
         confirmation.Lines.Should().Contain(line =>
             line.Text.Contains("REMOVE 'Draft the agenda'", StringComparison.Ordinal) &&
             line.Role == TodoTaskEditorDialogRole.Warning);

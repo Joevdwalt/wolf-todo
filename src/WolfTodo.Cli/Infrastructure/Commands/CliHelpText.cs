@@ -17,8 +17,8 @@ public static class CliHelpText
                                   --scheduled <YYYY-MM-DD>
                                   --time <HH:mm>
                                   --duration-minutes <minutes>
-                                  --note <text>                       Repeatable and ordered
-                                  --subtask <title>                   Repeatable and ordered
-                                  --completed-subtask <title>         Repeatable and ordered
+                                  --content <multiline-text>          Optional task content
+                                  --subtask <title>                   Repeatable, unchecked
+                                  --completed-subtask <title>         Repeatable, completed
                                 """;
 }

@@ -819,12 +819,9 @@ public sealed class SpectreTerminalUiTests
         var identity = view.SelectedTodoIdentity!;
         var editor = TodoTaskEditorState.Edit(view.SelectedTodo!, identity) with
         {
-            SelectedIndex = TodoTaskEditorState.FieldCount,
-            Items =
-            [
-                new ContentNoteDraft(2, "Review current contract"),
-                new ContentSubtaskDraft(3, "Request approval", false, 2)
-            ]
+            SelectedIndex = TodoTaskEditorState.ContentIndex,
+            Content = "Review current contract",
+            Subtasks = [new TodoSubtaskDraft(3, "Request approval", false, 2)]
         };
         var paletteState = CommandPaletteState.Closed with { IsOpen = true, IsSearching = true, Query = "edit" };
         var palette = new CommandPaletteView(
@@ -847,21 +844,6 @@ public sealed class SpectreTerminalUiTests
             TuiThemes.Wolf);
         terminal.ShowBrowser(
             DefaultTabs,
-            view with
-            {
-                State = view.State with
-                {
-                    Editor = editor with
-                    {
-                        Mode = TodoTaskEditorMode.ChooseContentType,
-                        AddKind = ContentItemKind.Subtask
-                    }
-                }
-            },
-            DefaultBindings,
-            TuiThemes.Wolf);
-        terminal.ShowBrowser(
-            DefaultTabs,
             view with { CommandPalette = palette },
             DefaultBindings,
             TuiThemes.Wolf);
@@ -878,10 +860,10 @@ public sealed class SpectreTerminalUiTests
         var output = AnsiConsole.ExportText();
 
         output.Should().Contain("EDIT TASK // Parent")
-            .And.Contain("• Review current contract")
-            .And.Contain("◯ Request approval  +2 nested")
-            .And.Contain("ADD CONTENT")
-            .And.Contain("> SUBTASK")
+            .And.Contain("CONTENT")
+            .And.Contain("Review current contract")
+            .And.Contain("◯ - Request approval  +2 nested")
+            .And.Contain("SUBTASKS")
             .And.Contain("COMMAND PALETTE")
             .And.Contain("Edit todo")
             .And.Contain("/edit_")
@@ -892,16 +874,16 @@ public sealed class SpectreTerminalUiTests
     [Theory]
     [InlineData(100, 30)]
     [InlineData(70, 16)]
-    public void ShowBrowser_keeps_the_selected_content_item_in_the_responsive_outline(
+    public void ShowBrowser_keeps_the_selected_subtask_in_the_responsive_list(
         int width,
         int height)
     {
         var view = ViewWithTitle("Parent");
         var editor = TodoTaskEditorState.Edit(view.SelectedTodo!, view.SelectedTodoIdentity!) with
         {
-            SelectedIndex = TodoTaskEditorState.FieldCount + 9,
-            Items = [.. Enumerable.Range(1, 10)
-                .Select(index => (ContentItemDraft)new ContentNoteDraft(index + 1, $"Content {index:00}"))]
+            SelectedIndex = TodoTaskEditorState.ContentIndex + 1 + 9,
+            Subtasks = [.. Enumerable.Range(1, 10)
+                .Select(index => new TodoSubtaskDraft(index + 1, $"Subtask {index:00}", false, 0))]
         };
 
         var lines = RenderBrowser(
@@ -910,7 +892,7 @@ public sealed class SpectreTerminalUiTests
             height);
 
         lines.Should().HaveCountLessThanOrEqualTo(height - 1);
-        lines.Should().Contain(line => line.Contains("• Content 10", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("└─ ◯ - Subtask 10", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1003,12 +985,11 @@ public sealed class SpectreTerminalUiTests
             DefaultBindings,
             theme);
         var filterHtml = NormalizeHtml(AnsiConsole.ExportHtml());
-        StyleBefore(formHtml, "content").Should().Contain("#333333").And.Contain("font-weight: bold");
+        formHtml.Should().Contain("content");
         StyleBefore(formHtml, "inactive-42").Should().Contain("#111111");
         StyleBefore(formHtml, "title").Should().Contain("#ffffff").And.Contain("font-weight: bold");
         formHtml.Should().Contain("#ffffff");
-        StyleBefore(formHtml, "—").Should().Contain("#2d343b").And.Contain("#162433");
-        StyleBefore(formHtml, "j/k").Should().Contain("#2d343b").And.Contain("#162433");
+        formHtml.Should().Contain("#162433");
         StyleBefore(errorHtml, "theme").Should().Contain("#555555").And.Contain("font-weight: bold");
         StyleBefore(filterHtml, "unique-filter").Should().Contain("#222222");
         formHtml.Should().Contain("#666666");
@@ -1046,8 +1027,6 @@ public sealed class SpectreTerminalUiTests
         var view = ViewWithTitle("Existing task");
         var editor = TodoTaskEditorState.Edit(view.SelectedTodo!, view.SelectedTodoIdentity!) with
         {
-            Mode = TodoTaskEditorMode.Edit,
-            Draft = string.Empty,
             Values = new TodoUpdate(string.Empty, null, null, [], null, null),
             Error = "Title is required."
         };

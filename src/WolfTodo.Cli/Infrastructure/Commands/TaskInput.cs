@@ -8,5 +8,6 @@ public sealed class TaskInput
     public List<string?>? Tags { get; init; }
     public ScheduleInput? Schedule { get; init; }
     public int? DurationMinutes { get; init; }
-    public List<ContentInput?>? Content { get; init; }
+    public string? Content { get; init; }
+    public List<SubtaskInput?>? Subtasks { get; init; }
 }

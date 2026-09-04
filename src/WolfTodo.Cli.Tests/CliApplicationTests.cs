@@ -49,21 +49,21 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
-    public void Add_preserves_interleaved_content_option_order()
+    public void Add_writes_content_before_separate_subtasks()
     {
         var fixture = new CliApplicationFixture();
 
         var exitCode = fixture.Application.Run(
         [
             "add", "--project", "Work", "--title", "Task",
-            "--subtask", "First", "--note", "Context", "--completed-subtask", "Done"
+            "--subtask", "First", "--content", "Context", "--completed-subtask", "Done"
         ]);
 
         exitCode.Should().Be(0);
         fixture.FileSystem.Contents.Should().Contain(
             "- [ ] Task\n" +
-            "  - [ ] First\n" +
             "  - Context\n" +
+            "  - [ ] First\n" +
             "  - [x] Done\n");
     }
 
@@ -77,7 +77,7 @@ public sealed class CliApplicationTests
             "add", "--project", "Work", "--title", "Prepare proposal",
             "--reference", "EXT-7", "--priority", "high", "--tag", "#now",
             "--scheduled", "2026-09-01", "--time", "09:30", "--duration-minutes", "30",
-            "--note", "Review scope", "--subtask", "Draft", "--completed-subtask", "Brief approved"
+            "--content", "Review scope", "--subtask", "Draft", "--completed-subtask", "Brief approved"
         ]);
 
         exitCode.Should().Be(0);
@@ -98,7 +98,7 @@ public sealed class CliApplicationTests
             {
               "project": "Work",
               "tasks": [
-                { "title": "First", "content": [{ "type": "note", "text": "context" }] },
+                { "title": "First", "content": "context" },
                 { "title": "Second", "priority": "medium", "tags": ["agent"] }
               ]
             }

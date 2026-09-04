@@ -210,8 +210,10 @@ public sealed class MultilineTextBox : ITuiComponent<MultilineTextBoxState, Mult
                 continue;
             }
 
-            var cursorLineStart = state.Text.LastIndexOf('\n', Math.Max(0, state.ClampedCursor - 1)) + 1;
-            var column = state.ClampedCursor - cursorLineStart;
+            var cursorLineStart = state.ClampedCursor == 0
+                ? 0
+                : state.Text.LastIndexOf('\n', state.ClampedCursor - 1) + 1;
+            var column = Math.Max(0, state.ClampedCursor - cursorLineStart);
             var before = line[..Math.Min(column, line.Length)];
             var after = line[Math.Min(column, line.Length)..];
             renderLines.Add(new Text(before + "▏" + after,
