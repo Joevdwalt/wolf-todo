@@ -75,13 +75,14 @@ public sealed class DayPlannerPresenter
                 };
             })
             .ToImmutableArray();
-        var selectedItemIdentity = state.Focus == PlannerFocus.Timeline
+        var selectedItem = state.Focus == PlannerFocus.Timeline
             ? slots[slotIndex].Items
-                  .FirstOrDefault(item => item.Identity == state.SelectedTimelineItemIdentity)?.Identity
-              ?? slots[slotIndex].Items.FirstOrDefault()?.Identity
+                  .FirstOrDefault(item => item.Identity == state.SelectedTimelineItemIdentity)
+              ?? slots[slotIndex].Items.FirstOrDefault()
             : null;
+        var selectedItemIdentity = selectedItem?.Identity;
         
-        if (selectedItemIdentity is not null)
+        if (selectedItem is not null)
         {
             slots = slots
                 .Select((slot, index) => slot with
@@ -94,7 +95,12 @@ public sealed class DayPlannerPresenter
                     {
                         IsSelected = index == slotIndex && item.Identity == selectedItemIdentity,
                         IsActive = item.Identity == selectedItemIdentity,
-                        IsSelectionBridge = index == slotIndex
+                        // A duration's selection branch stays connected across
+                        // every slot it occupies, including other items that
+                        // overlap and end after the cursor's start slot.
+                        IsSelectionBridge = selectedItem.TimeShape == PlannerTimeShape.Duration
+                            ? slot.Time >= selectedItem.Start && slot.Time < selectedItem.End
+                            : index == slotIndex
                     })],
                 })
                 .ToImmutableArray();

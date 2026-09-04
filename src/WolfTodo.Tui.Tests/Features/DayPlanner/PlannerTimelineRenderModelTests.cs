@@ -149,6 +149,50 @@ public sealed class PlannerTimelineRenderModelTests
         rows.Select(row => row.Title).Should().Equal("Register khode.co.za", "weekly catch up");
     }
 
+    [Fact]
+    public void ForSlot_keeps_the_final_overlapping_duration_end_closed()
+    {
+        var selected = Item("NEC Presentation", PlannerIntervalState.Start, TimeSpan.FromMinutes(60)) with
+        {
+            IsSelected = true,
+            IsActive = true,
+            IsSelectionBridge = true
+        };
+        var ending = Item("Quote for SEAT", PlannerIntervalState.End, TimeSpan.FromMinutes(30)) with
+        {
+            IsSelectionBridge = true
+        };
+
+        var rows = PlannerTimelineRenderModel.ForSlot(new PlannerSlotView(new TimeOnly(8, 30), [], true)
+        {
+            Items = [selected, ending]
+        });
+
+        rows.Select(row => row.BranchGlyph).Should().Equal("├▶", "└─");
+    }
+
+    [Fact]
+    public void ForSlot_keeps_the_final_overlapping_instant_item_closed()
+    {
+        var selected = Item("NEC Presentation", PlannerIntervalState.Start, TimeSpan.FromMinutes(60)) with
+        {
+            IsSelected = true,
+            IsActive = true,
+            IsSelectionBridge = true
+        };
+        var instant = Item("Quote for SEAT", PlannerIntervalState.StartAndEnd, TimeSpan.FromMinutes(15)) with
+        {
+            IsSelectionBridge = true
+        };
+
+        var rows = PlannerTimelineRenderModel.ForSlot(new PlannerSlotView(new TimeOnly(8, 30), [], true)
+        {
+            Items = [selected, instant]
+        });
+
+        rows.Select(row => row.BranchGlyph).Should().Equal("├▶", "└─");
+    }
+
     private static PlannerSlotView Slot(PlannerTimelineItemView item) => new(new TimeOnly(9, 0), [], false)
     {
         Items = [item]
