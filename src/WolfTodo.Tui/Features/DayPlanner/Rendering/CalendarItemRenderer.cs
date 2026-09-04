@@ -147,7 +147,7 @@ public sealed class CalendarItemRenderer
                     selected ? ">" : " ",
                     selected,
                     string.Empty,
-                    theme);
+                    theme).Ellipsis();
             }
 
             var color = selected ? theme.AccentBright : item.IsCompleted ? theme.Muted :
@@ -159,7 +159,7 @@ public sealed class CalendarItemRenderer
         return FitLines(lines, contentHeight, view.State.AllDayIndex);
     }
 
-    public IRenderable CalendarTodoLine(
+    public Markup CalendarTodoLine(
         TodoItem todo,
         string? projectTitle,
         string prefix,

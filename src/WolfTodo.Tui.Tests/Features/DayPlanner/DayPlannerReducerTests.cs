@@ -83,6 +83,40 @@ public sealed class DayPlannerReducerTests
     }
 
     [Fact]
+    public void Reduce_keeps_the_timeline_slot_when_switching_multiday_columns()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today) with
+        {
+            ViewMode = PlannerViewMode.MultiDay,
+            VisibleDayCount = 2,
+            VisibleStartDate = Today,
+            SlotIndex = 9,
+            SelectedTimelineItemIdentity = "task:/todos/work.md:1",
+            Focus = PlannerFocus.AllDay,
+            AllDayIndex = 2
+        };
+
+        var next = reducer.Reduce(state, Key('l'), Bindings, View(state)).State;
+        var changedNext = next with
+        {
+            SlotIndex = 17,
+            SelectedTimelineItemIdentity = "task:/todos/work.md:2",
+            Focus = PlannerFocus.Timeline,
+            AllDayIndex = 0
+        };
+        var returned = reducer.Reduce(changedNext, Key('h'), Bindings, View(changedNext)).State;
+
+        next.SelectedDate.Should().Be(Today.AddDays(1));
+        next.SlotIndex.Should().Be(9);
+        returned.SelectedDate.Should().Be(Today);
+        returned.SlotIndex.Should().Be(17);
+        returned.SelectedTimelineItemIdentity.Should().BeNull();
+        returned.Focus.Should().Be(PlannerFocus.Timeline);
+        returned.AllDayIndex.Should().Be(2);
+    }
+
+    [Fact]
     public void Reduce_jumps_to_the_first_and_last_planner_slots()
     {
         var reducer = new DayPlannerReducer(() => Today);
@@ -337,6 +371,33 @@ public sealed class DayPlannerReducerTests
         moving.State.Mode.Should().Be(PlannerMode.MoveTodo);
         moving.State.MovingTodo.Should().Be(todoView.SelectedAllDayAssignment!.Identity);
         readOnly.State.Error.Should().Be("Calendar all-day items are read-only.");
+    }
+
+    [Fact]
+    public void Reduce_moves_to_the_next_multiday_pane_while_moving_a_todo()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today) with
+        {
+            Mode = PlannerMode.MoveTodo,
+            MovingTodo = new TodoIdentity("/todos/work.md", 1),
+            ViewMode = PlannerViewMode.MultiDay,
+            VisibleDayCount = 2,
+            VisibleStartDate = Today,
+            SlotIndex = 6
+        };
+
+        var next = reducer.Reduce(state, Key('l'), Bindings, View(state)).State;
+        var previous = reducer.Reduce(next, Key('h'), Bindings, View(next)).State;
+        var cancelled = reducer.Reduce(previous, Key(ConsoleKey.Escape), Bindings, View(previous)).State;
+
+        next.SelectedDate.Should().Be(Today.AddDays(1));
+        next.SlotIndex.Should().Be(6);
+        next.Mode.Should().Be(PlannerMode.MoveTodo);
+        previous.SelectedDate.Should().Be(Today);
+        previous.Mode.Should().Be(PlannerMode.MoveTodo);
+        cancelled.Mode.Should().Be(PlannerMode.Browse);
+        cancelled.MovingTodo.Should().BeNull();
     }
 
     [Fact]

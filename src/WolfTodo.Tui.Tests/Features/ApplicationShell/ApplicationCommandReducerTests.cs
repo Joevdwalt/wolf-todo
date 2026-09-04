@@ -116,6 +116,18 @@ public sealed class ApplicationCommandReducerTests
     }
 
     [Fact]
+    public void Reduce_submits_the_screen_dump_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":dump-screen", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.DumpScreen);
+        result.State.Should().Be(ApplicationCommandState.Initial);
+    }
+
+    [Fact]
     public void Reduce_parses_a_project_title_for_the_move_todo_command()
     {
         var result = reducer.Reduce(

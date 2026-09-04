@@ -311,6 +311,20 @@ public sealed class TuiApplication(
                             state.Tabs.ActiveTab == TodosTab);
                     }
 
+                    if (commandTransition.Operation == ApplicationCommandOperation.DumpScreen)
+                    {
+                        var dump = terminalUi.DumpScreen();
+                        state = state with
+                        {
+                            Command = state.Command with
+                            {
+                                Error = dump.Succeeded
+                                    ? $"Screen dumped to {dump.Path}"
+                                    : dump.Error
+                            }
+                        };
+                    }
+
                     continue;
                 }
 

@@ -9,5 +9,6 @@ public enum ApplicationCommandOperation
     ArchiveCompleted,
     MoveTodoProject,
     RollProjectToday,
-    StartPomodoro
+    StartPomodoro,
+    DumpScreen
 }

@@ -81,13 +81,11 @@ WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03–FRI 04 SEP
 │ 10:51    │ ┣━━ NOW · 39m ━━━━━━━━━━━━━ │                                     │
 │ 11:30    │                             │ ├─ ○ Charlene work · 15m            │
 │ 13:00    │                             │ ├─ ⬥ Performance Review             │
+├──────────┼─────────────────────────────┼─────────────────────────────────────┤
+│ ALL DAY  │   ◆ Natasha Collins's birthday│ —                                  │
 └──────────┴─────────────────────────────┴─────────────────────────────────────┘
 ┌─SELECTED─────────────────────────────────────────────────────────────────────┐
 │ THU 03 · EMPTY TIMESLOT                                                      │
-└──────────────────────────────────────────────────────────────────────────────┘
-┌─ALL DAY──────────────────────────────────────────────────────────────────────┐
-│ THU 03  ◆ Natasha Collins's birthday                                         │
-│ FRI 04  —                                                                    │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ TAB PANE  J/K ITEM  [/] RANGE  +/- DAYS  S SINGLE DAY  / FILTER              │
@@ -116,8 +114,8 @@ The samples establish these width and responsive rules for the new view:
   the complete selected range so no date disappears silently.
 - The current-time marker is rendered only in today's date column. If today is
   outside the selected range, no marker is shown.
-- All-day items remain associated with their dates. In the compact full-width
-  panel they are grouped under an explicit date label.
+- All-day items remain associated with their dates in the all-day area directly
+  below the owning date pane.
 - Footer commands wrap at word boundaries and their rendered height is
   reserved from the viewport budget. Command text must not be clipped.
 - All date columns share one vertical timeline window. Scrolling to keep the
@@ -194,10 +192,11 @@ carried into the next date column. All date columns share the same vertical
 timeline window, so scrolling to keep the selected slot visible scrolls every
 date column by the same amount.
 
-The compact all-day panel is full width below the timeline. It groups items by
-date and prefixes each group with an explicit date label so date ownership is
-not lost when the columns are no longer present. The selected summary includes
-the selected date and, when applicable, the selected time and item source.
+Each date pane keeps its own all-day area directly below its timeline. The
+active pane alone owns the selected all-day item; quiet panes use blank space
+without affecting another pane's cursor or content. The selected summary
+includes the selected date and, when applicable, the selected time and item
+source.
 
 The current-time marker is rendered only in today's date column. If today is
 outside the selected range, the timeline has no current-time marker.
@@ -220,6 +219,11 @@ of physical rows required by any visible date. A date with fewer items receives
 blank cells for the remaining rows; it must not collapse, wrap, or move its
 border independently of the other date columns.
 
+The time-ruler cell for the active pane's selected timeline slot uses the same
+selection surface and accent as the selected item, regardless of whether that
+pane is first, middle, or last. This shared-ruler treatment does not copy the
+active pane's branches or selection styling into other panes.
+
 The intended 80-column shape is:
 
 ```text
@@ -239,20 +243,22 @@ visual rules in [SPEC0013: Operational Console Design System](SPEC0013-operation
 
 ## Navigation and Selection
 
-In multiday mode, the selected date is also the active date-column cursor. The
+In multiday mode, the selected date is also the active date-column cursor. Each
+date retains its own transient timeline slot, overlapping-item identity,
+all-day index, and focused pane for the application session. The
 planner previous-column and next-column bindings (default h and l) move this
-cursor one date column at a time. They preserve the selected timeline slot,
-while all-day focus returns to the first valid all-day item for the new date.
+cursor one date column at a time while retaining the same timeline slot and
+focused pane. Date-local overlapping-item selection is restored only when it
+belongs to that same slot; otherwise the destination starts unselected.
 When the cursor moves beyond the current range, the adjacent date is loaded
 and the range window shifts by one day. The single-day meaning of h and l is
 unchanged.
 
 The active date column is visually marked in the date header and in the
 selected timeline cell. The all-day section marks the active date group as
-well. While moving a todo, horizontal date movement changes the destination
-date without leaving Move mode; confirming the move schedules the todo at the
-active date and selected time, or as an all-day item when all-day focus is
-active. Enter remains Open/Confirm and Escape remains Back/Cancel. The
+well. While moving a todo, `h` and `l` navigate date panes without leaving
+Move mode; Escape cancels the move. Enter confirms the move at the active date
+and selected time, or as an all-day item when all-day focus is active. The
 previous-day and next-day bindings continue to navigate dates in single-day
 mode; they are not used as the multiday column cursor.
 
@@ -411,8 +417,8 @@ adaptive fallback, and viewport behavior.
 17. All date columns share one vertically synchronized timeline window.
 18. The current-time marker appears only in today's column and is absent when
     today is outside the selected range.
-19. Compact all-day items are grouped under explicit date labels, and the
-    selected summary identifies the selected date.
+19. Each date pane owns its all-day items, and the selected summary identifies
+    the selected date.
 
 ## References
 

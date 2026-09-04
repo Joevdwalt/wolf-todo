@@ -142,7 +142,8 @@ public sealed class StatusRenderer
                     $"{Shortest(keyBindings.MoveDown)}/{Shortest(keyBindings.MoveUp)} ITEM  " +
                     $"{Shortest(keyBindings.JumpTop)}/{Shortest(keyBindings.JumpBottom)} TOP/BOTTOM  " +
                     $"{Shortest(keyBindings.PlannerPreviousDay)}/{Shortest(keyBindings.PlannerNextDay)} DAY  " +
-                    $"{Shortest(keyBindings.Open)} PLACE  {Shortest(keyBindings.Back)} CANCEL"
+                    $"{Shortest(keyBindings.PlannerPreviousColumn)}/{Shortest(keyBindings.PlannerNextColumn)} PANE  " +
+                    "Enter PLACE  Esc CANCEL"
                 ],
                 _ =>
                 [
