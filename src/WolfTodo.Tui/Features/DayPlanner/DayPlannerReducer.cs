@@ -122,22 +122,29 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             });
         }
 
-        if (state.Mode == PlannerMode.Browse && state.ViewMode == PlannerViewMode.MultiDay)
+        if (state.Mode is PlannerMode.Browse or PlannerMode.MoveTodo &&
+            state.ViewMode == PlannerViewMode.MultiDay)
         {
-            if (bindings.MatchesPlannerIncreaseRange(key) || bindings.MatchesPlannerDecreaseRange(key))
+            if (state.Mode == PlannerMode.Browse &&
+                (bindings.MatchesPlannerIncreaseRange(key) || bindings.MatchesPlannerDecreaseRange(key)))
             {
                 var delta = bindings.MatchesPlannerIncreaseRange(key) ? 1 : -1;
                 return Transition(state with { VisibleDayCount = Math.Clamp(state.VisibleDayCount + delta, 1, 3), Error = null });
             }
 
-            if (bindings.MatchesPlannerPreviousColumn(key) || bindings.MatchesPlannerNextColumn(key))
+            var movesPreviousColumn = bindings.MatchesPlannerPreviousColumn(key);
+            var movesNextColumn = bindings.MatchesPlannerNextColumn(key);
+            if (movesPreviousColumn || movesNextColumn)
             {
-                var delta = bindings.MatchesPlannerPreviousColumn(key) ? -1 : 1;
+                var delta = movesPreviousColumn ? -1 : 1;
                 return Transition(WithVisibleDate(state, state.SelectedDate.AddDays(delta)));
             }
         }
 
-        if (bindings.MatchesBack(key) && state.Mode != PlannerMode.Browse)
+        if ((state.Mode == PlannerMode.MoveTodo &&
+             (key.Key == ConsoleKey.Escape ||
+              (state.ViewMode != PlannerViewMode.MultiDay && bindings.MatchesBack(key)))) ||
+            (state.Mode != PlannerMode.Browse && state.Mode != PlannerMode.MoveTodo && bindings.MatchesBack(key)))
         {
             return Transition(state with { Mode = PlannerMode.Browse, MovingTodo = null, Error = null });
         }
@@ -409,6 +416,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
     private static PlannerState WithVisibleDate(PlannerState state, DateOnly selectedDate)
     {
+        state = state.SaveActivePane();
         if (state.ViewMode != PlannerViewMode.MultiDay)
         {
             return state with { SelectedDate = selectedDate, Error = null };
@@ -425,9 +433,17 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             visibleStart = selectedDate.AddDays(1 - state.VisibleDayCount);
         }
 
+        state.PaneCursors.TryGetValue(selectedDate, out var destinationCursor);
         return state with
         {
             SelectedDate = selectedDate,
+            // Timeline position is shared across date panes. A pane-specific
+            // item can only be restored when it belongs to that same slot.
+            SlotIndex = state.SlotIndex,
+            SelectedTimelineItemIdentity = destinationCursor?.SlotIndex == state.SlotIndex
+                ? destinationCursor.SelectedTimelineItemIdentity
+                : null,
+            AllDayIndex = destinationCursor?.AllDayIndex ?? 0,
             VisibleStartDate = visibleStart,
             Error = null
         };
@@ -482,5 +498,5 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         view.SelectedAllDayAssignment is null;
 
     private static PlannerTransition Transition(PlannerState state) =>
-        new(state, PlannerOperation.None, null);
+        new(state.SaveActivePane(), PlannerOperation.None, null);
 }

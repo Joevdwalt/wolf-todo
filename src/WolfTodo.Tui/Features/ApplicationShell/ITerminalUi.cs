@@ -23,6 +23,8 @@ public interface ITerminalUi
 
     void RingBell();
 
+    ScreenDumpResult DumpScreen() => new(null, "Screen dumping is unavailable.");
+
     ConsoleKeyInfo ReadKey();
 
     ConsoleKeyInfo? ReadKey(TimeSpan timeout);

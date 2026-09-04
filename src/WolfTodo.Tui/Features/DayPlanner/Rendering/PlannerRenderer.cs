@@ -49,7 +49,7 @@ public sealed class PlannerRenderer
         RenderPlannerHeader(tabs, view, keyBindings, theme, context);
 
         var timelineTable = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 1
-            ? CreatePlannerMultiDayTimelineTable(view.DayColumns, view.State.SlotIndex, context.AvailableRows, theme)
+            ? CreatePlannerMultiDayTimelineTable(view, context.AvailableRows, theme)
             : CreatePlannerTimelineTable(
                 WindowPlannerTimeline(
                     view.Slots,
@@ -80,10 +80,12 @@ public sealed class PlannerRenderer
         var editorDialog = CreatePlannerEditorDialog(view, keyBindings, width, height);
         var status = statusRenderer.PlannerStatus(view, keyBindings, width, height);
         var wideLayout = width >= 120;
+        var isMultiDay = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 1;
         var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
                             view.State.Focus == PlannerFocus.AllDay;
-        var showAllDayPanel = allDayVisible || (wideLayout && view.State.ShowDetails);
-        var isMultiDay = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 1;
+        // Multiday owns all-day content inside each date pane. The legacy
+        // full-width panel belongs to the single-day layout only.
+        var showAllDayPanel = !isMultiDay && (allDayVisible || (wideLayout && view.State.ShowDetails));
         var wideSidePanels = !isMultiDay && wideLayout && (view.State.ShowDetails || showAllDayPanel);
         var compactDetails = !isMultiDay && IsPlannerCompactDetailsVisible(view, wideSidePanels);
         var narrowAllDayHeight = PlannerNarrowAllDayHeight(view, wideSidePanels, showAllDayPanel);
@@ -155,23 +157,58 @@ public sealed class PlannerRenderer
         IReadOnlyList<PlannerDayColumnView> columns,
         int selectedSlotIndex,
         int availableRows,
-        TuiTheme theme)
+        TuiTheme theme) =>
+        CreatePlannerMultiDayTimelineTable(columns, selectedSlotIndex, availableRows, theme, null);
+
+    public Table CreatePlannerMultiDayTimelineTable(
+        PlannerView view,
+        int availableRows,
+        TuiTheme theme) =>
+        CreatePlannerMultiDayTimelineTable(
+            view.DayColumns,
+            view.State.SlotIndex,
+            availableRows,
+            theme,
+            view);
+
+    private Table CreatePlannerMultiDayTimelineTable(
+        IReadOnlyList<PlannerDayColumnView> columns,
+        int selectedSlotIndex,
+        int availableRows,
+        TuiTheme theme,
+        PlannerView? view)
     {
+        // Reserve the fixed ruler, borders, and separators before selecting
+        // panes. The active pane is always retained when the terminal can
+        // show fewer dates than the selected range.
+        var maxColumns = Math.Max(1, (widthProvider() - 12) / 25);
+        if (columns.Count > maxColumns)
+        {
+            var activeIndex = Math.Max(0, columns.ToList().FindIndex(column => column.IsActive));
+            var start = Math.Clamp(activeIndex - maxColumns + 1, 0, columns.Count - maxColumns);
+            columns = columns.Skip(start).Take(maxColumns).ToArray();
+        }
+
         var table = new Table().SquareBorder().Expand();
         table.BorderStyle = themeRenderer.Style(theme.BorderActive);
         table.AddColumn(new TableColumn(new Text(
             "TIME",
             themeRenderer.Style(theme.Heading, Decoration.Bold)))
         {
-            Width = 8,
+            Width = 10,
             NoWrap = true
         });
+        var paneWidth = Math.Max(24, (widthProvider() - 12 - columns.Count) / columns.Count);
         foreach (var column in columns)
         {
             var heading = column.Date.ToString("ddd dd MMM").ToUpperInvariant();
             table.AddColumn(new TableColumn(new Text(
                 heading,
-                themeRenderer.Style(column.IsActive ? theme.AccentBright : theme.Accent, Decoration.Bold))));
+                themeRenderer.Style(column.IsActive ? theme.AccentBright : theme.Accent, Decoration.Bold)))
+            {
+                Width = paneWidth,
+                NoWrap = true
+            });
         }
 
         foreach (var slotIndex in WindowPlannerMultiDaySlots(columns, selectedSlotIndex, availableRows))
@@ -180,15 +217,30 @@ public sealed class PlannerRenderer
                 .Select(column => PlannerTimelineRenderModel.ForSlot(column.Slots[slotIndex]))
                 .ToArray();
             var height = slotRows.Max(rows => rows.Count);
+            var activeRows = slotRows.FirstOrDefault(rows => rows.Any(renderRow => renderRow.IsSelected));
             var timeRows = Enumerable.Range(0, height)
                 .Select(row => row == 0
-                    ? PlannerTimeRulerLine(slotRows[0][0], theme)
+                    ? PlannerTimeRulerLine(
+                        activeRows?[0] ?? slotRows[0][0],
+                        theme,
+                        selected: activeRows is not null)
                     : new Text(string.Empty))
                 .Cast<IRenderable>()
                 .ToArray();
             var cells = new List<IRenderable> { new Rows(timeRows) };
-            cells.AddRange(slotRows.Select(rows => PlannerTimelineCell(rows, theme)));
+            cells.AddRange(slotRows.Select(rows => PlannerTimelineCell(rows, height, theme)));
             table.AddRow(cells.ToArray());
+        }
+
+        if (view is not null)
+        {
+            var allDayHeight = Math.Max(1, columns.Max(column => column.CalendarAgenda.AllDayItems.Length));
+            var allDayCells = new List<IRenderable>
+            {
+                new Text("ALL DAY", themeRenderer.Style(theme.Heading, Decoration.Bold))
+            };
+            allDayCells.AddRange(columns.Select(column => PlannerDayAllDayCell(view, column, allDayHeight, theme)));
+            table.AddRow(allDayCells.ToArray());
         }
 
         return table;
@@ -230,6 +282,12 @@ public sealed class PlannerRenderer
     public IRenderable PlannerTimelineCell(
         IReadOnlyList<PlannerTimelineRenderRow> renderRows,
         TuiTheme theme) =>
+        PlannerTimelineCell(renderRows, renderRows.Count, theme);
+
+    public IRenderable PlannerTimelineCell(
+        IReadOnlyList<PlannerTimelineRenderRow> renderRows,
+        int height,
+        TuiTheme theme) =>
         new Rows(renderRows.Select(row =>
         {
             var content = PlannerTimelineRenderLine(row, theme);
@@ -240,7 +298,36 @@ public sealed class PlannerRenderer
                 : selectedEmptySlot
                     ? themeRenderer.OnSurface(content, theme.Surface2, true)
                     : content;
-        }).ToArray());
+        }).Concat(Enumerable.Range(renderRows.Count, height - renderRows.Count)
+            .Select(_ => PlannerTimelinePaddingLine(theme)))
+            .ToArray());
+
+    private IRenderable PlannerTimelinePaddingLine(TuiTheme theme) =>
+        new Text("│", themeRenderer.Style(theme.Muted, Decoration.Dim));
+
+    private IRenderable PlannerDayAllDayCell(
+        PlannerView view,
+        PlannerDayColumnView column,
+        int height,
+        TuiTheme theme)
+    {
+        var paneView = new PlannerView(
+            column.IsActive ? view.State : view.State.RestorePane(column.Date),
+            column.Slots,
+            [],
+            [])
+        {
+            CalendarAgenda = column.CalendarAgenda
+        };
+        var lines = column.CalendarAgenda.AllDayItems.Length == 0
+            ? column.IsActive && paneView.State.Focus == PlannerFocus.AllDay
+                ? new IRenderable[] { new Text("> — ADD ALL-DAY TASK", themeRenderer.Style(theme.AccentBright, Decoration.Bold)) }
+                : [new Text("—", themeRenderer.Style(theme.Muted, Decoration.Dim))]
+            : calendarItemRenderer.AllDayAgendaLines(paneView, theme, height).ToArray();
+        return new Rows(lines.Concat(Enumerable.Range(lines.Length, height - lines.Length)
+            .Select(_ => (IRenderable)new Text("—", themeRenderer.Style(theme.Muted, Decoration.Dim)))
+            .ToArray()));
+    }
 
     public void AddPlannerTimelineRows(
         Table table,
@@ -867,15 +954,19 @@ public sealed class PlannerRenderer
     public IRenderable CreateContent(IReadOnlyList<IRenderable> lines) =>
         lines.Count == 0 ? new Text(string.Empty) : new Rows(lines);
 
-    public IRenderable PlannerTimeRulerLine(PlannerTimelineRenderRow row, TuiTheme theme)
+    public IRenderable PlannerTimeRulerLine(PlannerTimelineRenderRow row, TuiTheme theme, bool selected = false)
     {
         var text = row.IsMinorTimeTick ? row.TimeTickGlyph.PadLeft(5) : row.TimeLabel.PadLeft(5);
-        var selectedEmptySlot = row.IsSelected && row.IsEmpty;
-        return new Text(
+        var selectedSlot = selected || (row.IsSelected && row.IsEmpty);
+        var line = new Text(
             text,
             themeRenderer.Style(
-                selectedEmptySlot ? theme.AccentBright : row.IsMinorTimeTick ? theme.Muted : theme.Date,
-                selectedEmptySlot ? Decoration.Bold : row.IsMinorTimeTick ? Decoration.Dim : Decoration.None));
+                selectedSlot ? theme.AccentBright : row.IsMinorTimeTick ? theme.Muted : theme.Date,
+                selectedSlot ? Decoration.Bold : row.IsMinorTimeTick ? Decoration.Dim : Decoration.None));
+        // Single-day callers apply their existing cell surface themselves.
+        // Multiday passes selected explicitly because its shared ruler is a
+        // separate cell from the active date pane.
+        return selected ? themeRenderer.OnSurface(line, theme.Surface2, true) : line;
     }
 
     public IRenderable PlannerTimelineRenderLine(PlannerTimelineRenderRow row, TuiTheme theme)
@@ -915,7 +1006,7 @@ public sealed class PlannerRenderer
 
         if (row.IsEmpty)
         {
-            return new Markup(line.ToString());
+            return new Markup(line.ToString()).Ellipsis();
         }
 
         themeRenderer.AppendStyled(line, " ", color, decoration);
@@ -935,7 +1026,9 @@ public sealed class PlannerRenderer
             }
         }
 
-        return new Markup(line.ToString());
+        // Date panes have fixed widths. Ellipsizing here prevents a long task
+        // or calendar title from becoming a second physical table row.
+        return new Markup(line.ToString()).Ellipsis();
     }
 
     public IRenderable PlannerMeetingLine(

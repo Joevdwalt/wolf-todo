@@ -152,12 +152,31 @@ public sealed class SpectreTerminalUi : ITerminalUi
         writer.Flush();
     }
 
+    public ScreenDumpResult DumpScreen()
+    {
+        try
+        {
+            var directory = Path.Combine(Environment.CurrentDirectory, "screen-dumps");
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, $"wolf-todo-screen-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+            File.WriteAllText(path, AnsiConsole.ExportText().Replace("\r\n", "\n"));
+            return new ScreenDumpResult(path, null);
+        }
+        catch (Exception exception)
+        {
+            return new ScreenDumpResult(null, $"Could not dump screen: {exception.Message}");
+        }
+    }
+
     public ConsoleKeyInfo ReadKey() => inputReader.ReadKey();
 
     public ConsoleKeyInfo? ReadKey(TimeSpan timeout) => inputReader.ReadKey(timeout);
 
     private bool BeginFrame()
     {
+        // Reset Spectre's recorder before every frame so :dump-screen exports
+        // exactly the current frame rather than terminal history.
+        AnsiConsole.Record();
         var useSynchronizedUpdate = browserRendered && AnsiConsole.Profile.Out.IsTerminal;
         if (browserRendered)
         {

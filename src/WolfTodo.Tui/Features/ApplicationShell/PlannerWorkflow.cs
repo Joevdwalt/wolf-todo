@@ -44,7 +44,7 @@ public sealed class PlannerWorkflow(
                     ? selectedView
                     : presenter.CreateView(
                         catalog,
-                        state with { SelectedDate = date },
+                        state.RestorePane(date),
                         calendarCache.GetAgenda(configuration.GoogleCalendar, date),
                         configuration.Planner,
                         activeFocusBlock,

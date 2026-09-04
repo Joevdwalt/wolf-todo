@@ -62,6 +62,7 @@ public sealed class PlannerRendererTests
             .CreatePlannerRenderContext(view, TuiKeyBindings.CreateDefaults(":q"));
 
         context.WideSidePanels.Should().BeFalse();
+        context.ShowAllDayPanel.Should().BeFalse("multiday panes render their own all-day rows");
         context.TimelineWidth.Should().Be(140);
     }
 

@@ -9,6 +9,7 @@ public static class ApplicationCommandCatalog
     public const string MoveTodoProject = ":move-todo-project";
     public const string Pomodoro = ":pomodoro";
     public const string RollToday = ":roll-today";
+    public const string DumpScreen = ":dump-screen";
 
     public static ImmutableArray<string> Create(TuiKeyBindings bindings) =>
     [
@@ -20,7 +21,8 @@ public static class ApplicationCommandCatalog
             Archive,
             MoveTodoProject,
             Pomodoro,
-            RollToday
+            RollToday,
+            DumpScreen
         }
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .Order(StringComparer.OrdinalIgnoreCase)

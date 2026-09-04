@@ -203,6 +203,10 @@ uses the terminal foreground; using it for a surface makes that layer
 transparent to its enclosing or terminal background. Unknown presets, keys, or
 color values are configuration errors.
 
+Enter `:dump-screen` to save the current rendered frame as a plain-text file
+under `screen-dumps/` in the directory where Wolf Todo was launched. The app
+shows the exact saved path in its status message.
+
 The optional `[google_calendar]` table adds a read-only Google Calendar overlay
 to Day Planner. It always loads the primary calendar, plus any IDs in
 `additional_calendar_ids` (find an ID in the calendar's Google Calendar

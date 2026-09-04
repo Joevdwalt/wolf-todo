@@ -74,6 +74,10 @@ public sealed class ApplicationCommandReducer
                     ApplicationCommandCatalog.RollToday,
                     StringComparison.OrdinalIgnoreCase) =>
                     ApplicationCommandOperation.RollProjectToday,
+                var command when command.Equals(
+                    ApplicationCommandCatalog.DumpScreen,
+                    StringComparison.OrdinalIgnoreCase) =>
+                    ApplicationCommandOperation.DumpScreen,
                 _ => ApplicationCommandOperation.None
             };
             return new ApplicationCommandTransition(
