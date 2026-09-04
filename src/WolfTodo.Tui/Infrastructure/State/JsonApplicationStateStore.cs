@@ -1,7 +1,8 @@
 using System.Text.Json;
+using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.ProjectBrowser;
 
-namespace WolfTodo.Tui.Features.ApplicationShell;
+namespace WolfTodo.Tui.Infrastructure.State;
 
 public sealed class JsonApplicationStateStore(string path) : IApplicationStateStore
 {

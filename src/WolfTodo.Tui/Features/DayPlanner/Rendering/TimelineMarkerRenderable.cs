@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace WolfTodo.Tui.Rendering;
+namespace WolfTodo.Tui.Features.DayPlanner.Rendering;
 
 internal sealed class TimelineMarkerRenderable(
     Style nowStyle,

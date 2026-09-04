@@ -1,10 +1,10 @@
 using Spectre.Console;
+using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.DayPlanner.Rendering;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.ProjectBrowser.Rendering;
-using WolfTodo.Tui.Features.Splash;
 using WolfTodo.Tui.Features.Tabs;
 using WolfTodo.Tui.Infrastructure.Terminal;
 using WolfTodo.Tui.Rendering;
