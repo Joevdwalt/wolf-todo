@@ -15,6 +15,7 @@ public sealed record PlannerTimelineRenderRow(
     string Metadata,
     bool IsSelected,
     bool IsActive,
+    bool IsSelectionBridge,
     PlannerItemType? ItemType,
     PlannerIntervalState? IntervalState)
 {
@@ -40,7 +41,7 @@ public static class PlannerTimelineRenderModel
             new PlannerTimelineRenderRow(
                 timeLabel, minorTick, minorTick ? "—" : string.Empty,
                 slot.IsSelected ? "├▶" : "│", string.Empty, string.Empty, string.Empty,
-                slot.IsSelected, false, null, null)
+                slot.IsSelected, false, false, null, null)
         ];
     }
 
@@ -70,7 +71,7 @@ public static class PlannerTimelineRenderModel
         return new PlannerTimelineRenderRow(
             timeLabel, minorTick, minorTick ? "—" : string.Empty,
             branch, status, hasContent ? item.Title : string.Empty, metadata,
-            item.IsSelected, item.IsActive, item.ItemType, item.IntervalState);
+            item.IsSelected, item.IsActive, item.IsSelectionBridge, item.ItemType, item.IntervalState);
     }
 
     private static string Branch(PlannerTimelineItemView item, int index, int count)

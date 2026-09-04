@@ -40,7 +40,10 @@ public sealed record PlannerTimelineItemView(
     // Active identity is intentionally independent from the cursor. A timed
     // item stays highlighted across its interval, while its cursor stays on
     // the one slot the user is currently navigating.
-    bool IsActive = false)
+    bool IsActive = false,
+    // A selected item's slot keeps its stacked branch group visually connected,
+    // without turning overlapping items into the selected target.
+    bool IsSelectionBridge = false)
 {
     public TimeSpan? Duration => TimeShape == PlannerTimeShape.Duration ? End - Start : null;
 }

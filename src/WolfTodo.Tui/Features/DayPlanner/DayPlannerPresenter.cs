@@ -93,7 +93,8 @@ public sealed class DayPlannerPresenter
                     Items = [.. slot.Items.Select(item => item with
                     {
                         IsSelected = index == slotIndex && item.Identity == selectedItemIdentity,
-                        IsActive = item.Identity == selectedItemIdentity
+                        IsActive = item.Identity == selectedItemIdentity,
+                        IsSelectionBridge = index == slotIndex
                     })],
                 })
                 .ToImmutableArray();

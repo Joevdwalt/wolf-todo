@@ -786,6 +786,7 @@ public sealed class PlannerRenderer
     {
         var selected = row.IsSelected;
         var active = row.IsActive;
+        var selectionBridge = row.IsSelectionBridge && !active;
         var completed = row.ItemType == PlannerItemType.Task && row.StatusGlyph == "✓";
         var color = row.ItemType == PlannerItemType.Pomodoro ? theme.Timer :
             active ? theme.AccentBright : completed ? theme.Muted :
@@ -793,11 +794,28 @@ public sealed class PlannerRenderer
             row.ItemType is null ? theme.Muted : theme.Info;
         var decoration = active ? Decoration.Bold : completed || row.IsEmpty ? Decoration.Dim : Decoration.None;
         var line = new System.Text.StringBuilder();
-        themeRenderer.AppendStyled(
-            line,
-            row.BranchGlyph,
-            active || selected ? theme.AccentBright : row.IsEmpty ? theme.Muted : theme.BorderActive,
-            active || selected ? Decoration.Bold : decoration);
+        if (selectionBridge)
+        {
+            // The overlap stack carries the selected item's vertical branch,
+            // but the row itself still belongs to another item. Surface only
+            // the junction character; its horizontal branch and content stay
+            // in that item's ordinary styling.
+            themeRenderer.AppendStyled(
+                line,
+                row.BranchGlyph[..1],
+                theme.AccentBright,
+                Decoration.Bold,
+                theme.Surface2);
+            themeRenderer.AppendStyled(line, row.BranchGlyph[1..], theme.BorderActive, decoration);
+        }
+        else
+        {
+            themeRenderer.AppendStyled(
+                line,
+                row.BranchGlyph,
+                active || selected ? theme.AccentBright : row.IsEmpty ? theme.Muted : theme.BorderActive,
+                active || selected ? Decoration.Bold : decoration);
+        }
 
         if (row.IsEmpty)
         {
