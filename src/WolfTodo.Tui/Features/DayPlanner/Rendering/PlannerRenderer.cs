@@ -48,15 +48,19 @@ public sealed class PlannerRenderer
         var context = CreatePlannerRenderContext(view, keyBindings);
         RenderPlannerHeader(tabs, view, keyBindings, theme, context);
 
-        var timelineRows = WindowPlannerTimeline(
-            view.Slots,
-            view.State.SlotIndex,
-            context.AvailableRows,
-            view.State.SelectedDate,
-            nowProvider(),
-            view.CalendarAgenda.Meetings,
-            view.ActiveFocusBlock);
-        var timelineTable = CreatePlannerTimelineTable(timelineRows, context.AvailableRows, theme);
+        var timelineTable = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 1
+            ? CreatePlannerMultiDayTimelineTable(view.DayColumns, view.State.SlotIndex, context.AvailableRows, theme)
+            : CreatePlannerTimelineTable(
+                WindowPlannerTimeline(
+                    view.Slots,
+                    view.State.SlotIndex,
+                    context.AvailableRows,
+                    view.State.SelectedDate,
+                    nowProvider(),
+                    view.CalendarAgenda.Meetings,
+                    view.ActiveFocusBlock),
+                context.AvailableRows,
+                theme);
 
         RenderPlannerBody(view, theme, context, timelineTable);
         RenderPlannerOverlay(view, keyBindings, theme, context);
@@ -79,8 +83,9 @@ public sealed class PlannerRenderer
         var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
                             view.State.Focus == PlannerFocus.AllDay;
         var showAllDayPanel = allDayVisible || (wideLayout && view.State.ShowDetails);
-        var wideSidePanels = wideLayout && (view.State.ShowDetails || showAllDayPanel);
-        var compactDetails = IsPlannerCompactDetailsVisible(view, wideSidePanels);
+        var isMultiDay = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 1;
+        var wideSidePanels = !isMultiDay && wideLayout && (view.State.ShowDetails || showAllDayPanel);
+        var compactDetails = !isMultiDay && IsPlannerCompactDetailsVisible(view, wideSidePanels);
         var narrowAllDayHeight = PlannerNarrowAllDayHeight(view, wideSidePanels, showAllDayPanel);
         var pickerHeight = TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows);
         pickerHeight += view.PomodoroPrompt is null ? 0 : PomodoroPromptRenderer.Height;
@@ -145,6 +150,97 @@ public sealed class PlannerRenderer
         PadPlannerTimeline(table, timelineRows, availableRows);
         return table;
     }
+
+    public Table CreatePlannerMultiDayTimelineTable(
+        IReadOnlyList<PlannerDayColumnView> columns,
+        int selectedSlotIndex,
+        int availableRows,
+        TuiTheme theme)
+    {
+        var table = new Table().SquareBorder().Expand();
+        table.BorderStyle = themeRenderer.Style(theme.BorderActive);
+        table.AddColumn(new TableColumn(new Text(
+            "TIME",
+            themeRenderer.Style(theme.Heading, Decoration.Bold)))
+        {
+            Width = 8,
+            NoWrap = true
+        });
+        foreach (var column in columns)
+        {
+            var heading = column.Date.ToString("ddd dd MMM").ToUpperInvariant();
+            table.AddColumn(new TableColumn(new Text(
+                heading,
+                themeRenderer.Style(column.IsActive ? theme.AccentBright : theme.Accent, Decoration.Bold))));
+        }
+
+        foreach (var slotIndex in WindowPlannerMultiDaySlots(columns, selectedSlotIndex, availableRows))
+        {
+            var slotRows = columns
+                .Select(column => PlannerTimelineRenderModel.ForSlot(column.Slots[slotIndex]))
+                .ToArray();
+            var height = slotRows.Max(rows => rows.Count);
+            var timeRows = Enumerable.Range(0, height)
+                .Select(row => row == 0
+                    ? PlannerTimeRulerLine(slotRows[0][0], theme)
+                    : new Text(string.Empty))
+                .Cast<IRenderable>()
+                .ToArray();
+            var cells = new List<IRenderable> { new Rows(timeRows) };
+            cells.AddRange(slotRows.Select(rows => PlannerTimelineCell(rows, theme)));
+            table.AddRow(cells.ToArray());
+        }
+
+        return table;
+    }
+
+    public IReadOnlyList<int> WindowPlannerMultiDaySlots(
+        IReadOnlyList<PlannerDayColumnView> columns,
+        int selectedSlotIndex,
+        int availableRows)
+    {
+        var slotCount = columns.Min(column => column.Slots.Length);
+        var heights = Enumerable.Range(0, slotCount)
+            .Select(index => columns.Max(column => PlannerTimelineRenderModel.ForSlot(column.Slots[index]).Count))
+            .ToArray();
+        if (heights.Sum() <= availableRows)
+        {
+            return Enumerable.Range(0, slotCount).ToArray();
+        }
+
+        var selected = Math.Clamp(selectedSlotIndex, 0, slotCount - 1);
+        var start = selected;
+        var usedRows = heights[selected];
+        while (start > 0 && usedRows + heights[start - 1] <= availableRows)
+        {
+            start--;
+            usedRows += heights[start];
+        }
+
+        var end = selected + 1;
+        while (end < slotCount && usedRows + heights[end] <= availableRows)
+        {
+            usedRows += heights[end];
+            end++;
+        }
+
+        return Enumerable.Range(start, end - start).ToArray();
+    }
+
+    public IRenderable PlannerTimelineCell(
+        IReadOnlyList<PlannerTimelineRenderRow> renderRows,
+        TuiTheme theme) =>
+        new Rows(renderRows.Select(row =>
+        {
+            var content = PlannerTimelineRenderLine(row, theme);
+            var activeItem = !row.IsEmpty && (row.IsActive || row.IsSelected);
+            var selectedEmptySlot = row.IsEmpty && row.IsSelected;
+            return activeItem
+                ? themeRenderer.OnSurface(content, theme.Surface2)
+                : selectedEmptySlot
+                    ? themeRenderer.OnSurface(content, theme.Surface2, true)
+                    : content;
+        }).ToArray());
 
     public void AddPlannerTimelineRows(
         Table table,

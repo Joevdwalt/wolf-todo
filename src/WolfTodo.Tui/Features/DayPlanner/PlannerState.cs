@@ -20,6 +20,11 @@ public sealed record PlannerState(
 
     public int VisibleDayCount { get; init; } = 1;
 
+    // The first date shown in the multiday timeline. Keeping this separate
+    // from SelectedDate lets h/l move through visible columns before the
+    // viewport itself needs to scroll.
+    public DateOnly? VisibleStartDate { get; init; }
+
     public PlannerFocus Focus { get; init; } = PlannerFocus.Timeline;
 
     public int AllDayIndex { get; init; }

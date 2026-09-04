@@ -149,7 +149,7 @@ public sealed class StatusRenderer
                     $"{Shortest(keyBindings.FocusNext)} PANE  " +
                     $"{Shortest(keyBindings.MoveDown)}/{Shortest(keyBindings.MoveUp)} ITEM  " +
                     $"{Shortest(keyBindings.JumpTop)}/{Shortest(keyBindings.JumpBottom)} TOP/BOTTOM  " +
-                    $"{Shortest(keyBindings.PlannerPreviousDay)}/{Shortest(keyBindings.PlannerNextDay)} DAY  " +
+                    PlannerDateNavigation(view, keyBindings) +
                     $"{Shortest(keyBindings.PlannerToday)} TODAY  {Shortest(keyBindings.Open)} ASSIGN/MOVE  " +
                     $"{Shortest(keyBindings.FilterMode)} FILTER  " +
                     $"{Shortest(keyBindings.PlannerUnschedule)} UNSCHEDULE  " +
@@ -206,9 +206,17 @@ public sealed class StatusRenderer
         { State.Mode: WolfTodo.Tui.Features.DayPlanner.PlannerMode.EditFilter } => "FILTER",
         { State.Mode: WolfTodo.Tui.Features.DayPlanner.PlannerMode.ChooseTodo } => "PICK",
         { State.Mode: WolfTodo.Tui.Features.DayPlanner.PlannerMode.MoveTodo } => "MOVE",
+        { State.ViewMode: WolfTodo.Tui.Features.DayPlanner.PlannerViewMode.MultiDay } => "MULTIDAY",
         { State.Error: not null } => "ERROR",
         _ => "BROWSE"
     };
+
+    private string PlannerDateNavigation(PlannerView view, TuiKeyBindings bindings) =>
+        view.State.ViewMode == WolfTodo.Tui.Features.DayPlanner.PlannerViewMode.MultiDay
+            ? $"{Shortest(bindings.PlannerPreviousColumn)}/{Shortest(bindings.PlannerNextColumn)} DAY  " +
+              $"{Shortest(bindings.PlannerDecreaseRange)}/{Shortest(bindings.PlannerIncreaseRange)} RANGE  " +
+              $"{Shortest(bindings.PlannerToggleView)} SINGLE  "
+            : $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  ";
 
     public string SortHint(BrowserState state, TuiKeyBindings bindings)
     {

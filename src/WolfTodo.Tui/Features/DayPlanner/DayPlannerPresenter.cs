@@ -14,7 +14,8 @@ public sealed class DayPlannerPresenter
         PlannerState state,
         PlannerCalendarAgenda? calendarAgenda = null,
         PlannerConfiguration? plannerConfiguration = null,
-        PlannerFocusBlock? activeFocusBlock = null)
+        PlannerFocusBlock? activeFocusBlock = null,
+        bool isActiveDate = true)
     {
         
         var agenda = calendarAgenda ?? PlannerCalendarAgenda.Disabled;
@@ -68,14 +69,14 @@ public sealed class DayPlannerPresenter
                 return new PlannerSlotView(
                     time,
                     items,
-                    state.Focus == PlannerFocus.Timeline && index == slotIndex)
+                    isActiveDate && state.Focus == PlannerFocus.Timeline && index == slotIndex)
                 {
                     Items = timelineItems,
                     Meetings = meetings
                 };
             })
             .ToImmutableArray();
-        var selectedItem = state.Focus == PlannerFocus.Timeline
+        var selectedItem = isActiveDate && state.Focus == PlannerFocus.Timeline
             ? slots[slotIndex].Items
                   .FirstOrDefault(item => item.Identity == state.SelectedTimelineItemIdentity)
               ?? slots[slotIndex].Items.FirstOrDefault()

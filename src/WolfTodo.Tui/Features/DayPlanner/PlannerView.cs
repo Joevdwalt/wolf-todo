@@ -9,6 +9,8 @@ public sealed record PlannerView(
     ImmutableArray<PlannerAssignment> PickerTodos,
     ImmutableArray<PlannerProjectOption> Projects)
 {
+    public ImmutableArray<PlannerDayColumnView> DayColumns { get; init; } = [];
+
     public PlannerCalendarAgenda CalendarAgenda { get; init; } = PlannerCalendarAgenda.Disabled;
 
     public string? GlobalCommand { get; init; }
