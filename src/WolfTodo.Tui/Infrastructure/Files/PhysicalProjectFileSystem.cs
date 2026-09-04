@@ -1,10 +1,12 @@
-using WolfTodo.Tui.Features.DayPlanner;
+using WolfTodo.Core.Infrastructure.Markdown;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Infrastructure.Files;
 
-public sealed class PhysicalDayScheduleMarkdownFileStore : IDayScheduleMarkdownFileStore
+public sealed class PhysicalProjectFileSystem : IProjectFileSystem
 {
     public bool FileExists(string path) => File.Exists(path);
+
+    public string GetFullPath(string path) => Path.GetFullPath(path);
 
     public string ReadAllText(string path) => File.ReadAllText(path);
 
@@ -12,13 +14,12 @@ public sealed class PhysicalDayScheduleMarkdownFileStore : IDayScheduleMarkdownF
     {
         var directory = Path.GetDirectoryName(path)
             ?? throw new IOException($"Cannot determine the directory for {path}.");
-        Directory.CreateDirectory(directory);
         var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
 
         try
         {
             File.WriteAllText(temporaryPath, contents);
-            if (File.Exists(path) && !OperatingSystem.IsWindows())
+            if (!OperatingSystem.IsWindows())
             {
                 File.SetUnixFileMode(temporaryPath, File.GetUnixFileMode(path));
             }

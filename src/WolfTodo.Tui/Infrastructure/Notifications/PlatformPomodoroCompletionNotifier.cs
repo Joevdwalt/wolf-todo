@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using WolfTodo.Tui.Features.ApplicationShell;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Infrastructure.Notifications;
 
 public sealed class PlatformPomodoroCompletionNotifier : IPomodoroCompletionNotifier
 {
@@ -99,7 +99,7 @@ public sealed class PlatformPomodoroCompletionNotifier : IPomodoroCompletionNoti
         Console.Out.Flush();
     }
 
-    private static bool StartProcess(ProcessStartInfo info) => Process.Start(info) is not null;
+    private static bool StartProcess(ProcessStartInfo info) => System.Diagnostics.Process.Start(info) is not null;
 
     private static string Sanitize(string value) => new string(value
         .Where(character => !char.IsControl(character) && character is not '\u001b' and not '\a')

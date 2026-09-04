@@ -1,4 +1,4 @@
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Infrastructure.Calendar;
 
 public interface IGoogleCalendarEventSourceFactory
 {

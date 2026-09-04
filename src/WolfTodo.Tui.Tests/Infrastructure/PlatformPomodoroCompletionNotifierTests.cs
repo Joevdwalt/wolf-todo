@@ -2,6 +2,7 @@ using System.Diagnostics;
 using FluentAssertions;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Infrastructure.Notifications;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 

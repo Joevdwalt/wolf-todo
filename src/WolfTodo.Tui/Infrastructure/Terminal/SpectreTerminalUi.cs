@@ -6,6 +6,7 @@ using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.ProjectBrowser.Rendering;
 using WolfTodo.Tui.Features.Splash;
 using WolfTodo.Tui.Features.Tabs;
+using WolfTodo.Tui.Infrastructure.Terminal;
 using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Infrastructure;
