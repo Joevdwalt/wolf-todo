@@ -60,7 +60,7 @@ WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03 SEP
 │   ◆ Natasha Collins's birthday                                               │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ TAB PANE  J/K ITEM  G/G TOP/BOTTOM  [/] DAY  T TODAY  L MOVE  / FILTER       │
+│ TAB PANE  J/K ITEM  H/L DAY  G/G TOP/BOTTOM  ENTER MOVE  / FILTER             │
 │ U UNSCHEDULE  A CREATE  E EDIT  SPACE COMPLETE  V DETAILS  R CALENDAR        │
 │ CALENDAR READY                                                               │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -256,8 +256,18 @@ active. Enter remains Open/Confirm and Escape remains Back/Cancel. The
 previous-day and next-day bindings continue to navigate dates in single-day
 mode; they are not used as the multiday column cursor.
 
-The multiday view uses configured planner navigation bindings wherever they
-already have a matching single-day meaning. It must provide access to:
+For every active date column, the configured pane bindings (default Tab and
+Shift+Tab) move selection between that date's timeline and all-day pane without
+opening, assigning, or moving an item. The destination keeps its existing
+selected item when one exists; otherwise it selects the first valid item or
+its empty scheduling destination. `h`/`l` then move the active date while
+preserving the focused pane, so a user can navigate all-day items or timeline
+slots across every rendered day.
+
+The multiday view uses Vim-like planner navigation: `j`/`k` move between
+items and timeline slots, while `h`/`l` move between adjacent date columns.
+Enter opens an empty destination, starts a move for the selected todo, or
+confirms an active move. It must provide access to:
 
 - movement between rendered date columns and their timeline slots;
 - movement between visible date-only/all-day items;
