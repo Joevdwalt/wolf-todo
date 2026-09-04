@@ -37,7 +37,9 @@ public sealed class DayPlannerReducerTests
         var previous = reducer.Reduce(next, Key('h'), Bindings, View(next, Todo("Scheduled"))).State;
 
         multiday.ViewMode.Should().Be(PlannerViewMode.MultiDay);
+        multiday.VisibleStartDate.Should().Be(Today);
         next.SelectedDate.Should().Be(Today.AddDays(1));
+        next.VisibleStartDate.Should().Be(Today.AddDays(1));
         next.Mode.Should().Be(PlannerMode.Browse);
         previous.SelectedDate.Should().Be(Today);
     }
@@ -57,6 +59,27 @@ public sealed class DayPlannerReducerTests
         three.VisibleDayCount.Should().Be(3);
         stillThree.VisibleDayCount.Should().Be(3);
         twoAgain.VisibleDayCount.Should().Be(2);
+    }
+
+    [Fact]
+    public void Reduce_keeps_the_active_date_in_the_multiday_viewport()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today) with
+        {
+            ViewMode = PlannerViewMode.MultiDay,
+            VisibleDayCount = 3,
+            VisibleStartDate = Today
+        };
+
+        var second = reducer.Reduce(state, Key('l'), Bindings, View(state)).State;
+        var third = reducer.Reduce(second, Key('l'), Bindings, View(second)).State;
+        var fourth = reducer.Reduce(third, Key('l'), Bindings, View(third)).State;
+
+        second.VisibleStartDate.Should().Be(Today);
+        third.VisibleStartDate.Should().Be(Today);
+        fourth.SelectedDate.Should().Be(Today.AddDays(3));
+        fourth.VisibleStartDate.Should().Be(Today.AddDays(1));
     }
 
     [Fact]

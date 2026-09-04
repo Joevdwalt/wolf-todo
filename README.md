@@ -111,6 +111,11 @@ tab_next = ["L"]
 tab_previous = ["H"]
 planner_previous_day = ["["]
 planner_next_day = ["]"]
+planner_toggle_view = ["s"]
+planner_increase_range = ["+"]
+planner_decrease_range = ["-"]
+planner_previous_column = ["h"]
+planner_next_column = ["l"]
 planner_today = ["T"]
 planner_unschedule = ["u"]
 planner_refresh_calendar = ["r"]
@@ -182,6 +187,10 @@ Within `[keybindings]`, only `quit` is required. Omitted bindings use the
 defaults shown above. A configured binding array replaces that action's
 defaults. Bindings accept printable characters, named console keys, and
 `Shift`, `Ctrl`, or `Alt` modifiers such as `Ctrl+K`.
+
+In Day Planner, `s` switches between a day and a two-to-three-day view. In the
+multiday view, `h` and `l` move the active date between columns (scrolling the
+range when needed), while `-` and `+` shrink or grow the visible range.
 
 The optional `[tui.theme]` table selects the startup theme. Available presets
 are `wolf` (the default), `classic`, and `mono`. The configurable semantic

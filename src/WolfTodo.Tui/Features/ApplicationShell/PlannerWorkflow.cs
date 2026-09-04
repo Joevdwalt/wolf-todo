@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.DayPlanner;
@@ -20,12 +21,40 @@ public sealed class PlannerWorkflow(
         ProjectCatalog catalog,
         PlannerState state,
         ApplicationConfiguration configuration,
-        PlannerFocusBlock? activeFocusBlock) => presenter.CreateView(
-        catalog,
-        state,
-        calendarCache.GetAgenda(configuration.GoogleCalendar, state.SelectedDate),
-        configuration.Planner,
-        activeFocusBlock);
+        PlannerFocusBlock? activeFocusBlock)
+    {
+        var selectedView = presenter.CreateView(
+            catalog,
+            state,
+            calendarCache.GetAgenda(configuration.GoogleCalendar, state.SelectedDate),
+            configuration.Planner,
+            activeFocusBlock);
+        if (state.ViewMode != PlannerViewMode.MultiDay)
+        {
+            return selectedView;
+        }
+
+        var visibleStart = state.VisibleStartDate ?? state.SelectedDate;
+        var columns = Enumerable.Range(0, state.VisibleDayCount)
+            .Select(offset => visibleStart.AddDays(offset))
+            .Select(date =>
+            {
+                var isActive = date == state.SelectedDate;
+                var dayView = isActive
+                    ? selectedView
+                    : presenter.CreateView(
+                        catalog,
+                        state with { SelectedDate = date },
+                        calendarCache.GetAgenda(configuration.GoogleCalendar, date),
+                        configuration.Planner,
+                        activeFocusBlock,
+                        isActiveDate: false);
+                return new PlannerDayColumnView(date, dayView.Slots, dayView.CalendarAgenda, isActive);
+            })
+            .ToImmutableArray();
+
+        return selectedView with { DayColumns = columns };
+    }
 
     public void Refresh(ApplicationConfiguration configuration, PlannerState state) =>
         calendarCache.Refresh(configuration.GoogleCalendar, state.SelectedDate);

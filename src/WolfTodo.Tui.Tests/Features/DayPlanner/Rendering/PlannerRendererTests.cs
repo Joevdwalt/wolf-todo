@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
@@ -33,6 +34,54 @@ public sealed class PlannerRendererTests
         context.ShowAllDayPanel.Should().BeTrue();
         context.TimelineWidth.Should().Be(91);
         context.AvailableRows.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void CreatePlannerRenderContext_gives_multiday_columns_the_full_width()
+    {
+        var date = new DateOnly(2026, 8, 4);
+        var slots = new[] { new PlannerSlotView(new TimeOnly(9, 0), [], true) };
+        var view = new PlannerView(
+            PlannerState.CreateInitial(date) with
+            {
+                ViewMode = PlannerViewMode.MultiDay,
+                ShowDetails = true
+            },
+            slots.ToImmutableArray(),
+            [],
+            [])
+        {
+            DayColumns =
+            [
+                new PlannerDayColumnView(date, slots.ToImmutableArray(), PlannerCalendarAgenda.Disabled, true),
+                new PlannerDayColumnView(date.AddDays(1), slots.ToImmutableArray(), PlannerCalendarAgenda.Disabled, false)
+            ]
+        };
+
+        var context = new PlannerRenderer(() => 140, () => 30)
+            .CreatePlannerRenderContext(view, TuiKeyBindings.CreateDefaults(":q"));
+
+        context.WideSidePanels.Should().BeFalse();
+        context.TimelineWidth.Should().Be(140);
+    }
+
+    [Fact]
+    public void WindowPlannerMultiDaySlots_keeps_the_active_slot_visible()
+    {
+        var date = new DateOnly(2026, 8, 4);
+        var slots = Enumerable.Range(0, 4)
+            .Select(index => new PlannerSlotView(new TimeOnly(6, 0).AddMinutes(index * 15), [], index == 2))
+            .ToImmutableArray();
+        var columns = new[]
+        {
+            new PlannerDayColumnView(date, slots, PlannerCalendarAgenda.Disabled, true),
+            new PlannerDayColumnView(date.AddDays(1), slots, PlannerCalendarAgenda.Disabled, false)
+        };
+
+        var window = new PlannerRenderer().WindowPlannerMultiDaySlots(columns, 2, availableRows: 2);
+
+        window.Should().Contain(2);
+        window.Count.Should().BeLessThan(4);
     }
 
     [Fact]

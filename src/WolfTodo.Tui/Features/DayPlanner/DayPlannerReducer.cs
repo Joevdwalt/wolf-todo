@@ -16,17 +16,9 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         TimeSpan? defaultDuration = null) =>
         action switch
         {
-            PlannerAction.PreviousDay => Transition(state with
-            {
-                SelectedDate = state.SelectedDate.AddDays(-1),
-                Error = null
-            }),
-            PlannerAction.NextDay => Transition(state with
-            {
-                SelectedDate = state.SelectedDate.AddDays(1),
-                Error = null
-            }),
-            PlannerAction.Today => Transition(state with { SelectedDate = todayProvider(), Error = null }),
+            PlannerAction.PreviousDay => Transition(WithVisibleDate(state, state.SelectedDate.AddDays(-1))),
+            PlannerAction.NextDay => Transition(WithVisibleDate(state, state.SelectedDate.AddDays(1))),
+            PlannerAction.Today => Transition(WithVisibleDate(state, todayProvider())),
             PlannerAction.Create when view.Projects.Length > 0 => Transition(state with
             {
                 Editor = todoEditorReducer.CreateEditor(
@@ -121,9 +113,11 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesPlannerToggleView(key))
         {
+            var enteringMultiDay = state.ViewMode == PlannerViewMode.SingleDay;
             return Transition(state with
             {
-                ViewMode = state.ViewMode == PlannerViewMode.SingleDay ? PlannerViewMode.MultiDay : PlannerViewMode.SingleDay,
+                ViewMode = enteringMultiDay ? PlannerViewMode.MultiDay : PlannerViewMode.SingleDay,
+                VisibleStartDate = enteringMultiDay ? state.SelectedDate : null,
                 Error = null
             });
         }
@@ -139,7 +133,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             if (bindings.MatchesPlannerPreviousColumn(key) || bindings.MatchesPlannerNextColumn(key))
             {
                 var delta = bindings.MatchesPlannerPreviousColumn(key) ? -1 : 1;
-                return Transition(state with { SelectedDate = state.SelectedDate.AddDays(delta), Error = null });
+                return Transition(WithVisibleDate(state, state.SelectedDate.AddDays(delta)));
             }
         }
 
@@ -261,12 +255,12 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         if (bindings.MatchesPlannerPreviousDay(key) || bindings.MatchesPlannerNextDay(key))
         {
             var offset = bindings.MatchesPlannerPreviousDay(key) ? -1 : 1;
-            return Transition(state with { SelectedDate = state.SelectedDate.AddDays(offset), Error = null });
+            return Transition(WithVisibleDate(state, state.SelectedDate.AddDays(offset)));
         }
 
         if (bindings.MatchesPlannerToday(key))
         {
-            return Transition(state with { SelectedDate = todayProvider(), Error = null });
+            return Transition(WithVisibleDate(state, todayProvider()));
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesToggleDetails(key))
@@ -412,6 +406,32 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
     private static int MoveIndex(int current, int offset, int count) =>
         count == 0 ? 0 : Math.Clamp(current + offset, 0, count - 1);
+
+    private static PlannerState WithVisibleDate(PlannerState state, DateOnly selectedDate)
+    {
+        if (state.ViewMode != PlannerViewMode.MultiDay)
+        {
+            return state with { SelectedDate = selectedDate, Error = null };
+        }
+
+        var visibleStart = state.VisibleStartDate ?? state.SelectedDate;
+        var visibleEnd = visibleStart.AddDays(state.VisibleDayCount - 1);
+        if (selectedDate < visibleStart)
+        {
+            visibleStart = selectedDate;
+        }
+        else if (selectedDate > visibleEnd)
+        {
+            visibleStart = selectedDate.AddDays(1 - state.VisibleDayCount);
+        }
+
+        return state with
+        {
+            SelectedDate = selectedDate,
+            VisibleStartDate = visibleStart,
+            Error = null
+        };
+    }
 
     private static bool IsStackSelectionKey(ConsoleKeyInfo key) =>
         key.KeyChar is 'j' or 'J' or 'k' or 'K';
