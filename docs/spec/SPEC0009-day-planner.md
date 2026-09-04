@@ -116,9 +116,12 @@ items in that order. A duration start always uses `├─`, even when it is the
 last item starting in that slot, because its branch continues below. Selecting
 an item highlights its own start, continuation, and end rows with the active
 accent and a surface fitted to the rendered branch content; the highlight does
-not fill the unused plan width, recolor or fill the time-ruler cell, or include
-an overlapping item's row. Only the selected row carries `├▶`, while the other
-highlighted rows retain `│` or `└─`.
+not fill the unused plan width or recolor or fill the time-ruler cell. When the
+selected item starts in a stacked slot, the junction character of every stack
+row is highlighted so its branch remains visually continuous through the
+intervening rows. Its horizontal `─`, status, and title retain ordinary
+styling. Only the selected row carries `├▶`; the other highlighted rows retain
+`├─`, `│`, or `└─`.
 
 The intended 80-column shape is:
 
