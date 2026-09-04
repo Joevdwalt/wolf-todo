@@ -3,7 +3,6 @@ using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
-using WolfTodo.Tui.Features.Splash;
 using WolfTodo.Tui.Features.Tabs;
 using WolfTodo.Tui.Features.DayPlanner;
 

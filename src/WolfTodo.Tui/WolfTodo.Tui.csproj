@@ -16,7 +16,4 @@
   <ItemGroup>
     <Content Include="Assets/wolf.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Infrastructure\State\" />
-  </ItemGroup>
 </Project>

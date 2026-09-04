@@ -1,6 +1,7 @@
 using FluentAssertions;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Tui.Infrastructure.State;
 
 namespace WolfTodo.Tui.Tests.Features.ApplicationShell;
 

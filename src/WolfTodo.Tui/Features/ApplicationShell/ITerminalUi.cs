@@ -1,9 +1,9 @@
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Tabs;
-using WolfTodo.Tui.Features.DayPlanner;
 
-namespace WolfTodo.Tui.Features.Splash;
+namespace WolfTodo.Tui.Features.ApplicationShell;
 
 public interface ITerminalUi
 {
