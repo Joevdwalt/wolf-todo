@@ -81,12 +81,17 @@ public static class PlannerTimelineRenderModel
             return "├▶";
         }
 
-        return item.IntervalState switch
+        var branch = item.IntervalState switch
         {
             PlannerIntervalState.Start => "├─",
             PlannerIntervalState.Continue => "│",
             PlannerIntervalState.End => "└─",
             _ => index == count - 1 && count > 1 ? "└─" : "├─"
         };
+
+        // Keep a selected duration's bridged lane open, but only replace a
+        // glyph that would otherwise close it. Starts and continuations retain
+        // their ordinary ├─ and │ shapes.
+        return item.IsSelectionBridge && branch == "└─" && index < count - 1 ? "├─" : branch;
     }
 }
