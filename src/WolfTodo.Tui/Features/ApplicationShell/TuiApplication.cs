@@ -32,7 +32,10 @@ public sealed class TuiApplication(
     DayScheduleExportService? dayScheduleExportService = null,
     WeeklyTimeLogService? weeklyTimeLogService = null,
     Func<DateTime>? nowProvider = null,
-    IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null)
+    IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null,
+    PlannerWorkflow? plannerWorkflow = null,
+    BrowserWorkflow? browserWorkflow = null,
+    TimerWorkflow? timerWorkflow = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -42,8 +45,6 @@ public sealed class TuiApplication(
         new(PlannerTab, "Day Planner")
     ];
 
-    private readonly DayPlannerPresenter plannerPresenter = plannerPresenter ?? new DayPlannerPresenter();
-    private readonly DayPlannerReducer plannerReducer = plannerReducer ?? new DayPlannerReducer();
     private readonly ApplicationCommandReducer commandReducer = commandReducer ?? new ApplicationCommandReducer();
     private readonly CommandPaletteReducer paletteReducer = paletteReducer ?? new CommandPaletteReducer();
     private readonly CommandPalettePresenter palettePresenter = palettePresenter ?? new CommandPalettePresenter();
@@ -51,13 +52,24 @@ public sealed class TuiApplication(
         (() => DateOnly.FromDateTime(DateTime.Today));
     private readonly ApplicationActionCatalog actionCatalog = actionCatalog ??
         new ApplicationActionCatalog(todayProvider);
-    private readonly IExternalEditorLauncher? externalEditorLauncher = externalEditorLauncher;
-    private readonly PlannerCalendarAgendaCache plannerCalendarCache = plannerCalendarCache ??
-        new PlannerCalendarAgendaCache(new DisabledPlannerCalendarAgendaProvider());
-    private readonly DayScheduleExportService? dayScheduleExportService = dayScheduleExportService;
-    private readonly WeeklyTimeLogService? weeklyTimeLogService = weeklyTimeLogService;
-    private readonly Func<DateTime> nowProvider = nowProvider ?? (() => DateTime.Now);
-    private readonly IPomodoroCompletionNotifier? pomodoroCompletionNotifier = pomodoroCompletionNotifier;
+    private readonly PlannerWorkflow plannerWorkflow = plannerWorkflow ?? new PlannerWorkflow(
+        plannerPresenter ?? new DayPlannerPresenter(),
+        plannerReducer ?? new DayPlannerReducer(),
+        plannerCalendarCache ?? new PlannerCalendarAgendaCache(new DisabledPlannerCalendarAgendaProvider()),
+        dayScheduleExportService,
+        externalEditorLauncher,
+        terminalUi,
+        catalogLoader);
+    private readonly BrowserWorkflow browserWorkflow = browserWorkflow ?? new BrowserWorkflow(
+        catalogLoader,
+        externalEditorLauncher,
+        terminalUi,
+        todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today)));
+    private readonly TimerWorkflow timerWorkflow = timerWorkflow ?? new TimerWorkflow(
+        weeklyTimeLogService,
+        nowProvider ?? (() => DateTime.Now),
+        pomodoroCompletionNotifier,
+        terminalUi);
 
     public int Run()
     {
@@ -97,7 +109,7 @@ public sealed class TuiApplication(
             while (true)
             {
                 EnsureSupportedTab(state.Tabs.ActiveTab);
-                state = CompletePomodoro(state, configuration);
+                state = timerWorkflow.CompletePomodoro(state, configuration, state.Tabs.ActiveTab == TodosTab);
                 var tabView = tabPresenter.CreateView(Tabs, state.Tabs);
                 BrowserView? browserView = null;
                 PlannerView? plannerView = null;
@@ -121,8 +133,8 @@ public sealed class TuiApplication(
                         GlobalCommand = state.Command.IsActive ? state.Command.Value : null,
                         GlobalError = state.Command.Error,
                         CommandPalette = paletteView,
-                        TimerStatus = TimerStatus(state.Timer),
-                        TimerIsBright = TimerIsBright(state.Timer),
+                        TimerStatus = timerWorkflow.Status(state.Timer),
+                        TimerIsBright = timerWorkflow.IsBright(state.Timer),
                         PomodoroPrompt = state.PomodoroPrompt,
                         PomodoroCompletion = state.PomodoroCompletion
                     };
@@ -134,15 +146,11 @@ public sealed class TuiApplication(
                 }
                 else
                 {
-                    var agenda = plannerCalendarCache.GetAgenda(
-                        configuration.GoogleCalendar,
-                        state.Planner.SelectedDate);
-                    plannerView = plannerPresenter.CreateView(
+                    plannerView = plannerWorkflow.CreateView(
                         catalog,
                         state.Planner,
-                        agenda,
-                        configuration.Planner,
-                        ActiveFocusBlock(state.Timer));
+                        configuration,
+                        timerWorkflow.ActiveFocusBlock(state.Timer));
                     state = state with { Planner = plannerView.State };
                     if (state.Palette.IsOpen)
                     {
@@ -158,8 +166,8 @@ public sealed class TuiApplication(
                         GlobalCommand = state.Command.IsActive ? state.Command.Value : null,
                         GlobalError = state.Command.Error,
                         CommandPalette = paletteView,
-                        TimerStatus = TimerStatus(state.Timer),
-                        TimerIsBright = TimerIsBright(state.Timer),
+                        TimerStatus = timerWorkflow.Status(state.Timer),
+                        TimerIsBright = timerWorkflow.IsBright(state.Timer),
                         PomodoroPrompt = state.PomodoroPrompt,
                         PomodoroCompletion = state.PomodoroCompletion
                     };
@@ -173,7 +181,7 @@ public sealed class TuiApplication(
                 var pendingKey = state.Timer is not null
                     ? terminalUi.ReadKey(TimeSpan.FromSeconds(1))
                     : state.Tabs.ActiveTab == PlannerTab
-                        ? terminalUi.ReadKey(plannerCalendarCache.IsRefreshing
+                        ? terminalUi.ReadKey(plannerWorkflow.IsRefreshing
                             ? TimeSpan.FromMilliseconds(250)
                             : TimeSpan.FromMinutes(1))
                         : terminalUi.ReadKey();
@@ -189,7 +197,7 @@ public sealed class TuiApplication(
                 }
                 if (state.PomodoroPrompt is not null)
                 {
-                    state = ReducePomodoroPrompt(state, key, configuration);
+                    state = timerWorkflow.ReducePrompt(state, key, configuration, state.Tabs.ActiveTab == TodosTab);
                     continue;
                 }
 
@@ -208,7 +216,7 @@ public sealed class TuiApplication(
                     state = state with { Command = commandTransition.State };
                     if (commandTransition.Operation == ApplicationCommandOperation.Exit)
                     {
-                        state = StopTimer(state, configuration);
+                        state = timerWorkflow.Stop(state, configuration, state.Tabs.ActiveTab == TodosTab);
                         if (state.Timer is null) return 0;
                         continue;
                     }
@@ -237,23 +245,29 @@ public sealed class TuiApplication(
 
                     if (commandTransition.Operation == ApplicationCommandOperation.MoveTodoProject)
                     {
-                        state = MoveSelectedTodoToProject(
+                        var projectMoveResult = browserWorkflow.MoveSelectedTodoToProject(
                             state,
                             browserView,
                             commandTransition.ProjectTitle,
-                            ref catalog,
+                            catalog,
                             configuration,
-                            mutationService);
+                            mutationService,
+                            state.Tabs.ActiveTab == TodosTab);
+                        state = projectMoveResult.State;
+                        catalog = projectMoveResult.Catalog;
                     }
 
                     if (commandTransition.Operation == ApplicationCommandOperation.ArchiveCompleted)
                     {
-                        state = ArchiveCompletedProject(
+                        var archiveResult = browserWorkflow.ArchiveCompletedProject(
                             state,
                             browserView,
-                            ref catalog,
+                            catalog,
                             configuration,
-                            mutationService);
+                            mutationService,
+                            state.Tabs.ActiveTab == TodosTab);
+                        state = archiveResult.State;
+                        catalog = archiveResult.Catalog;
                     }
 
                     if (commandTransition.Operation == ApplicationCommandOperation.RollProjectToday)
@@ -274,24 +288,27 @@ public sealed class TuiApplication(
                                 state.Browser,
                                 BrowserAction.RollProjectToday,
                                 browserView);
-                            state = ApplyBrowserTransition(
+                            var rollResult = browserWorkflow.ApplyTransition(
                                 state,
                                 transition,
-                                ref catalog,
+                                catalog,
                                 configuration,
                                 mutationService);
+                            state = rollResult.State;
+                            catalog = rollResult.Catalog;
                         }
                     }
 
                     if (commandTransition.Operation == ApplicationCommandOperation.StartPomodoro)
                     {
-                        state = StartPomodoroCommand(
+                        state = timerWorkflow.StartPomodoroCommand(
                             state,
                             browserView,
                             plannerView,
                             catalog,
                             configuration,
-                            commandTransition);
+                            commandTransition,
+                            state.Tabs.ActiveTab == TodosTab);
                     }
 
                     continue;
@@ -324,26 +341,27 @@ public sealed class TuiApplication(
                     var action = paletteTransition.Action.Value;
                     if (action == ApplicationActionId.Exit)
                     {
-                        state = StopTimer(state, configuration);
+                        state = timerWorkflow.Stop(state, configuration, state.Tabs.ActiveTab == TodosTab);
                         if (state.Timer is null) return 0;
                         continue;
                     }
 
                     if (action == ApplicationActionId.ToggleTimer)
                     {
-                        state = ToggleTimer(state, browserView, plannerView, catalog, configuration);
+                        state = timerWorkflow.Toggle(state, browserView, plannerView, catalog, configuration, state.Tabs.ActiveTab == TodosTab);
                         continue;
                     }
 
                     if (action is ApplicationActionId.StartPomodoro or ApplicationActionId.StartUntrackedPomodoro)
                     {
-                        state = OpenPomodoroPrompt(
+                        state = timerWorkflow.OpenPomodoroPrompt(
                             state,
                             browserView,
                             plannerView,
                             catalog,
                             configuration,
-                            action == ApplicationActionId.StartUntrackedPomodoro);
+                            action == ApplicationActionId.StartUntrackedPomodoro,
+                            state.Tabs.ActiveTab == TodosTab);
                         continue;
                     }
 
@@ -403,12 +421,14 @@ public sealed class TuiApplication(
                                 state.Browser,
                                 browserAction.Value,
                                 browserView!);
-                            state = ApplyBrowserTransition(
+                            var paletteBrowserResult = browserWorkflow.ApplyTransition(
                                 state,
                                 transition,
-                                ref catalog,
+                                catalog,
                                 configuration,
                                 mutationService);
+                            state = paletteBrowserResult.State;
+                            catalog = paletteBrowserResult.Catalog;
                         }
 
                         continue;
@@ -416,15 +436,13 @@ public sealed class TuiApplication(
 
                     if (action == ApplicationActionId.PlannerRefreshCalendar)
                     {
-                        plannerCalendarCache.Refresh(
-                            configuration.GoogleCalendar,
-                            state.Planner.SelectedDate);
+                        plannerWorkflow.Refresh(configuration, state.Planner);
                         continue;
                     }
 
                     if (action == ApplicationActionId.PlannerExportSchedule)
                     {
-                        state = ExportDaySchedule(state, plannerView!, configuration);
+                        state = plannerWorkflow.Export(state, plannerView!, configuration);
                         continue;
                     }
 
@@ -444,17 +462,19 @@ public sealed class TuiApplication(
                     };
                     if (plannerAction is not null)
                     {
-                        var transition = plannerReducer.ReduceAction(
+                        var transition = plannerWorkflow.ReduceAction(
                             state.Planner,
                             plannerAction.Value,
-                            plannerView!,
-                            configuration.Planner.DefaultDuration);
-                        state = ApplyPlannerTransition(
+                            configuration,
+                            plannerView!);
+                        var plannerResult = plannerWorkflow.ApplyTransition(
                             state,
                             transition,
-                            ref catalog,
+                            catalog,
                             configuration,
                             mutationService);
+                        state = plannerResult.State;
+                        catalog = plannerResult.Catalog;
                     }
 
                     continue;
@@ -467,7 +487,7 @@ public sealed class TuiApplication(
 
                 if (!featureCapturesInput && configuration.KeyBindings.MatchesToggleTimer(key))
                 {
-                    state = ToggleTimer(state, browserView, plannerView, catalog, configuration);
+                    state = timerWorkflow.Toggle(state, browserView, plannerView, catalog, configuration, state.Tabs.ActiveTab == TodosTab);
                     continue;
                 }
 
@@ -475,13 +495,14 @@ public sealed class TuiApplication(
                     (configuration.KeyBindings.MatchesStartPomodoro(key) ||
                      configuration.KeyBindings.MatchesStartUntrackedPomodoro(key)))
                 {
-                    state = OpenPomodoroPrompt(
+                    state = timerWorkflow.OpenPomodoroPrompt(
                         state,
                         browserView,
                         plannerView,
                         catalog,
                         configuration,
-                        configuration.KeyBindings.MatchesStartUntrackedPomodoro(key));
+                        configuration.KeyBindings.MatchesStartUntrackedPomodoro(key),
+                        state.Tabs.ActiveTab == TodosTab);
                     continue;
                 }
 
@@ -511,42 +532,43 @@ public sealed class TuiApplication(
                     if (!state.Planner.CapturesInput &&
                         configuration.KeyBindings.MatchesPlannerRefreshCalendar(key))
                     {
-                        plannerCalendarCache.Refresh(
-                            configuration.GoogleCalendar,
-                            state.Planner.SelectedDate);
+                        plannerWorkflow.Refresh(configuration, state.Planner);
                         continue;
                     }
 
                     if (!state.Planner.CapturesInput &&
                         configuration.KeyBindings.MatchesPlannerExportSchedule(key))
                     {
-                        state = ExportDaySchedule(state, plannerView!, configuration);
+                        state = plannerWorkflow.Export(state, plannerView!, configuration);
                         continue;
                     }
 
-                    var transition = plannerReducer.Reduce(
+                    var transition = plannerWorkflow.Reduce(
                         state.Planner,
                         key,
-                        configuration.KeyBindings,
-                        plannerView!,
-                        configuration.Planner.DefaultDuration);
-                    state = ApplyPlannerTransition(
+                        configuration,
+                        plannerView!);
+                    var plannerResult = plannerWorkflow.ApplyTransition(
                         state,
                         transition,
-                        ref catalog,
+                        catalog,
                         configuration,
                         mutationService);
+                    state = plannerResult.State;
+                    catalog = plannerResult.Catalog;
 
                     continue;
                 }
 
                 var browserTransition = browserReducer.Reduce(state.Browser, key, configuration, browserView!);
-                state = ApplyBrowserTransition(
+                var browserResult = browserWorkflow.ApplyTransition(
                     state,
                     browserTransition,
-                    ref catalog,
+                    catalog,
                     configuration,
                     mutationService);
+                state = browserResult.State;
+                catalog = browserResult.Catalog;
             }
         }
         finally
@@ -558,901 +580,12 @@ public sealed class TuiApplication(
         }
     }
 
-    private ApplicationState ExportDaySchedule(
-        ApplicationState state,
-        PlannerView view,
-        ApplicationConfiguration configuration)
-    {
-        if (dayScheduleExportService is null)
-        {
-            return PlannerFailure(state, "Day schedule export is unavailable.");
-        }
-
-        var result = dayScheduleExportService.Export(view, configuration.Planner.Export);
-        return result.Succeeded
-            ? state with
-            {
-                Planner = state.Planner with { Error = $"Exported day schedule to {result.Path}" }
-            }
-            : PlannerFailure(state, result.Error ?? "Could not export day schedule.");
-    }
-
-    private ApplicationState ApplyPlannerTransition(
-        ApplicationState state,
-        PlannerTransition transition,
-        ref ProjectCatalog catalog,
-        ApplicationConfiguration configuration,
-        ProjectTodoMutationService? service)
-    {
-        state = state with { Planner = transition.State };
-        if (transition.Operation == PlannerOperation.None)
-        {
-            return state;
-        }
-
-        if (transition.Operation == PlannerOperation.EditExternal)
-        {
-            if (externalEditorLauncher is null ||
-                transition.ProjectPath is null ||
-                transition.TodoIdentity is null)
-            {
-                return PlannerFailure(state, "External editing is unavailable.");
-            }
-
-            ExternalEditorResult externalResult;
-            terminalUi.SuspendForExternalProcess();
-            try
-            {
-                externalResult = externalEditorLauncher.Open(
-                    transition.ProjectPath,
-                    transition.TodoIdentity.SourceLine);
-            }
-            finally
-            {
-                terminalUi.ResumeAfterExternalProcess();
-            }
-
-            if (externalResult.Started)
-            {
-                catalog = catalogLoader.Load(configuration.ProjectFiles);
-            }
-
-            return externalResult.Error is null
-                ? PlannerSuccess(state)
-                : PlannerFailure(state, externalResult.Error);
-        }
-
-        if (service is null)
-        {
-            return PlannerFailure(state, "Todo writing is unavailable.");
-        }
-
-        var expected = FindTodo(catalog, transition.TodoIdentity);
-        var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
-        catalog = latestCatalog;
-        var schedule = transition.ScheduleTarget == PlannerScheduleTarget.AllDay
-            ? new TodoSchedule(state.Planner.SelectedDate)
-            : new TodoSchedule(
-                state.Planner.SelectedDate,
-                new TimeOnly(6, 0).AddMinutes(state.Planner.SlotIndex * 15));
-
-        if (transition.Operation == PlannerOperation.Create)
-        {
-            if (transition.ProjectPath is null || transition.Update is null)
-            {
-                return PlannerFailure(state, "The new todo is incomplete.");
-            }
-
-            if (transition.Update.Fields.Schedule is null)
-            {
-                return PlannerFailure(state, "A schedule is required when creating from Planner.");
-            }
-
-            var created = service.Create(transition.ProjectPath, transition.Update);
-            if (!created.Succeeded)
-            {
-                return PlannerFailure(state, created.Error ?? "The todo could not be created.");
-            }
-
-            catalog = catalogLoader.Load(configuration.ProjectFiles);
-            return PlannerSuccess(
-                state,
-                transition.Update.Fields.Schedule,
-                created.SourceLine is { } createdLine
-                    ? new TodoIdentity(transition.ProjectPath, createdLine)
-                    : null);
-        }
-
-        if (transition.TodoIdentity is null)
-        {
-            return PlannerFailure(state, "The selected todo cannot be updated.");
-        }
-
-        if (expected is null)
-        {
-            return PlannerFailure(state, "The selected todo cannot be found.");
-        }
-
-        var result = transition.Operation switch
-        {
-            PlannerOperation.Schedule => service.SetSchedule(
-                transition.TodoIdentity.ProjectPath,
-                expected,
-                schedule),
-            PlannerOperation.Unschedule => service.SetSchedule(
-                transition.TodoIdentity.ProjectPath,
-                expected,
-                null),
-            PlannerOperation.Update when transition.Update is not null => service.UpdateTask(
-                transition.TodoIdentity.ProjectPath,
-                expected,
-                transition.Update),
-            PlannerOperation.ToggleCompleted => service.SetCompleted(
-                transition.TodoIdentity.ProjectPath,
-                expected,
-                !expected.IsCompleted),
-            _ => TodoMutationResult.Failure("The requested planner change is invalid.")
-        };
-        if (!result.Succeeded)
-        {
-            return PlannerFailure(state, result.Error ?? "The selected todo could not be updated.");
-        }
-
-        catalog = catalogLoader.Load(configuration.ProjectFiles);
-        var followedSchedule = transition.Operation switch
-        {
-            PlannerOperation.Schedule => schedule,
-            PlannerOperation.Update => transition.Update?.Fields.Schedule,
-            _ => null
-        };
-        return PlannerSuccess(
-            state,
-            followedSchedule,
-            followedSchedule is null ? null : transition.TodoIdentity);
-    }
-
-    private static bool IsOccupied(
-        ProjectCatalog catalog,
-        TodoSchedule schedule,
-        TimeSpan duration,
-        TodoIdentity? excluded,
-        TimeSpan defaultDuration)
-    {
-        if (schedule.Time is null)
-        {
-            return false;
-        }
-
-        if (duration > new TimeOnly(22, 0).ToTimeSpan() - schedule.Time.Value.ToTimeSpan())
-        {
-            return true;
-        }
-
-        var start = schedule.Time.Value;
-        var end = start.Add(duration);
-        return catalog.Projects
-        .SelectMany(project => Flatten(project.Todos).Select(todo => (project.Path, Todo: todo)))
-        .Any(candidate =>
-            candidate.Todo.Schedule?.Date == schedule.Date &&
-            candidate.Todo.Schedule.Time is not null &&
-            candidate.Todo.Schedule.Time.Value < end &&
-            candidate.Todo.Schedule.Time.Value.Add(candidate.Todo.Duration ?? defaultDuration) > start &&
-            (excluded is null ||
-             candidate.Path != excluded.ProjectPath ||
-             candidate.Todo.SourceLine != excluded.SourceLine));
-    }
-
-    private static ApplicationState PlannerSuccess(
-        ApplicationState state,
-        TodoSchedule? follow = null,
-        TodoIdentity? followIdentity = null) => state with
-    {
-        Planner = state.Planner with
-        {
-            SelectedDate = follow?.Date ?? state.Planner.SelectedDate,
-            Focus = follow is null
-                ? state.Planner.Focus
-                : follow.Time is null ? PlannerFocus.AllDay : PlannerFocus.Timeline,
-            SlotIndex = follow?.Time is { } time
-                ? ((time.Hour - 6) * 4) + (time.Minute / 15)
-                : state.Planner.SlotIndex,
-            PendingAllDaySelection = follow?.Time is null ? followIdentity : null,
-            Mode = PlannerMode.Browse,
-            MovingTodo = null,
-            Editor = null,
-            Error = null
-        }
-    };
-
-    private static ApplicationState PlannerFailure(ApplicationState state, string error) => state with
-    {
-        Planner = state.Planner with
-        {
-            Error = error,
-            Editor = state.Planner.Editor is null ? null : state.Planner.Editor with { Error = error }
-        }
-    };
-
-    private ApplicationState ApplyBrowserTransition(
-        ApplicationState state,
-        BrowserTransition transition,
-        ref ProjectCatalog catalog,
-        ApplicationConfiguration configuration,
-        ProjectTodoMutationService? service)
-    {
-        state = state with { Browser = transition.State };
-        if (transition.Operation == BrowserOperation.None)
-        {
-            return state;
-        }
-
-        if (transition.Operation == BrowserOperation.EditExternal)
-        {
-            return ApplyExternalEdit(state, transition, ref catalog, configuration);
-        }
-
-        if (transition.Operation == BrowserOperation.BulkUpdate)
-        {
-            return ApplyBrowserBulkUpdate(
-                state,
-                transition,
-                ref catalog,
-                configuration,
-                service);
-        }
-
-        var expectedCatalog = catalog;
-        var latestCatalog = catalogLoader.Load(configuration.ProjectFiles);
-        catalog = latestCatalog;
-        var result = ApplyBrowserOperation(
-            transition,
-            expectedCatalog,
-            service,
-            todayProvider());
-        state = state with
-        {
-            Browser = state.Browser with
-            {
-                Error = result.Error,
-                Editor = result.Succeeded
-                    ? null
-                    : state.Browser.Editor is null
-                        ? null
-                        : state.Browser.Editor with { Error = result.Error },
-                PendingTodoSelection = result.Succeeded && result.SourceLine is not null &&
-                                       transition.ProjectPath is not null
-                    ? new TodoIdentity(transition.ProjectPath, result.SourceLine.Value)
-                    : result.Succeeded && transition.Operation == BrowserOperation.RollProjectToday
-                        ? transition.TodoIdentity
-                        : null,
-                MarkedTodos = result.Succeeded ? [] : state.Browser.MarkedTodos,
-                BulkEditor = result.Succeeded ? null : state.Browser.BulkEditor,
-                StatusMessage = result.Succeeded ? "Todo update saved." : null
-            }
-        };
-        if (result.Succeeded)
-        {
-            catalog = catalogLoader.Load(configuration.ProjectFiles);
-        }
-
-        return state;
-    }
-
-    private ApplicationState ApplyBrowserBulkUpdate(
-        ApplicationState state,
-        BrowserTransition transition,
-        ref ProjectCatalog catalog,
-        ApplicationConfiguration configuration,
-        ProjectTodoMutationService? service)
-    {
-        if (service is null || transition.BulkUpdate is null || transition.TodoIdentities.IsDefaultOrEmpty)
-        {
-            return state with
-            {
-                Browser = state.Browser with
-                {
-                    Error = "Bulk todo writing is unavailable.",
-                    StatusMessage = null
-                }
-            };
-        }
-
-        var expectedCatalog = catalog;
-        catalog = catalogLoader.Load(configuration.ProjectFiles);
-
-        var succeeded = new HashSet<TodoIdentity>();
-        var failures = new List<string>();
-        foreach (var group in transition.TodoIdentities.GroupBy(identity => identity.ProjectPath))
-        {
-            var groupIdentities = group.ToArray();
-            var expected = groupIdentities
-                .Select(identity => FindTodo(expectedCatalog, identity))
-                .ToArray();
-            TodoMutationResult result;
-            if (expected.Any(todo => todo is null))
-            {
-                result = TodoMutationResult.Failure("A selected todo cannot be found.");
-            }
-            else
-            {
-                result = service.UpdateMany(group.Key, expected.Select(todo => todo!).ToArray(), transition.BulkUpdate);
-            }
-
-            if (result.Succeeded)
-            {
-                succeeded.UnionWith(groupIdentities);
-            }
-            else
-            {
-                failures.Add($"{Path.GetFileNameWithoutExtension(group.Key)}: {result.Error}");
-            }
-        }
-
-        if (succeeded.Count > 0)
-        {
-            catalog = catalogLoader.Load(configuration.ProjectFiles);
-        }
-
-        var remaining = state.Browser.MarkedTodos.Except(succeeded).ToImmutableHashSet();
-        var successText = $"Updated {succeeded.Count} task(s) in " +
-                          $"{transition.TodoIdentities.Where(succeeded.Contains).Select(id => id.ProjectPath).Distinct().Count()} project(s).";
-        var error = failures.Count == 0
-            ? null
-            : $"{successText} {remaining.Count} task(s) failed. {string.Join(" ", failures)}";
-        return state with
-        {
-            Browser = state.Browser with
-            {
-                MarkedTodos = remaining,
-                BulkEditor = failures.Count == 0
-                    ? null
-                    : state.Browser.BulkEditor is null
-                        ? null
-                        : state.Browser.BulkEditor with
-                        {
-                            SelectedCount = remaining.Count,
-                            Error = error
-                        },
-                Error = error,
-                StatusMessage = error is null ? successText : null,
-                PendingTodoSelection = null
-            }
-        };
-    }
-
-    private ApplicationState ApplyExternalEdit(
-        ApplicationState state,
-        BrowserTransition transition,
-        ref ProjectCatalog catalog,
-        ApplicationConfiguration configuration)
-    {
-        if (externalEditorLauncher is null ||
-            transition.ProjectPath is null ||
-            transition.TodoIdentity is null)
-        {
-            return state with
-            {
-                Browser = state.Browser with { Error = "External editing is unavailable." }
-            };
-        }
-
-        ExternalEditorResult result;
-        terminalUi.SuspendForExternalProcess();
-        try
-        {
-            result = externalEditorLauncher.Open(
-                transition.ProjectPath,
-                transition.TodoIdentity.SourceLine);
-        }
-        finally
-        {
-            terminalUi.ResumeAfterExternalProcess();
-        }
-
-        if (result.Started)
-        {
-            catalog = catalogLoader.Load(configuration.ProjectFiles);
-        }
-
-        return state with
-        {
-            Browser = state.Browser with
-            {
-                PendingTodoSelection = null,
-                Error = result.Error,
-                MarkedTodos = result.Started ? [] : state.Browser.MarkedTodos,
-                BulkEditor = result.Started ? null : state.Browser.BulkEditor,
-                StatusMessage = null
-            }
-        };
-    }
-
     private static BrowserState ClearBrowserMarks(BrowserState state) => state with
     {
         MarkedTodos = [],
         BulkEditor = null,
         StatusMessage = null
     };
-
-    private ApplicationState MoveSelectedTodoToProject(
-        ApplicationState state,
-        BrowserView? view,
-        string? targetTitle,
-        ref ProjectCatalog catalog,
-        ApplicationConfiguration configuration,
-        ProjectTodoMutationService? service)
-    {
-        if (state.Tabs.ActiveTab != TodosTab || view?.SelectedTodoIdentity is not { } identity)
-        {
-            return state with { Browser = state.Browser with { Error = "Select a todo in the Todos tab before moving it." } };
-        }
-
-        var target = catalog.Projects.FirstOrDefault(project =>
-            string.Equals(project.Title, targetTitle, StringComparison.OrdinalIgnoreCase));
-        var source = catalog.Projects.FirstOrDefault(project => project.Path == identity.ProjectPath);
-        var todo = source is null ? null : Flatten(source.Todos).FirstOrDefault(item => item.SourceLine == identity.SourceLine);
-        if (target is null)
-        {
-            return state with { Browser = state.Browser with { Error = $"Project not found: {targetTitle}" } };
-        }
-        if (todo is null || service is null)
-        {
-            return state with { Browser = state.Browser with { Error = "The selected todo cannot be moved." } };
-        }
-
-        var result = service.Move(source!.Path, target.Path, todo);
-        if (!result.Succeeded)
-        {
-            return state with { Browser = state.Browser with { Error = result.Error } };
-        }
-
-        catalog = catalogLoader.Load(configuration.ProjectFiles);
-        var targetIndex = catalog.Projects
-            .Select((project, index) => (project, index))
-            .FirstOrDefault(candidate => candidate.project.Path == target.Path).index;
-        return state with
-        {
-            Browser = state.Browser with
-            {
-                Focus = BrowserFocus.Todos,
-                ProjectIndex = Math.Max(0, targetIndex),
-                TodoIndex = 0,
-                PendingTodoSelection = null,
-                Error = null,
-                MarkedTodos = [],
-                BulkEditor = null,
-                StatusMessage = "Todo moved."
-            }
-        };
-    }
-
-    private ApplicationState ArchiveCompletedProject(
-        ApplicationState state,
-        BrowserView? view,
-        ref ProjectCatalog catalog,
-        ApplicationConfiguration configuration,
-        ProjectTodoMutationService? service)
-    {
-        if (state.Tabs.ActiveTab != TodosTab)
-        {
-            return state with
-            {
-                Command = state.Command with { Error = "Open Todos and select a project before archiving." }
-            };
-        }
-
-        var selectedProject = view?.Projects.FirstOrDefault(project => project.IsSelected);
-        if (selectedProject?.Kind != ProjectRowKind.Project || selectedProject.Project is null)
-        {
-            return state with
-            {
-                Browser = state.Browser with { Error = "Select a concrete project before archiving completed tasks." }
-            };
-        }
-
-        if (service is null)
-        {
-            return state with { Browser = state.Browser with { Error = "Todo writing is unavailable." } };
-        }
-
-        var result = service.ArchiveCompleted(selectedProject.Project.Path);
-        if (!result.Succeeded)
-        {
-            return state with { Browser = state.Browser with { Error = result.Error } };
-        }
-
-        if (result.ArchivedCount == 0)
-        {
-            return state with
-            {
-                Browser = state.Browser with
-                {
-                    Error = null,
-                    StatusMessage = "No completed task trees to archive."
-                }
-            };
-        }
-
-        catalog = catalogLoader.Load(configuration.ProjectFiles);
-        return state with
-        {
-            Browser = state.Browser with
-            {
-                TodoIndex = 0,
-                PendingTodoSelection = null,
-                MarkedTodos = [],
-                BulkEditor = null,
-                Error = null,
-                StatusMessage = $"Archived {result.ArchivedCount} task(s) to {Path.GetFileName(result.ArchivePath)}."
-            }
-        };
-    }
-
-    private static TodoMutationResult ApplyBrowserOperation(
-        BrowserTransition transition,
-        ProjectCatalog expectedCatalog,
-        ProjectTodoMutationService? service,
-        DateOnly today)
-    {
-        if (service is null || transition.ProjectPath is null)
-        {
-            return TodoMutationResult.Failure("Todo writing is unavailable.");
-        }
-
-        if (transition.Operation == BrowserOperation.Create && transition.Update is not null)
-        {
-            return service.Create(transition.ProjectPath, transition.Update);
-        }
-
-        if (transition.Operation == BrowserOperation.RollProjectToday)
-        {
-            var expectedProject = expectedCatalog.Projects.FirstOrDefault(
-                project => project.Path == transition.ProjectPath);
-            return expectedProject is null
-                ? TodoMutationResult.Failure("The selected project cannot be found.")
-                : service.RollOverdueToDate(transition.ProjectPath, expectedProject, today);
-        }
-
-        var expected = FindTodo(expectedCatalog, transition.TodoIdentity);
-        if (expected is null)
-        {
-            return TodoMutationResult.Failure("The selected todo cannot be found.");
-        }
-
-        return transition.Operation switch
-        {
-            BrowserOperation.Update when transition.Update is not null =>
-                service.UpdateTask(transition.ProjectPath, expected, transition.Update),
-            BrowserOperation.ToggleCompleted =>
-                service.SetCompleted(transition.ProjectPath, expected, !expected.IsCompleted),
-            _ => TodoMutationResult.Failure("The requested todo change is invalid.")
-        };
-    }
-
-    private static TodoItem? FindTodo(ProjectCatalog catalog, TodoIdentity? identity)
-    {
-        if (identity is null)
-        {
-            return null;
-        }
-
-        var project = catalog.Projects.FirstOrDefault(candidate => candidate.Path == identity.ProjectPath);
-        return project is null
-            ? null
-            : Flatten(project.Todos).FirstOrDefault(todo => todo.SourceLine == identity.SourceLine);
-    }
-
-    private ApplicationState ToggleTimer(
-        ApplicationState state,
-        BrowserView? browser,
-        PlannerView? planner,
-        ProjectCatalog catalog,
-        ApplicationConfiguration configuration)
-    {
-        if (configuration.Timer is null)
-        {
-            return TimerFailure(state, "Task timing requires a [timer] notes_directory configuration.");
-        }
-
-        var target = BuildTimerTarget(browser, planner, catalog, state.Tabs.ActiveTab);
-        if (state.Timer is not null)
-        {
-            var activeWasPomodoro = state.Timer.IsPomodoro;
-            var activeIdentity = state.Timer.TodoIdentity;
-            if (!state.Timer.IsTaskLinked)
-            {
-                return state with { Timer = null };
-            }
-
-            if (weeklyTimeLogService is null)
-            {
-                return TimerFailure(state, "Could not write the active task timer.");
-            }
-
-            var result = weeklyTimeLogService.Record(
-                state.Timer,
-                state.Timer.RecordingEnd(nowProvider()),
-                configuration.Timer);
-            if (!result.Succeeded)
-            {
-                return TimerFailure(state, result.Error ?? "Could not write task time.");
-            }
-
-            state = state with { Timer = null };
-            if (activeWasPomodoro || target is null || target.TodoIdentity == activeIdentity)
-            {
-                return state;
-            }
-        }
-
-        if (target is null)
-        {
-            return TimerFailure(state, "Select a todo before starting the timer.");
-        }
-
-        if (weeklyTimeLogService is null)
-        {
-            return TimerFailure(state, "Task timing is unavailable.");
-        }
-
-        return state with { Timer = new ActiveTimer(target.TodoIdentity, target.ProjectTitle, target.TodoTitle, nowProvider()) };
-    }
-
-    private ApplicationState OpenPomodoroPrompt(
-        ApplicationState state,
-        BrowserView? browser,
-        PlannerView? planner,
-        ProjectCatalog catalog,
-        ApplicationConfiguration configuration,
-        bool untracked)
-    {
-        if (configuration.Timer is null)
-        {
-            return TimerFailure(state, "Pomodoro timing requires a [timer] configuration.");
-        }
-
-        if (state.Timer is not null)
-        {
-            return TimerFailure(state, "Stop the active timer before starting a Pomodoro.");
-        }
-
-        var target = untracked
-            ? null
-            : BuildTimerTarget(browser, planner, catalog, state.Tabs.ActiveTab);
-        if (target is not null && weeklyTimeLogService is null)
-        {
-            return TimerFailure(state, "Task timing is unavailable.");
-        }
-
-        var duration = target?.Duration ?? configuration.Timer.PomodoroDuration;
-        var label = target is null
-            ? "POMODORO MINUTES"
-            : $"POMODORO MINUTES · {target.TodoTitle}";
-        return state with
-        {
-            PomodoroPrompt = new PomodoroPromptState(
-                TextBox.Create(
-                    label,
-                    true,
-                    ((int)duration.TotalMinutes).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    true),
-                target?.TodoIdentity,
-                target?.ProjectTitle,
-                target?.TodoTitle)
-        };
-    }
-
-    private ApplicationState ReducePomodoroPrompt(
-        ApplicationState state,
-        ConsoleKeyInfo key,
-        ApplicationConfiguration configuration)
-    {
-        var prompt = state.PomodoroPrompt!;
-        var transition = TextBox.Default.Reduce(prompt.Input, key, configuration.KeyBindings);
-        if (transition.Outcome == TextBoxOutcome.Cancelled)
-        {
-            return state with { PomodoroPrompt = null };
-        }
-
-        var nextInput = transition.State ?? prompt.Input;
-        if (transition.Outcome != TextBoxOutcome.Accepted)
-        {
-            return state with
-            {
-                PomodoroPrompt = prompt with { Input = nextInput, Error = null }
-            };
-        }
-
-        if (!int.TryParse(nextInput.Text, out var minutes) || minutes is < 1 or > 960)
-        {
-            return state with
-            {
-                PomodoroPrompt = prompt with
-                {
-                    Input = nextInput,
-                    Error = "Enter a whole number from 1 through 960."
-                }
-            };
-        }
-
-        var target = prompt.IsTaskLinked
-            ? new TimerTarget(prompt.TodoIdentity!, prompt.ProjectTitle!, prompt.TodoTitle!, null)
-            : null;
-        return StartPomodoroImmediately(
-            state with { PomodoroPrompt = null },
-            target,
-            TimeSpan.FromMinutes(minutes),
-            configuration);
-    }
-
-    private ApplicationState StartPomodoroCommand(
-        ApplicationState state,
-        BrowserView? browser,
-        PlannerView? planner,
-        ProjectCatalog catalog,
-        ApplicationConfiguration configuration,
-        ApplicationCommandTransition command)
-    {
-        if (configuration.Timer is null)
-        {
-            return TimerFailure(state, "Pomodoro timing requires a [timer] configuration.");
-        }
-
-        if (state.Timer is not null)
-        {
-            return TimerFailure(state, "Stop the active timer before starting a Pomodoro.");
-        }
-
-        var selectedTarget = BuildTimerTarget(browser, planner, catalog, state.Tabs.ActiveTab);
-        if (command.PomodoroDurationSource == PomodoroDurationSource.SelectedTask)
-        {
-            if (selectedTarget is null)
-            {
-                return TimerFailure(state, "Select a todo with a duration before using :pomodoro task.");
-            }
-
-            if (selectedTarget.Duration is null)
-            {
-                return TimerFailure(state, "The selected todo has no ⏱ duration.");
-            }
-
-            return StartPomodoroImmediately(state, selectedTarget, selectedTarget.Duration.Value, configuration);
-        }
-
-        var duration = TimeSpan.FromMinutes(command.PomodoroMinutes!.Value);
-        var target = command.PomodoroUntracked ? null : selectedTarget;
-        return StartPomodoroImmediately(state, target, duration, configuration);
-    }
-
-    private ApplicationState StartPomodoroImmediately(
-        ApplicationState state,
-        TimerTarget? target,
-        TimeSpan duration,
-        ApplicationConfiguration configuration)
-    {
-        if (configuration.Timer is null)
-        {
-            return TimerFailure(state, "Pomodoro timing requires a [timer] configuration.");
-        }
-
-        if (state.Timer is not null)
-        {
-            return TimerFailure(state, "Stop the active timer before starting a Pomodoro.");
-        }
-
-        if (target is not null && weeklyTimeLogService is null)
-        {
-            return TimerFailure(state, "Task timing is unavailable.");
-        }
-
-        return state with
-        {
-            Timer = new ActiveTimer(
-                target?.TodoIdentity,
-                target?.ProjectTitle,
-                target?.TodoTitle,
-                nowProvider(),
-                duration),
-            PomodoroPrompt = null
-        };
-    }
-
-    private ApplicationState CompletePomodoro(ApplicationState state, ApplicationConfiguration configuration)
-    {
-        if (state.Timer is not { IsPomodoro: true, CompletionHandled: false } timer ||
-            !timer.IsComplete(nowProvider()))
-        {
-            return state;
-        }
-
-        state = state with { Timer = timer with { CompletionHandled = true } };
-        var completion = new PomodoroCompletion(
-            timer.TodoTitle,
-            timer.Duration ?? TimeSpan.Zero,
-            nowProvider());
-        pomodoroCompletionNotifier?.Notify(completion, configuration.Timer?.Bell != false);
-        if (pomodoroCompletionNotifier is null && configuration.Timer?.Bell != false)
-            terminalUi.RingBell();
-
-        return StopTimer(state, configuration) with { PomodoroCompletion = completion };
-    }
-
-    private ApplicationState StopTimer(ApplicationState state, ApplicationConfiguration configuration)
-    {
-        if (state.Timer is null) return state;
-        if (!state.Timer.IsTaskLinked) return state with { Timer = null };
-        if (configuration.Timer is null || weeklyTimeLogService is null)
-            return TimerFailure(state, "Could not write the active task timer.");
-        var result = weeklyTimeLogService.Record(
-            state.Timer,
-            state.Timer.RecordingEnd(nowProvider()),
-            configuration.Timer);
-        return result.Succeeded ? state with { Timer = null } : TimerFailure(state, result.Error ?? "Could not write task time.");
-    }
-
-    private static TimerTarget? BuildTimerTarget(BrowserView? browser, PlannerView? planner, ProjectCatalog catalog, TabId tab)
-    {
-        if (tab == TodosTab && browser?.SelectedTodoIdentity is { } identity && browser.SelectedTodo is { } todo)
-        {
-            var project = catalog.Projects.FirstOrDefault(candidate => candidate.Path == identity.ProjectPath);
-            return project is null ? null : new TimerTarget(identity, project.Title, todo.Title, todo.Duration);
-        }
-
-        return tab == PlannerTab && planner?.SelectedFocusedAssignment is { } assignment
-            ? new TimerTarget(
-                assignment.Identity,
-                assignment.ProjectTitle,
-                assignment.Todo.Title,
-                assignment.Todo.Duration)
-            : null;
-    }
-
-    private static ApplicationState TimerFailure(ApplicationState state, string error) => state.Tabs.ActiveTab == TodosTab
-        ? state with { Browser = state.Browser with { Error = error } }
-        : state with { Planner = state.Planner with { Error = error } };
-
-    private string? TimerStatus(ActiveTimer? timer)
-    {
-        if (timer is null) return null;
-        if (timer.IsPomodoro)
-        {
-            var remaining = timer.Remaining(nowProvider());
-            var totalSeconds = (int)Math.Ceiling(remaining.TotalSeconds);
-            var countdown = totalSeconds >= 3600
-                ? $"{totalSeconds / 3600:00}:{totalSeconds % 3600 / 60:00}:{totalSeconds % 60:00}"
-                : $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";
-            var title = timer.TodoTitle is null ? string.Empty : $" · {timer.TodoTitle}";
-            return $"POMODORO {countdown}{title}";
-        }
-
-        var elapsed = timer.Elapsed(nowProvider());
-        return $"TIMER {((int)elapsed.TotalHours):00}:{elapsed.Minutes:00} · {timer.TodoTitle}";
-    }
-
-    private bool TimerIsBright(ActiveTimer? timer) => timer is not null && nowProvider().Second % 2 == 0;
-
-    private static PlannerFocusBlock? ActiveFocusBlock(ActiveTimer? timer) =>
-        timer is { IsPomodoro: true, EndsAt: { } endsAt }
-            ? new PlannerFocusBlock(timer.StartedAt, endsAt, timer.TodoTitle)
-            : null;
-
-    private sealed record TimerTarget(
-        TodoIdentity TodoIdentity,
-        string ProjectTitle,
-        string TodoTitle,
-        TimeSpan? Duration);
-
-    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
-    {
-        foreach (var todo in todos)
-        {
-            yield return todo;
-            foreach (var subtask in Flatten(todo.Subtasks))
-            {
-                yield return subtask;
-            }
-        }
-    }
 
     private static int FindProjectIndex(
         ProjectCatalog catalog,
