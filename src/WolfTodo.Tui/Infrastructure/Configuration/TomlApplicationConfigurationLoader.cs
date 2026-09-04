@@ -548,6 +548,11 @@ public sealed class TomlApplicationConfigurationLoader(
                 keybindings, "planner_refresh_calendar", defaults.PlannerRefreshCalendar),
             PlannerExportSchedule = ReadGestures(
                 keybindings, "planner_export_schedule", defaults.PlannerExportSchedule),
+            PlannerToggleView = ReadGestures(keybindings, "planner_toggle_view", defaults.PlannerToggleView),
+            PlannerIncreaseRange = ReadGestures(keybindings, "planner_increase_range", defaults.PlannerIncreaseRange),
+            PlannerDecreaseRange = ReadGestures(keybindings, "planner_decrease_range", defaults.PlannerDecreaseRange),
+            PlannerPreviousColumn = ReadGestures(keybindings, "planner_previous_column", defaults.PlannerPreviousColumn),
+            PlannerNextColumn = ReadGestures(keybindings, "planner_next_column", defaults.PlannerNextColumn),
             CreateTodo = ReadGestures(keybindings, "create_todo", defaults.CreateTodo),
             EditTodo = ReadGestures(keybindings, "edit_todo", defaults.EditTodo),
             EditTodoContent = ReadGestures(

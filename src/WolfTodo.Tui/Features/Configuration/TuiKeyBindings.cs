@@ -42,6 +42,11 @@ public sealed record TuiKeyBindings(
     ImmutableArray<KeyGesture> StartPomodoro,
     ImmutableArray<KeyGesture> StartUntrackedPomodoro)
 {
+    public ImmutableArray<KeyGesture> PlannerToggleView { get; init; } = Gestures("s");
+    public ImmutableArray<KeyGesture> PlannerIncreaseRange { get; init; } = Gestures("+");
+    public ImmutableArray<KeyGesture> PlannerDecreaseRange { get; init; } = Gestures("-");
+    public ImmutableArray<KeyGesture> PlannerPreviousColumn { get; init; } = Gestures("h");
+    public ImmutableArray<KeyGesture> PlannerNextColumn { get; init; } = Gestures("l");
     public static TuiKeyBindings CreateDefaults(string quitCommand) => new(
         quitCommand,
         ":completed",
@@ -121,6 +126,12 @@ public sealed record TuiKeyBindings(
     public bool MatchesPlannerRefreshCalendar(ConsoleKeyInfo key) => Matches(PlannerRefreshCalendar, key);
 
     public bool MatchesPlannerExportSchedule(ConsoleKeyInfo key) => Matches(PlannerExportSchedule, key);
+
+    public bool MatchesPlannerToggleView(ConsoleKeyInfo key) => Matches(PlannerToggleView, key);
+    public bool MatchesPlannerIncreaseRange(ConsoleKeyInfo key) => Matches(PlannerIncreaseRange, key);
+    public bool MatchesPlannerDecreaseRange(ConsoleKeyInfo key) => Matches(PlannerDecreaseRange, key);
+    public bool MatchesPlannerPreviousColumn(ConsoleKeyInfo key) => Matches(PlannerPreviousColumn, key);
+    public bool MatchesPlannerNextColumn(ConsoleKeyInfo key) => Matches(PlannerNextColumn, key);
 
     public bool MatchesCreateTodo(ConsoleKeyInfo key) => Matches(CreateTodo, key);
 

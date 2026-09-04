@@ -119,6 +119,30 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             return ReduceFilter(state, key);
         }
 
+        if (state.Mode == PlannerMode.Browse && bindings.MatchesPlannerToggleView(key))
+        {
+            return Transition(state with
+            {
+                ViewMode = state.ViewMode == PlannerViewMode.SingleDay ? PlannerViewMode.MultiDay : PlannerViewMode.SingleDay,
+                Error = null
+            });
+        }
+
+        if (state.Mode == PlannerMode.Browse && state.ViewMode == PlannerViewMode.MultiDay)
+        {
+            if (bindings.MatchesPlannerIncreaseRange(key) || bindings.MatchesPlannerDecreaseRange(key))
+            {
+                var delta = bindings.MatchesPlannerIncreaseRange(key) ? 1 : -1;
+                return Transition(state with { VisibleDayCount = Math.Clamp(state.VisibleDayCount + delta, 1, 3), Error = null });
+            }
+
+            if (bindings.MatchesPlannerPreviousColumn(key) || bindings.MatchesPlannerNextColumn(key))
+            {
+                var delta = bindings.MatchesPlannerPreviousColumn(key) ? -1 : 1;
+                return Transition(state with { SelectedDate = state.SelectedDate.AddDays(delta), Error = null });
+            }
+        }
+
         if (bindings.MatchesBack(key) && state.Mode != PlannerMode.Browse)
         {
             return Transition(state with { Mode = PlannerMode.Browse, MovingTodo = null, Error = null });
