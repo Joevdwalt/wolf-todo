@@ -11,5 +11,10 @@ public enum PlannerAction
     Edit,
     EditExternal,
     ToggleCompleted,
-    ToggleDetails
+    ToggleDetails,
+    ToggleView,
+    IncreaseRange,
+    DecreaseRange,
+    PreviousColumn,
+    NextColumn
 }
