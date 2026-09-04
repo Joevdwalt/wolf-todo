@@ -19,7 +19,7 @@ public sealed class PlannerTimelineRenderModelTests
     {
         var row = PlannerTimelineRenderModel.ForSlot(new PlannerSlotView(new TimeOnly(16, 30), [], true)).Single();
 
-        row.PrimaryBranchGlyph.Should().Be("├▶");
+        row.BranchGlyph.Should().Be("├▶");
         row.Title.Should().BeEmpty();
         row.IsSelected.Should().BeTrue();
         row.IsEmpty.Should().BeTrue();
@@ -34,10 +34,10 @@ public sealed class PlannerTimelineRenderModelTests
         var end = Item("Deep work", PlannerIntervalState.End, TimeSpan.FromMinutes(60));
 
         PlannerTimelineRenderModel.ForSlot(Slot(compact)).Single().Should().Match<PlannerTimelineRenderRow>(row =>
-            row.ActivityBranchGlyph == "├─" && row.StatusGlyph == "○" && row.Metadata == "· 15m");
-        PlannerTimelineRenderModel.ForSlot(Slot(start)).Single().ActivityBranchGlyph.Should().Be("├─");
-        PlannerTimelineRenderModel.ForSlot(Slot(middle)).Single().PrimaryBranchGlyph.Should().Be("│");
-        PlannerTimelineRenderModel.ForSlot(Slot(end)).Single().PrimaryBranchGlyph.Should().Be("└─");
+            row.BranchGlyph == "├─" && row.StatusGlyph == "○" && row.Metadata == "· 15m");
+        PlannerTimelineRenderModel.ForSlot(Slot(start)).Single().BranchGlyph.Should().Be("├─");
+        PlannerTimelineRenderModel.ForSlot(Slot(middle)).Single().BranchGlyph.Should().Be("│");
+        PlannerTimelineRenderModel.ForSlot(Slot(end)).Single().BranchGlyph.Should().Be("└─");
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class PlannerTimelineRenderModelTests
 
         var row = PlannerTimelineRenderModel.ForSlot(Slot(item)).Single();
 
-        row.ActivityBranchGlyph.Should().Be("├▶");
+        row.BranchGlyph.Should().Be("├▶");
         row.StatusGlyph.Should().Be("⬥");
     }
 
@@ -67,8 +67,8 @@ public sealed class PlannerTimelineRenderModelTests
             IsSelected = true
         };
 
-        PlannerTimelineRenderModel.ForSlot(Slot(continuation)).Single().PrimaryBranchGlyph.Should().Be("├▶");
-        PlannerTimelineRenderModel.ForSlot(Slot(end)).Single().PrimaryBranchGlyph.Should().Be("├▶");
+        PlannerTimelineRenderModel.ForSlot(Slot(continuation)).Single().BranchGlyph.Should().Be("├▶");
+        PlannerTimelineRenderModel.ForSlot(Slot(end)).Single().BranchGlyph.Should().Be("├▶");
     }
 
     [Fact]
@@ -83,11 +83,11 @@ public sealed class PlannerTimelineRenderModelTests
         var activeRow = PlannerTimelineRenderModel.ForSlot(Slot(activeContinuation)).Single();
         var cursorRow = PlannerTimelineRenderModel.ForSlot(Slot(cursorContinuation)).Single();
 
-        activeRow.PrimaryBranchGlyph.Should().Be("│");
-        activeRow.IsPrimaryActive.Should().BeTrue();
+        activeRow.BranchGlyph.Should().Be("│");
+        activeRow.IsActive.Should().BeTrue();
         activeRow.IsSelected.Should().BeFalse();
-        cursorRow.PrimaryBranchGlyph.Should().Be("├▶");
-        cursorRow.IsPrimaryActive.Should().BeTrue();
+        cursorRow.BranchGlyph.Should().Be("├▶");
+        cursorRow.IsActive.Should().BeTrue();
     }
 
     [Fact]
@@ -108,25 +108,45 @@ public sealed class PlannerTimelineRenderModelTests
 
         rows.Select(row => row.TimeLabel).Should().Equal("12:30", string.Empty, string.Empty, string.Empty);
         rows.Should().OnlyContain(row => !row.IsMinorTimeTick);
-        rows.Select(row => row.ActivityBranchGlyph).Should().Equal("├─", "├▶", "├─", "└─");
+        rows.Select(row => row.BranchGlyph).Should().Equal("├─", "├▶", "├─", "└─");
     }
 
     [Fact]
-    public void ForSlot_uses_a_temporary_second_lane_only_for_a_duration_overlap()
+    public void ForSlot_keeps_duration_overlaps_in_one_branch_lane_without_losing_items()
     {
         var continuing = Item("Long task", PlannerIntervalState.Continue, TimeSpan.FromMinutes(60));
         var overlapping = Item("Interrupt", PlannerIntervalState.Instant, TimeSpan.Zero);
 
-        var overlap = PlannerTimelineRenderModel.ForSlot(new PlannerSlotView(new TimeOnly(12, 30), [], false)
+        var rows = PlannerTimelineRenderModel.ForSlot(new PlannerSlotView(new TimeOnly(12, 30), [], false)
         {
             Items = [continuing, overlapping]
-        }).Single();
-        var ordinary = PlannerTimelineRenderModel.ForSlot(Slot(continuing)).Single();
+        });
 
-        overlap.PrimaryBranchGlyph.Should().Be("│");
-        overlap.ActivityBranchGlyph.Should().Be("├─");
-        ordinary.PrimaryBranchGlyph.Should().Be("│");
-        ordinary.ActivityBranchGlyph.Should().BeEmpty();
+        rows.Should().HaveCount(2);
+        rows.Select(row => row.BranchGlyph).Should().Equal("│", "└─");
+        rows.Select(row => row.Title).Should().Equal(string.Empty, "Interrupt");
+        rows.Select(row => row.TimeLabel).Should().Equal("12:30", string.Empty);
+    }
+
+    [Fact]
+    public void ForSlot_does_not_close_a_stacked_duration_start_that_continues()
+    {
+        var register = Item("Register khode.co.za", PlannerIntervalState.Start, TimeSpan.FromMinutes(60)) with
+        {
+            IsCompleted = true
+        };
+        var meeting = Item("weekly catch up", PlannerIntervalState.Start, TimeSpan.FromMinutes(30)) with
+        {
+            ItemType = PlannerItemType.Meeting
+        };
+
+        var rows = PlannerTimelineRenderModel.ForSlot(new PlannerSlotView(new TimeOnly(10, 0), [], false)
+        {
+            Items = [register, meeting]
+        });
+
+        rows.Select(row => row.BranchGlyph).Should().Equal("├─", "├─");
+        rows.Select(row => row.Title).Should().Equal("Register khode.co.za", "weekly catch up");
     }
 
     private static PlannerSlotView Slot(PlannerTimelineItemView item) => new(new TimeOnly(9, 0), [], false)

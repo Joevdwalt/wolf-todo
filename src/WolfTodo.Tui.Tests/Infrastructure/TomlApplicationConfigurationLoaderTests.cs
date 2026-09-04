@@ -3,6 +3,7 @@ using Spectre.Console;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Infrastructure.Configuration;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 

@@ -161,8 +161,38 @@ public sealed class DayPlannerReducerTests
         completed.Operation.Should().Be(PlannerOperation.ToggleCompleted);
         completed.TodoIdentity.Should().Be(secondView.SelectedAssignment.Identity);
         nextSlot.SlotIndex.Should().Be(1);
-        nextSlot.SelectedTimelineTodo.Should().BeNull();
+        nextSlot.SelectedTimelineItemIdentity.Should().BeNull();
         View(firstSelected, first, second).SelectedAssignment!.Todo.Title.Should().Be("First");
+    }
+
+    [Fact]
+    public void Reduce_cycles_from_a_task_to_an_overlapping_meeting()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var task = Todo("Register khode.co.za") with
+        {
+            Schedule = new TodoSchedule(Today, new TimeOnly(6, 0)),
+            Duration = TimeSpan.FromMinutes(30)
+        };
+        var agenda = new PlannerCalendarAgenda(
+            [],
+            [new PlannerCalendarMeeting("weekly catch up", new TimeOnly(6, 0), new TimeOnly(6, 30))],
+            PlannerCalendarSyncState.Ready);
+        var state = PlannerState.CreateInitial(Today);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [task])], []),
+            state,
+            agenda);
+
+        var meetingState = reducer.Reduce(state, Key('j'), Bindings, view).State;
+        var meetingView = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [task])], []),
+            meetingState,
+            agenda);
+
+        meetingView.SelectedMeeting!.Title.Should().Be("weekly catch up");
+        meetingView.SelectedAssignment.Should().BeNull();
+        meetingState.SelectedTimelineItemIdentity.Should().Be(meetingView.SelectedItem!.Identity);
     }
 
     [Fact]

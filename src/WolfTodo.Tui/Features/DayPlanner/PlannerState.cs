@@ -20,10 +20,10 @@ public sealed record PlannerState(
 
     public TodoIdentity? PendingAllDaySelection { get; init; }
 
-    // Identifies the task chosen from an overlapping timeline slot. It is
-    // transient: the presenter falls back to the slot's first stable task when
-    // this identity is absent from the current slot.
-    public TodoIdentity? SelectedTimelineTodo { get; init; }
+    // Identifies the task, meeting, calendar event, or focus block chosen from
+    // an overlapping timeline slot. It is transient: the presenter falls back
+    // to the slot's first stable item when this identity is absent.
+    public string? SelectedTimelineItemIdentity { get; init; }
 
     public TodoTaskEditorState? Editor { get; init; }
 

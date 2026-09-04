@@ -136,7 +136,7 @@ public sealed class PlannerRendererTests
             new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [first, second])], []),
             PlannerState.CreateInitial(date) with
             {
-                SelectedTimelineTodo = new TodoIdentity("/todos/work.md", 2)
+                SelectedTimelineItemIdentity = "task:/todos/work.md:2"
             });
 
         var lines = new PlannerRenderer().PlannerDetailLines(view, TuiThemes.Wolf);

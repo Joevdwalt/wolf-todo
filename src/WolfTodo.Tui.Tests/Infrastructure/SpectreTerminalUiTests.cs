@@ -246,6 +246,67 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowPlanner_keeps_overlapping_duration_starts_open_and_highlights_only_the_selected_item()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var register = new TodoItem(
+            1, true, null, "Register khode.co.za", null, [], null, null, string.Empty, [], [])
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(10, 0)),
+            Duration = TimeSpan.FromMinutes(45)
+        };
+        var agenda = new PlannerCalendarAgenda(
+            [],
+            [new PlannerCalendarMeeting("weekly catch up", new TimeOnly(10, 0), new TimeOnly(10, 30))],
+            PlannerCalendarSyncState.Ready);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [register])], []),
+            PlannerState.CreateInitial(date) with { SlotIndex = 16 },
+            agenda);
+        var theme = TuiThemes.Wolf with
+        {
+            AccentBright = new Color(4, 5, 6),
+            Info = new Color(7, 8, 9),
+            Surface2 = new Color(10, 11, 12)
+        };
+        StartRecording(100, 45);
+        var start = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 45)
+            .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
+        var output = AnsiConsole.ExportText()[start..];
+        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+
+        output.Should().Contain("├▶ ✓ Register khode.co.za")
+            .And.Contain("├─ ⬥ weekly catch up")
+            .And.NotContain("└─ ⬥ weekly catch up");
+        StyleBefore(html, "├▶").Should().Contain("#040506").And.Contain("#0a0b0c");
+        html.Should().Contain("#070809");
+
+        var meetingIdentity = view.SelectedSlot.Items.Single(item => item.Meeting is not null).Identity;
+        var meetingView = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [register])], []),
+            PlannerState.CreateInitial(date) with
+            {
+                SlotIndex = 16,
+                SelectedTimelineItemIdentity = meetingIdentity
+            },
+            agenda);
+        StartRecording(100, 45);
+        var meetingStart = AnsiConsole.ExportText().Length;
+
+        new SpectreTerminalUi(() => 100, () => 45)
+            .ShowPlanner(DefaultTabs, meetingView, DefaultBindings, theme);
+        var meetingOutput = AnsiConsole.ExportText()[meetingStart..];
+        var meetingHtml = NormalizeHtml(AnsiConsole.ExportHtml());
+
+        meetingOutput.Should().Contain("├─ ✓ Register khode.co.za")
+            .And.Contain("├▶ ⬥ weekly catch up")
+            .And.NotContain("├▶ ✓ Register khode.co.za");
+        StyleBefore(meetingHtml, "├▶").Should().Contain("#040506").And.Contain("#0a0b0c");
+    }
+
+    [Fact]
     public void ShowPlanner_renders_all_day_items_and_meeting_overlap_warnings()
     {
         var date = new DateOnly(2026, 7, 15);

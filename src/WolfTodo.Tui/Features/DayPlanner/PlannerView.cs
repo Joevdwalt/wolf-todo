@@ -36,7 +36,8 @@ public sealed record PlannerView(
     public PlannerAssignment? SelectedPickerTodo =>
         PickerTodos.Length == 0 ? null : PickerTodos[Math.Clamp(State.PickerIndex, 0, PickerTodos.Length - 1)];
 
-    // The timeline deliberately selects its first stable branch when items overlap.
+    // The timeline deliberately selects its first stable item when no explicit
+    // overlapping-item identity is available.
     public PlannerTimelineItemView? SelectedItem =>
         SelectedSlot.Items.FirstOrDefault(item => item.IsSelected) ??
         SelectedSlot.Items.FirstOrDefault();

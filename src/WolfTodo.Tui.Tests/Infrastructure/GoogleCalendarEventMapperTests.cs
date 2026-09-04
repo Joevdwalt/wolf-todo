@@ -2,6 +2,7 @@ using FluentAssertions;
 using Google.Apis.Calendar.v3.Data;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Infrastructure.Calendar;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 

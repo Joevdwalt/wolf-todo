@@ -1,6 +1,6 @@
 using WolfTodo.Tui.Features.ApplicationShell;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Infrastructure.Files;
 
 public sealed class PhysicalWeeklyTimeLogFileStore : IWeeklyTimeLogFileStore
 {

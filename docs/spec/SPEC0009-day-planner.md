@@ -112,7 +112,13 @@ grammar. A continuing duration contributes its vertical spine, while items
 that start in the slot use the ordinary tree branches. The selected item uses
 `├▶`; other stacked items use `├─` and `└─` according to their position. The
 stable display order is preserved, and `j`/`k` continues to select individual
-items in that order.
+items in that order. A duration start always uses `├─`, even when it is the
+last item starting in that slot, because its branch continues below. Selecting
+an item highlights its own start, continuation, and end rows with the active
+accent and a surface fitted to the rendered branch content; the highlight does
+not fill the unused plan width, recolor or fill the time-ruler cell, or include
+an overlapping item's row. Only the selected row carries `├▶`, while the other
+highlighted rows retain `│` or `└─`.
 
 The intended 80-column shape is:
 

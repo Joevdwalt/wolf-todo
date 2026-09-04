@@ -3,7 +3,7 @@ using Google.Apis.Calendar.v3;
 using Google.Apis.Services;
 using Google.Apis.Util.Store;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Infrastructure.Calendar;
 
 public sealed class GoogleCalendarEventSourceFactory : IGoogleCalendarEventSourceFactory
 {

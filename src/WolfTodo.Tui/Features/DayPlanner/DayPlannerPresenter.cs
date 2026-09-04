@@ -75,16 +75,11 @@ public sealed class DayPlannerPresenter
                 };
             })
             .ToImmutableArray();
-        var selectedAssignmentIdentity = state.Focus == PlannerFocus.Timeline
-            ? slots[slotIndex].Assignments
-                .FirstOrDefault(assignment => assignment.Identity == state.SelectedTimelineTodo)?.Identity
-              ?? slots[slotIndex].Assignments.FirstOrDefault()?.Identity
+        var selectedItemIdentity = state.Focus == PlannerFocus.Timeline
+            ? slots[slotIndex].Items
+                  .FirstOrDefault(item => item.Identity == state.SelectedTimelineItemIdentity)?.Identity
+              ?? slots[slotIndex].Items.FirstOrDefault()?.Identity
             : null;
-        var selectedItemIdentity = selectedAssignmentIdentity is { } assignmentIdentity
-            ? $"task:{assignmentIdentity.ProjectPath}:{assignmentIdentity.SourceLine}"
-            : state.Focus == PlannerFocus.Timeline
-                ? slots[slotIndex].Items.FirstOrDefault()?.Identity
-                : null;
         
         if (selectedItemIdentity is not null)
         {

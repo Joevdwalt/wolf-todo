@@ -44,8 +44,10 @@ WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03 SEP
 │ 06:30    │ │                                                                 │
 │     —    │ │                                                                 │
 │ 08:00    │ ├─ ⬥ NEC XON Conference and Lunch with the team…                  │
-│     —    │ │  ├─ ⬥ Joe social                                                │
-│ 10:00    │ │  ├─ ⬥ weekly catch up                                           │
+│     —    │ │                                                                 │
+│          │ ├─ ⬥ Joe social                                                   │
+│ 10:00    │ │                                                                 │
+│          │ ├─ ⬥ weekly catch up                                              │
 │ 10:51    │ ┣━━ NOW · 39m · Sales Sprint Planning ━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
 │ 11:30    │ │  ├─ ⬥ Sales Sprint Planning                                     │
 │ 13:00    │ │  ├─ ⬥ Performance Review                                        │
@@ -74,7 +76,8 @@ WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03–FRI 04 SEP
 │ TIME     │ THU 03                      │ FRI 04                              │
 ├──────────┼─────────────────────────────┼─────────────────────────────────────┤
 │ 08:00    │ ├─ ⬥ Team planning          │                                     │
-│     —    │ │  ├─ ⬥ Prepare agenda      │ ├─ ⬥ Catch up                       │
+│     —    │ │                           │ ├─ ⬥ Catch up                       │
+│          │ ├─ ⬥ Prepare agenda         │                                     │
 │ 10:51    │ ┣━━ NOW · 39m ━━━━━━━━━━━━━ │                                     │
 │ 11:30    │                             │ ├─ ○ Charlene work · 15m            │
 │ 13:00    │                             │ ├─ ⬥ Performance Review             │

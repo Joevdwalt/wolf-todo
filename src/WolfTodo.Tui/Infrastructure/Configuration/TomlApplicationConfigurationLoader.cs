@@ -7,7 +7,7 @@ using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Infrastructure.Configuration;
 
 public sealed class TomlApplicationConfigurationLoader(
     string path,

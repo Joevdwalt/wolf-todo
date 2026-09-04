@@ -199,17 +199,17 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             if (state.Mode == PlannerMode.Browse &&
                 state.Focus == PlannerFocus.Timeline &&
                 IsStackSelectionKey(key) &&
-                view.SelectedSlot.Assignments.Length > 1)
+                view.SelectedSlot.Items.Length > 1)
             {
                 var selectedIndex = Array.FindIndex(
-                    view.SelectedSlot.Assignments.ToArray(),
-                    assignment => assignment.Identity == view.SelectedAssignment?.Identity);
+                    view.SelectedSlot.Items.ToArray(),
+                    item => item.Identity == view.SelectedItem?.Identity);
                 var nextIndex = selectedIndex + offset;
-                if (nextIndex >= 0 && nextIndex < view.SelectedSlot.Assignments.Length)
+                if (nextIndex >= 0 && nextIndex < view.SelectedSlot.Items.Length)
                 {
                     return Transition(state with
                     {
-                        SelectedTimelineTodo = view.SelectedSlot.Assignments[nextIndex].Identity,
+                        SelectedTimelineItemIdentity = view.SelectedSlot.Items[nextIndex].Identity,
                         Error = null
                     });
                 }
@@ -217,7 +217,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 return Transition(state with
                 {
                     SlotIndex = MoveIndex(state.SlotIndex, offset, DayPlannerPresenter.SlotCount),
-                    SelectedTimelineTodo = null,
+                    SelectedTimelineItemIdentity = null,
                     Error = null
                 });
             }

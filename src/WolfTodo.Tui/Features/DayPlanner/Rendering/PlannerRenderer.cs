@@ -172,11 +172,15 @@ public sealed class PlannerRenderer
             {
                 var time = PlannerTimeRulerLine(renderRow, theme);
                 var content = PlannerTimelineRenderLine(renderRow, theme);
-                var isActiveRow = renderRow.IsActive || renderRow.IsPrimaryActive ||
-                                  renderRow.IsSelected || (slot.IsSelected && renderRow.IsEmpty);
+                var isActiveItem = !renderRow.IsEmpty && (renderRow.IsActive || renderRow.IsSelected);
+                var isSelectedEmptySlot = renderRow.IsEmpty && slot.IsSelected;
                 table.AddRow(
-                    isActiveRow ? themeRenderer.OnSurface(time, theme.Surface2, true) : time,
-                    isActiveRow ? themeRenderer.OnSurface(content, theme.Surface2, true) : content);
+                    isSelectedEmptySlot ? themeRenderer.OnSurface(time, theme.Surface2, true) : time,
+                    isActiveItem
+                        ? themeRenderer.OnSurface(content, theme.Surface2)
+                        : isSelectedEmptySlot
+                            ? themeRenderer.OnSurface(content, theme.Surface2, true)
+                            : content);
             }
         }
     }
@@ -770,18 +774,18 @@ public sealed class PlannerRenderer
     public IRenderable PlannerTimeRulerLine(PlannerTimelineRenderRow row, TuiTheme theme)
     {
         var text = row.IsMinorTimeTick ? row.TimeTickGlyph.PadLeft(5) : row.TimeLabel.PadLeft(5);
+        var selectedEmptySlot = row.IsSelected && row.IsEmpty;
         return new Text(
             text,
             themeRenderer.Style(
-                row.IsSelected ? theme.AccentBright : row.IsMinorTimeTick ? theme.Muted : theme.Date,
-                row.IsSelected ? Decoration.Bold : row.IsMinorTimeTick ? Decoration.Dim : Decoration.None));
+                selectedEmptySlot ? theme.AccentBright : row.IsMinorTimeTick ? theme.Muted : theme.Date,
+                selectedEmptySlot ? Decoration.Bold : row.IsMinorTimeTick ? Decoration.Dim : Decoration.None));
     }
 
     public IRenderable PlannerTimelineRenderLine(PlannerTimelineRenderRow row, TuiTheme theme)
     {
         var selected = row.IsSelected;
         var active = row.IsActive;
-        var primaryActive = row.IsPrimaryActive;
         var completed = row.ItemType == PlannerItemType.Task && row.StatusGlyph == "✓";
         var color = row.ItemType == PlannerItemType.Pomodoro ? theme.Timer :
             active ? theme.AccentBright : completed ? theme.Muted :
@@ -791,24 +795,16 @@ public sealed class PlannerRenderer
         var line = new System.Text.StringBuilder();
         themeRenderer.AppendStyled(
             line,
-            row.PrimaryBranchGlyph,
-            row.IsPrimarySelected || primaryActive || selected ? theme.AccentBright : row.IsEmpty ? theme.Muted : theme.BorderActive,
-            row.IsPrimarySelected || primaryActive ? Decoration.Bold : decoration);
-        if (row.SecondaryPrefix.Length > 0)
-        {
-            themeRenderer.AppendStyled(line, "  " + row.SecondaryPrefix + "  ", theme.BorderActive, decoration);
-        }
-        else if (row.ActivityBranchGlyph.Length > 0 && row.PrimaryBranchGlyph.Length > 0)
-        {
-            themeRenderer.AppendStyled(line, "  ", color, decoration);
-        }
+            row.BranchGlyph,
+            active || selected ? theme.AccentBright : row.IsEmpty ? theme.Muted : theme.BorderActive,
+            active || selected ? Decoration.Bold : decoration);
 
         if (row.IsEmpty)
         {
             return new Markup(line.ToString());
         }
 
-        themeRenderer.AppendStyled(line, row.ActivityBranchGlyph + " ", color, decoration);
+        themeRenderer.AppendStyled(line, " ", color, decoration);
         if (row.StatusGlyph.Length > 0)
         {
             var glyphColor = row.ItemType == PlannerItemType.Task && !completed

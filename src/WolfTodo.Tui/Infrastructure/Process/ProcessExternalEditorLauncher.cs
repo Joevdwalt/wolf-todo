@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using WolfTodo.Tui.Features.ApplicationShell;
 
-namespace WolfTodo.Tui.Infrastructure;
+namespace WolfTodo.Tui.Infrastructure.Process;
 
 public sealed class ProcessExternalEditorLauncher : IExternalEditorLauncher
 {
@@ -82,7 +82,7 @@ public sealed class ProcessExternalEditorLauncher : IExternalEditorLauncher
 
     private static int RunProcess(ProcessStartInfo startInfo)
     {
-        using var process = Process.Start(startInfo) ??
+        using var process = System.Diagnostics.Process.Start(startInfo) ??
             throw new InvalidOperationException("The editor process did not start.");
         process.WaitForExit();
         return process.ExitCode;

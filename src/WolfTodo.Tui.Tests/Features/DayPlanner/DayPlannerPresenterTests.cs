@@ -240,7 +240,7 @@ public sealed class DayPlannerPresenterTests
         var second = Todo("Second") with { SourceLine = 2, Schedule = schedule };
         var state = PlannerState.CreateInitial(date) with
         {
-            SelectedTimelineTodo = new TodoIdentity("/todos/work.md", 2)
+            SelectedTimelineItemIdentity = "task:/todos/work.md:2"
         };
 
         var view = new DayPlannerPresenter().CreateView(
@@ -249,6 +249,45 @@ public sealed class DayPlannerPresenterTests
 
         view.SelectedAssignment!.Todo.Title.Should().Be("Second");
         view.SelectedSlot.Items.Single(item => item.Assignment?.Todo.Title == "Second").IsSelected.Should().BeTrue();
+    }
+
+    [Fact]
+    public void CreateView_highlights_only_the_selected_timeline_items_complete_duration()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var register = Todo("Register khode.co.za") with
+        {
+            IsCompleted = true,
+            Schedule = new TodoSchedule(date, new TimeOnly(10, 0)),
+            Duration = TimeSpan.FromMinutes(45)
+        };
+        var meeting = new PlannerCalendarMeeting(
+            "weekly catch up",
+            new TimeOnly(10, 0),
+            new TimeOnly(10, 30));
+        var agenda = new PlannerCalendarAgenda([], [meeting], PlannerCalendarSyncState.Ready);
+        var initialState = PlannerState.CreateInitial(date) with { SlotIndex = 16 };
+        var initial = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [register])], []),
+            initialState,
+            agenda);
+        var meetingIdentity = initial.SelectedSlot.Items.Single(item => item.Meeting is not null).Identity;
+
+        var meetingSelected = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [register])], []),
+            initialState with { SelectedTimelineItemIdentity = meetingIdentity },
+            agenda);
+
+        initial.SelectedItem!.Title.Should().Be("Register khode.co.za");
+        initial.Slots.SelectMany(slot => slot.Items)
+            .Where(item => item.IsActive)
+            .Should().OnlyContain(item => item.Title == "Register khode.co.za");
+        initial.Slots.SelectMany(slot => slot.Items).Count(item => item.IsActive).Should().Be(3);
+        meetingSelected.SelectedMeeting!.Title.Should().Be("weekly catch up");
+        meetingSelected.Slots.SelectMany(slot => slot.Items)
+            .Where(item => item.IsActive)
+            .Should().OnlyContain(item => item.Title == "weekly catch up");
+        meetingSelected.Slots.SelectMany(slot => slot.Items).Count(item => item.IsActive).Should().Be(2);
     }
 
     [Fact]

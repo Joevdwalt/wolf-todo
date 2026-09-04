@@ -1,5 +1,6 @@
 using FluentAssertions;
 using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Infrastructure.Terminal;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 
