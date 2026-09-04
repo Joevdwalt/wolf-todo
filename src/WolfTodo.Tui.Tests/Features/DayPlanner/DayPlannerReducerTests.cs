@@ -26,6 +26,40 @@ public sealed class DayPlannerReducerTests
     }
 
     [Fact]
+    public void Reduce_toggles_multiday_and_uses_vim_columns_without_opening_a_todo()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today);
+        var view = View(state, Todo("Scheduled"));
+
+        var multiday = reducer.Reduce(state, Key('s'), Bindings, view).State;
+        var next = reducer.Reduce(multiday, Key('l'), Bindings, View(multiday, Todo("Scheduled"))).State;
+        var previous = reducer.Reduce(next, Key('h'), Bindings, View(next, Todo("Scheduled"))).State;
+
+        multiday.ViewMode.Should().Be(PlannerViewMode.MultiDay);
+        next.SelectedDate.Should().Be(Today.AddDays(1));
+        next.Mode.Should().Be(PlannerMode.Browse);
+        previous.SelectedDate.Should().Be(Today);
+    }
+
+    [Fact]
+    public void Reduce_limits_multiday_range_to_one_through_three_days()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today) with { ViewMode = PlannerViewMode.MultiDay };
+
+        var two = reducer.Reduce(state, Key('+'), Bindings, View(state)).State;
+        var three = reducer.Reduce(two, Key('+'), Bindings, View(two)).State;
+        var stillThree = reducer.Reduce(three, Key('+'), Bindings, View(three)).State;
+        var twoAgain = reducer.Reduce(stillThree, Key('-'), Bindings, View(stillThree)).State;
+
+        two.VisibleDayCount.Should().Be(2);
+        three.VisibleDayCount.Should().Be(3);
+        stillThree.VisibleDayCount.Should().Be(3);
+        twoAgain.VisibleDayCount.Should().Be(2);
+    }
+
+    [Fact]
     public void Reduce_jumps_to_the_first_and_last_planner_slots()
     {
         var reducer = new DayPlannerReducer(() => Today);
