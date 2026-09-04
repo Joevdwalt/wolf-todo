@@ -14,6 +14,12 @@ public sealed record PlannerState(
 {
     public bool ShowDetails { get; init; } = true;
 
+    // Transient overview state. It changes presentation and navigation only;
+    // Markdown schedules remain owned by individual todos.
+    public PlannerViewMode ViewMode { get; init; } = PlannerViewMode.SingleDay;
+
+    public int VisibleDayCount { get; init; } = 1;
+
     public PlannerFocus Focus { get; init; } = PlannerFocus.Timeline;
 
     public int AllDayIndex { get; init; }
