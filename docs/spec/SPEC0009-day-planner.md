@@ -24,7 +24,7 @@ between the timeline and all-day pane. Within the focused pane, `j`/`k` and
 `g`/`G` navigate items. Show an insertion target when the all-day pane is empty,
 including on narrow terminals.
 
-Enter or `l` on an empty all-day pane opens the unscheduled-todo picker. On a
+Enter on an empty all-day pane opens the unscheduled-todo picker. On a
 selected all-day todo it starts move mode; `/` always opens the filtered picker
 so multiple date-only todos can be assigned. `a` creates a task requiring a
 date but not a time. Edit, external edit, completion, and unscheduling work as
@@ -62,7 +62,7 @@ not use panel borders, active-row backgrounds, intersections, or surface fills. 
 with the marker. While Planner is active, an idle one-minute input timeout
 redraws without changing application state so the line remains current.
 
-Enter or `l` on an empty slot opens a filterable picker of all open,
+Enter on an empty slot opens a filterable picker of all open,
 unscheduled todos from valid projects. Show several candidates at once, keep
 the selection visible while scrolling, and update the list while filter input
 changes. The same action on an occupied slot starts move mode. `u` unschedules,
