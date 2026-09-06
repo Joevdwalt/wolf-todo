@@ -5,6 +5,7 @@ This app is a todo manager that saves files in markdown files. The todo's are ma
 ## Structure
 
 main
+|__ Wolf.Controls (standalone reusable TUI control library)
 |__ src (source code)
 |__ TaskFile.yml (repository automation tasks)
 |__ docs (documentation)
@@ -64,6 +65,13 @@ task component:textbox:edit
 task component:textbox:readonly
 task component:multiline
 task component:select-list
+```
+
+Run the standalone Wolf.Controls gallery to inspect reusable controls and their
+animations without loading Wtodo data:
+
+```text
+task controls:examples
 ```
 
 The sandbox uses the same dialog renderer and editor reducer as the TUI, but
