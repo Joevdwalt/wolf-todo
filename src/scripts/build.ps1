@@ -9,6 +9,8 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $productionProjects = @(
+    'Wolf.Controls/Wolf.Controls.csproj',
+    'Wolf.Controls.Examples/Wolf.Controls.Examples.csproj',
     'src/WolfTodo.Core/WolfTodo.Core.csproj',
     'src/WolfTodo.Tui/WolfTodo.Tui.csproj',
     'src/WolfTodo.Cli/WolfTodo.Cli.csproj'

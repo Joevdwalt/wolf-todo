@@ -58,3 +58,8 @@ tasks:
     desc: Run the selectable-list component sandbox in Debug mode.
     cmds:
       - dotnet run --project src/WolfTodo.ComponentHarness/WolfTodo.ComponentHarness.csproj -- select-list
+
+  controls:examples:
+    desc: Run the interactive Wolf.Controls gallery in Debug mode.
+    cmds:
+      - dotnet run --project Wolf.Controls.Examples/Wolf.Controls.Examples.csproj
