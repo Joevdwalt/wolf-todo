@@ -19,5 +19,7 @@ public sealed record ApplicationState(TabHostState Tabs, BrowserState Browser)
 
     public PomodoroCompletion? PomodoroCompletion { get; init; }
 
+    public RuntimeReloadStatus? ReloadStatus { get; init; }
+
     public static ApplicationState CreateInitial(TabHostState tabs) => new(tabs, BrowserState.Initial);
 }

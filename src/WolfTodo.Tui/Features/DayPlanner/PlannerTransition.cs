@@ -9,4 +9,5 @@ public sealed record PlannerTransition(
     TodoIdentity? TodoIdentity,
     string? ProjectPath = null,
     TodoTaskUpdate? Update = null,
-    PlannerScheduleTarget ScheduleTarget = PlannerScheduleTarget.Timeline);
+    PlannerScheduleTarget ScheduleTarget = PlannerScheduleTarget.Timeline,
+    TodoItem? ExpectedTodo = null);

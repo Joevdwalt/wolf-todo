@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using WolfTodo.Core.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Features.ProjectBrowser;
 
@@ -20,6 +21,9 @@ public sealed record BrowserState(
     public TodoBulkEditorState? BulkEditor { get; init; }
 
     public ImmutableHashSet<TodoIdentity> MarkedTodos { get; init; } = [];
+
+    public ImmutableDictionary<TodoIdentity, TodoItem> MarkedTodoSnapshots { get; init; } =
+        ImmutableDictionary<TodoIdentity, TodoItem>.Empty;
 
     public string? StatusMessage { get; init; }
 

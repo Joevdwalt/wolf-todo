@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.ProjectBrowser.Controls;
@@ -280,7 +281,8 @@ public sealed class BrowserReducer
             },
             transition.ProjectPath,
             transition.Target,
-            transition.Update);
+            transition.Update,
+            ExpectedTodo: state.Editor?.ExpectedTodo);
 
     private static BrowserTransition ApplyBulkEditorTransition(
         BrowserState state,
@@ -300,7 +302,8 @@ public sealed class BrowserReducer
             state with { BulkEditor = transition.State, Error = null, StatusMessage = null },
             BrowserOperation.BulkUpdate,
             TodoIdentities: [.. state.MarkedTodos],
-            BulkUpdate: transition.Update);
+            BulkUpdate: transition.Update,
+            ExpectedTodos: state.MarkedTodoSnapshots);
     }
 
     private static BrowserTransition ToggleSelection(BrowserState state, BrowserView view)
@@ -316,9 +319,13 @@ public sealed class BrowserReducer
         var marked = itemTransition.State!.Row.IsMarked
             ? state.MarkedTodos.Add(identity)
             : state.MarkedTodos.Remove(identity);
+        var snapshots = itemTransition.State.Row.IsMarked
+            ? state.MarkedTodoSnapshots.SetItem(identity, selectedRow.Todo!)
+            : state.MarkedTodoSnapshots.Remove(identity);
         return Transition(state with
         {
             MarkedTodos = marked,
+            MarkedTodoSnapshots = snapshots,
             Error = null,
             StatusMessage = marked.Count == 0 ? "No tasks marked." : $"{marked.Count} task(s) marked."
         });
@@ -337,6 +344,7 @@ public sealed class BrowserReducer
     private static BrowserTransition ClearSelection(BrowserState state) => Transition(state with
     {
         MarkedTodos = [],
+        MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
         BulkEditor = null,
         Error = null,
         StatusMessage = "Task marks cleared."

@@ -76,6 +76,7 @@ public sealed class StatusRenderer
             { IsFilterMode: true } => $"/{view.State.FilterDraft}",
             { Error: not null } => view.State.Error,
             { StatusMessage: not null } => view.State.StatusMessage,
+            _ when view.ReloadStatus is not null => view.ReloadStatus.Message,
             { FilterText.Length: > 0 } =>
                 $"FILTER: /{view.State.FilterText}  {Shortest(keyBindings.FilterMode)} EDIT  " +
                 $"EMPTY Enter CLEARS  {SortHint(view.State, keyBindings)}",
@@ -125,6 +126,10 @@ public sealed class StatusRenderer
         else if (view.State.Error is not null)
         {
             status = [view.State.Error];
+        }
+        else if (view.ReloadStatus is not null && view.State.Mode == WolfTodo.Tui.Features.DayPlanner.PlannerMode.Browse)
+        {
+            status = [view.ReloadStatus.Message];
         }
         else if (view.CalendarAgenda.Error is not null)
         {
@@ -193,6 +198,8 @@ public sealed class StatusRenderer
         { State.IsFilterMode: true } => "FILTER",
         { State.IsSortMode: true } => "SORT",
         { State.Error: not null } => "ERROR",
+        { ReloadStatus.IsError: true } => "ERROR",
+        { ReloadStatus: not null } => "RELOAD",
         _ => "BROWSE"
     };
 
@@ -209,6 +216,8 @@ public sealed class StatusRenderer
         { State.Mode: WolfTodo.Tui.Features.DayPlanner.PlannerMode.MoveTodo } => "MOVE",
         { State.ViewMode: WolfTodo.Tui.Features.DayPlanner.PlannerViewMode.MultiDay } => "MULTIDAY",
         { State.Error: not null } => "ERROR",
+        { ReloadStatus.IsError: true } => "ERROR",
+        { ReloadStatus: not null } => "RELOAD",
         _ => "BROWSE"
     };
 
@@ -366,6 +375,8 @@ public sealed class StatusRenderer
             { IsFilterMode: true } => themeRenderer.Style(theme.Accent),
             { IsSortMode: true } => themeRenderer.Style(theme.Accent),
             { Editor: not null } => themeRenderer.Style(theme.Accent),
+            _ when view.ReloadStatus?.IsError == true => themeRenderer.Style(theme.Error, Decoration.Bold),
+            _ when view.ReloadStatus is not null => themeRenderer.Style(theme.Success, Decoration.Bold),
             _ => themeRenderer.Style(theme.SecondaryText)
         };
         var statusIsActive = view.GlobalCommand is not null ||
@@ -394,9 +405,13 @@ public sealed class StatusRenderer
             ? themeRenderer.Style(theme.Error, Decoration.Bold)
             : view.GlobalCommand is not null || view.CommandPalette is not null
                 ? themeRenderer.Style(theme.Accent)
-                : view.State.Mode == WolfTodo.Tui.Features.DayPlanner.PlannerMode.Browse
-                    ? themeRenderer.Style(theme.SecondaryText)
-                    : themeRenderer.Style(theme.Accent);
+                : view.State.Mode != WolfTodo.Tui.Features.DayPlanner.PlannerMode.Browse
+                    ? themeRenderer.Style(theme.Accent)
+                    : view.ReloadStatus?.IsError == true
+                        ? themeRenderer.Style(theme.Error, Decoration.Bold)
+                        : view.ReloadStatus is not null
+                            ? themeRenderer.Style(theme.Success, Decoration.Bold)
+                            : themeRenderer.Style(theme.SecondaryText);
         var statusIsActive = view.GlobalCommand is not null ||
                              view.CommandPalette is not null ||
                              view.State.Mode != WolfTodo.Tui.Features.DayPlanner.PlannerMode.Browse;

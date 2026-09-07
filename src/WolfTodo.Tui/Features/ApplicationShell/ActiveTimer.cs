@@ -1,4 +1,5 @@
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.Configuration;
 
 namespace WolfTodo.Tui.Features.ApplicationShell;
 
@@ -8,7 +9,8 @@ public sealed record ActiveTimer(
     string? TodoTitle,
     DateTime StartedAt,
     TimeSpan? Duration = null,
-    bool CompletionHandled = false)
+    bool CompletionHandled = false,
+    TimerConfiguration? Settings = null)
 {
     public bool IsPomodoro => Duration is not null;
 

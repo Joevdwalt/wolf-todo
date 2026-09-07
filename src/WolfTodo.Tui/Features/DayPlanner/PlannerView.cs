@@ -17,6 +17,8 @@ public sealed record PlannerView(
 
     public string? GlobalError { get; init; }
 
+    public RuntimeReloadStatus? ReloadStatus { get; init; }
+
     public CommandPaletteView? CommandPalette { get; init; }
 
     public string? TimerStatus { get; init; }

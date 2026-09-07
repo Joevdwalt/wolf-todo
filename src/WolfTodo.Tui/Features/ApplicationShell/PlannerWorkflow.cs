@@ -149,7 +149,7 @@ public sealed class PlannerWorkflow(
             return (Failure(state, "Todo writing is unavailable."), catalog);
         }
 
-        var expected = FindTodo(catalog, transition.TodoIdentity);
+        var expected = transition.ExpectedTodo ?? FindTodo(catalog, transition.TodoIdentity);
         catalog = catalogLoader.Load(configuration.ProjectFiles);
         var schedule = transition.ScheduleTarget == PlannerScheduleTarget.AllDay
             ? new TodoSchedule(state.Planner.SelectedDate)

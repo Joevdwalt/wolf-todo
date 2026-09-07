@@ -242,6 +242,10 @@ Each configured Markdown file is one project. Start the application with:
 task run-tui
 ```
 
+While running, the TUI automatically reloads valid `config.toml` changes and
+external changes to configured project files. Invalid runtime configuration
+keeps the last valid settings active and shows an error until corrected.
+
 To publish the TUI and make `wtodo-tui` available from your shell, run:
 
 ```text

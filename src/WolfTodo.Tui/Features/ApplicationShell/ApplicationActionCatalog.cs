@@ -61,9 +61,10 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         var plannerExportReason = plannerReason ?? (plannerExportEnabled
             ? null
             : "Configure [planner.export] to enable day schedule export.");
-        var timerReason = !timerEnabled
-            ? "Configure [timer] to enable task timing."
-            : timerRunning ? null
+        var timerReason = timerRunning
+            ? null
+            : !timerEnabled
+                ? "Configure [timer] to enable task timing."
             : browserActive ? selectedReason : plannerSelectedReason;
         var pomodoroReason = !timerEnabled
             ? "Configure [timer] to enable Pomodoro timing."
