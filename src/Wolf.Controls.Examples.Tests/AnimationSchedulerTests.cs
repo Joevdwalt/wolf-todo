@@ -15,4 +15,14 @@ public sealed class AnimationSchedulerTests
         AnimationScheduler.NextFrameAt(spinner, now).Should().Be(now + Wolf.Controls.AnimationTiming.FrameInterval);
         AnimationScheduler.NextFrameAt(progress, now).Should().Be(now + Wolf.Controls.AnimationTiming.FrameInterval);
     }
+
+    [Fact]
+    public void NextFrameAt_schedules_splash_expansion_frames_until_completion()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var splash = GalleryState.Create(now) with { ActiveDemo = DemoId.Splash };
+
+        AnimationScheduler.NextFrameAt(splash, now).Should().Be(now + Wolf.Controls.Splash.SplashBox.FrameInterval);
+        AnimationScheduler.NextFrameAt(splash, now + Wolf.Controls.Splash.SplashBox.ExpansionDuration).Should().BeNull();
+    }
 }

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Wolf.Controls.ProgressBar;
 
 namespace Wolf.Controls.Tests;
 
@@ -20,10 +21,10 @@ public sealed class AnimationTests
         var start = DateTimeOffset.UnixEpoch;
         var state = new ProgressState("Saving", 0.2, 0.8, start);
 
-        ProgressBar.ValueAt(state, start).Should().Be(0.2);
-        ProgressBar.ValueAt(state, start + TimeSpan.FromMilliseconds(75)).Should().BeApproximately(0.5, 0.001);
-        ProgressBar.ValueAt(state, start + AnimationTiming.TransitionDuration).Should().Be(0.8);
-        ProgressBar.Default.NextFrameAt(state, start + AnimationTiming.TransitionDuration).Should().BeNull();
+        ProgressBar.ProgressBar.ValueAt(state, start).Should().Be(0.2);
+        ProgressBar.ProgressBar.ValueAt(state, start + TimeSpan.FromMilliseconds(75)).Should().BeApproximately(0.5, 0.001);
+        ProgressBar.ProgressBar.ValueAt(state, start + AnimationTiming.TransitionDuration).Should().Be(0.8);
+        ProgressBar.ProgressBar.Default.NextFrameAt(state, start + AnimationTiming.TransitionDuration).Should().BeNull();
     }
 
     [Fact]

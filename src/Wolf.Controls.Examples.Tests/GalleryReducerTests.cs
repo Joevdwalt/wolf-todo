@@ -15,7 +15,7 @@ public sealed class GalleryReducerTests
         var wrapped = GalleryReducer.Reduce(state, Key(ConsoleKey.LeftArrow), now).State;
 
         numbered.ActiveDemo.Should().Be(DemoId.ProgressBar);
-        wrapped.ActiveDemo.Should().Be(DemoId.Toast);
+        wrapped.ActiveDemo.Should().Be(DemoId.Splash);
     }
 
     [Fact]
@@ -45,6 +45,18 @@ public sealed class GalleryReducerTests
         restarted.ProgressStartedAt.Should().Be(now + TimeSpan.FromSeconds(1));
         triggered.Toast.Should().NotBeNull();
         triggered.Toast!.VisibleUntil.Should().Be(now + TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public void Reduce_selects_and_replays_the_splash_demo()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var splash = GalleryReducer.Reduce(GalleryState.Create(now), Key('6', ConsoleKey.D6), now).State;
+        var replayed = GalleryReducer.Reduce(splash, Key('t', ConsoleKey.T), now + TimeSpan.FromSeconds(1)).State;
+
+        splash.ActiveDemo.Should().Be(DemoId.Splash);
+        replayed.SplashBox!.StartedAt.Should().Be(now + TimeSpan.FromSeconds(1));
+        replayed.Status.Should().Be("Splash expansion replayed.");
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);

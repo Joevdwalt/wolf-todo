@@ -13,7 +13,7 @@ every current control without referencing Wtodo.
 ## Delivered
 
 - Numbered, keyboard-navigable gallery for textbox, select list, spinner,
-  progress bar, and toast controls.
+  progress bar, toast, and SplashBox controls.
 - Explicit browse and focused-control modes so gallery navigation does not
   conflict with control editing keys.
 - Automatic spinner and repeating progress animation; `P` restarts progress

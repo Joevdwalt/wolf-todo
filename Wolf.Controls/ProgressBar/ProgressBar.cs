@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace Wolf.Controls;
+namespace Wolf.Controls.ProgressBar;
 
 /// <summary>A host-timed determinate progress bar with a short linear value transition.</summary>
 public sealed class ProgressBar : IAnimatedControl<ProgressState>

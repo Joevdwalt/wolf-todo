@@ -1,4 +1,6 @@
 using Wolf.Controls;
+using Wolf.Controls.ProgressBar;
+using Wolf.Controls.Splash;
 
 namespace Wolf.Controls.Examples;
 
@@ -72,6 +74,15 @@ internal static class GalleryReducer
             });
         }
 
+        if (key.Key == ConsoleKey.T && state.ActiveDemo == DemoId.Splash)
+        {
+            return new(state with
+            {
+                SplashBox = SplashBoxState.Create("Wolf Controls", "Press T to replay · Left/Right to browse", now),
+                Status = "Splash expansion replayed."
+            });
+        }
+
         return new(state);
     }
 
@@ -88,7 +99,7 @@ internal static class GalleryReducer
         var progress = Math.Clamp((elapsed % duration) / duration, 0, 1);
         return state with
         {
-            PreviousProgressValue = ProgressBar.ValueAt(
+            PreviousProgressValue = ProgressBar.ProgressBar.ValueAt(
                 new ProgressState("Downloading", state.PreviousProgressValue, state.ProgressValue, state.ProgressChangedAt), now),
             ProgressValue = progress,
             ProgressChangedAt = now,
@@ -150,7 +161,7 @@ internal static class GalleryReducer
     private static bool TryGetDemo(ConsoleKeyInfo key, out DemoId demo)
     {
         var index = key.KeyChar - '1';
-        if (index is < 0 or >= 5)
+        if (index < 0 || index >= Demos.Length)
         {
             demo = default;
             return false;
@@ -165,6 +176,7 @@ internal static class GalleryReducer
         DemoId.TextBox => "Text box",
         DemoId.SelectList => "Select list",
         DemoId.ProgressBar => "Progress bar",
+        DemoId.Splash => "Splash box",
         _ => demo.ToString()
     };
 }

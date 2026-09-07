@@ -4,7 +4,11 @@ using Wolf.Controls.Examples;
 
 if (Console.IsInputRedirected || Console.IsOutputRedirected)
 {
-    AnsiConsole.Write(GalleryRenderer.Render(GalleryState.Create(DateTimeOffset.UtcNow), DateTimeOffset.UtcNow, GalleryRenderer.SafeWidth()));
+    AnsiConsole.Write(GalleryRenderer.Render(
+        GalleryState.Create(DateTimeOffset.UtcNow),
+        DateTimeOffset.UtcNow,
+        GalleryRenderer.SafeWidth(),
+        GalleryRenderer.SafeHeight()));
     return;
 }
 
@@ -15,28 +19,35 @@ var cursorVisible = TryGetCursorVisible();
 try
 {
     SetCursorVisible(false);
-    while (!exitRequested)
+    AnsiConsole.Clear();
+    AnsiConsole.Live(new Text(string.Empty))
+        .AutoClear(false)
+        .Overflow(VerticalOverflow.Crop)
+        .Start(context =>
     {
-        var now = DateTimeOffset.UtcNow;
-        state = GalleryReducer.Tick(state, now);
-        AnsiConsole.Clear();
-        AnsiConsole.Write(GalleryRenderer.Render(state, now, GalleryRenderer.SafeWidth()));
-
-        var nextFrame = AnimationScheduler.NextFrameAt(state, now) ?? now + TimeSpan.FromMilliseconds(250);
-        while (!Console.KeyAvailable && DateTimeOffset.UtcNow < nextFrame)
+        while (!exitRequested)
         {
-            Thread.Sleep(10);
-        }
+            var now = DateTimeOffset.UtcNow;
+            state = GalleryReducer.Tick(state, now);
+            context.UpdateTarget(GalleryRenderer.Render(state, now, GalleryRenderer.SafeWidth(), GalleryRenderer.SafeHeight()));
+            context.Refresh();
 
-        if (!Console.KeyAvailable)
-        {
-            continue;
-        }
+            var nextFrame = AnimationScheduler.NextFrameAt(state, now) ?? now + TimeSpan.FromMilliseconds(250);
+            while (!Console.KeyAvailable && DateTimeOffset.UtcNow < nextFrame)
+            {
+                Thread.Sleep(10);
+            }
 
-        var transition = GalleryReducer.Reduce(state, Console.ReadKey(intercept: true), DateTimeOffset.UtcNow);
-        state = transition.State;
-        exitRequested = transition.ExitRequested;
-    }
+            if (!Console.KeyAvailable)
+            {
+                continue;
+            }
+
+            var transition = GalleryReducer.Reduce(state, Console.ReadKey(intercept: true), DateTimeOffset.UtcNow);
+            state = transition.State;
+            exitRequested = transition.ExitRequested;
+        }
+    });
 }
 finally
 {

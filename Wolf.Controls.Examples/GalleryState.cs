@@ -1,4 +1,5 @@
 using Wolf.Controls;
+using Wolf.Controls.Splash;
 
 namespace Wolf.Controls.Examples;
 
@@ -14,6 +15,7 @@ internal sealed record GalleryState(
     double ProgressValue,
     DateTimeOffset ProgressChangedAt,
     ToastState? Toast,
+    SplashBoxState? SplashBox,
     string Status)
 {
     public static GalleryState Create(DateTimeOffset now) => new(
@@ -34,5 +36,6 @@ internal sealed record GalleryState(
         0,
         now,
         null,
-        "Use Left/Right or 1-5 to select a control.");
+        SplashBoxState.Create("Wolf Controls", "Press T to replay · Left/Right to browse", now),
+        "Use Left/Right or 1-6 to select a control.");
 }

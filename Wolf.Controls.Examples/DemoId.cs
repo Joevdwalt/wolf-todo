@@ -6,5 +6,6 @@ internal enum DemoId
     SelectList,
     Spinner,
     ProgressBar,
-    Toast
+    Toast,
+    Splash
 }
