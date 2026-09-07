@@ -68,6 +68,10 @@ builder.Services.AddSingleton<IApplicationConfigurationLoader>(serviceProvider =
         GlobalConfigurationPath.Resolve(),
         File.Exists,
         File.ReadAllText));
+builder.Services.AddSingleton<IApplicationFileChangeMonitor>(
+    new PhysicalApplicationFileChangeMonitor(GlobalConfigurationPath.Resolve()));
+builder.Services.AddSingleton<ApplicationLoopWaiter>();
+builder.Services.AddSingleton<RuntimeReloadCoordinator>();
 builder.Services.AddSingleton(serviceProvider =>
     new TuiApplication(
         serviceProvider.GetRequiredService<IApplicationConfigurationLoader>(),
@@ -88,7 +92,10 @@ builder.Services.AddSingleton(serviceProvider =>
         plannerCalendarCache: serviceProvider.GetRequiredService<PlannerCalendarAgendaCache>(),
         dayScheduleExportService: serviceProvider.GetRequiredService<DayScheduleExportService>(),
         weeklyTimeLogService: serviceProvider.GetRequiredService<WeeklyTimeLogService>(),
-        pomodoroCompletionNotifier: serviceProvider.GetRequiredService<IPomodoroCompletionNotifier>()));
+        pomodoroCompletionNotifier: serviceProvider.GetRequiredService<IPomodoroCompletionNotifier>(),
+        fileChangeMonitor: serviceProvider.GetRequiredService<IApplicationFileChangeMonitor>(),
+        applicationLoopWaiter: serviceProvider.GetRequiredService<ApplicationLoopWaiter>(),
+        runtimeReloadCoordinator: serviceProvider.GetRequiredService<RuntimeReloadCoordinator>()));
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();

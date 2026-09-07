@@ -7,6 +7,7 @@ public sealed class PlannerCalendarAgendaCache(IPlannerCalendarAgendaProvider pr
     private readonly object gate = new();
     private readonly Dictionary<DateOnly, PlannerCalendarAgenda> agendas = [];
     private readonly Dictionary<DateOnly, Task> refreshTasks = [];
+    private long generation;
 
     public bool IsRefreshing
     {
@@ -54,7 +55,8 @@ public sealed class PlannerCalendarAgendaCache(IPlannerCalendarAgendaProvider pr
                 return;
             }
 
-            var task = Task.Run(() => LoadAndPublishAsync(configuration, date));
+            var refreshGeneration = generation;
+            var task = Task.Run(() => LoadAndPublishAsync(configuration, date, refreshGeneration));
             refreshTasks[date] = task;
             _ = task.ContinueWith(
                 completed => RemoveCompletedTask(date, completed),
@@ -64,7 +66,20 @@ public sealed class PlannerCalendarAgendaCache(IPlannerCalendarAgendaProvider pr
         }
     }
 
-    private async Task LoadAndPublishAsync(GoogleCalendarConfiguration configuration, DateOnly date)
+    public void Reset()
+    {
+        lock (gate)
+        {
+            generation++;
+            agendas.Clear();
+            refreshTasks.Clear();
+        }
+    }
+
+    private async Task LoadAndPublishAsync(
+        GoogleCalendarConfiguration configuration,
+        DateOnly date,
+        long refreshGeneration)
     {
         PlannerCalendarAgenda agenda;
         try
@@ -93,7 +108,10 @@ public sealed class PlannerCalendarAgendaCache(IPlannerCalendarAgendaProvider pr
 
         lock (gate)
         {
-            agendas[date] = agenda;
+            if (refreshGeneration == generation)
+            {
+                agendas[date] = agenda;
+            }
         }
     }
 

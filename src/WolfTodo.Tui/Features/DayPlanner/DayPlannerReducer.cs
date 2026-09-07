@@ -483,7 +483,8 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             },
             transition.Target,
             transition.ProjectPath,
-            transition.Update);
+            transition.Update,
+            ExpectedTodo: state.Editor?.ExpectedTodo);
 
     private static string SelectionError(PlannerView view) =>
         IsReadOnlyAllDaySelection(view)

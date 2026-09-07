@@ -54,6 +54,9 @@ public sealed class BrowserWorkflow(
                         ? transition.TodoIdentity
                         : null,
                 MarkedTodos = result.Succeeded ? [] : state.Browser.MarkedTodos,
+                MarkedTodoSnapshots = result.Succeeded
+                    ? ImmutableDictionary<TodoIdentity, TodoItem>.Empty
+                    : state.Browser.MarkedTodoSnapshots,
                 BulkEditor = result.Succeeded ? null : state.Browser.BulkEditor,
                 StatusMessage = result.Succeeded ? "Todo update saved." : null
             }
@@ -113,6 +116,7 @@ public sealed class BrowserWorkflow(
                 PendingTodoSelection = null,
                 Error = null,
                 MarkedTodos = [],
+                MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
                 BulkEditor = null,
                 StatusMessage = "Todo moved."
             }
@@ -175,6 +179,7 @@ public sealed class BrowserWorkflow(
                 TodoIndex = 0,
                 PendingTodoSelection = null,
                 MarkedTodos = [],
+                MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
                 BulkEditor = null,
                 Error = null,
                 StatusMessage = $"Archived {result.ArchivedCount} task(s) to {Path.GetFileName(result.ArchivePath)}."
@@ -210,7 +215,8 @@ public sealed class BrowserWorkflow(
         {
             var groupIdentities = group.ToArray();
             var expected = groupIdentities
-                .Select(identity => FindTodo(expectedCatalog, identity))
+                .Select(identity => transition.ExpectedTodos?.GetValueOrDefault(identity) ??
+                                    FindTodo(expectedCatalog, identity))
                 .ToArray();
             TodoMutationResult result;
             if (expected.Any(todo => todo is null))
@@ -238,6 +244,9 @@ public sealed class BrowserWorkflow(
         }
 
         var remaining = state.Browser.MarkedTodos.Except(succeeded).ToImmutableHashSet();
+        var remainingSnapshots = state.Browser.MarkedTodoSnapshots
+            .Where(pair => remaining.Contains(pair.Key))
+            .ToImmutableDictionary();
         var successText = $"Updated {succeeded.Count} task(s) in " +
                           $"{transition.TodoIdentities.Where(succeeded.Contains).Select(id => id.ProjectPath).Distinct().Count()} project(s).";
         var error = failures.Count == 0
@@ -248,6 +257,7 @@ public sealed class BrowserWorkflow(
             Browser = state.Browser with
             {
                 MarkedTodos = remaining,
+                MarkedTodoSnapshots = remainingSnapshots,
                 BulkEditor = failures.Count == 0
                     ? null
                     : state.Browser.BulkEditor is null
@@ -305,6 +315,9 @@ public sealed class BrowserWorkflow(
                 PendingTodoSelection = null,
                 Error = result.Error,
                 MarkedTodos = result.Started ? [] : state.Browser.MarkedTodos,
+                MarkedTodoSnapshots = result.Started
+                    ? ImmutableDictionary<TodoIdentity, TodoItem>.Empty
+                    : state.Browser.MarkedTodoSnapshots,
                 BulkEditor = result.Started ? null : state.Browser.BulkEditor,
                 StatusMessage = null
             }
@@ -336,7 +349,7 @@ public sealed class BrowserWorkflow(
                 : mutationService.RollOverdueToDate(transition.ProjectPath, expectedProject, today);
         }
 
-        var expected = FindTodo(expectedCatalog, transition.TodoIdentity);
+        var expected = transition.ExpectedTodo ?? FindTodo(expectedCatalog, transition.TodoIdentity);
         if (expected is null)
         {
             return TodoMutationResult.Failure("The selected todo cannot be found.");

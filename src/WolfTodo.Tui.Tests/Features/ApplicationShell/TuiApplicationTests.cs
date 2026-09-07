@@ -151,7 +151,7 @@ public sealed class TuiApplicationTests
             Key(ConsoleKey.Enter),
             Key(':'), Key('q'), Key(ConsoleKey.Enter))
         {
-            TimeoutNextTimedRead = true,
+            TimeoutAtTimedRead = 3,
             OnTimedRead = _ => now = now.AddMinutes(25)
         };
         var application = CreateApplication(
@@ -186,7 +186,7 @@ public sealed class TuiApplicationTests
             Key(ConsoleKey.Enter),
             Key(':'), Key('q'), Key(ConsoleKey.Enter))
         {
-            TimeoutNextTimedRead = true,
+            TimeoutAtTimedRead = 3,
             OnTimedRead = _ => now = now.AddMinutes(26)
         };
         var application = CreateApplication(
@@ -218,7 +218,7 @@ public sealed class TuiApplicationTests
             Key('j'),
             Key(':'), Key('q'), Key(ConsoleKey.Enter))
         {
-            TimeoutNextTimedRead = true,
+            TimeoutAtTimedRead = 3,
             OnTimedRead = _ => now = now.AddMinutes(25)
         };
         var application = CreateApplication(
@@ -948,6 +948,105 @@ public sealed class TuiApplicationTests
         terminal.BrowserViews.Last().State.Error.Should().BeNull();
     }
 
+    [Fact]
+    public void Run_reloads_changed_project_files_while_waiting_for_input()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Before\n");
+        var monitor = new QueuedFileChangeMonitor(
+            new ApplicationFileChanges(false, true),
+            () => fileSystem.Contents = "# Work\n\n- [ ] After\n");
+        var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem,
+            fileChangeMonitor: monitor);
+
+        application.Run();
+
+        terminal.BrowserViews.Any(view => view.SelectedTodo?.Title == "Before").Should().BeTrue();
+        terminal.BrowserViews.Any(view =>
+            view.SelectedTodo?.Title == "After" &&
+            view.ReloadStatus?.Message == "Projects reloaded.").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Run_keeps_the_last_valid_configuration_when_runtime_reload_fails()
+    {
+        var loader = new FailsAfterStartupConfigurationLoader();
+        var monitor = new QueuedFileChangeMonitor(new ApplicationFileChanges(true, false));
+        var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(loader, terminal, fileChangeMonitor: monitor);
+
+        application.Run();
+
+        terminal.BrowserViews.Any(view =>
+            view.ReloadStatus is { IsError: true } &&
+            view.ReloadStatus.Message.Contains("last valid configuration")).Should().BeTrue();
+        terminal.Themes.Should().OnlyContain(theme => theme == TuiThemes.Wolf);
+    }
+
+    [Fact]
+    public void Run_uses_captured_timer_settings_after_configuration_reload()
+    {
+        var now = new DateTime(2026, 8, 12, 9, 0, 0);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Focus\n");
+        var store = new MemoryTimeLogFileStore();
+        var loader = new ReloadingTimerConfigurationLoader();
+        var monitor = new QueuedFileChangeMonitor(
+            new ApplicationFileChanges(true, false),
+            () => now = now.AddMinutes(5),
+            pollAt: 2);
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(ConsoleKey.T, control: true),
+            Key(ConsoleKey.T, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            loader,
+            terminal,
+            new FakeApplicationStateStore("/todos/project.md"),
+            projectFileSystem: fileSystem,
+            weeklyTimeLogService: new WeeklyTimeLogService(store),
+            nowProvider: () => now,
+            fileChangeMonitor: monitor);
+
+        application.Run();
+
+        store.Files.Keys.Should().ContainSingle(path => path.StartsWith("/logs-before", StringComparison.Ordinal));
+        terminal.BrowserViews.Any(view => view.ReloadStatus?.Message == "Configuration reloaded.").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Run_rejects_a_preserved_editor_when_an_external_change_moves_its_target()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Original\n");
+        var monitor = new QueuedFileChangeMonitor(
+            new ApplicationFileChanges(false, true),
+            () => fileSystem.Contents = "# Work\n\n- [ ] Replacement\n- [ ] Original\n",
+            pollAt: 2);
+        var terminal = new FakeTerminal(
+            Key('x'), Key('e'), Key(ConsoleKey.S, control: true), Key(ConsoleKey.Escape),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem,
+            fileChangeMonitor: monitor);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Be("# Work\n\n- [ ] Replacement\n- [ ] Original\n");
+        terminal.BrowserViews.Any(view =>
+            view.State.Editor?.Error?.Contains("changed on disk") == true).Should().BeTrue();
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal,
@@ -957,7 +1056,8 @@ public sealed class TuiApplicationTests
         Func<DateOnly>? todayProvider = null,
         WeeklyTimeLogService? weeklyTimeLogService = null,
         Func<DateTime>? nowProvider = null,
-        IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null)
+        IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null,
+        IApplicationFileChangeMonitor? fileChangeMonitor = null)
     {
         var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
         var reader = new MarkdownTodoProjectReader();
@@ -978,7 +1078,8 @@ public sealed class TuiApplicationTests
             todayProvider: todayProvider,
             weeklyTimeLogService: weeklyTimeLogService,
             nowProvider: nowProvider,
-            pomodoroCompletionNotifier: pomodoroCompletionNotifier);
+            pomodoroCompletionNotifier: pomodoroCompletionNotifier,
+            fileChangeMonitor: fileChangeMonitor);
     }
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem1, false, false, false);
@@ -1001,6 +1102,30 @@ public sealed class TuiApplicationTests
     private sealed class ThrowingConfigurationLoader : IApplicationConfigurationLoader
     {
         public ApplicationConfiguration Load() => throw new InvalidDataException("missing configuration");
+    }
+
+    private sealed class FailsAfterStartupConfigurationLoader : IApplicationConfigurationLoader
+    {
+        private int loadCount;
+
+        public ApplicationConfiguration Load()
+        {
+            loadCount++;
+            if (loadCount > 1) throw new InvalidDataException("unfinished config");
+            return new ApplicationConfiguration(["/todos/project.md"], TuiKeyBindings.CreateDefaults(":q"));
+        }
+    }
+
+    private sealed class ReloadingTimerConfigurationLoader : IApplicationConfigurationLoader
+    {
+        private int loadCount;
+
+        public ApplicationConfiguration Load() => new(
+            ["/todos/project.md"],
+            TuiKeyBindings.CreateDefaults(":q"))
+        {
+            Timer = loadCount++ == 0 ? new TimerConfiguration("/logs-before") : null
+        };
     }
 
     private sealed class EmptyProjectFileSystem : IProjectFileSystem
@@ -1029,7 +1154,7 @@ public sealed class TuiApplicationTests
 
     private sealed class MutableProjectFileSystem(string path, string contents) : IProjectFileSystem
     {
-        public string Contents { get; private set; } = contents;
+        public string Contents { get; set; } = contents;
 
         public bool FileExists(string candidate) => candidate == path;
 
@@ -1038,6 +1163,30 @@ public sealed class TuiApplicationTests
         public string ReadAllText(string candidate) => Contents;
 
         public void WriteAllTextAtomically(string candidate, string updated) => Contents = updated;
+    }
+
+    private sealed class QueuedFileChangeMonitor(
+        ApplicationFileChanges changes,
+        Action? beforeChange = null,
+        int pollAt = 1) : IApplicationFileChangeMonitor
+    {
+        private int pollCount;
+
+        public void WatchProjectFiles(IEnumerable<string> paths)
+        {
+        }
+
+        public ApplicationFileChanges Poll()
+        {
+            pollCount++;
+            if (pollCount != pollAt) return ApplicationFileChanges.None;
+            beforeChange?.Invoke();
+            return changes;
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class ArchiveProjectFileSystem(string path, string contents) : IProjectFileSystem
@@ -1122,6 +1271,8 @@ public sealed class TuiApplicationTests
 
         public bool TimeoutNextTimedRead { get; set; }
 
+        public int? TimeoutAtTimedRead { get; init; }
+
         public Action<TimeSpan>? OnTimedRead { get; init; }
 
         public int TimedReadCount { get; private set; }
@@ -1131,10 +1282,10 @@ public sealed class TuiApplicationTests
         public ConsoleKeyInfo? ReadKey(TimeSpan timeout)
         {
             TimedReadCount++;
-            OnTimedRead?.Invoke(timeout);
-            if (TimeoutNextTimedRead)
+            if (TimeoutNextTimedRead || TimedReadCount == TimeoutAtTimedRead)
             {
                 TimeoutNextTimedRead = false;
+                OnTimedRead?.Invoke(timeout);
                 return null;
             }
 

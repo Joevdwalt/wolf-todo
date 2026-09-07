@@ -35,7 +35,10 @@ public sealed class TuiApplication(
     IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null,
     PlannerWorkflow? plannerWorkflow = null,
     BrowserWorkflow? browserWorkflow = null,
-    TimerWorkflow? timerWorkflow = null)
+    TimerWorkflow? timerWorkflow = null,
+    IApplicationFileChangeMonitor? fileChangeMonitor = null,
+    ApplicationLoopWaiter? applicationLoopWaiter = null,
+    RuntimeReloadCoordinator? runtimeReloadCoordinator = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -73,6 +76,13 @@ public sealed class TuiApplication(
 
     public int Run()
     {
+        var runtimeMonitor = fileChangeMonitor ?? NullApplicationFileChangeMonitor.Instance;
+        var loopWaiter = applicationLoopWaiter ?? new ApplicationLoopWaiter(terminalUi, runtimeMonitor);
+        var reloadCoordinator = runtimeReloadCoordinator ?? new RuntimeReloadCoordinator(
+            configurationLoader,
+            catalogLoader,
+            runtimeMonitor,
+            plannerCalendarCache ?? new PlannerCalendarAgendaCache(new DisabledPlannerCalendarAgendaProvider()));
         ApplicationConfiguration configuration;
 
         try
@@ -82,10 +92,12 @@ public sealed class TuiApplication(
         catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException)
         {
             terminalUi.ShowStartupError(exception.Message);
+            runtimeMonitor.Dispose();
             return 1;
         }
 
         var catalog = catalogLoader.Load(configuration.ProjectFiles);
+        runtimeMonitor.WatchProjectFiles(configuration.ProjectFiles);
         var session = applicationStateStore.Load();
         var selectedProjectPath = session.SelectedProjectPath;
         var initialProjectIndex = FindProjectIndex(catalog, selectedProjectPath, configuration.SidebarItems.Length);
@@ -99,6 +111,9 @@ public sealed class TuiApplication(
         {
             Planner = PlannerState.CreateInitial(todayProvider())
         };
+        var selectionAnchor = new SidebarSelectionAnchor(
+            initialProjectIndex == 0 ? ProjectRowKind.All : ProjectRowKind.Project,
+            selectedProjectPath);
         terminalUi.SetCursorVisible(false);
 
         try
@@ -118,6 +133,7 @@ public sealed class TuiApplication(
                 {
                     browserView = browserPresenter.CreateView(catalog, state.Browser, configuration.SidebarItems);
                     state = state with { Browser = browserView.State };
+                    selectionAnchor = SidebarSelectionAnchor.Capture(browserView);
                     selectedProjectPath = browserView.SelectedProjectPath;
                     if (state.Palette.IsOpen)
                     {
@@ -136,7 +152,8 @@ public sealed class TuiApplication(
                         TimerStatus = timerWorkflow.Status(state.Timer),
                         TimerIsBright = timerWorkflow.IsBright(state.Timer),
                         PomodoroPrompt = state.PomodoroPrompt,
-                        PomodoroCompletion = state.PomodoroCompletion
+                        PomodoroCompletion = state.PomodoroCompletion,
+                        ReloadStatus = state.ReloadStatus
                     };
                     terminalUi.ShowBrowser(
                         tabView,
@@ -169,7 +186,8 @@ public sealed class TuiApplication(
                         TimerStatus = timerWorkflow.Status(state.Timer),
                         TimerIsBright = timerWorkflow.IsBright(state.Timer),
                         PomodoroPrompt = state.PomodoroPrompt,
-                        PomodoroCompletion = state.PomodoroCompletion
+                        PomodoroCompletion = state.PomodoroCompletion,
+                        ReloadStatus = state.ReloadStatus
                     };
                     terminalUi.ShowPlanner(
                         tabView,
@@ -178,19 +196,35 @@ public sealed class TuiApplication(
                         configuration.Theme);
                 }
 
-                var pendingKey = state.Timer is not null
-                    ? terminalUi.ReadKey(TimeSpan.FromSeconds(1))
+                var redrawInterval = state.Timer is not null
+                    ? TimeSpan.FromSeconds(1)
                     : state.Tabs.ActiveTab == PlannerTab
-                        ? terminalUi.ReadKey(plannerWorkflow.IsRefreshing
+                        ? plannerWorkflow.IsRefreshing
                             ? TimeSpan.FromMilliseconds(250)
-                            : TimeSpan.FromMinutes(1))
-                        : terminalUi.ReadKey();
-                if (pendingKey is null)
+                            : TimeSpan.FromMinutes(1)
+                        : (TimeSpan?)null;
+                var loopEvent = loopWaiter.Wait(redrawInterval);
+                if (loopEvent.FileChanges.HasChanges)
                 {
+                    var reload = reloadCoordinator.Reload(
+                        state,
+                        configuration,
+                        catalog,
+                        selectionAnchor,
+                        loopEvent.FileChanges);
+                    state = reload.State;
+                    configuration = reload.Configuration;
+                    catalog = reload.Catalog;
                     continue;
                 }
 
-                var key = pendingKey.Value;
+                if (loopEvent.RedrawRequested) continue;
+
+                var key = loopEvent.Key!.Value;
+                if (state.ReloadStatus?.DismissOnInput == true)
+                {
+                    state = state with { ReloadStatus = null };
+                }
                 if (state.PomodoroCompletion is not null)
                 {
                     state = state with { PomodoroCompletion = null };
@@ -590,6 +624,7 @@ public sealed class TuiApplication(
             applicationStateStore.Save(new ApplicationSessionState(
                 selectedProjectPath,
                 state.Browser.Sort));
+            runtimeMonitor.Dispose();
             terminalUi.SetCursorVisible(true);
         }
     }
@@ -597,6 +632,7 @@ public sealed class TuiApplication(
     private static BrowserState ClearBrowserMarks(BrowserState state) => state with
     {
         MarkedTodos = [],
+        MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
         BulkEditor = null,
         StatusMessage = null
     };
