@@ -23,6 +23,11 @@ cancelling resets the completion cycle. The catalog includes configured shell
 commands and built-in commands such as `:move-todo-project` and
 `:roll-today`.
 
+`:config` opens the platform-resolved global `config.toml` in `$EDITOR` at line
+one. It waits for the editor and reports editor-launch failures in the command
+status area. The command is available from both tabs and appears as `Edit
+configuration` in the palette.
+
 The Todos details action is labeled `Hide details` or `Show details` from the
 current browser state and executes the same semantic toggle as its binding.
 The palette also exposes typed `Jump to top` and `Jump to bottom` Todos actions
@@ -46,6 +51,8 @@ the application tab strip remains visible on supported short terminals.
 5. Palette rendering never scrolls the application tabs off the screen.
 6. Tab completion expands unique prefixes, cycles ambiguous commands, and
    includes configured command names.
+7. `:config` opens the resolved global configuration in `$EDITOR` from either
+   tab and reports an unavailable or failed editor.
 
 ## References
 

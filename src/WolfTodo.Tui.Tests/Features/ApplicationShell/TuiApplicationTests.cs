@@ -563,6 +563,43 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_opens_configuration_in_the_external_editor()
+    {
+        var launcher = new FakeExternalEditorLauncher(ExternalEditorResult.Success);
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(':'), Key('c'), Key('o'), Key('n'), Key('f'), Key('i'), Key('g'), Key(ConsoleKey.Enter),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            externalEditorLauncher: launcher);
+
+        application.Run();
+
+        launcher.Calls.Should().ContainSingle().Which.Should().Be((GlobalConfigurationPath.Resolve(), 1));
+        terminal.ExternalSuspensions.Should().Be(1);
+        terminal.ExternalResumptions.Should().Be(1);
+    }
+
+    [Fact]
+    public void Run_opens_configuration_from_the_command_palette()
+    {
+        var launcher = new FakeExternalEditorLauncher(ExternalEditorResult.Success);
+        var terminal = new FakeTerminal(
+            Key('x'), Key('?'), Key('/'), Key('c'), Key('o'), Key('n'), Key('f'), Key('i'), Key('g'),
+            Key(ConsoleKey.Enter), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            externalEditorLauncher: launcher);
+
+        application.Run();
+
+        launcher.Calls.Should().ContainSingle().Which.Should().Be((GlobalConfigurationPath.Resolve(), 1));
+    }
+
+    [Fact]
     public void Run_creates_a_todo_with_the_selected_planner_schedule_using_the_full_form()
     {
         var fileSystem = new MutableProjectFileSystem(

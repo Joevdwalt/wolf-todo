@@ -360,6 +360,11 @@ public sealed class TuiApplication(
                         };
                     }
 
+                    if (commandTransition.Operation == ApplicationCommandOperation.OpenConfiguration)
+                    {
+                        state = OpenConfiguration(state);
+                    }
+
                     continue;
                 }
 
@@ -392,6 +397,12 @@ public sealed class TuiApplication(
                     {
                         state = timerWorkflow.Stop(state, configuration, state.Tabs.ActiveTab == TodosTab);
                         if (state.Timer is null) return 0;
+                        continue;
+                    }
+
+                    if (action == ApplicationActionId.OpenConfiguration)
+                    {
+                        state = OpenConfiguration(state);
                         continue;
                     }
 
@@ -628,6 +639,29 @@ public sealed class TuiApplication(
             runtimeMonitor.Dispose();
             terminalUi.SetCursorVisible(true);
         }
+    }
+
+    private ApplicationState OpenConfiguration(ApplicationState state)
+    {
+        if (externalEditorLauncher is null)
+        {
+            return state with { Command = state.Command with { Error = "External editing is unavailable." } };
+        }
+
+        ExternalEditorResult result;
+        terminalUi.SuspendForExternalProcess();
+        try
+        {
+            result = externalEditorLauncher.Open(GlobalConfigurationPath.Resolve(), 1);
+        }
+        finally
+        {
+            terminalUi.ResumeAfterExternalProcess();
+        }
+
+        return result.Error is null
+            ? state
+            : state with { Command = state.Command with { Error = result.Error } };
     }
 
     private static BrowserState ClearBrowserMarks(BrowserState state) => state with

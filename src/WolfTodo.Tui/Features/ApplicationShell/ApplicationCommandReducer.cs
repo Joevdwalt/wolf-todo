@@ -78,6 +78,10 @@ public sealed class ApplicationCommandReducer
                     ApplicationCommandCatalog.DumpScreen,
                     StringComparison.OrdinalIgnoreCase) =>
                     ApplicationCommandOperation.DumpScreen,
+                var command when command.Equals(
+                    ApplicationCommandCatalog.Configuration,
+                    StringComparison.OrdinalIgnoreCase) =>
+                    ApplicationCommandOperation.OpenConfiguration,
                 _ => ApplicationCommandOperation.None
             };
             return new ApplicationCommandTransition(

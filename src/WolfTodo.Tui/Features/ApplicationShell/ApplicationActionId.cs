@@ -3,6 +3,7 @@ namespace WolfTodo.Tui.Features.ApplicationShell;
 public enum ApplicationActionId
 {
     Exit,
+    OpenConfiguration,
     ToggleCompleted,
     ToggleTimer,
     StartPomodoro,
