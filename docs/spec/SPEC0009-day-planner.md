@@ -47,6 +47,15 @@ additional calendar leaves successfully loaded calendar events visible and
 identifies the failed calendar in the planner status. The planner shows syncing,
 sign-in, configuration, and offline states without making the planner unusable.
 
+Cache agendas on local disk in application state, scoped to the configured OAuth
+client path and calendar IDs. On startup, show cached entries immediately and
+refresh today plus seven days on either side in the background. Advance this
+window when the local date changes. `r` and valid config reloads refresh the
+window without clearing matching cached entries; dates outside it load on demand.
+Successful day loads replace cached entries, including deleted events. Failed
+day loads retain previous entries. Missing or damaged caches fall back to live
+sync; persist only dates within the rolling window.
+
 On today, add a logical current-time row immediately before the next quarter-hour
 slot. Show the exact `HH:mm` value in the time column and fill the plan column
 with `▶` followed by `─` characters in the configured `now` color. When the

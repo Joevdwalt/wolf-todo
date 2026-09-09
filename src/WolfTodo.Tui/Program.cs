@@ -39,6 +39,8 @@ builder.Services.AddSingleton<IGoogleCalendarEventSourceFactory>(
 builder.Services.AddSingleton<GoogleCalendarEventMapper>();
 builder.Services.AddSingleton<IPlannerCalendarAgendaProvider, GoogleCalendarAgendaProvider>();
 builder.Services.AddSingleton<PlannerCalendarAgendaCache>();
+builder.Services.AddSingleton<IPlannerCalendarCacheStore>(_ => new JsonPlannerCalendarCacheStore(
+    Path.Combine(Path.GetDirectoryName(GlobalApplicationStatePath.Resolve())!, "calendar-cache.json")));
 builder.Services.AddSingleton<ProjectTodoMutationService>();
 builder.Services.AddSingleton<TabHostPresenter>();
 builder.Services.AddSingleton<TabHostReducer>();

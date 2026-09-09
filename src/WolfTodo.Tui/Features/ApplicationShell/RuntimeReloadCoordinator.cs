@@ -27,7 +27,7 @@ public sealed class RuntimeReloadCoordinator(
                 configuration = configurationLoader.Load();
                 configurationReloaded = true;
                 fileChangeMonitor.WatchProjectFiles(configuration.ProjectFiles);
-                plannerCalendarCache.Reset();
+                plannerCalendarCache.RefreshWindow(configuration.GoogleCalendar);
             }
             catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException)
             {

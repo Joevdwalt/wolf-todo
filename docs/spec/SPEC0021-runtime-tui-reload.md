@@ -29,8 +29,8 @@ Markdown files remain the only durable todo store.
   incompatible external edit must fail conflict validation instead of updating
   a task that moved to the same source line.
 - A timer or Pomodoro retains the timer settings captured when it started. New
-  timer settings apply to the next timer. Reset calendar agenda caches when a
-  valid config reload changes runtime settings.
+  timer settings apply to the next timer. Refresh the calendar sync window on a
+  valid config reload, retaining cached entries when calendar settings match.
 - Show a short success notice until the next input. Keep config-reload errors
   visible until a valid configuration is loaded.
 

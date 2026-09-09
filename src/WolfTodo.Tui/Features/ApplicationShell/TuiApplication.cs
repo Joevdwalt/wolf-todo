@@ -98,6 +98,7 @@ public sealed class TuiApplication(
 
         var catalog = catalogLoader.Load(configuration.ProjectFiles);
         runtimeMonitor.WatchProjectFiles(configuration.ProjectFiles);
+        plannerCalendarCache?.EnsureWindow(configuration.GoogleCalendar);
         var session = applicationStateStore.Load();
         var selectedProjectPath = session.SelectedProjectPath;
         var initialProjectIndex = FindProjectIndex(catalog, selectedProjectPath, configuration.SidebarItems.Length);
