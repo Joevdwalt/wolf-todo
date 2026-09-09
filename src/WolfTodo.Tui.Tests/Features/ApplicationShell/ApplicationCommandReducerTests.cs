@@ -128,6 +128,23 @@ public sealed class ApplicationCommandReducerTests
     }
 
     [Fact]
+    public void Reduce_submits_and_completes_the_configuration_command()
+    {
+        var submitted = reducer.Reduce(
+            new ApplicationCommandState(true, ":config", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+        var completed = reducer.Reduce(
+            new ApplicationCommandState(true, ":conf", null),
+            Key(ConsoleKey.Tab),
+            Bindings);
+
+        submitted.Operation.Should().Be(ApplicationCommandOperation.OpenConfiguration);
+        submitted.State.Should().Be(ApplicationCommandState.Initial);
+        completed.State.Value.Should().Be(":config");
+    }
+
+    [Fact]
     public void Reduce_parses_a_project_title_for_the_move_todo_command()
     {
         var result = reducer.Reduce(

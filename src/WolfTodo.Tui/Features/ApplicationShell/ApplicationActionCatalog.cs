@@ -80,6 +80,8 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         [
             Item(ApplicationActionId.Exit, "Application", "Quit", "Exit Wolf Todo",
                 bindings.QuitCommand),
+            Item(ApplicationActionId.OpenConfiguration, "Application", "Edit configuration",
+                "Open config.toml in $EDITOR", ApplicationCommandCatalog.Configuration),
             Item(ApplicationActionId.ToggleCompleted, "Application", "Toggle completed",
                 "Show or hide completed todos", bindings.ToggleCompletedCommand),
             Item(ApplicationActionId.ToggleTimer, "Application", timerRunning ? "Stop timer" : "Start timer",

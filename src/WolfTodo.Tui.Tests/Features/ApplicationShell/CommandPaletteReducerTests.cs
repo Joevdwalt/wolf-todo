@@ -104,6 +104,11 @@ public sealed class CommandPaletteReducerTests
         show.Label.Should().Be("Show details");
         hide.Binding.Should().Be("v");
         catalog.Create(true, visible, null, Bindings)
+            .Single(item => item.Action == ApplicationActionId.OpenConfiguration)
+            .Should().Be(new CommandPaletteItem(
+                ApplicationActionId.OpenConfiguration, "Application", "Edit configuration",
+                "Open config.toml in $EDITOR", ":config", true, null));
+        catalog.Create(true, visible, null, Bindings)
             .Single(item => item.Action == ApplicationActionId.BrowserJumpTop)
             .Binding.Should().Be("g");
         catalog.Create(true, visible, null, Bindings)

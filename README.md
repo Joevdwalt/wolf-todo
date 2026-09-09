@@ -207,6 +207,9 @@ Enter `:dump-screen` to save the current rendered frame as a plain-text file
 under `screen-dumps/` in the directory where Wolf Todo was launched. The app
 shows the exact saved path in its status message.
 
+Enter `:config` to open Wolf Todo's global `config.toml` in `$EDITOR`. Wolf Todo
+waits for the editor and reloads valid saved configuration changes.
+
 The optional `[google_calendar]` table adds a read-only Google Calendar overlay
 to Day Planner. It always loads the primary calendar, plus any IDs in
 `additional_calendar_ids` (find an ID in the calendar's Google Calendar
