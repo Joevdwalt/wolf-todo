@@ -213,7 +213,11 @@ to Day Planner. It always loads the primary calendar, plus any IDs in
 integration settings). Set `enabled = true` and provide an absolute path to a
 Desktop OAuth client JSON file. The first refresh opens Google's consent flow;
 the refresh token is stored in Wolf Todo's application-state directory, not in
-the project Markdown. `r` refreshes the selected day. Calendar meetings only
+the project Markdown. Calendar entries are cached in `calendar-cache.json` in
+that same directory and appear immediately on startup while a background sync
+updates today, the previous seven days, and the next seven days. `r` refreshes
+this window and the selected day; other dates load on demand. Failed refreshes
+keep previously cached entries visible. Calendar meetings only
 warn when a todo shares their time; they never prevent scheduling. If an
 additional calendar is unavailable, successfully loaded calendars stay visible
 and the planner identifies the failed calendar in its status line.
