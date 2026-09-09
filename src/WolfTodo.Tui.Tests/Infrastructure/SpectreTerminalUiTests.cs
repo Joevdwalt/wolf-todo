@@ -16,6 +16,8 @@ public sealed class SpectreTerminalUiTests
     private static readonly TuiKeyBindings DefaultBindings = TuiKeyBindings.CreateDefaults(":q");
     private static readonly TabStripView DefaultTabs = new(
         [new TabItemView(new TabId("todos"), "Todos", true)]);
+    private static readonly IAnsiConsole BaseConsole = AnsiConsole.Console;
+    private static Recorder recording = null!;
 
     [Fact]
     public void ShowSplash_applies_the_configured_semantic_colors()
@@ -30,12 +32,76 @@ public sealed class SpectreTerminalUiTests
         StartRecording();
 
         new SpectreTerminalUi(() => 140, () => 30).ShowSplash("WOLF", theme);
-        var html = AnsiConsole.ExportHtml().ToLowerInvariant();
+        var html = RecordedHtml().ToLowerInvariant();
 
         html.Should().Contain("#010203")
             .And.Contain("#040506")
-            .And.Contain("#070809")
+            .And.Contain("#08090a")
             .And.Contain("#0a0b0c");
+    }
+
+    [Fact]
+    public void DumpScreen_writes_only_the_latest_frame_after_repeated_redraws()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"wolf-todo-screen-dump-{Guid.NewGuid():N}");
+        StartRecording();
+        var terminal = new SpectreTerminalUi(
+            () => 140,
+            () => 30,
+            currentDirectoryProvider: () => root);
+
+        try
+        {
+            for (var index = 0; index < 50; index++)
+            {
+                terminal.ShowBrowser(
+                    DefaultTabs,
+                    ViewWithTitle($"Frame {index}"),
+                    DefaultBindings);
+            }
+
+            var result = terminal.DumpScreen();
+            result.Succeeded.Should().BeTrue();
+            var contents = File.ReadAllText(result.Path!);
+            contents.Should().Contain("Frame 49")
+                .And.NotContain("Frame 0")
+                .And.NotContain("Frame 48");
+            AnsiConsole.Console.Should().BeSameAs(recording);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ShowBrowser_restores_the_live_console_when_rendering_fails()
+    {
+        StartRecording();
+        var liveConsole = AnsiConsole.Console;
+        var terminal = new SpectreTerminalUi(
+            () => throw new InvalidOperationException("Could not read terminal width."),
+            () => 30);
+
+        Action render = () => terminal.ShowBrowser(
+            DefaultTabs,
+            ViewWithTitle("Current frame"),
+            DefaultBindings);
+
+        render.Should().Throw<InvalidOperationException>();
+        AnsiConsole.Console.Should().BeSameAs(liveConsole);
+    }
+
+    [Fact]
+    public void DumpScreen_fails_cleanly_before_a_frame_is_rendered()
+    {
+        var result = new SpectreTerminalUi(() => 140, () => 30).DumpScreen();
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Be("No application screen has been rendered yet.");
     }
 
     [Fact]
@@ -68,7 +134,7 @@ public sealed class SpectreTerminalUiTests
 
         terminal.ShowBrowser(DefaultTabs, view, DefaultBindings);
         terminal.ShowBrowser(DefaultTabs, view with { SelectedProjectTitle = "Personal" }, DefaultBindings);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain("All").And.Contain("Personal").And.Contain("Milas Contract Renewal");
         output.Should().Contain("PROJECTS").And.Contain("TODOS: ALL").And.Contain("DETAILS");
@@ -93,7 +159,7 @@ public sealed class SpectreTerminalUiTests
 
         new SpectreTerminalUi(() => 140, () => 30)
             .ShowBrowser(DefaultTabs, view, DefaultBindings, theme);
-        var html = AnsiConsole.ExportHtml().ToLowerInvariant();
+        var html = RecordedHtml().ToLowerInvariant();
 
         html.Should().Contain("#010203")
             .And.Contain("#040506")
@@ -121,8 +187,8 @@ public sealed class SpectreTerminalUiTests
 
         new SpectreTerminalUi(() => 140, () => 30)
             .ShowBrowser(DefaultTabs, view, DefaultBindings, theme);
-        var output = AnsiConsole.ExportText();
-        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+        var output = RecordedText();
+        var html = NormalizeHtml(RecordedHtml());
 
         output.Should().Contain("@today 1");
         StyleBefore(html, "@today").Should().Contain("#010203");
@@ -145,7 +211,7 @@ public sealed class SpectreTerminalUiTests
             baseView with { GlobalError = "Unknown command: :wat" },
             DefaultBindings,
             TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain(":q").And.Contain("Unknown command: :wat");
     }
@@ -172,7 +238,7 @@ public sealed class SpectreTerminalUiTests
 
         new SpectreTerminalUi(() => 100, () => 24)
             .ShowPlanner(tabs, view, DefaultBindings, TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain("[DAY PLANNER]")
             .And.Contain("06:00")
@@ -204,12 +270,12 @@ public sealed class SpectreTerminalUiTests
             Surface2 = new Color(10, 11, 12)
         };
         StartRecording(100, 45);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 45)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
-        var output = AnsiConsole.ExportText()[start..];
-        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+        var output = RecordedText()[start..];
+        var html = NormalizeHtml(RecordedHtml());
 
         output.Should().Contain("Deep work")
             .And.Contain("├─ ○ Deep work")
@@ -227,7 +293,7 @@ public sealed class SpectreTerminalUiTests
         new SpectreTerminalUi(() => 100, () => 45)
             .ShowPlanner(DefaultTabs, selectedView, DefaultBindings, theme);
 
-        var selectedHtml = NormalizeHtml(AnsiConsole.ExportHtml());
+        var selectedHtml = NormalizeHtml(RecordedHtml());
         StyleBefore(selectedHtml, "├▶").Should().Contain("#040506");
         StyleBefore(selectedHtml, "└─").Should().NotBeNullOrEmpty();
         selectedHtml.Should().Contain("#0a0b0c");
@@ -236,11 +302,11 @@ public sealed class SpectreTerminalUiTests
             new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
             PlannerState.CreateInitial(date) with { SlotIndex = 13 });
         StartRecording(100, 45);
-        var middleStart = AnsiConsole.ExportText().Length;
+        var middleStart = RecordedText().Length;
         new SpectreTerminalUi(() => 100, () => 45)
             .ShowPlanner(DefaultTabs, middleSelectedView, DefaultBindings, theme);
 
-        var middleOutput = AnsiConsole.ExportText()[middleStart..];
+        var middleOutput = RecordedText()[middleStart..];
         middleOutput.Should().Contain("├▶");
         middleOutput.Split("├▶", StringSplitOptions.None).Length.Should().Be(2);
     }
@@ -270,12 +336,12 @@ public sealed class SpectreTerminalUiTests
             Surface2 = new Color(10, 11, 12)
         };
         StartRecording(100, 45);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 45)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
-        var output = AnsiConsole.ExportText()[start..];
-        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+        var output = RecordedText()[start..];
+        var html = NormalizeHtml(RecordedHtml());
 
         output.Should().Contain("├▶ ✓ Register khode.co.za")
             .And.Contain("├─ ⬥ weekly catch up")
@@ -293,12 +359,12 @@ public sealed class SpectreTerminalUiTests
             },
             agenda);
         StartRecording(100, 45);
-        var meetingStart = AnsiConsole.ExportText().Length;
+        var meetingStart = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 45)
             .ShowPlanner(DefaultTabs, meetingView, DefaultBindings, theme);
-        var meetingOutput = AnsiConsole.ExportText()[meetingStart..];
-        var meetingHtml = NormalizeHtml(AnsiConsole.ExportHtml());
+        var meetingOutput = RecordedText()[meetingStart..];
+        var meetingHtml = NormalizeHtml(RecordedHtml());
 
         meetingOutput.Should().Contain("├─ ✓ Register khode.co.za")
             .And.Contain("├▶ ⬥ weekly catch up")
@@ -327,11 +393,11 @@ public sealed class SpectreTerminalUiTests
             new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
             PlannerState.CreateInitial(date) with { SlotIndex = 12 },
             agenda);
-        StartRecording(140, 24);
+        StartRecording(140, 30);
 
-        new SpectreTerminalUi(() => 140, () => 24)
+        new SpectreTerminalUi(() => 140, () => 30)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain("ALL DAY")
             .And.Contain("Company holiday")
@@ -362,7 +428,7 @@ public sealed class SpectreTerminalUiTests
 
         new SpectreTerminalUi(() => 140, () => 24)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain("> ◆ Company holiday")
             .And.Contain("TYPE: Calendar event")
@@ -384,7 +450,7 @@ public sealed class SpectreTerminalUiTests
         new SpectreTerminalUi(() => 90, () => 24)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
 
-        AnsiConsole.ExportText().Should().Contain("> — ADD ALL-DAY TASK");
+        RecordedText().Should().Contain("> — ADD ALL-DAY TASK");
     }
 
     [Fact]
@@ -406,7 +472,7 @@ public sealed class SpectreTerminalUiTests
 
         new SpectreTerminalUi(() => 100, () => 24)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
-        var html = AnsiConsole.ExportHtml().ToLowerInvariant();
+        var html = RecordedHtml().ToLowerInvariant();
 
         html.Should().Contain("#010203")
             .And.Contain("#040506")
@@ -430,14 +496,14 @@ public sealed class SpectreTerminalUiTests
             Now = new Color(16, 17, 18)
         };
         StartRecording(100, 24);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 24, () => date, () => now)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
-        var output = AnsiConsole.ExportText()[start..];
+        var output = RecordedText()[start..];
         var markerLine = output.Split(Environment.NewLine)
             .Single(line => line.Contains("14:23", StringComparison.Ordinal));
-        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+        var html = NormalizeHtml(RecordedHtml());
 
         var cells = markerLine.Split('│');
         var planCell = cells[^2].Trim();
@@ -477,11 +543,11 @@ public sealed class SpectreTerminalUiTests
             PlannerState.CreateInitial(date) with { SlotIndex = 13 },
             agenda);
         StartRecording(100, 24);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 24, () => date, () => now)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText()[start..];
+        var output = RecordedText()[start..];
 
         output.Should().Contain($"NOW · {expectedDuration} · Next calendar event")
             .And.NotContain("NOW · 15m");
@@ -501,11 +567,11 @@ public sealed class SpectreTerminalUiTests
             PlannerState.CreateInitial(date) with { SlotIndex = 13 },
             agenda);
         StartRecording(40, 24);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 40, () => 24, () => date, () => now)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var lines = AnsiConsole.ExportText()[start..]
+        var lines = RecordedText()[start..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         lines.Should().HaveCount(23);
@@ -534,12 +600,12 @@ public sealed class SpectreTerminalUiTests
             Timer = new Color(19, 20, 21)
         };
         StartRecording(100, 24);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 24, () => date, () => now)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
-        var output = AnsiConsole.ExportText()[start..];
-        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+        var output = RecordedText()[start..];
+        var html = NormalizeHtml(RecordedHtml());
 
         output.Should().Contain("NOW · ◷ 25:00 · Deep work · NEXT 45m · Team meeting");
         StyleBefore(html, "now").Should().Contain("#101112");
@@ -563,11 +629,11 @@ public sealed class SpectreTerminalUiTests
         var state = PlannerState.CreateInitial(date) with { SlotIndex = selectedSlot };
         var view = new DayPlannerPresenter().CreateView(new ProjectCatalog([], []), state);
         StartRecording(100, 24);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 24, () => date, () => now)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var lines = AnsiConsole.ExportText()[start..]
+        var lines = RecordedText()[start..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         var markerIndex = Array.FindIndex(lines, line => line.Contains($"{hour:00}:{minute:00}"));
         var slotIndex = Array.FindIndex(lines, line =>
@@ -587,11 +653,11 @@ public sealed class SpectreTerminalUiTests
             new ProjectCatalog([], []),
             PlannerState.CreateInitial(date));
         StartRecording(70, 16);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 70, () => 16, () => date, () => now)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText()[start..];
+        var output = RecordedText()[start..];
 
         output.Should().Contain("06:00").And.NotContain("18:17");
     }
@@ -605,11 +671,11 @@ public sealed class SpectreTerminalUiTests
             new ProjectCatalog([], []),
             PlannerState.CreateInitial(selectedDate));
         StartRecording(100, 24);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 24, () => selectedDate, () => now)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText()[start..];
+        var output = RecordedText()[start..];
 
         output.Should().NotContain("06:17");
     }
@@ -628,11 +694,11 @@ public sealed class SpectreTerminalUiTests
         var state = PlannerState.CreateInitial(date) with { SlotIndex = 1 };
         var view = new DayPlannerPresenter().CreateView(new ProjectCatalog([], []), state);
         StartRecording(width, height);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => width, () => height, () => date, () => now)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var lines = AnsiConsole.ExportText()[start..]
+        var lines = RecordedText()[start..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         lines.Should().HaveCount(height - 1);
@@ -665,16 +731,16 @@ public sealed class SpectreTerminalUiTests
         var view = new DayPlannerPresenter().CreateView(catalog, PlannerState.CreateInitial(date));
 
         StartRecording(140, 30);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
         new SpectreTerminalUi(() => 140, () => 30)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var wide = AnsiConsole.ExportText()[start..];
+        var wide = RecordedText()[start..];
 
         StartRecording(100, 24);
-        start = AnsiConsole.ExportText().Length;
+        start = RecordedText().Length;
         new SpectreTerminalUi(() => 100, () => 24)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var narrow = AnsiConsole.ExportText()[start..];
+        var narrow = RecordedText()[start..];
 
         wide.Should().Contain("INSPECTOR")
             .And.Contain("Prepare proposal")
@@ -714,12 +780,12 @@ public sealed class SpectreTerminalUiTests
         var catalog = new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [timed, allDay])], []);
         var view = new DayPlannerPresenter().CreateView(catalog, PlannerState.CreateInitial(date));
         StartRecording(140, 30);
-        var textStart = AnsiConsole.ExportText().Length;
+        var textStart = RecordedText().Length;
 
         new SpectreTerminalUi(() => 140, () => 30)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
-        var html = NormalizeHtml(AnsiConsole.ExportHtml());
-        var text = AnsiConsole.ExportText()[textStart..];
+        var html = NormalizeHtml(RecordedHtml());
+        var text = RecordedText()[textStart..];
 
         text.Should().Contain("Timed task")
             .And.Contain("REF-ALLDAY - All-day task  [Work]")
@@ -753,11 +819,11 @@ public sealed class SpectreTerminalUiTests
         };
         var view = new DayPlannerPresenter().CreateView(catalog, state);
         StartRecording(100, 24);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 24)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText()[start..];
+        var output = RecordedText()[start..];
 
         output.Should().Contain("UNSCHEDULED TODOS")
             .And.Contain("Candidate 2")
@@ -780,11 +846,11 @@ public sealed class SpectreTerminalUiTests
             catalog,
             PlannerState.CreateInitial(date) with { Editor = editor });
         StartRecording(100, 24);
-        var start = AnsiConsole.ExportText().Length;
+        var start = RecordedText().Length;
 
         new SpectreTerminalUi(() => 100, () => 24)
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
-        var lines = AnsiConsole.ExportText()[start..]
+        var lines = RecordedText()[start..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         lines.Should().HaveCountLessThanOrEqualTo(23);
@@ -807,7 +873,7 @@ public sealed class SpectreTerminalUiTests
         var terminal = new SpectreTerminalUi(() => 100, () => 24);
         terminal.ShowPlanner(DefaultTabs, commandView, DefaultBindings, TuiThemes.Wolf);
         terminal.ShowPlanner(DefaultTabs, errorView, DefaultBindings, TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain(":q").And.Contain("Unknown command: :wat");
     }
@@ -857,7 +923,7 @@ public sealed class SpectreTerminalUiTests
             },
             DefaultBindings,
             TuiThemes.Wolf);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain("EDIT TASK // Parent")
             .And.Contain("CONTENT")
@@ -959,7 +1025,7 @@ public sealed class SpectreTerminalUiTests
             view with { State = view.State with { Editor = editor } },
             DefaultBindings,
             theme);
-        var formHtml = NormalizeHtml(AnsiConsole.ExportHtml());
+        var formHtml = NormalizeHtml(RecordedHtml());
 
         StartRecording(100, 30);
         terminal.ShowBrowser(
@@ -973,7 +1039,7 @@ public sealed class SpectreTerminalUiTests
             },
             DefaultBindings,
             theme);
-        var errorHtml = NormalizeHtml(AnsiConsole.ExportHtml());
+        var errorHtml = NormalizeHtml(RecordedHtml());
 
         StartRecording(100, 24);
         terminal.ShowBrowser(
@@ -984,7 +1050,7 @@ public sealed class SpectreTerminalUiTests
             },
             DefaultBindings,
             theme);
-        var filterHtml = NormalizeHtml(AnsiConsole.ExportHtml());
+        var filterHtml = NormalizeHtml(RecordedHtml());
         formHtml.Should().Contain("content");
         StyleBefore(formHtml, "inactive-42").Should().Contain("#111111");
         StyleBefore(formHtml, "title").Should().Contain("#ffffff").And.Contain("font-weight: bold");
@@ -1123,7 +1189,7 @@ public sealed class SpectreTerminalUiTests
 
         StartRecording();
         new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
         var todoLine = output.Split(Environment.NewLine)
             .Last(line => line.Contains("Prepare the unusually", StringComparison.Ordinal));
         var todoPane = todoLine.Split('│')[2];
@@ -1186,7 +1252,7 @@ public sealed class SpectreTerminalUiTests
 
         StartRecording();
         new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         foreach (var (priority, marker) in priorities)
         {
@@ -1338,7 +1404,7 @@ public sealed class SpectreTerminalUiTests
 
         new SpectreTerminalUi(() => 140, () => 30)
             .ShowBrowser(DefaultTabs, view, DefaultBindings, theme);
-        var html = NormalizeHtml(AnsiConsole.ExportHtml());
+        var html = NormalizeHtml(RecordedHtml());
 
         StyleBefore(html, "#browser-tag").Should().Contain("#010203")
             .And.Contain("#040506")
@@ -1410,7 +1476,7 @@ public sealed class SpectreTerminalUiTests
         {
             State = view.State with { FilterText = "renew" }
         }, DefaultBindings);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain("/renew");
         output.Should().Contain("FILTER: /renew").And.Contain("EMPTY Enter CLEARS");
@@ -1440,7 +1506,7 @@ public sealed class SpectreTerminalUiTests
                 Sort = new TodoSort(TodoSortProperty.Priority, TodoSortDirection.Ascending)
             }
         }, DefaultBindings);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain("SORT // n/N NAME").And.Contain("p/P PRIORITY")
             .And.Contain("t/T TAGS").And.Contain("o SOURCE");
@@ -1471,7 +1537,7 @@ public sealed class SpectreTerminalUiTests
 
         new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
         new SpectreTerminalUi(() => 70, () => 16).ShowBrowser(DefaultTabs, view, DefaultBindings);
-        var output = AnsiConsole.ExportText();
+        var output = RecordedText();
 
         output.Should().Contain("/ FILTER  : COMMAND");
         output.Should().Contain("j/k MOVE").And.Contain("h/l BACK/OPEN");
@@ -1489,10 +1555,10 @@ public sealed class SpectreTerminalUiTests
             ToggleCompletedCommand = ":done"
         };
         StartRecording();
-        var existingOutputLength = AnsiConsole.ExportText().Length;
+        var existingOutputLength = RecordedText().Length;
 
         new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, bindings);
-        var output = AnsiConsole.ExportText()[existingOutputLength..];
+        var output = RecordedText()[existingOutputLength..];
 
         output.Should().Contain("n/p NAVIGATE")
             .And.Contain("Ctrl+F FILTER")
@@ -1505,13 +1571,13 @@ public sealed class SpectreTerminalUiTests
     public void ShowBrowser_always_renders_the_selected_tab_strip()
     {
         StartRecording(140, 30);
-        var existingOutputLength = AnsiConsole.ExportText().Length;
+        var existingOutputLength = RecordedText().Length;
         new SpectreTerminalUi(
                 () => 140,
                 () => 30,
                 () => new DateOnly(2030, 1, 2))
             .ShowBrowser(DefaultTabs, ViewWithTitle("Renew contract"), DefaultBindings);
-        var output = AnsiConsole.ExportText()[existingOutputLength..]
+        var output = RecordedText()[existingOutputLength..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         output[0].Should().Contain("[TODOS]");
@@ -1759,9 +1825,9 @@ public sealed class SpectreTerminalUiTests
         int height)
     {
         StartRecording(width, height);
-        var existingOutputLength = AnsiConsole.ExportText().Length;
+        var existingOutputLength = RecordedText().Length;
         new SpectreTerminalUi(() => width, () => height).ShowBrowser(tabs, view, DefaultBindings);
-        return AnsiConsole.ExportText()[existingOutputLength..]
+        return RecordedText()[existingOutputLength..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
     }
 
@@ -1780,10 +1846,10 @@ public sealed class SpectreTerminalUiTests
             new ProjectCatalog([], []),
             PlannerState.CreateInitial(date)) with { CommandPalette = palette };
         StartRecording(width, height);
-        var existingOutputLength = AnsiConsole.ExportText().Length;
+        var existingOutputLength = RecordedText().Length;
         new SpectreTerminalUi(() => width, () => height)
             .ShowPlanner(tabs, view, DefaultBindings, TuiThemes.Wolf);
-        return AnsiConsole.ExportText()[existingOutputLength..]
+        return RecordedText()[existingOutputLength..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
     }
 
@@ -1807,7 +1873,7 @@ public sealed class SpectreTerminalUiTests
     {
         StartRecording();
         new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
-        return AnsiConsole.ExportText()
+        return RecordedText()
             .Split(Environment.NewLine)
             .First(line => line.Contains("PROJECTS", StringComparison.Ordinal));
     }
@@ -1819,8 +1885,13 @@ public sealed class SpectreTerminalUiTests
 
     private static void StartRecording(int width, int height)
     {
-        AnsiConsole.Record();
+        recording = BaseConsole.CreateRecorder();
+        AnsiConsole.Console = recording;
         AnsiConsole.Profile.Width = width;
         AnsiConsole.Profile.Height = height;
     }
+
+    private static string RecordedText() => recording.ExportText();
+
+    private static string RecordedHtml() => recording.ExportHtml();
 }
