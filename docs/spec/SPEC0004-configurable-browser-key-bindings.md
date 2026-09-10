@@ -24,6 +24,7 @@ the existing keyboard interaction and command syntax.
   dialog.
 - `?` opens the global command palette.
 - `v` hides or shows the Todos detail preview.
+- `f` opens the selected todo in task focus mode.
 - `m` marks or unmarks the cursor task, `b` opens the bulk editor for marked
   tasks, and Ctrl+M clears all marks.
 - `R` rolls incomplete overdue tasks in the selected project to today.
@@ -84,6 +85,8 @@ the configured filter gesture as its edit hint.
     command palette, and participates in browser gesture conflict validation.
 15. Mark, bulk-edit, and clear-mark gestures use their defaults when omitted,
     appear in browser hints and the command palette, and reject conflicts.
+16. The configured task-focus gesture works from Todos and Day Planner, appears
+    in the command palette, and rejects global gesture conflicts.
 
 ## References
 
@@ -97,4 +100,5 @@ the configured filter gesture as its edit hint.
 - [SPEC0010: Writable Todo Workflows](SPEC0010-writable-todo-workflows.md)
 - [SPEC0011: Structured Todo Content Editor](SPEC0011-structured-todo-content-editor.md)
 - [SPEC0018: Multi-Select Task Updates](SPEC0018-multi-select-task-updates.md)
+- [SPEC0022: Task Focus Mode](SPEC0022-task-focus-mode.md)
 - [SPEC0012: Global Command Palette](SPEC0012-global-command-palette.md)

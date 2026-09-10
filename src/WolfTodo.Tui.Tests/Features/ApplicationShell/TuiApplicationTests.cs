@@ -42,6 +42,149 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_opens_and_exits_task_focus_without_changing_the_underlying_tab()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('f'), Key(ConsoleKey.Escape),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        terminal.FocusedTaskViews.Should().ContainSingle();
+        terminal.FocusedTaskViews.Single().Items.Select(item => item.Todo.Title)
+            .Should().Equal("Parent", "Child");
+        terminal.BrowserViews.Should().HaveCountGreaterThan(1);
+        terminal.TabViews.Should().OnlyContain(view => view.Tabs[0].IsSelected);
+    }
+
+    [Fact]
+    public void Run_completes_the_highlighted_subtask_and_stays_in_focus()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('f'), Key('j'), Key(ConsoleKey.Spacebar),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain("  - [x] Child");
+        terminal.FocusedTaskViews.Should().Contain(view =>
+            view.SelectedItem.Todo.Title == "Child" && view.SelectedItem.Todo.IsCompleted);
+    }
+
+    [Fact]
+    public void Run_focuses_the_selected_planner_task()
+    {
+        var today = new DateOnly(2026, 9, 10);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            $"# Work\n\n- [ ] Planned ⏳ {today:yyyy-MM-dd} ⏰ 06:00\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('L'), Key('f'), Key(ConsoleKey.Escape),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem,
+            todayProvider: () => today);
+
+        application.Run();
+
+        terminal.FocusedTaskViews.Should().ContainSingle()
+            .Which.SelectedItem.Todo.Title.Should().Be("Planned");
+        terminal.PlannerViews.Should().HaveCountGreaterThan(1);
+    }
+
+    [Fact]
+    public void Run_exits_focus_when_an_external_reload_replaces_the_task()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Original\n");
+        var monitor = new QueuedFileChangeMonitor(
+            new ApplicationFileChanges(false, true),
+            () => fileSystem.Contents = "# Work\n\n- [ ] Replacement\n",
+            pollAt: 2);
+        var terminal = new FakeTerminal(
+            Key('x'), Key('f'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem,
+            fileChangeMonitor: monitor);
+
+        application.Run();
+
+        terminal.FocusedTaskViews.Should().ContainSingle()
+            .Which.SelectedItem.Todo.Title.Should().Be("Original");
+        terminal.BrowserViews.Should().Contain(view =>
+            view.State.StatusMessage == "Focused task is no longer available.");
+    }
+
+    [Fact]
+    public void Run_times_the_highlighted_focus_subtask()
+    {
+        var now = new DateTime(2026, 9, 10, 9, 0, 0);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+        var store = new MemoryTimeLogFileStore();
+        var terminal = new FakeTerminal(
+            Key('x'), Key('f'), Key('j'), Key(ConsoleKey.T, control: true),
+            Key(ConsoleKey.T, control: true), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(timer: new TimerConfiguration("/logs", Bell: false)),
+            terminal,
+            projectFileSystem: fileSystem,
+            weeklyTimeLogService: new WeeklyTimeLogService(store),
+            nowProvider: () => now = now.AddMinutes(1));
+
+        application.Run();
+
+        terminal.FocusedTaskViews.Should().Contain(view =>
+            view.TimerStatus != null && view.TimerStatus.EndsWith("· Child", StringComparison.Ordinal));
+        store.Files.Values.Should().ContainSingle(contents => contents.Contains("Child", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_moves_the_highlighted_subtask_and_follows_it_as_the_focus_root()
+    {
+        var fileSystem = new ArchiveProjectFileSystem(
+            "/todos/source.md",
+            "# Source\n\n- [ ] Parent\n  - [ ] Child\n");
+        fileSystem.Files["/todos/target.md"] = "# Target\n";
+        var keys = new List<ConsoleKeyInfo> { Key('x'), Key('f'), Key('j'), Key(':') };
+        keys.AddRange("move-todo-project Target".Select(Key));
+        keys.AddRange([Key(ConsoleKey.Enter), Key(':'), Key('q'), Key(ConsoleKey.Enter)]);
+        var terminal = new FakeTerminal([.. keys]);
+        var application = CreateApplication(
+            new FixedConfigurationLoader(projectFiles: ["/todos/source.md", "/todos/target.md"]),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Files["/todos/source.md"].Should().NotContain("Child");
+        fileSystem.Files["/todos/target.md"].Should().Contain("- [ ] Child");
+        terminal.FocusedTaskViews.Should().Contain(view =>
+            string.Equals(view.ProjectTitle, "Target", StringComparison.OrdinalIgnoreCase) &&
+            view.Items[0].Todo.Title == "Child");
+    }
+
+    [Fact]
     public void Run_commits_and_clears_a_filter_before_exiting()
     {
         var terminal = new FakeTerminal(
@@ -1126,10 +1269,11 @@ public sealed class TuiApplicationTests
 
     private sealed class FixedConfigurationLoader(
         TuiKeyBindings? bindings = null,
-        TimerConfiguration? timer = null) : IApplicationConfigurationLoader
+        TimerConfiguration? timer = null,
+        string[]? projectFiles = null) : IApplicationConfigurationLoader
     {
         public ApplicationConfiguration Load() => new(
-            ["/todos/project.md"],
+            [.. projectFiles ?? ["/todos/project.md"]],
             bindings ?? TuiKeyBindings.CreateDefaults(":q"))
         {
             Timer = timer
@@ -1288,6 +1432,8 @@ public sealed class TuiApplicationTests
 
         public List<PlannerView> PlannerViews { get; } = [];
 
+        public List<FocusedTaskView> FocusedTaskViews { get; } = [];
+
         public List<TabStripView> TabViews { get; } = [];
 
         public List<TuiKeyBindings> KeyBindings { get; } = [];
@@ -1349,6 +1495,16 @@ public sealed class TuiApplicationTests
         {
             TabViews.Add(tabs);
             PlannerViews.Add(view);
+            KeyBindings.Add(keyBindings);
+            Themes.Add(theme);
+        }
+
+        public void ShowFocusedTask(
+            FocusedTaskView view,
+            TuiKeyBindings keyBindings,
+            TuiTheme theme)
+        {
+            FocusedTaskViews.Add(view);
             KeyBindings.Add(keyBindings);
             Themes.Add(theme);
         }

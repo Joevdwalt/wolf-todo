@@ -11,6 +11,8 @@ configurable `toggle_timer` binding (default `Ctrl+T`) starts or stops the
 selected todo in Todos or Day Planner. Only one timer may run. Toggling another
 todo records the active session, then starts the new one. Calendar-only items
 and conflicting Planner slots cannot be timed.
+In task focus mode, the highlighted root or subtask is the selected timing
+target; opening focus mode never starts timing automatically.
 
 While active, both views show a dedicated, pulsing
 `TIMER HH:mm · <todo title>` status row and refresh once per second. A normal
