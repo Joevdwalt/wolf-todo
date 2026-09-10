@@ -13,6 +13,8 @@ public interface ITerminalUi
 
     void ShowPlanner(TabStripView tabs, PlannerView view, TuiKeyBindings keyBindings, TuiTheme theme);
 
+    void ShowFocusedTask(FocusedTaskView view, TuiKeyBindings keyBindings, TuiTheme theme);
+
     void ShowStartupError(string message);
 
     void SetCursorVisible(bool visible);

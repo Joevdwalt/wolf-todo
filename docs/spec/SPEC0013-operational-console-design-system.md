@@ -85,10 +85,9 @@ hints always reflect the current mode and configured bindings.
 
 ## Out of Scope
 
-Capture, triage, focus, review, active/waiting/blocked/recurring task states,
-timers, transient completion animation, and new synchronization behavior are
-future features. This design system does not introduce data that the Markdown
-model does not currently represent.
+Capture, triage, review, active/waiting/blocked/recurring task-state taxonomies,
+and new synchronization behavior are future features. This design system does
+not introduce data that the Markdown model does not currently represent.
 
 ## Acceptance Scenarios
 

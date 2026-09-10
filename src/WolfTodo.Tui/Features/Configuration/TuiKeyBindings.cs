@@ -47,6 +47,8 @@ public sealed record TuiKeyBindings(
     public ImmutableArray<KeyGesture> PlannerDecreaseRange { get; init; } = Gestures("-");
     public ImmutableArray<KeyGesture> PlannerPreviousColumn { get; init; } = Gestures("h");
     public ImmutableArray<KeyGesture> PlannerNextColumn { get; init; } = Gestures("l");
+
+    public ImmutableArray<KeyGesture> FocusTask { get; init; } = Gestures("f");
     public static TuiKeyBindings CreateDefaults(string quitCommand) => new(
         quitCommand,
         ":completed",
@@ -162,6 +164,8 @@ public sealed record TuiKeyBindings(
     public bool MatchesStartPomodoro(ConsoleKeyInfo key) => Matches(StartPomodoro, key);
 
     public bool MatchesStartUntrackedPomodoro(ConsoleKeyInfo key) => Matches(StartUntrackedPomodoro, key);
+
+    public bool MatchesFocusTask(ConsoleKeyInfo key) => Matches(FocusTask, key);
 
     public static string ShortestDisplayName(ImmutableArray<KeyGesture> gestures) => gestures
         .Select((gesture, index) => (gesture.DisplayName, Index: index))

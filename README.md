@@ -133,6 +133,7 @@ toggle_todo_selection = ["m"]
 bulk_edit_todos = ["b"]
 clear_todo_selection = ["Ctrl+M"]
 toggle_details = ["v"]
+focus_task = ["f"]
 roll_project_today = ["R"]
 remove_content = ["d"]
 save_form = ["Ctrl+S"]
@@ -206,6 +207,11 @@ color values are configuration errors.
 Enter `:dump-screen` to save the current rendered frame as a plain-text file
 under `screen-dumps/` in the directory where Wolf Todo was launched. The app
 shows the exact saved path in its status message.
+
+Press `f` on a selected todo in Todos or Day Planner to open its distraction-free
+focus card. Use `j`/`k` to select the root or a subtask, `E` to edit it, Space to
+toggle completion, and Escape to return. Timers and Pomodoros remain optional
+and target the highlighted item.
 
 Enter `:config` to open Wolf Todo's global `config.toml` in `$EDITOR`. Wolf Todo
 waits for the editor and reloads valid saved configuration changes.

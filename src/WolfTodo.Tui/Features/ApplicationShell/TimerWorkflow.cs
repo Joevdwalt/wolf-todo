@@ -21,6 +21,29 @@ public sealed class TimerWorkflow(
         bool isTodosTabActive)
     {
         var target = BuildTarget(browser, planner, catalog, isTodosTabActive);
+        return Toggle(state, target, configuration, isTodosTabActive);
+    }
+
+    public ApplicationState ToggleFocused(
+        ApplicationState state,
+        FocusedTaskView view,
+        ApplicationConfiguration configuration,
+        bool isTodosTabActive) => Toggle(
+        state,
+        new TimerTarget(
+            view.SelectedItem.Identity,
+            view.ProjectTitle,
+            view.SelectedItem.Todo.Title,
+            view.SelectedItem.Todo.Duration),
+        configuration,
+        isTodosTabActive);
+
+    private ApplicationState Toggle(
+        ApplicationState state,
+        TimerTarget? target,
+        ApplicationConfiguration configuration,
+        bool isTodosTabActive)
+    {
         if (state.Timer is not null)
         {
             var activeWasPomodoro = state.Timer.IsPomodoro;
@@ -103,6 +126,39 @@ public sealed class TimerWorkflow(
         }
 
         var target = untracked ? null : BuildTarget(browser, planner, catalog, isTodosTabActive);
+        return OpenPomodoroPrompt(state, target, configuration, isTodosTabActive);
+    }
+
+    public ApplicationState OpenPomodoroPromptFocused(
+        ApplicationState state,
+        FocusedTaskView view,
+        ApplicationConfiguration configuration,
+        bool isTodosTabActive) => OpenPomodoroPrompt(
+        state,
+        new TimerTarget(
+            view.SelectedItem.Identity,
+            view.ProjectTitle,
+            view.SelectedItem.Todo.Title,
+            view.SelectedItem.Todo.Duration),
+        configuration,
+        isTodosTabActive);
+
+    private ApplicationState OpenPomodoroPrompt(
+        ApplicationState state,
+        TimerTarget? target,
+        ApplicationConfiguration configuration,
+        bool isTodosTabActive)
+    {
+        if (configuration.Timer is null)
+        {
+            return Failure(state, "Pomodoro timing requires a [timer] configuration.", isTodosTabActive);
+        }
+
+        if (state.Timer is not null)
+        {
+            return Failure(state, "Stop the active timer before starting a Pomodoro.", isTodosTabActive);
+        }
+
         if (target is not null && weeklyTimeLogService is null)
         {
             return Failure(state, "Task timing is unavailable.", isTodosTabActive);
@@ -173,6 +229,42 @@ public sealed class TimerWorkflow(
         }
 
         var selectedTarget = BuildTarget(browser, planner, catalog, isTodosTabActive);
+        return StartPomodoroCommand(state, selectedTarget, configuration, command, isTodosTabActive);
+    }
+
+    public ApplicationState StartPomodoroCommandFocused(
+        ApplicationState state,
+        FocusedTaskView view,
+        ApplicationConfiguration configuration,
+        ApplicationCommandTransition command,
+        bool isTodosTabActive) => StartPomodoroCommand(
+        state,
+        new TimerTarget(
+            view.SelectedItem.Identity,
+            view.ProjectTitle,
+            view.SelectedItem.Todo.Title,
+            view.SelectedItem.Todo.Duration),
+        configuration,
+        command,
+        isTodosTabActive);
+
+    private ApplicationState StartPomodoroCommand(
+        ApplicationState state,
+        TimerTarget? selectedTarget,
+        ApplicationConfiguration configuration,
+        ApplicationCommandTransition command,
+        bool isTodosTabActive)
+    {
+        if (configuration.Timer is null)
+        {
+            return Failure(state, "Pomodoro timing requires a [timer] configuration.", isTodosTabActive);
+        }
+
+        if (state.Timer is not null)
+        {
+            return Failure(state, "Stop the active timer before starting a Pomodoro.", isTodosTabActive);
+        }
+
         if (command.PomodoroDurationSource == PomodoroDurationSource.SelectedTask)
         {
             if (selectedTarget is null)
@@ -295,9 +387,12 @@ public sealed class TimerWorkflow(
             : null;
     }
 
-    private static ApplicationState Failure(ApplicationState state, string error, bool isTodosTabActive) => isTodosTabActive
-        ? state with { Browser = state.Browser with { Error = error } }
-        : state with { Planner = state.Planner with { Error = error } };
+    private static ApplicationState Failure(ApplicationState state, string error, bool isTodosTabActive) =>
+        state.FocusedTask is not null
+            ? state with { FocusedTask = state.FocusedTask with { Error = error } }
+            : isTodosTabActive
+                ? state with { Browser = state.Browser with { Error = error } }
+                : state with { Planner = state.Planner with { Error = error } };
 
     private sealed record TimerTarget(TodoIdentity TodoIdentity, string ProjectTitle, string TodoTitle, TimeSpan? Duration);
 }

@@ -1,5 +1,6 @@
 using Spectre.Console;
 using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.DayPlanner.Rendering;
@@ -17,6 +18,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private readonly Func<int> heightProvider;
     private readonly BrowserRenderer browserRenderer;
     private readonly PlannerRenderer plannerRenderer;
+    private readonly FocusedTaskRenderer focusedTaskRenderer;
     private readonly TerminalInputReader inputReader;
     private readonly SurfaceThemeRenderer themeRenderer;
     private readonly Func<string> currentDirectoryProvider;
@@ -58,6 +60,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
         this.heightProvider = heightProvider;
         this.browserRenderer = browserRenderer;
         this.plannerRenderer = plannerRenderer;
+        focusedTaskRenderer = new FocusedTaskRenderer(widthProvider, heightProvider);
         this.inputReader = inputReader;
         this.themeRenderer = themeRenderer;
         this.currentDirectoryProvider = currentDirectoryProvider ?? (() => Environment.CurrentDirectory);
@@ -122,6 +125,19 @@ public sealed class SpectreTerminalUi : ITerminalUi
         {
             var useSynchronizedUpdate = BeginFrame();
             plannerRenderer.ShowPlanner(tabs, view, keyBindings, theme);
+            EndFrame(useSynchronizedUpdate);
+        });
+    }
+
+    public void ShowFocusedTask(
+        FocusedTaskView view,
+        TuiKeyBindings keyBindings,
+        TuiTheme theme)
+    {
+        CaptureFrame(() =>
+        {
+            var useSynchronizedUpdate = BeginFrame();
+            focusedTaskRenderer.ShowFocusedTask(view, keyBindings, theme);
             EndFrame(useSynchronizedUpdate);
         });
     }

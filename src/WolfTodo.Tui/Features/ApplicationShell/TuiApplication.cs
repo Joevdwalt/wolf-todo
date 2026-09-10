@@ -73,6 +73,12 @@ public sealed class TuiApplication(
         nowProvider ?? (() => DateTime.Now),
         pomodoroCompletionNotifier,
         terminalUi);
+    private readonly FocusedTaskPresenter focusedTaskPresenter = new();
+    private readonly FocusedTaskReducer focusedTaskReducer = new(todayProvider);
+    private readonly FocusedTaskWorkflow focusedTaskWorkflow = new(
+        catalogLoader,
+        terminalUi,
+        externalEditorLauncher);
 
     public int Run()
     {
@@ -129,8 +135,51 @@ public sealed class TuiApplication(
                 var tabView = tabPresenter.CreateView(Tabs, state.Tabs);
                 BrowserView? browserView = null;
                 PlannerView? plannerView = null;
+                FocusedTaskView? focusedTaskView = null;
                 CommandPaletteView? paletteView = null;
-                if (state.Tabs.ActiveTab == TodosTab)
+                if (state.FocusedTask is not null)
+                {
+                    focusedTaskView = focusedTaskPresenter.CreateView(catalog, state.FocusedTask);
+                    if (focusedTaskView is null)
+                    {
+                        state = FocusedTaskWorkflow.CloseWithMessage(
+                            state,
+                            "Focused task is no longer available.");
+                        continue;
+                    }
+
+                    state = state with { FocusedTask = focusedTaskView.State };
+                    if (state.Palette.IsOpen)
+                    {
+                        paletteView = palettePresenter.CreateView(
+                            state.Palette,
+                            actionCatalog.Create(
+                                state.Tabs.ActiveTab == TodosTab,
+                                null,
+                                null,
+                                configuration.KeyBindings,
+                                configuration.Planner.Export is not null,
+                                configuration.Timer is not null,
+                                state.Timer is not null,
+                                focusedTaskView));
+                    }
+
+                    terminalUi.ShowFocusedTask(
+                        focusedTaskView with
+                        {
+                            GlobalCommand = state.Command.IsActive ? state.Command.Value : null,
+                            GlobalError = state.Command.Error,
+                            CommandPalette = paletteView,
+                            TimerStatus = timerWorkflow.Status(state.Timer),
+                            TimerIsBright = timerWorkflow.IsBright(state.Timer),
+                            PomodoroPrompt = state.PomodoroPrompt,
+                            PomodoroCompletion = state.PomodoroCompletion,
+                            ReloadStatus = state.ReloadStatus
+                        },
+                        configuration.KeyBindings,
+                        configuration.Theme);
+                }
+                else if (state.Tabs.ActiveTab == TodosTab)
                 {
                     browserView = browserPresenter.CreateView(catalog, state.Browser, configuration.SidebarItems);
                     state = state with { Browser = browserView.State };
@@ -236,7 +285,9 @@ public sealed class TuiApplication(
                     continue;
                 }
 
-                var featureCapturesInput = state.Tabs.ActiveTab == TodosTab
+                var featureCapturesInput = state.FocusedTask is not null
+                    ? state.FocusedTask.Editor is not null
+                    : state.Tabs.ActiveTab == TodosTab
                     ? state.Browser.IsFilterMode || state.Browser.IsSortMode ||
                       state.Browser.Editor is not null || state.Browser.BulkEditor is not null
                     : state.Planner.CapturesInput;
@@ -258,7 +309,9 @@ public sealed class TuiApplication(
 
                     if (commandTransition.Operation == ApplicationCommandOperation.ToggleCompleted)
                     {
-                        state = state with
+                        state = state.FocusedTask is not null
+                            ? state with { Command = state.Command with { Error = "Exit focus mode to change list visibility." } }
+                            : state with
                         {
                             Browser = state.Browser with
                             {
@@ -280,20 +333,36 @@ public sealed class TuiApplication(
 
                     if (commandTransition.Operation == ApplicationCommandOperation.MoveTodoProject)
                     {
-                        var projectMoveResult = browserWorkflow.MoveSelectedTodoToProject(
-                            state,
-                            browserView,
-                            commandTransition.ProjectTitle,
-                            catalog,
-                            configuration,
-                            mutationService,
-                            state.Tabs.ActiveTab == TodosTab);
+                        var projectMoveResult = focusedTaskView is not null
+                            ? focusedTaskWorkflow.MoveSelectedToProject(
+                                state,
+                                focusedTaskView,
+                                commandTransition.ProjectTitle,
+                                catalog,
+                                configuration,
+                                mutationService)
+                            : browserWorkflow.MoveSelectedTodoToProject(
+                                state,
+                                browserView,
+                                commandTransition.ProjectTitle,
+                                catalog,
+                                configuration,
+                                mutationService,
+                                state.Tabs.ActiveTab == TodosTab);
                         state = projectMoveResult.State;
                         catalog = projectMoveResult.Catalog;
                     }
 
                     if (commandTransition.Operation == ApplicationCommandOperation.ArchiveCompleted)
                     {
+                        if (state.FocusedTask is not null)
+                        {
+                            state = state with
+                            {
+                                Command = state.Command with { Error = "Exit focus mode before archiving a project." }
+                            };
+                            continue;
+                        }
                         var archiveResult = browserWorkflow.ArchiveCompletedProject(
                             state,
                             browserView,
@@ -307,7 +376,7 @@ public sealed class TuiApplication(
 
                     if (commandTransition.Operation == ApplicationCommandOperation.RollProjectToday)
                     {
-                        if (state.Tabs.ActiveTab != TodosTab || browserView is null)
+                        if (state.FocusedTask is not null || state.Tabs.ActiveTab != TodosTab || browserView is null)
                         {
                             state = state with
                             {
@@ -336,14 +405,21 @@ public sealed class TuiApplication(
 
                     if (commandTransition.Operation == ApplicationCommandOperation.StartPomodoro)
                     {
-                        state = timerWorkflow.StartPomodoroCommand(
-                            state,
-                            browserView,
-                            plannerView,
-                            catalog,
-                            configuration,
-                            commandTransition,
-                            state.Tabs.ActiveTab == TodosTab);
+                        state = focusedTaskView is not null
+                            ? timerWorkflow.StartPomodoroCommandFocused(
+                                state,
+                                focusedTaskView,
+                                configuration,
+                                commandTransition,
+                                state.Tabs.ActiveTab == TodosTab)
+                            : timerWorkflow.StartPomodoroCommand(
+                                state,
+                                browserView,
+                                plannerView,
+                                catalog,
+                                configuration,
+                                commandTransition,
+                                state.Tabs.ActiveTab == TodosTab);
                     }
 
                     if (commandTransition.Operation == ApplicationCommandOperation.DumpScreen)
@@ -380,7 +456,8 @@ public sealed class TuiApplication(
                             configuration.KeyBindings,
                             configuration.Planner.Export is not null,
                             configuration.Timer is not null,
-                            state.Timer is not null));
+                            state.Timer is not null,
+                            focusedTaskView));
                     var paletteTransition = paletteReducer.Reduce(
                         state.Palette,
                         key,
@@ -408,20 +485,56 @@ public sealed class TuiApplication(
 
                     if (action == ApplicationActionId.ToggleTimer)
                     {
-                        state = timerWorkflow.Toggle(state, browserView, plannerView, catalog, configuration, state.Tabs.ActiveTab == TodosTab);
+                        state = focusedTaskView is not null
+                            ? timerWorkflow.ToggleFocused(
+                                state, focusedTaskView, configuration, state.Tabs.ActiveTab == TodosTab)
+                            : timerWorkflow.Toggle(
+                                state, browserView, plannerView, catalog, configuration, state.Tabs.ActiveTab == TodosTab);
                         continue;
                     }
 
                     if (action is ApplicationActionId.StartPomodoro or ApplicationActionId.StartUntrackedPomodoro)
                     {
-                        state = timerWorkflow.OpenPomodoroPrompt(
-                            state,
-                            browserView,
-                            plannerView,
-                            catalog,
-                            configuration,
-                            action == ApplicationActionId.StartUntrackedPomodoro,
-                            state.Tabs.ActiveTab == TodosTab);
+                        state = focusedTaskView is not null
+                            ? timerWorkflow.OpenPomodoroPromptFocused(
+                                state, focusedTaskView, configuration, state.Tabs.ActiveTab == TodosTab)
+                            : timerWorkflow.OpenPomodoroPrompt(
+                                state,
+                                browserView,
+                                plannerView,
+                                catalog,
+                                configuration,
+                                action == ApplicationActionId.StartUntrackedPomodoro,
+                                state.Tabs.ActiveTab == TodosTab);
+                        continue;
+                    }
+
+                    if (action == ApplicationActionId.FocusSelectedTask)
+                    {
+                        state = OpenFocusedTask(state, browserView, plannerView);
+                        continue;
+                    }
+
+                    if (focusedTaskView is not null)
+                    {
+                        var focusAction = action switch
+                        {
+                            ApplicationActionId.ExitTaskFocus => FocusedTaskAction.Exit,
+                            ApplicationActionId.FocusEdit => FocusedTaskAction.Edit,
+                            ApplicationActionId.FocusEditExternal => FocusedTaskAction.EditExternal,
+                            ApplicationActionId.FocusToggleCompleted => FocusedTaskAction.ToggleCompleted,
+                            _ => (FocusedTaskAction?)null
+                        };
+                        if (focusAction is not null)
+                        {
+                            var transition = focusedTaskReducer.ReduceAction(
+                                state.FocusedTask!, focusAction.Value, focusedTaskView);
+                            var result = focusedTaskWorkflow.ApplyTransition(
+                                state, transition, catalog, configuration, mutationService);
+                            state = result.State;
+                            catalog = result.Catalog;
+                        }
+
                         continue;
                     }
 
@@ -545,9 +658,20 @@ public sealed class TuiApplication(
                     state = state with { Command = state.Command with { Error = null } };
                 }
 
+                if (!featureCapturesInput && state.FocusedTask is null &&
+                    configuration.KeyBindings.MatchesFocusTask(key))
+                {
+                    state = OpenFocusedTask(state, browserView, plannerView);
+                    continue;
+                }
+
                 if (!featureCapturesInput && configuration.KeyBindings.MatchesToggleTimer(key))
                 {
-                    state = timerWorkflow.Toggle(state, browserView, plannerView, catalog, configuration, state.Tabs.ActiveTab == TodosTab);
+                    state = focusedTaskView is not null
+                        ? timerWorkflow.ToggleFocused(
+                            state, focusedTaskView, configuration, state.Tabs.ActiveTab == TodosTab)
+                        : timerWorkflow.Toggle(
+                            state, browserView, plannerView, catalog, configuration, state.Tabs.ActiveTab == TodosTab);
                     continue;
                 }
 
@@ -555,14 +679,28 @@ public sealed class TuiApplication(
                     (configuration.KeyBindings.MatchesStartPomodoro(key) ||
                      configuration.KeyBindings.MatchesStartUntrackedPomodoro(key)))
                 {
-                    state = timerWorkflow.OpenPomodoroPrompt(
-                        state,
-                        browserView,
-                        plannerView,
-                        catalog,
-                        configuration,
-                        configuration.KeyBindings.MatchesStartUntrackedPomodoro(key),
-                        state.Tabs.ActiveTab == TodosTab);
+                    state = focusedTaskView is not null
+                        ? timerWorkflow.OpenPomodoroPromptFocused(
+                            state, focusedTaskView, configuration, state.Tabs.ActiveTab == TodosTab)
+                        : timerWorkflow.OpenPomodoroPrompt(
+                            state,
+                            browserView,
+                            plannerView,
+                            catalog,
+                            configuration,
+                            configuration.KeyBindings.MatchesStartUntrackedPomodoro(key),
+                            state.Tabs.ActiveTab == TodosTab);
+                    continue;
+                }
+
+                if (focusedTaskView is not null)
+                {
+                    var transition = focusedTaskReducer.Reduce(
+                        state.FocusedTask!, key, configuration.KeyBindings, focusedTaskView);
+                    var result = focusedTaskWorkflow.ApplyTransition(
+                        state, transition, catalog, configuration, mutationService);
+                    state = result.State;
+                    catalog = result.Catalog;
                     continue;
                 }
 
@@ -662,6 +800,36 @@ public sealed class TuiApplication(
         return result.Error is null
             ? state
             : state with { Command = state.Command with { Error = result.Error } };
+    }
+
+    private static ApplicationState OpenFocusedTask(
+        ApplicationState state,
+        BrowserView? browser,
+        PlannerView? planner)
+    {
+        if (state.Tabs.ActiveTab == TodosTab &&
+            browser?.SelectedTodoIdentity is { } browserIdentity &&
+            browser.SelectedTodo is { } browserTodo)
+        {
+            return state with
+            {
+                FocusedTask = FocusedTaskState.Create(browserIdentity, browserTodo),
+                Palette = CommandPaletteState.Closed
+            };
+        }
+
+        if (state.Tabs.ActiveTab == PlannerTab && planner?.SelectedFocusedAssignment is { } assignment)
+        {
+            return state with
+            {
+                FocusedTask = FocusedTaskState.Create(assignment.Identity, assignment.Todo),
+                Palette = CommandPaletteState.Closed
+            };
+        }
+
+        return state.Tabs.ActiveTab == TodosTab
+            ? state with { Browser = state.Browser with { Error = "Select a todo to focus." } }
+            : state with { Planner = state.Planner with { Error = "Select a todo to focus." } };
     }
 
     private static BrowserState ClearBrowserMarks(BrowserState state) => state with

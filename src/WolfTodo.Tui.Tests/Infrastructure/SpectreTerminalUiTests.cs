@@ -41,6 +41,67 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowFocusedTask_renders_only_the_task_card_and_active_timer()
+    {
+        var child = new TodoItem(4, false, null, "Write slides", null, [], null, null, string.Empty, [], []);
+        var root = new TodoItem(
+            3, false, "WORK-42", "Prepare workshop", TodoPriority.High, ["client"],
+            null, null, string.Empty, [new TodoNote(5, "Confirm the agenda")], [child])
+        {
+            Duration = TimeSpan.FromMinutes(60)
+        };
+        var identity = new TodoIdentity("/work.md", 3);
+        var state = FocusedTaskState.Create(identity, root);
+        var view = new FocusedTaskPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/work.md", [root])], []),
+            state)! with
+        {
+            TimerStatus = "TIMER 00:05 · Prepare workshop"
+        };
+        StartRecording(100, 30);
+
+        new SpectreTerminalUi(() => 100, () => 30).ShowFocusedTask(view, DefaultBindings, TuiThemes.Wolf);
+        var output = RecordedText();
+
+        output.Should().Contain("WOLF TODO // FOCUS")
+            .And.Contain("Prepare workshop")
+            .And.Contain("Write slides")
+            .And.Contain("TIMER 00:05")
+            .And.NotContain("DAY PLANNER")
+            .And.NotContain("TODOS: ALL");
+    }
+
+    [Fact]
+    public void ShowFocusedTask_renders_the_active_content_editor()
+    {
+        var root = new TodoItem(
+            3, false, null, "Prepare workshop", null, [], null, null,
+            string.Empty, [new TodoNote(4, "Capture workshop notes")], []);
+        var identity = new TodoIdentity("/work.md", 3);
+        var editor = TodoTaskEditorState.Edit(root, identity) with
+        {
+            SelectedIndex = TodoTaskEditorState.ContentIndex
+        };
+        var editingEditor = new TodoEditorReducer().Reduce(
+            editor,
+            new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false),
+            DefaultBindings,
+            []).State!;
+        var state = FocusedTaskState.Create(identity, root) with { Editor = editingEditor };
+        var view = new FocusedTaskPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/work.md", [root])], []), state)!;
+        StartRecording(100, 30);
+
+        new SpectreTerminalUi(() => 100, () => 30).ShowFocusedTask(view, DefaultBindings, TuiThemes.Wolf);
+        var output = RecordedText();
+
+        output.Should().Contain("CONTENT")
+            .And.Contain("Capture workshop notes")
+            .And.Contain("Ctrl+S SAVE")
+            .And.Contain("EDITING CONTENT");
+    }
+
+    [Fact]
     public void DumpScreen_writes_only_the_latest_frame_after_repeated_redraws()
     {
         var root = Path.Combine(Path.GetTempPath(), $"wolf-todo-screen-dump-{Guid.NewGuid():N}");

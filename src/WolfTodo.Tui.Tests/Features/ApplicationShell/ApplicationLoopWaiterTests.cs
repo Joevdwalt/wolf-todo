@@ -47,6 +47,7 @@ public sealed class ApplicationLoopWaiterTests
         public void ShowSplash(string logo, TuiTheme theme) { }
         public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings, TuiTheme theme) { }
         public void ShowPlanner(TabStripView tabs, PlannerView view, TuiKeyBindings keyBindings, TuiTheme theme) { }
+        public void ShowFocusedTask(FocusedTaskView view, TuiKeyBindings keyBindings, TuiTheme theme) { }
         public void ShowStartupError(string message) { }
         public void SetCursorVisible(bool visible) { }
         public void SuspendForExternalProcess() { }

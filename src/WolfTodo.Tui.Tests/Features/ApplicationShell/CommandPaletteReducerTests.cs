@@ -120,6 +120,25 @@ public sealed class CommandPaletteReducerTests
     }
 
     [Fact]
+    public void ActionCatalog_reduces_actions_to_the_highlighted_task_while_focused()
+    {
+        var todo = new TodoItem(3, false, null, "Focus", null, [], null, null, string.Empty, [], []);
+        var identity = new TodoIdentity("/work.md", 3);
+        var focus = new FocusedTaskPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/work.md", [todo])], []),
+            FocusedTaskState.Create(identity, todo))!;
+
+        var items = new ApplicationActionCatalog().Create(
+            true, null, null, Bindings, timerEnabled: true, focusedTask: focus);
+
+        items.Should().Contain(item => item.Action == ApplicationActionId.ExitTaskFocus);
+        items.Should().Contain(item => item.Action == ApplicationActionId.FocusEdit);
+        items.Should().NotContain(item => item.Action == ApplicationActionId.NextTab);
+        items.Should().NotContain(item => item.Action == ApplicationActionId.BrowserFilter);
+        items.Should().NotContain(item => item.Action == ApplicationActionId.PlannerNextDay);
+    }
+
+    [Fact]
     public void ActionCatalog_enables_project_rollover_only_for_a_project_with_overdue_tasks()
     {
         var today = new DateOnly(2026, 7, 23);

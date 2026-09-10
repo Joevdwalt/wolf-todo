@@ -21,5 +21,7 @@ public sealed record ApplicationState(TabHostState Tabs, BrowserState Browser)
 
     public RuntimeReloadStatus? ReloadStatus { get; init; }
 
+    public FocusedTaskState? FocusedTask { get; init; }
+
     public static ApplicationState CreateInitial(TabHostState tabs) => new(tabs, BrowserState.Initial);
 }

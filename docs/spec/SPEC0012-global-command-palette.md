@@ -39,6 +39,10 @@ description, and binding. Enter/open executes an enabled typed action. Escape
 clears an active query before closing the palette. Once open, the palette
 captures input before tab and feature routing.
 
+Task focus mode presents a reduced palette containing application actions and
+actions for the highlighted task. Unrelated tab, list, bulk, and planner actions
+are omitted until focus mode closes.
+
 The palette uses the normal status area and reduces active content height so
 the application tab strip remains visible on supported short terminals.
 
@@ -53,9 +57,11 @@ the application tab strip remains visible on supported short terminals.
    includes configured command names.
 7. `:config` opens the resolved global configuration in `$EDITOR` from either
    tab and reports an unavailable or failed editor.
+8. Focus mode exposes only application and highlighted-task actions.
 
 ## References
 
 - [SPEC0001: Terminal Splash Screen](SPEC0001-terminal-splash-screen.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
 - [SPEC0005: Application View Tabs](SPEC0005-application-view-tabs.md)
+- [SPEC0022: Task Focus Mode](SPEC0022-task-focus-mode.md)
