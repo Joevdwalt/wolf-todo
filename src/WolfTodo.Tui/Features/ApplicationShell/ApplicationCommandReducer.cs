@@ -35,6 +35,16 @@ public sealed class ApplicationCommandReducer
 
         if (key.Key == ConsoleKey.Enter)
         {
+            if (state.Value.Equals(ApplicationCommandCatalog.OpenTask, StringComparison.OrdinalIgnoreCase) ||
+                state.Value.StartsWith(ApplicationCommandCatalog.OpenTask + " ", StringComparison.OrdinalIgnoreCase))
+            {
+                var code = state.Value[ApplicationCommandCatalog.OpenTask.Length..].Trim();
+                return code.Length == 0
+                    ? new ApplicationCommandTransition(Closed("Usage: :open-task <code>"))
+                    : new ApplicationCommandTransition(Closed(null), ApplicationCommandOperation.OpenTaskLink,
+                        TaskCode: code);
+            }
+
             if (state.Value.Equals(ApplicationCommandCatalog.Pomodoro, StringComparison.OrdinalIgnoreCase) ||
                 state.Value.StartsWith(ApplicationCommandCatalog.Pomodoro + " ", StringComparison.OrdinalIgnoreCase))
             {
@@ -62,6 +72,8 @@ public sealed class ApplicationCommandReducer
 
             var operation = state.Value switch
             {
+                var command when command.Equals(ApplicationCommandCatalog.TaskLink, StringComparison.OrdinalIgnoreCase) =>
+                    ApplicationCommandOperation.GenerateTaskLink,
                 var command when command == bindings.QuitCommand => ApplicationCommandOperation.Exit,
                 var command when command == bindings.ToggleCompletedCommand =>
                     ApplicationCommandOperation.ToggleCompleted,

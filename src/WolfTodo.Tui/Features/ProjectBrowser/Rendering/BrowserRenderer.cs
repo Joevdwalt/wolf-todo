@@ -619,6 +619,10 @@ public sealed class BrowserRenderer
             var todo = view.SelectedTodo;
             lines.Add(new Text(todo.Title, ThemeStyle(theme.Heading, Decoration.Bold)));
             AddField(lines, "Project", view.SelectedProjectTitle, theme, theme.Text);
+            if (view.SelectedTodoIdentity is { } identity)
+            {
+                AddField(lines, "Link", TaskLinkCode.Generate(identity.ProjectPath, identity.SourceLine), theme, theme.Info);
+            }
 
             if (!string.IsNullOrEmpty(todo.SectionPath))
             {

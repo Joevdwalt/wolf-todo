@@ -123,6 +123,9 @@ level.
 Use the canonical file path and source line as runtime identity. Do not add or
 require a persistent Wolf Todo ID.
 
+[SPEC0023: Task Links](SPEC0023-task-links.md) defines shareable codes for these
+locations without changing Markdown identity or requiring persistent IDs.
+
 Created, completed, and cancelled dates; recurrence; dependencies; explicit
 task IDs; and other Obsidian Tasks fields are not interpreted in this version.
 Preserve them as ordinary title or note text. Scheduled date/time pairs are the
@@ -137,6 +140,10 @@ saved project is no longer configured. Use source order when the saved sort is
 missing or invalid. The operational header described by SPEC0005 and SPEC0013
 appears above the browser. The browser contains a project navigator, a todo
 list, an inspector, and a bottom contextual command/status panel.
+
+SPEC0023 defines a startup task link that overrides the initial project and
+task selection on successful resolution while retaining the restored sort.
+Failed resolution retains the normal startup view and reports the error.
 
 ### Wide Terminals
 

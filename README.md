@@ -213,6 +213,14 @@ focus card. Use `j`/`k` to select the root or a subtask, `E` to edit it, Space t
 toggle completion, and Escape to return. Timers and Pomodoros remain optional
 and target the highlighted item.
 
+Use `:task-link` to display a selectable `wt1-` code with an 8-character hash
+for the selected task in Todos, Day Planner, or focus mode. Open it with `:open-task <code>` or launch with
+`wtodo-tui --open-task <code>`; the command palette also provides both actions.
+The Todos and Day Planner inspectors also show the selected task’s `LINK`.
+Opening selects the task in its project in Todos. Codes address the current
+Markdown location: line changes or project moves can invalidate them, and an
+old code opens another task if it now occupies that line.
+
 Enter `:config` to open Wolf Todo's global `config.toml` in `$EDITOR`. Wolf Todo
 waits for the editor and reloads valid saved configuration changes.
 
@@ -334,6 +342,10 @@ List all configured tasks, including nested subtasks:
 wtodo list
 wtodo list --project "Client Work"
 ```
+
+Each listed task includes `task_code` (for example `wt1-bfe8eb02`), including
+completed tasks and nested subtasks. Use it with `:open-task <code>` in the TUI
+or `wtodo-tui --open-task <code>` from the shell.
 
 Each invocation targets one project. A batch is validated completely and
 written through one atomic Markdown replacement; a failure creates no tasks.

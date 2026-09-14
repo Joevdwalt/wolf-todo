@@ -5,6 +5,8 @@ namespace WolfTodo.Tui.Features.ApplicationShell;
 
 public static class ApplicationCommandCatalog
 {
+    public const string TaskLink = ":task-link";
+    public const string OpenTask = ":open-task";
     public const string Archive = ":archive";
     public const string MoveTodoProject = ":move-todo-project";
     public const string Pomodoro = ":pomodoro";
@@ -24,7 +26,9 @@ public static class ApplicationCommandCatalog
             Pomodoro,
             RollToday,
             DumpScreen,
-            Configuration
+            Configuration,
+            TaskLink,
+            OpenTask
         }
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .Order(StringComparer.OrdinalIgnoreCase)

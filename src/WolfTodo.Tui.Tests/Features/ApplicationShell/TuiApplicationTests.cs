@@ -1227,6 +1227,69 @@ public sealed class TuiApplicationTests
             view.State.Editor?.Error?.Contains("changed on disk") == true).Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Run_applies_startup_task_links_after_session_loading_and_preserves_failed_startup(bool valid)
+    {
+        var fileSystem = new MutableProjectFileSystem("/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [x] Child\n");
+        var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending);
+        var store = new FakeApplicationStateStore(null, sort);
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal, store,
+            projectFileSystem: fileSystem,
+            startupTaskCode: valid ? TaskLinkCode.Generate("/todos/project.md", 4) : "invalid");
+
+        application.Run().Should().Be(0);
+
+        var first = terminal.BrowserViews[0];
+        first.State.Sort.Should().Be(sort);
+        if (valid)
+        {
+            first.SelectedTodo!.Title.Should().Be("Child");
+            first.SelectedProjectPath.Should().Be("/todos/project.md");
+            first.State.ShowCompleted.Should().BeTrue();
+            store.SavedProjectPath.Should().Be("/todos/project.md");
+        }
+        else
+        {
+            first.SelectedProjectPath.Should().BeNull();
+            first.GlobalError.Should().Contain("Expected wt1-");
+            first.State.ShowCompleted.Should().BeFalse();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Run_generates_and_opens_task_links_from_browser_or_focus(bool focus)
+    {
+        var fileSystem = new MutableProjectFileSystem("/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+        var code = TaskLinkCode.Generate("/todos/project.md", 4);
+        var keys = new List<ConsoleKeyInfo> { Key('x') };
+        if (focus) keys.Add(Key('f'));
+        keys.AddRange(":task-link".Select(Key));
+        keys.Add(Key(ConsoleKey.Enter));
+        keys.Add(Key(ConsoleKey.Escape));
+        keys.AddRange((":open-task " + code).Select(Key));
+        keys.Add(Key(ConsoleKey.Enter));
+        keys.AddRange(":q".Select(Key));
+        keys.Add(Key(ConsoleKey.Enter));
+        var terminal = new FakeTerminal([.. keys]);
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run().Should().Be(0);
+
+        terminal.TaskLinkPanels.Should().ContainSingle();
+        terminal.TaskLinkPanels[0].Input.Text.Should().Be(TaskLinkCode.Generate("/todos/project.md", 3));
+        terminal.BrowserViews.Last().SelectedTodo!.Title.Should().Be("Child");
+        terminal.BrowserViews.Last().SelectedProjectPath.Should().Be("/todos/project.md");
+        fileSystem.Contents.Should().Be("# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal,
@@ -1237,7 +1300,8 @@ public sealed class TuiApplicationTests
         WeeklyTimeLogService? weeklyTimeLogService = null,
         Func<DateTime>? nowProvider = null,
         IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null,
-        IApplicationFileChangeMonitor? fileChangeMonitor = null)
+        IApplicationFileChangeMonitor? fileChangeMonitor = null,
+        string? startupTaskCode = null)
     {
         var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
         var reader = new MarkdownTodoProjectReader();
@@ -1259,7 +1323,8 @@ public sealed class TuiApplicationTests
             weeklyTimeLogService: weeklyTimeLogService,
             nowProvider: nowProvider,
             pomodoroCompletionNotifier: pomodoroCompletionNotifier,
-            fileChangeMonitor: fileChangeMonitor);
+            fileChangeMonitor: fileChangeMonitor,
+            startupTaskCode: startupTaskCode);
     }
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem1, false, false, false);
@@ -1427,6 +1492,10 @@ public sealed class TuiApplicationTests
     private sealed class FakeTerminal(params ConsoleKeyInfo[] keys) : ITerminalUi
     {
         private readonly Queue<ConsoleKeyInfo> keyQueue = new(keys);
+
+        public List<TaskLinkPanelState> TaskLinkPanels { get; } = [];
+
+        public void ShowTaskLinkPanel(TaskLinkPanelState panel, TuiTheme theme) => TaskLinkPanels.Add(panel);
 
         public List<BrowserView> BrowserViews { get; } = [];
 

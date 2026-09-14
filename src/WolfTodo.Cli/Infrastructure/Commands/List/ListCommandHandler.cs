@@ -17,6 +17,7 @@ public sealed class ListCommandHandler(TaskListService listService, CliOutputWri
         {
             project = new { title = project.Title, path = project.Path },
             source_line = entry.Todo.SourceLine,
+            task_code = TaskLinkCode.Generate(project.Path, entry.Todo.SourceLine),
             parent_source_line = entry.ParentSourceLine,
             completed = entry.Todo.IsCompleted,
             reference = entry.Todo.ExternalReference,

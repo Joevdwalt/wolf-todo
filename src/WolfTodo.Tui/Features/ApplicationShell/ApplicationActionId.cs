@@ -4,6 +4,8 @@ public enum ApplicationActionId
 {
     Exit,
     OpenConfiguration,
+    GenerateTaskLink,
+    OpenTaskLink,
     ToggleCompleted,
     ToggleTimer,
     StartPomodoro,

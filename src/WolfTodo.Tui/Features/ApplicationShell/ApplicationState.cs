@@ -15,6 +15,8 @@ public sealed record ApplicationState(TabHostState Tabs, BrowserState Browser)
 
     public ActiveTimer? Timer { get; init; }
 
+    public TaskLinkPanelState? TaskLinkPanel { get; init; }
+
     public PomodoroPromptState? PomodoroPrompt { get; init; }
 
     public PomodoroCompletion? PomodoroCompletion { get; init; }

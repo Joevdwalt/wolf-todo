@@ -203,6 +203,16 @@ public sealed class CliApplicationTests
         task.GetProperty("notes")[0].GetString().Should().Be("Review scope");
         output.RootElement.GetProperty("tasks")[1].GetProperty("parent_source_line").GetInt32()
             .Should().Be(task.GetProperty("source_line").GetInt32());
+        foreach (var entry in output.RootElement.GetProperty("tasks").EnumerateArray())
+        {
+            var code = entry.GetProperty("task_code").GetString()!;
+            TaskLinkCode.IsValid(code).Should().BeTrue();
+            code.Should().Be(TaskLinkCode.Generate(
+                entry.GetProperty("project").GetProperty("path").GetString()!,
+                entry.GetProperty("source_line").GetInt32()));
+        }
+        output.RootElement.GetProperty("tasks")[1].GetProperty("task_code").GetString()
+            .Should().NotBe(task.GetProperty("task_code").GetString());
     }
 
     [Fact]

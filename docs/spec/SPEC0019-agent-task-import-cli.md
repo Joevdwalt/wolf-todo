@@ -47,6 +47,8 @@ expressions are not accepted. `content` is one multiline string and
 project, using the same title and path resolution rules as task creation. The
 result includes each task's project, Markdown source line, parent source line
 for nested tasks, completion state, metadata, schedule, duration, and notes.
+Each task also includes `task_code`, the short location code defined by
+[SPEC0023](SPEC0023-task-links.md), including completed tasks and nested subtasks.
 
 ## Project and Mutation Behavior
 

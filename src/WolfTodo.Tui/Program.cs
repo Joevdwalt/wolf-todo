@@ -20,7 +20,13 @@ using WolfTodo.Tui.Infrastructure.State;
 using WolfTodo.Tui.Infrastructure.Terminal;
 using WolfTodo.Tui.Rendering;
 
-var builder = Host.CreateApplicationBuilder(args);
+var startup = TuiStartupArguments.Parse(args);
+if (startup.Error is not null)
+{
+    Console.Error.WriteLine(startup.Error);
+    return 2;
+}
+var builder = Host.CreateApplicationBuilder();
 builder.Services.AddSingleton<MarkdownTodoProjectReader>();
 builder.Services.AddSingleton<ITodoProjectRepository, MarkdownTodoProjectRepository>();
 builder.Services.AddSingleton<ProjectCatalogLoader>();
@@ -97,7 +103,8 @@ builder.Services.AddSingleton(serviceProvider =>
         pomodoroCompletionNotifier: serviceProvider.GetRequiredService<IPomodoroCompletionNotifier>(),
         fileChangeMonitor: serviceProvider.GetRequiredService<IApplicationFileChangeMonitor>(),
         applicationLoopWaiter: serviceProvider.GetRequiredService<ApplicationLoopWaiter>(),
-        runtimeReloadCoordinator: serviceProvider.GetRequiredService<RuntimeReloadCoordinator>()));
+        runtimeReloadCoordinator: serviceProvider.GetRequiredService<RuntimeReloadCoordinator>(),
+        startupTaskCode: startup.TaskCode));
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();

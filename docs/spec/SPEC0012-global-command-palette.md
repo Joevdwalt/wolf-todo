@@ -23,6 +23,12 @@ cancelling resets the completion cycle. The catalog includes configured shell
 commands and built-in commands such as `:move-todo-project` and
 `:roll-today`.
 
+[SPEC0023: Task Links](SPEC0023-task-links.md) defines `:task-link` and
+`:open-task` in command completion, plus `Generate task link` and `Open task
+link` palette actions. Generation uses the selected Markdown task and is
+disabled with a reason otherwise; opening prompts for a code. Both actions
+remain available in the reduced focus palette.
+
 `:config` opens the platform-resolved global `config.toml` in `$EDITOR` at line
 one. It waits for the editor and reports editor-launch failures in the command
 status area. The command is available from both tabs and appears as `Edit
