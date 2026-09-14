@@ -38,6 +38,10 @@ exit-focus actions. Tab, list, filter, sort, bulk, create, archive, project-wide
 and planner-navigation actions remain unavailable. `:move-todo-project` moves
 the highlighted subtree and follows it as the new focused root.
 
+[SPEC0023: Task Links](SPEC0023-task-links.md) defines generating a code for
+the highlighted item without leaving focus. Successfully opening a task code
+exits focus and selects its target in Todos; failed opening preserves focus.
+
 Successful writes reload the catalog and retain focus using the resulting
 source identity. Completing the root does not exit. If reload can no longer
 resolve the root, close focus mode and report that the focused task is no longer

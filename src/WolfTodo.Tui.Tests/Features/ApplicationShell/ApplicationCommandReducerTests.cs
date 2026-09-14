@@ -10,6 +10,22 @@ public sealed class ApplicationCommandReducerTests
     private readonly ApplicationCommandReducer reducer = new();
 
     [Fact]
+    public void Reduce_parses_task_link_commands_and_completes_their_names()
+    {
+        var generate = reducer.Reduce(new ApplicationCommandState(true, ":task-link", null), Key(ConsoleKey.Enter), Bindings);
+        generate.Operation.Should().Be(ApplicationCommandOperation.GenerateTaskLink);
+        var open = reducer.Reduce(new ApplicationCommandState(true, ":open-task abc", null), Key(ConsoleKey.Enter), Bindings);
+        open.Operation.Should().Be(ApplicationCommandOperation.OpenTaskLink);
+        open.TaskCode.Should().Be("abc");
+        reducer.Reduce(new ApplicationCommandState(true, ":open-task", null), Key(ConsoleKey.Enter), Bindings)
+            .State.Error.Should().Be("Usage: :open-task <code>");
+        reducer.Reduce(new ApplicationCommandState(true, ":open-t", null), Key(ConsoleKey.Tab), Bindings)
+            .State.Value.Should().Be(":open-task");
+        reducer.Reduce(new ApplicationCommandState(true, ":task-l", null), Key(ConsoleKey.Tab), Bindings)
+            .State.Value.Should().Be(":task-link");
+    }
+
+    [Fact]
     public void Reduce_opens_and_submits_the_global_quit_command()
     {
         var opened = reducer.Reduce(ApplicationCommandState.Initial, Key(':'), Bindings).State;

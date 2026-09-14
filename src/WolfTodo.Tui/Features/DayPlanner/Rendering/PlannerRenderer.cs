@@ -406,7 +406,7 @@ public sealed class PlannerRenderer
         Table timelineTable)
     {
         var detailWidth = Math.Max(28, context.Width - context.TimelineWidth - 4);
-        const int inspectorContentHeight = 10;
+        const int inspectorContentHeight = 11;
         var allDayContentHeight = Math.Max(
             1,
             context.AvailableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
@@ -775,6 +775,7 @@ public sealed class PlannerRenderer
                 [
                     new Text("MOVE TASK", themeRenderer.Style(theme.AccentBright, Decoration.Bold)),
                     new Text($"Task: {moving.Todo.Title}", themeRenderer.Style(theme.Text)),
+                    new Text($"LINK: {TaskLinkCode.Generate(moving.Identity.ProjectPath, moving.Identity.SourceLine)}", themeRenderer.Style(theme.Info)),
                     new Text($"Current: {current}", themeRenderer.Style(theme.Date)),
                     new Text($"Destination: {destination}", themeRenderer.Style(theme.Date)),
                     new Text($"Duration: {todoRowRenderer.FormatDuration(duration) ?? "Instant"}", themeRenderer.Style(theme.Info))
@@ -808,6 +809,7 @@ public sealed class PlannerRenderer
         }
 
         calendarItemRenderer.AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
+        calendarItemRenderer.AddField(lines, "Link", TaskLinkCode.Generate(assignment.Identity.ProjectPath, assignment.Identity.SourceLine), theme, theme.Info);
         if (!string.IsNullOrEmpty(todo.SectionPath))
         {
             calendarItemRenderer.AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
@@ -903,7 +905,7 @@ public sealed class PlannerRenderer
 
             var label = item.Assignment is null
                 ? $"{item.Title}  ·  {calendarItemRenderer.AllDayKindLabel(item.Kind)}  ·  READ ONLY"
-                : $"{item.Title}  ·  {item.ProjectTitle}  ·  ALL DAY";
+                : $"LINK: {TaskLinkCode.Generate(item.Assignment.Identity.ProjectPath, item.Assignment.Identity.SourceLine)}  ·  {item.Title}  ·  {item.ProjectTitle}  ·  ALL DAY";
             return new Text(
                 label,
                 themeRenderer.Style(item.Assignment is null ? theme.Info : theme.Heading, Decoration.Bold)).Ellipsis();
@@ -933,6 +935,8 @@ public sealed class PlannerRenderer
             todo.Schedule is null ? null : todoRowRenderer.FormatSchedule(todo.Schedule)
         };
         var line = new System.Text.StringBuilder();
+        themeRenderer.AppendStyled(line,
+            $"LINK: {TaskLinkCode.Generate(assignment.Identity.ProjectPath, assignment.Identity.SourceLine)}  ·  ", theme.Info);
         themeRenderer.AppendStyled(line, todo.Title, theme.Heading, Decoration.Bold);
         if (view.SelectedSlot.Assignments.Length > 1)
         {

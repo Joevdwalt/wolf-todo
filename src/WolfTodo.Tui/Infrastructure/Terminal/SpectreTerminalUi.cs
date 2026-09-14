@@ -142,6 +142,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
         });
     }
 
+    public void ShowTaskLinkPanel(TaskLinkPanelState panel, TuiTheme theme)
+    {
+        CaptureFrame(() =>
+        {
+            var synchronized = BeginFrame();
+            AnsiConsole.Clear();
+            AnsiConsole.Write(TaskLinkPanelRenderer.Render(panel, theme, Math.Max(3, widthProvider())));
+            EndFrame(synchronized);
+        });
+    }
+
     public void ShowStartupError(string message)
     {
         AnsiConsole.MarkupLine($"[red]Startup error:[/] {Markup.Escape(message)}");

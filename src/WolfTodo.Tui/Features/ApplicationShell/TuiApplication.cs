@@ -38,7 +38,8 @@ public sealed class TuiApplication(
     TimerWorkflow? timerWorkflow = null,
     IApplicationFileChangeMonitor? fileChangeMonitor = null,
     ApplicationLoopWaiter? applicationLoopWaiter = null,
-    RuntimeReloadCoordinator? runtimeReloadCoordinator = null)
+    RuntimeReloadCoordinator? runtimeReloadCoordinator = null,
+    string? startupTaskCode = null)
 {
     private static readonly TabId TodosTab = new("todos");
     private static readonly TabId PlannerTab = new("planner");
@@ -80,6 +81,8 @@ public sealed class TuiApplication(
         terminalUi,
         externalEditorLauncher);
 
+    private readonly TaskLinkWorkflow taskLinkWorkflow = new();
+
     public int Run()
     {
         var runtimeMonitor = fileChangeMonitor ?? NullApplicationFileChangeMonitor.Instance;
@@ -118,6 +121,8 @@ public sealed class TuiApplication(
         {
             Planner = PlannerState.CreateInitial(todayProvider())
         };
+        if (startupTaskCode is not null)
+            state = taskLinkWorkflow.Open(state, catalog, startupTaskCode, configuration.SidebarItems.Length);
         var selectionAnchor = new SidebarSelectionAnchor(
             initialProjectIndex == 0 ? ProjectRowKind.All : ProjectRowKind.Project,
             selectedProjectPath);
@@ -137,7 +142,11 @@ public sealed class TuiApplication(
                 PlannerView? plannerView = null;
                 FocusedTaskView? focusedTaskView = null;
                 CommandPaletteView? paletteView = null;
-                if (state.FocusedTask is not null)
+                if (state.TaskLinkPanel is not null)
+                {
+                    terminalUi.ShowTaskLinkPanel(state.TaskLinkPanel, configuration.Theme);
+                }
+                else if (state.FocusedTask is not null)
                 {
                     focusedTaskView = focusedTaskPresenter.CreateView(catalog, state.FocusedTask);
                     if (focusedTaskView is null)
@@ -278,6 +287,12 @@ public sealed class TuiApplication(
                 if (state.PomodoroCompletion is not null)
                 {
                     state = state with { PomodoroCompletion = null };
+                }
+                if (state.TaskLinkPanel is not null)
+                {
+                    state = taskLinkWorkflow.ReducePanel(state, key, configuration.KeyBindings,
+                        catalog, configuration.SidebarItems.Length);
+                    continue;
                 }
                 if (state.PomodoroPrompt is not null)
                 {
@@ -436,6 +451,11 @@ public sealed class TuiApplication(
                         };
                     }
 
+                    if (commandTransition.Operation == ApplicationCommandOperation.GenerateTaskLink)
+                        state = taskLinkWorkflow.Generate(state, catalog, browserView, plannerView, focusedTaskView);
+                    if (commandTransition.Operation == ApplicationCommandOperation.OpenTaskLink)
+                        state = taskLinkWorkflow.Open(state, catalog, commandTransition.TaskCode!, configuration.SidebarItems.Length);
+
                     if (commandTransition.Operation == ApplicationCommandOperation.OpenConfiguration)
                     {
                         state = OpenConfiguration(state);
@@ -477,6 +497,16 @@ public sealed class TuiApplication(
                         continue;
                     }
 
+                    if (action == ApplicationActionId.GenerateTaskLink)
+                    {
+                        state = taskLinkWorkflow.Generate(state, catalog, browserView, plannerView, focusedTaskView);
+                        continue;
+                    }
+                    if (action == ApplicationActionId.OpenTaskLink)
+                    {
+                        state = taskLinkWorkflow.Prompt(state);
+                        continue;
+                    }
                     if (action == ApplicationActionId.OpenConfiguration)
                     {
                         state = OpenConfiguration(state);

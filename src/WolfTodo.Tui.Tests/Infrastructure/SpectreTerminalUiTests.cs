@@ -1939,6 +1939,46 @@ public sealed class SpectreTerminalUiTests
             .First(line => line.Contains("PROJECTS", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(140, 30)]
+    [InlineData(100, 24)]
+    [InlineData(70, 16)]
+    [InlineData(24, 8)]
+    public void Task_link_panel_renders_within_the_terminal_and_scrolls_the_generated_code(int width, int height)
+    {
+        var code = TaskLinkCode.Generate("/todos/work.md", 3);
+        var input = WolfTodo.Tui.Controls.TextBox.Create("TASK LINK", true, code, true) with { SelectionAnchor = 0 };
+        StartRecording(width, height);
+        var terminal = new SpectreTerminalUi(() => width, () => height);
+        terminal.ShowTaskLinkPanel(new TaskLinkPanelState(input, false, "Work · Line 3 · Links to the current location."), TuiThemes.Wolf);
+        var text = RecordedText();
+        text.Should().Contain("TASK LINK");
+        text.Should().Contain(code[^Math.Min(code.Length, width - 2)..]);
+        text.Split(Environment.NewLine).Where(line => line.Length > 0).Should().HaveCountLessThanOrEqualTo(height);
+        text.Split(Environment.NewLine).Should().OnlyContain(line => line.GetCellWidth() <= width);
+        if (width >= 70) text.Should().Contain(code);
+    }
+
+    [Theory]
+    [InlineData(140, 30)]
+    [InlineData(100, 24)]
+    [InlineData(70, 16)]
+    public void Inspector_shows_the_selected_subtask_link_in_an_aggregate_view(int width, int height)
+    {
+        var child = new TodoItem(4, false, null, "Child", null, [], null, null, "", [], []);
+        var parent = child with { SourceLine = 3, Title = "Parent", Subtasks = [child] };
+        var project = new TodoProject("Work", "/todos/work.md", [parent]);
+        var view = new ProjectBrowserPresenter().CreateView(new ProjectCatalog([project], []),
+            BrowserState.Initial with
+            {
+                Focus = BrowserFocus.Details,
+                PendingTodoSelection = new TodoIdentity(project.Path, child.SourceLine)
+            });
+        var output = string.Join('\n', RenderBrowser(view, width, height));
+        output.Should().Contain("LINK: " + TaskLinkCode.Generate(project.Path, child.SourceLine));
+        output.Should().NotContain(TaskLinkCode.Generate(project.Path, parent.SourceLine));
+    }
+
     private static void StartRecording()
     {
         StartRecording(140, 30);
