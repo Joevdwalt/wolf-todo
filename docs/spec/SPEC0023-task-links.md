@@ -49,6 +49,13 @@ exact matching task as `{ "ok": true, "task": { ... } }`. The task object is
 identical to a `wtodo list` entry. It includes `parent_source_line` for a nested
 task but does not include ancestors or descendants. The command is read-only.
 
+`wtodo update <task-code> [options]` searches the same locations and applies a
+patch to the exact task. Omitted fields are preserved; completion, title,
+metadata, schedule, duration, and notes/content can be changed. Explicit
+`--clear-*` options remove optional values. Direct subtasks are preserved. The
+updated task is returned using the same list-entry shape, and the mutation is
+conflict-safe and atomic.
+
 Malformed codes fail with `invalid_task_code`; missing locations fail with
 `task_not_found`; collisions fail with `ambiguous_task_code`. Failed lookups
 return no task and do not fall back to another location.
@@ -129,7 +136,11 @@ persistence still applies when the application exits.
 14. `wtodo get <task-code>` returns the exact root, completed, or nested task
     using the list-entry shape without changing Markdown.
 15. CLI lookup distinguishes malformed, missing, and ambiguous codes with the
-    documented error codes and exit statuses.
+documented error codes and exit statuses.
+16. `wtodo update <task-code>` changes completion or selected task fields,
+preserves omitted fields and direct subtasks, returns the updated list-entry
+shape, and refuses stale, ambiguous, or conflicting updates without partial
+writes.
 
 ## References
 

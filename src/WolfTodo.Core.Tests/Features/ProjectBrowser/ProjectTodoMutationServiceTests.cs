@@ -318,6 +318,26 @@ public sealed class ProjectTodoMutationServiceTests
     }
 
     [Fact]
+    public void UpdateTask_changes_completion_with_fields_and_content_in_one_atomic_write()
+    {
+        const string path = "/todos/work.md";
+        const string markdown = "- [ ] Parent\n  - note\n";
+        var parser = new MarkdownTodoProjectReader();
+        var expected = parser.Parse(path, markdown).Project!.Todos.Single();
+        var fileSystem = new WritableFileSystem(path, markdown);
+        var service = new ProjectTodoMutationService(fileSystem, parser);
+
+        var result = service.UpdateTask(path, expected, new TodoTaskUpdate(
+            new TodoUpdate("Renamed", null, null, [], null, null),
+            new TodoContentUpdate("updated", []),
+            IsCompleted: true));
+
+        result.Succeeded.Should().BeTrue();
+        fileSystem.WriteCount.Should().Be(1);
+        fileSystem.Contents.Should().Be("- [x] Renamed\n  - updated\n");
+    }
+
+    [Fact]
     public void UpdateTask_replaces_the_full_multiline_content_block()
     {
         const string path = "/todos/work.md";

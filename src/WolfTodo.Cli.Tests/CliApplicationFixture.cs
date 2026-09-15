@@ -37,10 +37,14 @@ public sealed class CliApplicationFixture
                 configuration,
                 new ProjectCatalogLoader(repository),
                 new ProjectTodoMutationService(FileSystem, reader));
-            var listService = new TaskListService(configuration, new ProjectCatalogLoader(repository));
+            var catalogLoader = new ProjectCatalogLoader(repository);
+            var mutationService = new ProjectTodoMutationService(FileSystem, reader);
+            var listService = new TaskListService(configuration, catalogLoader);
+            var updateService = new TaskUpdateService(configuration, catalogLoader, mutationService);
             return new CliApplication(
                 service,
                 listService,
+                updateService,
                 input,
                 Output,
                 path => throw new FileNotFoundException(path));
