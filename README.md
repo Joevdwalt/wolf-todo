@@ -390,9 +390,10 @@ date whenever the view is drawn.
 The interface uses a shared operational-console design across Todos and Day
 Planner: a responsive context header, square panels, uppercase structural
 labels, adaptive task columns, and configurable semantic foreground and surface
-colors. Wide terminals show navigation, tasks, and inspector;
-medium terminals prioritize tasks and inspector with navigation available as a
-temporary view; narrow terminals show one focused view at a time.
+colors. The Todos, Day Planner, and focus headers show the live local time as
+`TIME:HH:mm`; it refreshes while idle. Wide terminals show navigation, tasks,
+and inspector; medium terminals prioritize tasks and inspector with navigation
+available as a temporary view; narrow terminals show one focused view at a time.
 
 The `Day Planner` tab uses 15-minute slots from 06:00 through 21:45, displayed
 as two stacked task slots beneath each 30-minute time label. A todo can

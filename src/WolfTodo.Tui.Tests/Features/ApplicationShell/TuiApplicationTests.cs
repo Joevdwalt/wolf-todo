@@ -284,6 +284,27 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_redraws_the_todos_view_after_an_idle_input_timeout_without_changing_state()
+    {
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(':'),
+            Key('q'),
+            Key(ConsoleKey.Enter))
+        {
+            TimeoutNextTimedRead = true
+        };
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.TimedReadCount.Should().BeGreaterThan(1);
+        terminal.BrowserViews.Should().HaveCountGreaterThan(2);
+        terminal.BrowserViews[1].State.Should().Be(terminal.BrowserViews[0].State);
+    }
+
+    [Fact]
     public void Run_completes_an_untracked_pomodoro_without_logging_or_a_disabled_bell()
     {
         var now = new DateTime(2026, 8, 12, 9, 0, 0);

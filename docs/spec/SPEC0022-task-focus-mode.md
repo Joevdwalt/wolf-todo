@@ -17,9 +17,10 @@ focus mode. Focus is temporary: it does not start a timer, persist between
 launches, or change Markdown by itself.
 
 Focus mode replaces the tab strip, navigation, task list, planner, and normal
-operational header with a centered task card. The card shows the project, root
-task, metadata, direct notes, and the complete nested subtask tree. It remains
-readable at narrow sizes and windows long content around the selected item.
+operational header with a centered focus header and task card. The focus header
+includes the live local time. The card shows the project, root task, metadata,
+direct notes, and the complete nested subtask tree. It remains readable at
+narrow sizes and windows long content around the selected item.
 
 The root and every nested subtask are selectable. Configured movement and jump
 bindings move through them in source order. The configured completion binding

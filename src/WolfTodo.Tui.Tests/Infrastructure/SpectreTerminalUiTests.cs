@@ -60,13 +60,18 @@ public sealed class SpectreTerminalUiTests
         };
         StartRecording(100, 30);
 
-        new SpectreTerminalUi(() => 100, () => 30).ShowFocusedTask(view, DefaultBindings, TuiThemes.Wolf);
+        new SpectreTerminalUi(
+                () => 100,
+                () => 30,
+                nowProvider: () => new DateTime(2026, 8, 4, 14, 23, 0))
+            .ShowFocusedTask(view, DefaultBindings, TuiThemes.Wolf);
         var output = RecordedText();
 
         output.Should().Contain("WOLF TODO // FOCUS")
             .And.Contain("Prepare workshop")
             .And.Contain("Write slides")
             .And.Contain("TIMER 00:05")
+            .And.Contain("TIME:14:23")
             .And.NotContain("DAY PLANNER")
             .And.NotContain("TODOS: ALL");
     }
@@ -563,7 +568,8 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
         var output = RecordedText()[start..];
         var markerLine = output.Split(Environment.NewLine)
-            .Single(line => line.Contains("14:23", StringComparison.Ordinal));
+            .Single(line => line.Contains("NOW", StringComparison.Ordinal));
+        output.Should().Contain("TIME:14:23");
         var html = NormalizeHtml(RecordedHtml());
 
         var cells = markerLine.Split('│');
@@ -696,9 +702,10 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
         var lines = RecordedText()[start..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        var markerIndex = Array.FindIndex(lines, line => line.Contains($"{hour:00}:{minute:00}"));
+        var markerIndex = Array.FindIndex(lines, line => line.Contains("NOW", StringComparison.Ordinal));
         var slotIndex = Array.FindIndex(lines, line =>
-            line.Contains(adjacentSlot) && !line.Contains("NOW", StringComparison.Ordinal));
+            line.Contains($"│ {adjacentSlot}", StringComparison.Ordinal) &&
+            !line.Contains("NOW", StringComparison.Ordinal));
 
         markerIndex.Should().BeGreaterThanOrEqualTo(0);
         slotIndex.Should().BeGreaterThanOrEqualTo(0);
@@ -720,7 +727,7 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
         var output = RecordedText()[start..];
 
-        output.Should().Contain("06:00").And.NotContain("18:17");
+        output.Should().Contain("06:00").And.NotContain("NOW");
     }
 
     [Fact]
@@ -738,7 +745,7 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
         var output = RecordedText()[start..];
 
-        output.Should().NotContain("06:17");
+        output.Should().NotContain("NOW");
     }
 
     [Theory]
@@ -1644,7 +1651,23 @@ public sealed class SpectreTerminalUiTests
         output[0].Should().Contain("[TODOS]");
         output[0].Should().Contain("WED 02 JAN");
         output[0].Should().Contain("OPEN:1").And.Contain("FILES:CLEAN");
+        output[0].Should().Contain("TIME:");
         output[0].Should().NotContain("TABS");
+    }
+
+    [Fact]
+    public void ShowBrowser_renders_the_current_time_before_lower_priority_header_fields_at_narrow_width()
+    {
+        StartRecording(40, 16);
+        new SpectreTerminalUi(
+                () => 40,
+                () => 16,
+                nowProvider: () => new DateTime(2026, 8, 4, 14, 23, 0))
+            .ShowBrowser(DefaultTabs, ViewWithTitle("Renew contract"), DefaultBindings);
+
+        var header = RecordedText().Split(Environment.NewLine).First();
+        header.Should().Contain("TIME:14:23");
+        header.GetCellWidth().Should().BeLessThanOrEqualTo(40);
     }
 
     [Fact]

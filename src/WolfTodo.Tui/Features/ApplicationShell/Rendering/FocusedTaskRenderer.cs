@@ -10,9 +10,11 @@ namespace WolfTodo.Tui.Features.ApplicationShell.Rendering;
 
 public sealed class FocusedTaskRenderer(
     Func<int> widthProvider,
-    Func<int> heightProvider)
+    Func<int> heightProvider,
+    Func<DateTime>? nowProvider = null)
 {
     private const int HeaderAndCardChromeRows = 4;
+    private readonly Func<DateTime> nowProvider = nowProvider ?? (() => DateTime.Now);
     private readonly SurfaceThemeRenderer themeRenderer = new();
     private readonly StatusRenderer statusRenderer = new();
 
@@ -28,7 +30,7 @@ public sealed class FocusedTaskRenderer(
         var statusHeight = editorDialog?.Height ?? statusLines.Count + 2;
         var available = Math.Max(1, height - statusHeight - overlayHeight - HeaderAndCardChromeRows);
 
-        WriteHeader(theme, width);
+        WriteHeader(theme, width, nowProvider());
         WriteCard(view, theme, width, available);
         WriteOverlay(view, bindings, theme, width, height);
 
@@ -49,10 +51,10 @@ public sealed class FocusedTaskRenderer(
         statusRenderer.WriteStatusPanel(statusLines, theme, style, active);
     }
 
-    private void WriteHeader(TuiTheme theme, int width)
+    private void WriteHeader(TuiTheme theme, int width, DateTime now)
     {
         var text = new Text(
-            width < 40 ? "FOCUS" : "WOLF TODO // FOCUS",
+            width < 40 ? $"FOCUS  TIME:{now:HH:mm}" : $"WOLF TODO // FOCUS  TIME:{now:HH:mm}",
             themeRenderer.Style(theme.Accent, Decoration.Bold));
         themeRenderer.WriteSurface(new Align(text, HorizontalAlignment.Center), theme.Background, true);
         AnsiConsole.WriteLine();
