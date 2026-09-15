@@ -44,6 +44,15 @@ It uses the same canonical project path and source line as the inspector and
 `:task-link`. Pass this value to `:open-task` or `wtodo-tui --open-task`.
 Listing remains read-only; opening rejects ambiguous codes as described above.
 
+`wtodo get <task-code>` searches all valid configured projects and returns the
+exact matching task as `{ "ok": true, "task": { ... } }`. The task object is
+identical to a `wtodo list` entry. It includes `parent_source_line` for a nested
+task but does not include ancestors or descendants. The command is read-only.
+
+Malformed codes fail with `invalid_task_code`; missing locations fail with
+`task_not_found`; collisions fail with `ambiguous_task_code`. Failed lookups
+return no task and do not fall back to another location.
+
 ## Inspector Display
 
 Todos and Day Planner inspectors show `LINK: <code>` for the selected Markdown
@@ -117,6 +126,10 @@ persistence still applies when the application exits.
     and error selections show no task link.
 13. CLI listing includes the same short code for root tasks, completed tasks,
     and nested subtasks, both across projects and with a project filter.
+14. `wtodo get <task-code>` returns the exact root, completed, or nested task
+    using the list-entry shape without changing Markdown.
+15. CLI lookup distinguishes malformed, missing, and ambiguous codes with the
+    documented error codes and exit statuses.
 
 ## References
 
