@@ -43,7 +43,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
             new PlannerRenderer(widthProvider, heightProvider, todayProvider, nowProvider),
             new TerminalInputReader(),
             new SurfaceThemeRenderer(),
-            currentDirectoryProvider)
+            currentDirectoryProvider,
+            nowProvider)
     {
     }
 
@@ -54,13 +55,14 @@ public sealed class SpectreTerminalUi : ITerminalUi
         PlannerRenderer plannerRenderer,
         TerminalInputReader inputReader,
         SurfaceThemeRenderer themeRenderer,
-        Func<string>? currentDirectoryProvider = null)
+        Func<string>? currentDirectoryProvider = null,
+        Func<DateTime>? nowProvider = null)
     {
         this.widthProvider = widthProvider;
         this.heightProvider = heightProvider;
         this.browserRenderer = browserRenderer;
         this.plannerRenderer = plannerRenderer;
-        focusedTaskRenderer = new FocusedTaskRenderer(widthProvider, heightProvider);
+        focusedTaskRenderer = new FocusedTaskRenderer(widthProvider, heightProvider, nowProvider);
         this.inputReader = inputReader;
         this.themeRenderer = themeRenderer;
         this.currentDirectoryProvider = currentDirectoryProvider ?? (() => Environment.CurrentDirectory);

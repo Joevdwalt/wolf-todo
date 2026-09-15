@@ -26,11 +26,12 @@ and available actions.
 ## Operational Header
 
 Every application view begins with one non-wrapping header. At sufficient
-width it contains the product name, tabs, current mode, relevant date, open
-todo count, project-file health, and configured tab-switch hint. Less important
-segments disappear as width contracts, and remaining overflow is ellipsized.
-The active tab is bracketed. Counts and health values must come from the loaded
-catalog; fake identifiers, sync claims, or system metrics are forbidden.
+width it contains the product name, tabs, current local time (`TIME:HH:mm`),
+current mode, relevant date, open todo count, project-file health, and
+configured tab-switch hint. The time remains visible ahead of lower-priority
+segments as width contracts; remaining overflow is ellipsized. The active tab
+is bracketed. Counts and health values must come from the loaded catalog; fake
+identifiers, sync claims, or system metrics are forbidden.
 
 ## Task Rows
 
@@ -91,7 +92,8 @@ not introduce data that the Markdown model does not currently represent.
 
 ## Acceptance Scenarios
 
-1. Todos and Planner render a consistent operational header and square panels.
+1. Todos and Planner render a consistent operational header with a live local
+   time and square panels.
 2. Wide, medium, and narrow layouts keep the primary task or timeline workspace
    usable while making secondary views reachable.
 3. Task metadata columns appear only when their widths can remain legible.

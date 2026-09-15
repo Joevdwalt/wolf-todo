@@ -261,7 +261,7 @@ public sealed class TuiApplication(
                         ? plannerWorkflow.IsRefreshing
                             ? TimeSpan.FromMilliseconds(250)
                             : TimeSpan.FromMinutes(1)
-                        : (TimeSpan?)null;
+                        : TimeSpan.FromMinutes(1);
                 var loopEvent = loopWaiter.Wait(redrawInterval);
                 if (loopEvent.FileChanges.HasChanges)
                 {
