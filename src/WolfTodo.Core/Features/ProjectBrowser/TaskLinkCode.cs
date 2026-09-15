@@ -15,8 +15,8 @@ public static class TaskLinkCode
         return "wt1-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(input)))[..8];
     }
 
-    public static bool IsValid(string code) =>
-        code.Length == 12 && code.StartsWith("wt1-", StringComparison.Ordinal) &&
+    public static bool IsValid(string? code) =>
+        code is not null && code.Length == 12 && code.StartsWith("wt1-", StringComparison.Ordinal) &&
         code.AsSpan(4).IndexOfAnyExcept("0123456789abcdef") < 0;
 
     public static (TodoProject Project, TodoItem Todo)? Resolve(ProjectCatalog catalog, string code)
@@ -24,31 +24,38 @@ public static class TaskLinkCode
 
     public static (TodoProject Project, TodoItem Todo)? Resolve(ProjectCatalog catalog, string code, out bool ambiguous)
     {
+        var match = ResolveMatch(catalog, code, out ambiguous);
+        return match is null ? null : (match.Project, match.Todo);
+    }
+
+    public static TaskLinkMatch? ResolveMatch(ProjectCatalog catalog, string code, out bool ambiguous)
+    {
         ambiguous = false;
         if (!IsValid(code)) return null;
-        (TodoProject Project, TodoItem Todo)? match = null;
+        TaskLinkMatch? match = null;
         foreach (var project in catalog.Projects)
         {
-            foreach (var todo in Flatten(project.Todos))
+            foreach (var candidate in Flatten(project.Todos))
             {
-                if (Generate(project.Path, todo.SourceLine) != code) continue;
+                if (Generate(project.Path, candidate.Todo.SourceLine) != code) continue;
                 if (match is not null)
                 {
                     ambiguous = true;
                     return null;
                 }
-                match = (project, todo);
+                match = new TaskLinkMatch(project, candidate.Todo, candidate.ParentSourceLine);
             }
         }
         return match;
     }
 
-    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
+    private static IEnumerable<(TodoItem Todo, int? ParentSourceLine)> Flatten(
+        IEnumerable<TodoItem> todos, int? parentSourceLine = null)
     {
         foreach (var todo in todos)
         {
-            yield return todo;
-            foreach (var child in Flatten(todo.Subtasks)) yield return child;
+            yield return (todo, parentSourceLine);
+            foreach (var child in Flatten(todo.Subtasks, todo.SourceLine)) yield return child;
         }
     }
 }

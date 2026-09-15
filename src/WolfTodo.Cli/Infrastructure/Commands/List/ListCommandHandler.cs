@@ -1,4 +1,3 @@
-using System.Globalization;
 using WolfTodo.Cli.Features;
 using WolfTodo.Core.Features.ProjectBrowser;
 
@@ -13,26 +12,10 @@ public sealed class ListCommandHandler(TaskListService listService, CliOutputWri
         if (!result.Succeeded)
             return output.Error(1, result.ErrorCode!, result.Error!);
 
-        var tasks = result.Projects.SelectMany(project => Flatten(project.Todos).Select(entry => new
-        {
-            project = new { title = project.Title, path = project.Path },
-            source_line = entry.Todo.SourceLine,
-            task_code = TaskLinkCode.Generate(project.Path, entry.Todo.SourceLine),
-            parent_source_line = entry.ParentSourceLine,
-            completed = entry.Todo.IsCompleted,
-            reference = entry.Todo.ExternalReference,
-            title = entry.Todo.Title,
-            priority = entry.Todo.Priority?.ToString().ToLowerInvariant(),
-            tags = entry.Todo.Tags,
-            section_path = entry.Todo.SectionPath,
-            schedule = entry.Todo.Schedule is { } schedule ? new
-            {
-                date = schedule.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                time = schedule.Time?.ToString("HH:mm", CultureInfo.InvariantCulture)
-            } : null,
-            duration_minutes = entry.Todo.Duration is { } duration ? (int?)duration.TotalMinutes : null,
-            notes = entry.Todo.Notes.Select(note => note.Text)
-        })).ToArray();
+        var tasks = result.Projects
+            .SelectMany(project => Flatten(project.Todos)
+                .Select(entry => TaskListEntryFactory.Create(project, entry.Todo, entry.ParentSourceLine)))
+            .ToArray();
 
         output.Write(new { ok = true, task_count = tasks.Length, tasks });
         return 0;

@@ -9,6 +9,7 @@ public static class CliHelpText
                                 wtodo import --file <path>
                                 wtodo import --stdin
                                 wtodo list [--project <title|absolute-path>]
+                                wtodo get <task-code>
 
                                 Add options:
                                   --reference <text>
