@@ -347,6 +347,15 @@ Each listed task includes `task_code` (for example `wt1-bfe8eb02`), including
 completed tasks and nested subtasks. Use it with `:open-task <code>` in the TUI
 or `wtodo-tui --open-task <code>` from the shell.
 
+Retrieve one exact task as JSON from any configured project:
+
+```text
+wtodo get wt1-bfe8eb02
+```
+
+The result uses the same task shape as `wtodo list`. Lookup includes completed
+tasks and nested subtasks and does not change the Markdown project.
+
 Each invocation targets one project. A batch is validated completely and
 written through one atomic Markdown replacement; a failure creates no tasks.
 Unknown JSON properties are rejected. Timed schedules must use a quarter-hour
