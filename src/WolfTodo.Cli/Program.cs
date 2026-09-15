@@ -21,9 +21,11 @@ builder.Services.AddSingleton(new TomlProjectConfigurationLoader(
     File.ReadAllText));
 builder.Services.AddSingleton<TaskImportService>();
 builder.Services.AddSingleton<TaskListService>();
+builder.Services.AddSingleton<TaskUpdateService>();
 builder.Services.AddSingleton(serviceProvider => new CliApplication(
     serviceProvider.GetRequiredService<TaskImportService>(),
     serviceProvider.GetRequiredService<TaskListService>(),
+    serviceProvider.GetRequiredService<TaskUpdateService>(),
     Console.In,
     Console.Out,
     File.ReadAllText));

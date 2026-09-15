@@ -55,6 +55,14 @@ SPEC0023. Search all valid configured projects, including completed tasks and
 nested subtasks. The command accepts one code and no project filter. It is
 read-only and does not include the task's ancestors or descendants.
 
+`wtodo update <task-code> [options]` updates one resolved task in place. It
+accepts `--completed`, `--title`, `--reference`, `--priority`, repeated
+`--tag`, `--scheduled`, `--time`, `--duration-minutes`, and `--content`, plus
+explicit `--clear-reference`, `--clear-priority`, `--clear-tags`,
+`--clear-time`, `--clear-schedule`, `--clear-duration`, and `--clear-content`
+options. Omitted fields remain unchanged; direct subtasks remain unchanged.
+Setting and clearing the same field together is invalid.
+
 ## Project and Mutation Behavior
 
 Resolve an absolute target only when its canonical path is in
@@ -72,6 +80,11 @@ duplicate task content remains valid.
 The CLI does not notify a running TUI. Changes appear on the next catalog
 reload or launch.
 
+Update resolves the current task snapshot, validates a new timed schedule
+against all other configured tasks, and applies completion, field, and content
+changes through one conflict-safe atomic replacement. A task's link code stays
+valid when its source line is unchanged.
+
 ## Results
 
 Command execution writes exactly one JSON object to standard output. Creation success
@@ -82,6 +95,11 @@ contains `ok: false` and an error `code` and `message`.
 List success contains `ok: true`, `task_count`, and source-ordered `tasks`.
 Get success contains `ok: true` and one `task` with the same fields as a list
 entry, including `parent_source_line` and `task_code`.
+
+Update success contains `ok: true` and one updated `task` with the same fields.
+An update with no field options, invalid values, or conflicting set/clear
+options uses exit code `2`. Resolution, schedule-conflict, stale-snapshot,
+parse, and write failures use exit code `1`.
 
 Reject malformed codes with exit code `2` and `invalid_task_code`. Use exit
 code `1` and `task_not_found` when no valid configured task matches, or

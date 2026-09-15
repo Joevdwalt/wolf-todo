@@ -9,7 +9,7 @@ public static class CommandParsingErrorMapper
         var missingValueOption = FindMissingValueOption(args);
         var isCommand = args.Length > 0 &&
                         !args[0].StartsWith("-", StringComparison.Ordinal) &&
-                        !new[] { "add", "import", "list", "get" }.Contains(args[0], StringComparer.OrdinalIgnoreCase);
+                        !new[] { "add", "import", "list", "get", "update" }.Contains(args[0], StringComparer.OrdinalIgnoreCase);
         var code = missingValueOption is not null
             ? "missing_value"
             : isCommand ? "unknown_command" : "unknown_option";
@@ -24,7 +24,7 @@ public static class CommandParsingErrorMapper
         var valueOptions = new HashSet<string>(StringComparer.Ordinal)
         {
             "--project", "--title", "--reference", "--priority", "--scheduled",
-            "--time", "--duration-minutes", "--content", "--subtask", "--completed-subtask", "--file"
+            "--time", "--duration-minutes", "--content", "--subtask", "--completed-subtask", "--file", "--completed"
         };
 
         for (var index = 1; index < args.Length; index++)

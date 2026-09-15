@@ -5,6 +5,7 @@ using WolfTodo.Cli.Infrastructure.Commands.Add;
 using WolfTodo.Cli.Infrastructure.Commands.Get;
 using WolfTodo.Cli.Infrastructure.Commands.Import;
 using WolfTodo.Cli.Infrastructure.Commands.List;
+using WolfTodo.Cli.Infrastructure.Commands.Update;
 
 namespace WolfTodo.Cli;
 
@@ -17,10 +18,12 @@ public sealed class CliApplication
     private readonly ImportCommandHandler importHandler;
     private readonly ListCommandHandler listHandler;
     private readonly GetCommandHandler getHandler;
+    private readonly UpdateCommandHandler updateHandler;
 
     public CliApplication(
         Features.TaskImportService importService,
         Features.TaskListService listService,
+        Features.TaskUpdateService updateService,
         TextReader input,
         TextWriter output,
         Func<string, string> readAllText)
@@ -33,6 +36,7 @@ public sealed class CliApplication
         importHandler = new ImportCommandHandler(importService, taskFactory, outputWriter, input, readAllText);
         listHandler = new ListCommandHandler(listService, outputWriter);
         getHandler = new GetCommandHandler(listService, outputWriter);
+        updateHandler = new UpdateCommandHandler(updateService, new TaskUpdatePatchFactory(), outputWriter);
     }
 
     public int Run(string[] args)
@@ -51,6 +55,7 @@ public sealed class CliApplication
                 .AddSingleton(importHandler)
                 .AddSingleton(listHandler)
                 .AddSingleton(getHandler)
+                .AddSingleton(updateHandler)
                 .AddSingleton(new CliInvocation(args))
                 .AddSingleton<IConsole>(console)
                 .BuildServiceProvider();

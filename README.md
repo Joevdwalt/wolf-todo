@@ -356,6 +356,20 @@ wtodo get wt1-bfe8eb02
 The result uses the same task shape as `wtodo list`. Lookup includes completed
 tasks and nested subtasks and does not change the Markdown project.
 
+Update one exact task in place by its current link code:
+
+```text
+wtodo update wt1-bfe8eb02 --completed true --priority high
+wtodo update wt1-bfe8eb02 --clear-schedule --clear-content
+```
+
+Update options are patch-style: omitted fields are preserved. Completion,
+title, reference, priority, tags, schedule, duration, and content can be
+changed; direct subtasks remain unchanged. Use the explicit `--clear-*`
+options to remove optional values. The command returns the updated task in the
+same JSON shape as `wtodo get` and refuses stale or conflicting Markdown
+changes.
+
 Each invocation targets one project. A batch is validated completely and
 written through one atomic Markdown replacement; a failure creates no tasks.
 Unknown JSON properties are rejected. Timed schedules must use a quarter-hour
