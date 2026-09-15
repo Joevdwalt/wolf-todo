@@ -226,4 +226,56 @@ public sealed class CliApplicationTests
         fixture.Output.ToString().Should().Contain("\"code\":\"unknown_option\"");
     }
 
+    [Fact]
+    public void Get_returns_the_exact_nested_completed_task_in_the_list_shape()
+    {
+        var fixture = new CliApplicationFixture(markdown: """
+            ---
+            title: Work
+            ---
+
+            # Work
+            - [ ] Parent
+              - [x] Child
+            """);
+        var code = TaskLinkCode.Generate("/todos/work.md", 7);
+
+        var exitCode = fixture.Application.Run(["get", code]);
+
+        exitCode.Should().Be(0);
+        using var output = JsonDocument.Parse(fixture.Output.ToString());
+        var task = output.RootElement.GetProperty("task");
+        task.GetProperty("task_code").GetString().Should().Be(code);
+        task.GetProperty("title").GetString().Should().Be("Child");
+        task.GetProperty("completed").GetBoolean().Should().BeTrue();
+        task.GetProperty("parent_source_line").GetInt32().Should().Be(6);
+        task.GetProperty("project").GetProperty("title").GetString().Should().Be("Work");
+    }
+
+    [Theory]
+    [InlineData("invalid", "invalid_task_code", 2)]
+    [InlineData("wt1-00000000", "task_not_found", 1)]
+    public void Get_reports_lookup_failures_with_documented_codes(string code, string errorCode, int expectedExitCode)
+    {
+        var fixture = new CliApplicationFixture();
+
+        var exitCode = fixture.Application.Run(["get", code]);
+
+        exitCode.Should().Be(expectedExitCode);
+        using var output = JsonDocument.Parse(fixture.Output.ToString());
+        output.RootElement.GetProperty("ok").GetBoolean().Should().BeFalse();
+        output.RootElement.GetProperty("error").GetProperty("code").GetString().Should().Be(errorCode);
+    }
+
+    [Fact]
+    public void Get_requires_a_task_code_argument()
+    {
+        var fixture = new CliApplicationFixture();
+
+        var exitCode = fixture.Application.Run(["get"]);
+
+        exitCode.Should().Be(2);
+        fixture.Output.ToString().Should().Contain("\"code\":\"missing_argument\"");
+    }
+
 }
