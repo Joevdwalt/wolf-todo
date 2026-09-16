@@ -419,7 +419,9 @@ public sealed class PlannerRenderer
         {
             sidePanels.Add(PlannerPanel(
                 "INSPECTOR",
-                FixedLines(PlannerDetailLines(view, theme), inspectorContentHeight),
+                new HeightConstrainedRenderable(
+                    CreateContent(PlannerDetailLines(view, theme)),
+                    inspectorContentHeight),
                 theme));
         }
 
@@ -427,7 +429,7 @@ public sealed class PlannerRenderer
         {
             sidePanels.Add(PlannerPanel(
                 "ALL DAY",
-                calendarItemRenderer.AllDayAgendaLines(view, theme, allDayContentHeight),
+                CreateContent(calendarItemRenderer.AllDayAgendaLines(view, theme, allDayContentHeight)),
                 theme,
                 view.State.Focus == PlannerFocus.AllDay));
         }
@@ -470,7 +472,10 @@ public sealed class PlannerRenderer
             themeRenderer.WriteSurface(
                 PlannerPanel(
                     "ALL DAY",
-                    calendarItemRenderer.AllDayAgendaLines(view, theme, Math.Max(1, context.NarrowAllDayHeight - 2)),
+                    CreateContent(calendarItemRenderer.AllDayAgendaLines(
+                        view,
+                        theme,
+                        Math.Max(1, context.NarrowAllDayHeight - 2))),
                     theme,
                     view.State.Focus == PlannerFocus.AllDay),
                 theme.Surface2,
@@ -869,32 +874,19 @@ public sealed class PlannerRenderer
 
     public Panel PlannerPanel(
         string header,
-        IReadOnlyList<IRenderable> lines,
+        IRenderable content,
         TuiTheme theme,
         bool active = false)
     {
         var styledHeader = new System.Text.StringBuilder();
         themeRenderer.AppendStyled(styledHeader, header, theme.AccentBright, Decoration.Bold);
-        return new Panel(CreateContent(lines))
+        return new Panel(content)
         {
             Header = new PanelHeader(styledHeader.ToString()),
             Border = BoxBorder.Square,
             BorderStyle = themeRenderer.Style(active ? theme.AccentBright : theme.BorderActive),
             Expand = true
         };
-    }
-
-    public IReadOnlyList<IRenderable> FixedLines(
-        IReadOnlyList<IRenderable> lines,
-        int contentHeight)
-    {
-        var fitted = calendarItemRenderer.FitLines(lines, contentHeight, 0).ToList();
-        while (fitted.Count < contentHeight)
-        {
-            fitted.Add(new Text(string.Empty));
-        }
-
-        return fitted;
     }
 
     public IRenderable PlannerCompactDetail(PlannerView view, TuiTheme theme)
