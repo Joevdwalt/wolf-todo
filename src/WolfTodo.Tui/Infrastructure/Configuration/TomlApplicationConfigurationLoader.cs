@@ -576,7 +576,8 @@ public sealed class TomlApplicationConfigurationLoader(
             ToggleTimer = ReadGestures(keybindings, "toggle_timer", defaults.ToggleTimer),
             StartPomodoro = ReadGestures(keybindings, "start_pomodoro", defaults.StartPomodoro),
             StartUntrackedPomodoro = ReadGestures(
-                keybindings, "start_untracked_pomodoro", defaults.StartUntrackedPomodoro)
+                keybindings, "start_untracked_pomodoro", defaults.StartUntrackedPomodoro),
+            FocusTask = ReadGestures(keybindings, "focus_task", defaults.FocusTask)
         };
 
         ValidateCommands(result);
@@ -705,7 +706,8 @@ public sealed class TomlApplicationConfigurationLoader(
             ("jump_bottom", bindings.JumpBottom),
             ("toggle_timer", bindings.ToggleTimer),
             ("start_pomodoro", bindings.StartPomodoro),
-            ("start_untracked_pomodoro", bindings.StartUntrackedPomodoro)
+            ("start_untracked_pomodoro", bindings.StartUntrackedPomodoro),
+            ("focus_task", bindings.FocusTask)
         };
         var owners = new Dictionary<KeyGesture, string>();
 

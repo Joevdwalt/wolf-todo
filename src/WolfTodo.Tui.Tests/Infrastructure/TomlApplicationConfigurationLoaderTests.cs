@@ -41,6 +41,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesTabPrevious(Key('H')).Should().BeTrue();
         result.KeyBindings.MatchesPlannerRefreshCalendar(Key('r')).Should().BeTrue();
         result.KeyBindings.MatchesPlannerExportSchedule(Key('x')).Should().BeTrue();
+        result.KeyBindings.MatchesFocusTask(Key('f')).Should().BeTrue();
         result.Theme.Should().Be(TuiThemes.Wolf);
         result.GoogleCalendar.Should().Be(GoogleCalendarConfiguration.Disabled);
         result.Planner.Should().Be(PlannerConfiguration.Default);
@@ -367,6 +368,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
             clear_todo_selection = ["F8"]
             start_pomodoro = ["F9"]
             start_untracked_pomodoro = ["Shift+F9"]
+            focus_task = ["F10"]
             """);
 
         var result = loader.Load();
@@ -384,6 +386,8 @@ public sealed class TomlApplicationConfigurationLoaderTests
         result.KeyBindings.MatchesClearTodoSelection(Key(ConsoleKey.F8)).Should().BeTrue();
         result.KeyBindings.MatchesStartPomodoro(Key(ConsoleKey.F9)).Should().BeTrue();
         result.KeyBindings.MatchesStartUntrackedPomodoro(Key(ConsoleKey.F9, shift: true)).Should().BeTrue();
+        result.KeyBindings.MatchesFocusTask(Key(ConsoleKey.F10)).Should().BeTrue();
+        result.KeyBindings.MatchesFocusTask(Key('f')).Should().BeFalse();
         result.KeyBindings.MatchesMoveDown(Key('n')).Should().BeTrue();
         result.KeyBindings.MatchesMoveDown(Key('j')).Should().BeFalse();
         result.KeyBindings.MatchesMoveDown(Key(ConsoleKey.J, control: true)).Should().BeTrue();
@@ -410,6 +414,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
     [InlineData("help = \":roll-today\"", "*built-in commands*")]
     [InlineData("roll_project_today = [\"G\"]", "*both*roll_project_today*jump_bottom*")]
     [InlineData("bulk_edit_todos = [\"m\"]", "*both*toggle_todo_selection*bulk_edit_todos*")]
+    [InlineData("focus_task = [\"e\"]", "*both*edit_todo*focus_task*")]
     public void Load_rejects_invalid_or_conflicting_bindings(string binding, string expectedMessage)
     {
         var path = Path.GetFullPath("todo.md");

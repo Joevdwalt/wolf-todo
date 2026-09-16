@@ -32,6 +32,8 @@ public sealed record TodoTaskEditorState(
 
     public TodoScheduleRequirement ScheduleRequirement { get; init; }
 
+    public TodoItem? ExpectedTodo { get; init; }
+
     internal MultilineTextBoxState? ContentTextBox { get; init; }
 
     internal TextBoxState? FieldTextBox { get; init; }
@@ -96,7 +98,10 @@ public sealed record TodoTaskEditorState(
             subtask.Title,
             subtask.IsCompleted,
             DescendantCount(subtask)))],
-        null);
+        null)
+    {
+        ExpectedTodo = todo
+    };
 
     public TodoTaskUpdate ToUpdate(TodoSchedule? schedule) => new(
         Values with { Schedule = schedule },

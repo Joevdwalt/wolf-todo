@@ -23,6 +23,7 @@ public sealed class CliApplicationTests
         exitCode.Should().Be(0);
         fixture.Output.ToString().Should().Contain("Wolf Todo CLI");
         fixture.Output.ToString().Should().Contain("wtodo import --stdin");
+        fixture.Output.ToString().Should().Contain("wtodo update <task-code>");
     }
 
     [Fact]
@@ -203,6 +204,16 @@ public sealed class CliApplicationTests
         task.GetProperty("notes")[0].GetString().Should().Be("Review scope");
         output.RootElement.GetProperty("tasks")[1].GetProperty("parent_source_line").GetInt32()
             .Should().Be(task.GetProperty("source_line").GetInt32());
+        foreach (var entry in output.RootElement.GetProperty("tasks").EnumerateArray())
+        {
+            var code = entry.GetProperty("task_code").GetString()!;
+            TaskLinkCode.IsValid(code).Should().BeTrue();
+            code.Should().Be(TaskLinkCode.Generate(
+                entry.GetProperty("project").GetProperty("path").GetString()!,
+                entry.GetProperty("source_line").GetInt32()));
+        }
+        output.RootElement.GetProperty("tasks")[1].GetProperty("task_code").GetString()
+            .Should().NotBe(task.GetProperty("task_code").GetString());
     }
 
     [Fact]
@@ -214,6 +225,180 @@ public sealed class CliApplicationTests
 
         exitCode.Should().Be(2);
         fixture.Output.ToString().Should().Contain("\"code\":\"unknown_option\"");
+    }
+
+    [Fact]
+    public void Get_returns_the_exact_nested_completed_task_in_the_list_shape()
+    {
+        var fixture = new CliApplicationFixture(markdown: """
+            ---
+            title: Work
+            ---
+
+            # Work
+            - [ ] Parent
+              - [x] Child
+            """);
+        var code = TaskLinkCode.Generate("/todos/work.md", 7);
+
+        var exitCode = fixture.Application.Run(["get", code]);
+
+        exitCode.Should().Be(0);
+        using var output = JsonDocument.Parse(fixture.Output.ToString());
+        var task = output.RootElement.GetProperty("task");
+        task.GetProperty("task_code").GetString().Should().Be(code);
+        task.GetProperty("title").GetString().Should().Be("Child");
+        task.GetProperty("completed").GetBoolean().Should().BeTrue();
+        task.GetProperty("parent_source_line").GetInt32().Should().Be(6);
+        task.GetProperty("project").GetProperty("title").GetString().Should().Be("Work");
+    }
+
+    [Theory]
+    [InlineData("invalid", "invalid_task_code", 2)]
+    [InlineData("wt1-00000000", "task_not_found", 1)]
+    public void Get_reports_lookup_failures_with_documented_codes(string code, string errorCode, int expectedExitCode)
+    {
+        var fixture = new CliApplicationFixture();
+
+        var exitCode = fixture.Application.Run(["get", code]);
+
+        exitCode.Should().Be(expectedExitCode);
+        using var output = JsonDocument.Parse(fixture.Output.ToString());
+        output.RootElement.GetProperty("ok").GetBoolean().Should().BeFalse();
+        output.RootElement.GetProperty("error").GetProperty("code").GetString().Should().Be(errorCode);
+    }
+
+    [Fact]
+    public void Get_requires_a_task_code_argument()
+    {
+        var fixture = new CliApplicationFixture();
+
+        var exitCode = fixture.Application.Run(["get"]);
+
+        exitCode.Should().Be(2);
+        fixture.Output.ToString().Should().Contain("\"code\":\"missing_argument\"");
+    }
+
+    [Fact]
+    public void Update_changes_a_task_by_link_code_and_preserves_omitted_fields()
+    {
+        var fixture = new CliApplicationFixture(markdown: """
+            ---
+            title: Work
+            ---
+
+            # Work
+            - [ ] (EXT-7) Parent ⏫ #old ⏳ 2026-09-01
+              - existing note
+              - [ ] Child
+            """);
+        var code = TaskLinkCode.Generate(
+            "/todos/work.md",
+            new MarkdownTodoProjectReader().Parse("/todos/work.md", fixture.FileSystem.Contents)
+                .Project!.Todos.Single().SourceLine);
+
+        var exitCode = fixture.Application.Run([
+            "update", code, "--completed", "true", "--title", "Renamed",
+            "--tag", "new", "--content", "updated note"]);
+
+        exitCode.Should().Be(0);
+        fixture.FileSystem.WriteCount.Should().Be(1);
+        fixture.FileSystem.Contents.Should().Contain(
+            "- [x] (EXT-7) Renamed ⏫ #new ⏳ 2026-09-01\n" +
+            "  - updated note\n" +
+            "  - [ ] Child");
+        using var output = JsonDocument.Parse(fixture.Output.ToString());
+        var task = output.RootElement.GetProperty("task");
+        task.GetProperty("task_code").GetString().Should().Be(code);
+        task.GetProperty("completed").GetBoolean().Should().BeTrue();
+        task.GetProperty("reference").GetString().Should().Be("EXT-7");
+        task.GetProperty("priority").GetString().Should().Be("high");
+    }
+
+    [Fact]
+    public void Update_changes_a_nested_task_and_supports_explicit_clears()
+    {
+        var fixture = new CliApplicationFixture(markdown: """
+            ---
+            title: Work
+            ---
+
+            # Work
+            - [ ] Parent
+              - [x] (EXT-7) Child ⏰ 09:30 ⏱ 30m #old ⏳ 2026-09-01
+                - note
+            """);
+        var code = TaskLinkCode.Generate(
+            "/todos/work.md",
+            new MarkdownTodoProjectReader().Parse("/todos/work.md", fixture.FileSystem.Contents)
+                .Project!.Todos.Single().Subtasks.Single().SourceLine);
+
+        var exitCode = fixture.Application.Run([
+            "update", code, "--completed", "false", "--clear-reference", "--clear-priority",
+            "--clear-tags", "--clear-schedule", "--clear-duration", "--clear-content"]);
+
+        exitCode.Should().Be(0);
+        fixture.FileSystem.Contents.Should().Contain("  - [ ] Child");
+        fixture.FileSystem.Contents.Should().NotContain("EXT-7");
+        fixture.FileSystem.Contents.Should().NotContain("⏰");
+        fixture.FileSystem.Contents.Should().NotContain("⏱");
+        fixture.FileSystem.Contents.Should().NotContain("#old");
+        fixture.FileSystem.Contents.Should().NotContain("    - note");
+        using var output = JsonDocument.Parse(fixture.Output.ToString());
+        output.RootElement.GetProperty("task").GetProperty("parent_source_line").GetInt32().Should().Be(6);
+    }
+
+    [Fact]
+    public void Update_rejects_missing_changes_and_conflicting_options_without_writing()
+    {
+        var fixture = new CliApplicationFixture(markdown: "- [ ] Task\n");
+        var code = TaskLinkCode.Generate("/todos/work.md", 1);
+
+        var missing = fixture.Application.Run(["update", code]);
+        missing.Should().Be(2);
+        fixture.FileSystem.WriteCount.Should().Be(0);
+        fixture.Output.ToString().Should().Contain("\"code\":\"missing_update\"");
+
+        var conflicting = fixture.Application.Run([
+            "update", code, "--reference", "EXT-1", "--clear-reference"]);
+        conflicting.Should().Be(2);
+        fixture.FileSystem.WriteCount.Should().Be(0);
+        fixture.Output.ToString().Should().Contain("\"code\":\"conflicting_options\"");
+    }
+
+    [Fact]
+    public void Update_rejects_invalid_task_fields_without_writing()
+    {
+        var fixture = new CliApplicationFixture(markdown: "- [ ] Task\n");
+        var code = TaskLinkCode.Generate("/todos/work.md", 1);
+
+        var exitCode = fixture.Application.Run(["update", code, "--title", " "]);
+
+        exitCode.Should().Be(2);
+        fixture.FileSystem.WriteCount.Should().Be(0);
+        fixture.Output.ToString().Should().Contain("\"code\":\"invalid_task\"");
+    }
+
+    [Fact]
+    public void Update_rejects_a_timed_schedule_that_collides_with_another_task()
+    {
+        var fixture = new CliApplicationFixture(markdown: """
+            ---
+            title: Work
+            ---
+
+            # Work
+            - [ ] First ⏰ 09:00 ⏳ 2026-09-01
+            - [ ] Second ⏰ 10:00 ⏳ 2026-09-01
+            """);
+        var code = TaskLinkCode.Generate("/todos/work.md", 7);
+
+        var exitCode = fixture.Application.Run([
+            "update", code, "--time", "09:00"]);
+
+        exitCode.Should().Be(1);
+        fixture.FileSystem.WriteCount.Should().Be(0);
+        fixture.Output.ToString().Should().Contain("\"code\":\"schedule_conflict\"");
     }
 
 }

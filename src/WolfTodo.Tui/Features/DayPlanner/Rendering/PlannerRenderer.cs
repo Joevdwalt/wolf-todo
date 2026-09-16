@@ -18,6 +18,7 @@ public sealed class PlannerRenderer
     private readonly Func<int> widthProvider;
     private readonly Func<int> heightProvider;
     private readonly Func<DateTime> nowProvider;
+    private readonly OperationalHeaderRenderer operationalHeaderRenderer = new();
     private readonly SurfaceThemeRenderer themeRenderer = new();
     private readonly StatusRenderer statusRenderer = new();
     private readonly CalendarItemRenderer calendarItemRenderer = new();
@@ -46,7 +47,8 @@ public sealed class PlannerRenderer
         TuiTheme theme)
     {
         var context = CreatePlannerRenderContext(view, keyBindings);
-        RenderPlannerHeader(tabs, view, keyBindings, theme, context);
+        var now = nowProvider();
+        RenderPlannerHeader(tabs, view, keyBindings, theme, context, now);
 
         var timelineTable = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 1
             ? CreatePlannerMultiDayTimelineTable(view, context.AvailableRows, theme)
@@ -56,7 +58,7 @@ public sealed class PlannerRenderer
                     view.State.SlotIndex,
                     context.AvailableRows,
                     view.State.SelectedDate,
-                    nowProvider(),
+                    now,
                     view.CalendarAgenda.Meetings,
                     view.ActiveFocusBlock),
                 context.AvailableRows,
@@ -122,14 +124,16 @@ public sealed class PlannerRenderer
         PlannerView view,
         TuiKeyBindings keyBindings,
         TuiTheme theme,
-        PlannerRenderContext context) =>
-        WriteOperationalHeader(
+        PlannerRenderContext context,
+        DateTime now) =>
+        operationalHeaderRenderer.Write(
             tabs,
             keyBindings,
             theme,
             context.Width,
             statusRenderer.PlannerMode(view),
             view.State.SelectedDate,
+            now,
             view.OpenTodoCount,
             view.ProjectErrorCount);
 
@@ -406,7 +410,7 @@ public sealed class PlannerRenderer
         Table timelineTable)
     {
         var detailWidth = Math.Max(28, context.Width - context.TimelineWidth - 4);
-        const int inspectorContentHeight = 10;
+        const int inspectorContentHeight = 11;
         var allDayContentHeight = Math.Max(
             1,
             context.AvailableRows - (view.State.ShowDetails ? inspectorContentHeight + 2 : 0));
@@ -775,6 +779,7 @@ public sealed class PlannerRenderer
                 [
                     new Text("MOVE TASK", themeRenderer.Style(theme.AccentBright, Decoration.Bold)),
                     new Text($"Task: {moving.Todo.Title}", themeRenderer.Style(theme.Text)),
+                    new Text($"LINK: {TaskLinkCode.Generate(moving.Identity.ProjectPath, moving.Identity.SourceLine)}", themeRenderer.Style(theme.Info)),
                     new Text($"Current: {current}", themeRenderer.Style(theme.Date)),
                     new Text($"Destination: {destination}", themeRenderer.Style(theme.Date)),
                     new Text($"Duration: {todoRowRenderer.FormatDuration(duration) ?? "Instant"}", themeRenderer.Style(theme.Info))
@@ -808,6 +813,7 @@ public sealed class PlannerRenderer
         }
 
         calendarItemRenderer.AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
+        calendarItemRenderer.AddField(lines, "Link", TaskLinkCode.Generate(assignment.Identity.ProjectPath, assignment.Identity.SourceLine), theme, theme.Info);
         if (!string.IsNullOrEmpty(todo.SectionPath))
         {
             calendarItemRenderer.AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
@@ -903,7 +909,7 @@ public sealed class PlannerRenderer
 
             var label = item.Assignment is null
                 ? $"{item.Title}  ·  {calendarItemRenderer.AllDayKindLabel(item.Kind)}  ·  READ ONLY"
-                : $"{item.Title}  ·  {item.ProjectTitle}  ·  ALL DAY";
+                : $"LINK: {TaskLinkCode.Generate(item.Assignment.Identity.ProjectPath, item.Assignment.Identity.SourceLine)}  ·  {item.Title}  ·  {item.ProjectTitle}  ·  ALL DAY";
             return new Text(
                 label,
                 themeRenderer.Style(item.Assignment is null ? theme.Info : theme.Heading, Decoration.Bold)).Ellipsis();
@@ -933,6 +939,8 @@ public sealed class PlannerRenderer
             todo.Schedule is null ? null : todoRowRenderer.FormatSchedule(todo.Schedule)
         };
         var line = new System.Text.StringBuilder();
+        themeRenderer.AppendStyled(line,
+            $"LINK: {TaskLinkCode.Generate(assignment.Identity.ProjectPath, assignment.Identity.SourceLine)}  ·  ", theme.Info);
         themeRenderer.AppendStyled(line, todo.Title, theme.Heading, Decoration.Bold);
         if (view.SelectedSlot.Assignments.Length > 1)
         {
@@ -1051,87 +1059,4 @@ public sealed class PlannerRenderer
         return new Markup(line.ToString());
     }
 
-    public void WriteOperationalHeader(
-        TabStripView view,
-        TuiKeyBindings bindings,
-        TuiTheme theme,
-        int terminalWidth,
-        string mode,
-        DateOnly date,
-        int openCount,
-        int errorCount)
-    {
-        var segments = new List<(string Text, Color Color, Decoration Decoration)>();
-        if (terminalWidth >= 60)
-        {
-            segments.Add(("WOLF TODO // ", theme.Heading, Decoration.Bold));
-            for (var index = 0; index < view.Tabs.Length; index++)
-            {
-                if (index > 0)
-                {
-                    segments.Add(("  ", theme.Text, Decoration.None));
-                }
-
-                var tab = view.Tabs[index];
-                var title = tab.IsSelected
-                    ? $"[{tab.Title.ToUpperInvariant()}]"
-                    : tab.Title.ToUpperInvariant();
-                var color = tab.IsSelected ? theme.Accent : theme.Muted;
-                var decoration = tab.IsSelected ? Decoration.Bold : Decoration.Dim;
-                segments.Add((title, color, decoration));
-            }
-        }
-        else
-        {
-            var active = view.Tabs.First(tab => tab.IsSelected);
-            segments.Add(($"[{active.Title.ToUpperInvariant()}]", theme.Accent, Decoration.Bold));
-        }
-
-        segments.Add(($"  MODE:{mode}", theme.SecondaryText, Decoration.None));
-        if (terminalWidth >= 80)
-        {
-            segments.Add(($"  {date.ToString("ddd dd MMM").ToUpperInvariant()}", theme.Date, Decoration.None));
-        }
-
-        if (terminalWidth >= 100)
-        {
-            segments.Add(($"  OPEN:{openCount}", theme.Text, Decoration.None));
-            segments.Add((
-                errorCount == 0 ? "  FILES:CLEAN" : $"  FILES:{errorCount} ERRORS",
-                errorCount == 0 ? theme.Muted : theme.Error,
-                errorCount == 0 ? Decoration.Dim : Decoration.Bold));
-        }
-
-        if (terminalWidth >= 120 && view.Tabs.Length > 1)
-        {
-            var hint = $"  {TuiKeyBindings.ShortestDisplayName(bindings.TabPrevious)}/" +
-                       $"{TuiKeyBindings.ShortestDisplayName(bindings.TabNext)} TABS";
-            segments.Add((hint, theme.Muted, Decoration.Dim));
-        }
-
-        var totalLength = segments.Sum(segment => segment.Text.Length);
-        var width = Math.Max(1, terminalWidth);
-        var remaining = totalLength > width ? width - 1 : width;
-        var output = new System.Text.StringBuilder();
-
-        foreach (var segment in segments)
-        {
-            var length = Math.Min(segment.Text.Length, remaining);
-            if (length == 0)
-            {
-                break;
-            }
-
-            themeRenderer.AppendStyled(output, segment.Text[..length], segment.Color, segment.Decoration);
-            remaining -= length;
-        }
-
-        if (totalLength > width)
-        {
-            themeRenderer.AppendStyled(output, "…", theme.Muted);
-        }
-
-        themeRenderer.WriteSurface(new Markup(output.ToString()), theme.Background, true);
-        AnsiConsole.WriteLine();
-    }
 }

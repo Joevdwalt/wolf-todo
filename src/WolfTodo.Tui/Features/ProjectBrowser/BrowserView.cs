@@ -18,6 +18,8 @@ public sealed record BrowserView(
 
     public string? GlobalError { get; init; }
 
+    public RuntimeReloadStatus? ReloadStatus { get; init; }
+
     public CommandPaletteView? CommandPalette { get; init; }
 
     public string? TimerStatus { get; init; }

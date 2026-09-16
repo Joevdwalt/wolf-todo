@@ -10,4 +10,6 @@ public sealed record BrowserTransition(
     TodoIdentity? TodoIdentity = null,
     TodoTaskUpdate? Update = null,
     ImmutableArray<TodoIdentity> TodoIdentities = default,
-    TodoBulkUpdate? BulkUpdate = null);
+    TodoBulkUpdate? BulkUpdate = null,
+    TodoItem? ExpectedTodo = null,
+    ImmutableDictionary<TodoIdentity, TodoItem>? ExpectedTodos = null);

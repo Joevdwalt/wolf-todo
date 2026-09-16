@@ -23,6 +23,17 @@ cancelling resets the completion cycle. The catalog includes configured shell
 commands and built-in commands such as `:move-todo-project` and
 `:roll-today`.
 
+[SPEC0023: Task Links](SPEC0023-task-links.md) defines `:task-link` and
+`:open-task` in command completion, plus `Generate task link` and `Open task
+link` palette actions. Generation uses the selected Markdown task and is
+disabled with a reason otherwise; opening prompts for a code. Both actions
+remain available in the reduced focus palette.
+
+`:config` opens the platform-resolved global `config.toml` in `$EDITOR` at line
+one. It waits for the editor and reports editor-launch failures in the command
+status area. The command is available from both tabs and appears as `Edit
+configuration` in the palette.
+
 The Todos details action is labeled `Hide details` or `Show details` from the
 current browser state and executes the same semantic toggle as its binding.
 The palette also exposes typed `Jump to top` and `Jump to bottom` Todos actions
@@ -33,6 +44,10 @@ Configured movement changes selection. `/` starts search across group, label,
 description, and binding. Enter/open executes an enabled typed action. Escape
 clears an active query before closing the palette. Once open, the palette
 captures input before tab and feature routing.
+
+Task focus mode presents a reduced palette containing application actions and
+actions for the highlighted task. Unrelated tab, list, bulk, and planner actions
+are omitted until focus mode closes.
 
 The palette uses the normal status area and reduces active content height so
 the application tab strip remains visible on supported short terminals.
@@ -46,9 +61,13 @@ the application tab strip remains visible on supported short terminals.
 5. Palette rendering never scrolls the application tabs off the screen.
 6. Tab completion expands unique prefixes, cycles ambiguous commands, and
    includes configured command names.
+7. `:config` opens the resolved global configuration in `$EDITOR` from either
+   tab and reports an unavailable or failed editor.
+8. Focus mode exposes only application and highlighted-task actions.
 
 ## References
 
 - [SPEC0001: Terminal Splash Screen](SPEC0001-terminal-splash-screen.md)
 - [SPEC0004: Configurable Browser Key Bindings](SPEC0004-configurable-browser-key-bindings.md)
 - [SPEC0005: Application View Tabs](SPEC0005-application-view-tabs.md)
+- [SPEC0022: Task Focus Mode](SPEC0022-task-focus-mode.md)

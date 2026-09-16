@@ -18,8 +18,44 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         TuiKeyBindings bindings,
         bool plannerExportEnabled = false,
         bool timerEnabled = false,
-        bool timerRunning = false)
+        bool timerRunning = false,
+        FocusedTaskView? focusedTask = null)
     {
+        if (focusedTask is not null)
+        {
+            var focusTimerReason = timerRunning
+                ? null
+                : timerEnabled ? null : "Configure [timer] to enable task timing.";
+            var focusPomodoroReason = !timerEnabled
+                ? "Configure [timer] to enable Pomodoro timing."
+                : timerRunning ? "Stop the active timer first." : null;
+            return
+            [
+                Item(ApplicationActionId.Exit, "Application", "Quit", "Exit Wolf Todo",
+                    bindings.QuitCommand),
+                Item(ApplicationActionId.OpenConfiguration, "Application", "Edit configuration",
+                    "Open config.toml in $EDITOR", ApplicationCommandCatalog.Configuration),
+                Item(ApplicationActionId.GenerateTaskLink, "Application", "Generate task link",
+                    "Display a code for the highlighted Markdown location", ApplicationCommandCatalog.TaskLink),
+                Item(ApplicationActionId.OpenTaskLink, "Application", "Open task link",
+                    "Enter a task code to open in Todos", ApplicationCommandCatalog.OpenTask),
+                Item(ApplicationActionId.ExitTaskFocus, "Focus", "Exit focus",
+                    "Return to the previous view", Shortest(bindings.Back)),
+                Item(ApplicationActionId.FocusEdit, "Focus", "Edit highlighted task",
+                    "Edit fields, notes, schedule, and subtasks", Shortest(bindings.EditTodoContent)),
+                Item(ApplicationActionId.FocusEditExternal, "Focus", "Edit in $EDITOR",
+                    "Open the highlighted task in its Markdown source", Shortest(bindings.EditTodoExternal)),
+                Item(ApplicationActionId.FocusToggleCompleted, "Focus", "Toggle highlighted task",
+                    "Change the highlighted checkbox", Shortest(bindings.ToggleTodo)),
+                Item(ApplicationActionId.ToggleTimer, "Focus", timerRunning ? "Stop timer" : "Start timer",
+                    "Start, stop, or switch timing for the highlighted task",
+                    Shortest(bindings.ToggleTimer), focusTimerReason),
+                Item(ApplicationActionId.StartPomodoro, "Focus", "Start Pomodoro",
+                    "Start a countdown for the highlighted task",
+                    Shortest(bindings.StartPomodoro), focusPomodoroReason)
+            ];
+        }
+
         var browserReason = browserActive ? null : "Available in the Todos tab.";
         var plannerReason = browserActive ? "Available in the Day Planner tab." : null;
         var selectedReason = browserReason ?? (browser?.SelectedTodo is null ? "Select a todo first." : null);
@@ -61,9 +97,10 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         var plannerExportReason = plannerReason ?? (plannerExportEnabled
             ? null
             : "Configure [planner.export] to enable day schedule export.");
-        var timerReason = !timerEnabled
-            ? "Configure [timer] to enable task timing."
-            : timerRunning ? null
+        var timerReason = timerRunning
+            ? null
+            : !timerEnabled
+                ? "Configure [timer] to enable task timing."
             : browserActive ? selectedReason : plannerSelectedReason;
         var pomodoroReason = !timerEnabled
             ? "Configure [timer] to enable Pomodoro timing."
@@ -79,6 +116,14 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         [
             Item(ApplicationActionId.Exit, "Application", "Quit", "Exit Wolf Todo",
                 bindings.QuitCommand),
+            Item(ApplicationActionId.OpenConfiguration, "Application", "Edit configuration",
+                "Open config.toml in $EDITOR", ApplicationCommandCatalog.Configuration),
+            Item(ApplicationActionId.GenerateTaskLink, "Application", "Generate task link",
+                "Display a code for the selected Markdown location", ApplicationCommandCatalog.TaskLink,
+                browserActive ? selectedReason : planner?.SelectedFocusedAssignment is null
+                    ? "Select a Markdown task first." : null),
+            Item(ApplicationActionId.OpenTaskLink, "Application", "Open task link",
+                "Enter a task code to open in Todos", ApplicationCommandCatalog.OpenTask),
             Item(ApplicationActionId.ToggleCompleted, "Application", "Toggle completed",
                 "Show or hide completed todos", bindings.ToggleCompletedCommand),
             Item(ApplicationActionId.ToggleTimer, "Application", timerRunning ? "Stop timer" : "Start timer",
@@ -89,6 +134,9 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
             Item(ApplicationActionId.StartUntrackedPomodoro, "Application", "Start untracked Pomodoro",
                 "Start a Pomodoro without a todo or time-log entry",
                 Shortest(bindings.StartUntrackedPomodoro), untrackedPomodoroReason),
+            Item(ApplicationActionId.FocusSelectedTask, "Application", "Focus selected task",
+                "Hide other views and work on the selected task", Shortest(bindings.FocusTask),
+                browserActive ? selectedReason : plannerSelectedReason),
             Item(ApplicationActionId.NextTab, "Application", "Next tab", "Select the next application tab",
                 Shortest(bindings.TabNext)),
             Item(ApplicationActionId.PreviousTab, "Application", "Previous tab",

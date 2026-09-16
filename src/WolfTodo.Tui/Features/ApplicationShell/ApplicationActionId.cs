@@ -3,10 +3,18 @@ namespace WolfTodo.Tui.Features.ApplicationShell;
 public enum ApplicationActionId
 {
     Exit,
+    OpenConfiguration,
+    GenerateTaskLink,
+    OpenTaskLink,
     ToggleCompleted,
     ToggleTimer,
     StartPomodoro,
     StartUntrackedPomodoro,
+    FocusSelectedTask,
+    ExitTaskFocus,
+    FocusEdit,
+    FocusEditExternal,
+    FocusToggleCompleted,
     NextTab,
     PreviousTab,
     BrowserFilter,

@@ -20,12 +20,30 @@ public sealed class TimerWorkflow(
         ApplicationConfiguration configuration,
         bool isTodosTabActive)
     {
-        if (configuration.Timer is null)
-        {
-            return Failure(state, "Task timing requires a [timer] notes_directory configuration.", isTodosTabActive);
-        }
-
         var target = BuildTarget(browser, planner, catalog, isTodosTabActive);
+        return Toggle(state, target, configuration, isTodosTabActive);
+    }
+
+    public ApplicationState ToggleFocused(
+        ApplicationState state,
+        FocusedTaskView view,
+        ApplicationConfiguration configuration,
+        bool isTodosTabActive) => Toggle(
+        state,
+        new TimerTarget(
+            view.SelectedItem.Identity,
+            view.ProjectTitle,
+            view.SelectedItem.Todo.Title,
+            view.SelectedItem.Todo.Duration),
+        configuration,
+        isTodosTabActive);
+
+    private ApplicationState Toggle(
+        ApplicationState state,
+        TimerTarget? target,
+        ApplicationConfiguration configuration,
+        bool isTodosTabActive)
+    {
         if (state.Timer is not null)
         {
             var activeWasPomodoro = state.Timer.IsPomodoro;
@@ -40,10 +58,16 @@ public sealed class TimerWorkflow(
                 return Failure(state, "Could not write the active task timer.", isTodosTabActive);
             }
 
+            var timerConfiguration = state.Timer.Settings ?? configuration.Timer;
+            if (timerConfiguration is null)
+            {
+                return Failure(state, "Could not write the active task timer.", isTodosTabActive);
+            }
+
             var result = weeklyTimeLogService.Record(
                 state.Timer,
                 state.Timer.RecordingEnd(nowProvider()),
-                configuration.Timer);
+                timerConfiguration);
             if (!result.Succeeded)
             {
                 return Failure(state, result.Error ?? "Could not write task time.", isTodosTabActive);
@@ -56,6 +80,11 @@ public sealed class TimerWorkflow(
             }
         }
 
+        if (configuration.Timer is null)
+        {
+            return Failure(state, "Task timing requires a [timer] notes_directory configuration.", isTodosTabActive);
+        }
+
         if (target is null)
         {
             return Failure(state, "Select a todo before starting the timer.", isTodosTabActive);
@@ -66,7 +95,15 @@ public sealed class TimerWorkflow(
             return Failure(state, "Task timing is unavailable.", isTodosTabActive);
         }
 
-        return state with { Timer = new ActiveTimer(target.TodoIdentity, target.ProjectTitle, target.TodoTitle, nowProvider()) };
+        return state with
+        {
+            Timer = new ActiveTimer(
+                target.TodoIdentity,
+                target.ProjectTitle,
+                target.TodoTitle,
+                nowProvider(),
+                Settings: configuration.Timer)
+        };
     }
 
     public ApplicationState OpenPomodoroPrompt(
@@ -89,6 +126,39 @@ public sealed class TimerWorkflow(
         }
 
         var target = untracked ? null : BuildTarget(browser, planner, catalog, isTodosTabActive);
+        return OpenPomodoroPrompt(state, target, configuration, isTodosTabActive);
+    }
+
+    public ApplicationState OpenPomodoroPromptFocused(
+        ApplicationState state,
+        FocusedTaskView view,
+        ApplicationConfiguration configuration,
+        bool isTodosTabActive) => OpenPomodoroPrompt(
+        state,
+        new TimerTarget(
+            view.SelectedItem.Identity,
+            view.ProjectTitle,
+            view.SelectedItem.Todo.Title,
+            view.SelectedItem.Todo.Duration),
+        configuration,
+        isTodosTabActive);
+
+    private ApplicationState OpenPomodoroPrompt(
+        ApplicationState state,
+        TimerTarget? target,
+        ApplicationConfiguration configuration,
+        bool isTodosTabActive)
+    {
+        if (configuration.Timer is null)
+        {
+            return Failure(state, "Pomodoro timing requires a [timer] configuration.", isTodosTabActive);
+        }
+
+        if (state.Timer is not null)
+        {
+            return Failure(state, "Stop the active timer before starting a Pomodoro.", isTodosTabActive);
+        }
+
         if (target is not null && weeklyTimeLogService is null)
         {
             return Failure(state, "Task timing is unavailable.", isTodosTabActive);
@@ -159,6 +229,42 @@ public sealed class TimerWorkflow(
         }
 
         var selectedTarget = BuildTarget(browser, planner, catalog, isTodosTabActive);
+        return StartPomodoroCommand(state, selectedTarget, configuration, command, isTodosTabActive);
+    }
+
+    public ApplicationState StartPomodoroCommandFocused(
+        ApplicationState state,
+        FocusedTaskView view,
+        ApplicationConfiguration configuration,
+        ApplicationCommandTransition command,
+        bool isTodosTabActive) => StartPomodoroCommand(
+        state,
+        new TimerTarget(
+            view.SelectedItem.Identity,
+            view.ProjectTitle,
+            view.SelectedItem.Todo.Title,
+            view.SelectedItem.Todo.Duration),
+        configuration,
+        command,
+        isTodosTabActive);
+
+    private ApplicationState StartPomodoroCommand(
+        ApplicationState state,
+        TimerTarget? selectedTarget,
+        ApplicationConfiguration configuration,
+        ApplicationCommandTransition command,
+        bool isTodosTabActive)
+    {
+        if (configuration.Timer is null)
+        {
+            return Failure(state, "Pomodoro timing requires a [timer] configuration.", isTodosTabActive);
+        }
+
+        if (state.Timer is not null)
+        {
+            return Failure(state, "Stop the active timer before starting a Pomodoro.", isTodosTabActive);
+        }
+
         if (command.PomodoroDurationSource == PomodoroDurationSource.SelectedTask)
         {
             if (selectedTarget is null)
@@ -187,8 +293,9 @@ public sealed class TimerWorkflow(
 
         state = state with { Timer = timer with { CompletionHandled = true } };
         var completion = new PomodoroCompletion(timer.TodoTitle, timer.Duration ?? TimeSpan.Zero, nowProvider());
-        pomodoroCompletionNotifier?.Notify(completion, configuration.Timer?.Bell != false);
-        if (pomodoroCompletionNotifier is null && configuration.Timer?.Bell != false)
+        var timerConfiguration = timer.Settings ?? configuration.Timer;
+        pomodoroCompletionNotifier?.Notify(completion, timerConfiguration?.Bell != false);
+        if (pomodoroCompletionNotifier is null && timerConfiguration?.Bell != false)
         {
             terminalUi.RingBell();
         }
@@ -200,9 +307,10 @@ public sealed class TimerWorkflow(
     {
         if (state.Timer is null) return state;
         if (!state.Timer.IsTaskLinked) return state with { Timer = null };
-        if (configuration.Timer is null || weeklyTimeLogService is null)
+        var timerConfiguration = state.Timer.Settings ?? configuration.Timer;
+        if (timerConfiguration is null || weeklyTimeLogService is null)
             return Failure(state, "Could not write the active task timer.", isTodosTabActive);
-        var result = weeklyTimeLogService.Record(state.Timer, state.Timer.RecordingEnd(nowProvider()), configuration.Timer);
+        var result = weeklyTimeLogService.Record(state.Timer, state.Timer.RecordingEnd(nowProvider()), timerConfiguration);
         return result.Succeeded
             ? state with { Timer = null }
             : Failure(state, result.Error ?? "Could not write task time.", isTodosTabActive);
@@ -255,7 +363,13 @@ public sealed class TimerWorkflow(
 
         return state with
         {
-            Timer = new ActiveTimer(target?.TodoIdentity, target?.ProjectTitle, target?.TodoTitle, nowProvider(), duration),
+            Timer = new ActiveTimer(
+                target?.TodoIdentity,
+                target?.ProjectTitle,
+                target?.TodoTitle,
+                nowProvider(),
+                duration,
+                Settings: configuration.Timer),
             PomodoroPrompt = null
         };
     }
@@ -273,9 +387,12 @@ public sealed class TimerWorkflow(
             : null;
     }
 
-    private static ApplicationState Failure(ApplicationState state, string error, bool isTodosTabActive) => isTodosTabActive
-        ? state with { Browser = state.Browser with { Error = error } }
-        : state with { Planner = state.Planner with { Error = error } };
+    private static ApplicationState Failure(ApplicationState state, string error, bool isTodosTabActive) =>
+        state.FocusedTask is not null
+            ? state with { FocusedTask = state.FocusedTask with { Error = error } }
+            : isTodosTabActive
+                ? state with { Browser = state.Browser with { Error = error } }
+                : state with { Planner = state.Planner with { Error = error } };
 
     private sealed record TimerTarget(TodoIdentity TodoIdentity, string ProjectTitle, string TodoTitle, TimeSpan? Duration);
 }

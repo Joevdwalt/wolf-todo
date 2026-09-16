@@ -104,6 +104,11 @@ public sealed class CommandPaletteReducerTests
         show.Label.Should().Be("Show details");
         hide.Binding.Should().Be("v");
         catalog.Create(true, visible, null, Bindings)
+            .Single(item => item.Action == ApplicationActionId.OpenConfiguration)
+            .Should().Be(new CommandPaletteItem(
+                ApplicationActionId.OpenConfiguration, "Application", "Edit configuration",
+                "Open config.toml in $EDITOR", ":config", true, null));
+        catalog.Create(true, visible, null, Bindings)
             .Single(item => item.Action == ApplicationActionId.BrowserJumpTop)
             .Binding.Should().Be("g");
         catalog.Create(true, visible, null, Bindings)
@@ -112,6 +117,25 @@ public sealed class CommandPaletteReducerTests
         catalog.Create(true, visible, null, Bindings)
             .Single(item => item.Action == ApplicationActionId.BrowserEditExternal)
             .Binding.Should().Be("Ctrl+E");
+    }
+
+    [Fact]
+    public void ActionCatalog_reduces_actions_to_the_highlighted_task_while_focused()
+    {
+        var todo = new TodoItem(3, false, null, "Focus", null, [], null, null, string.Empty, [], []);
+        var identity = new TodoIdentity("/work.md", 3);
+        var focus = new FocusedTaskPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/work.md", [todo])], []),
+            FocusedTaskState.Create(identity, todo))!;
+
+        var items = new ApplicationActionCatalog().Create(
+            true, null, null, Bindings, timerEnabled: true, focusedTask: focus);
+
+        items.Should().Contain(item => item.Action == ApplicationActionId.ExitTaskFocus);
+        items.Should().Contain(item => item.Action == ApplicationActionId.FocusEdit);
+        items.Should().NotContain(item => item.Action == ApplicationActionId.NextTab);
+        items.Should().NotContain(item => item.Action == ApplicationActionId.BrowserFilter);
+        items.Should().NotContain(item => item.Action == ApplicationActionId.PlannerNextDay);
     }
 
     [Fact]

@@ -23,6 +23,7 @@ public sealed class PlannerWorkflow(
         ApplicationConfiguration configuration,
         PlannerFocusBlock? activeFocusBlock)
     {
+        calendarCache.EnsureWindow(configuration.GoogleCalendar);
         var selectedView = presenter.CreateView(
             catalog,
             state,
@@ -56,8 +57,11 @@ public sealed class PlannerWorkflow(
         return selectedView with { DayColumns = columns };
     }
 
-    public void Refresh(ApplicationConfiguration configuration, PlannerState state) =>
+    public void Refresh(ApplicationConfiguration configuration, PlannerState state)
+    {
+        calendarCache.RefreshWindow(configuration.GoogleCalendar);
         calendarCache.Refresh(configuration.GoogleCalendar, state.SelectedDate);
+    }
 
     public PlannerTransition Reduce(
         PlannerState state,
@@ -149,7 +153,7 @@ public sealed class PlannerWorkflow(
             return (Failure(state, "Todo writing is unavailable."), catalog);
         }
 
-        var expected = FindTodo(catalog, transition.TodoIdentity);
+        var expected = transition.ExpectedTodo ?? FindTodo(catalog, transition.TodoIdentity);
         catalog = catalogLoader.Load(configuration.ProjectFiles);
         var schedule = transition.ScheduleTarget == PlannerScheduleTarget.AllDay
             ? new TodoSchedule(state.Planner.SelectedDate)

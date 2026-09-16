@@ -6,7 +6,8 @@ public sealed record ApplicationCommandTransition(
     string? ProjectTitle = null,
     PomodoroDurationSource? PomodoroDurationSource = null,
     int? PomodoroMinutes = null,
-    bool PomodoroUntracked = false);
+    bool PomodoroUntracked = false,
+    string? TaskCode = null);
 
 public enum PomodoroDurationSource
 {

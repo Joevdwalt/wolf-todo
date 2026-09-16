@@ -9,6 +9,8 @@ public static class CliHelpText
                                 wtodo import --file <path>
                                 wtodo import --stdin
                                 wtodo list [--project <title|absolute-path>]
+                                wtodo get <task-code>
+                                wtodo update <task-code> [options]
 
                                 Add options:
                                   --reference <text>
@@ -20,5 +22,18 @@ public static class CliHelpText
                                   --content <multiline-text>          Optional task content
                                   --subtask <title>                   Repeatable, unchecked
                                   --completed-subtask <title>         Repeatable, completed
+
+                                Update options:
+                                  --completed <true|false>
+                                  --title <text>
+                                  --reference <text> | --clear-reference
+                                  --priority <lowest|low|medium|high|highest> | --clear-priority
+                                  --tag <tag>                         Repeatable, replaces tags
+                                  --clear-tags
+                                  --scheduled <YYYY-MM-DD>
+                                  --time <HH:mm> | --clear-time
+                                  --clear-schedule
+                                  --duration-minutes <minutes> | --clear-duration
+                                  --content <multiline-text> | --clear-content
                                 """;
 }

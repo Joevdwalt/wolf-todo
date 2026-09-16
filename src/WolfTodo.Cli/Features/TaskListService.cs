@@ -21,4 +21,27 @@ public sealed class TaskListService(
             : TaskListResult.Failure(resolution.ErrorCode!, resolution.Error);
     }
 
+    public TaskLookupResult Get(string code)
+    {
+        if (!TaskLinkCode.IsValid(code))
+        {
+            return TaskLookupResult.Failure("invalid_task_code", TaskLinkCode.InvalidCodeMessage);
+        }
+
+        var catalog = catalogLoader.Load(configurationLoader.Load());
+        var match = TaskLinkCode.ResolveMatch(catalog, code, out var ambiguous);
+        if (match is not null)
+        {
+            return TaskLookupResult.Success(match);
+        }
+
+        return ambiguous
+            ? TaskLookupResult.Failure(
+                "ambiguous_task_code",
+                $"Task link code '{code}' matches multiple configured task locations.")
+            : TaskLookupResult.Failure(
+                "task_not_found",
+                $"No configured task matches link code '{code}'.");
+    }
+
 }

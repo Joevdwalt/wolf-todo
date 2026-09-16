@@ -56,12 +56,13 @@ Markdown todos.
 - Preserve project, filter, sort, and logical list position after reloading;
   clear stale source-line restoration. Missing editors, launch failures, and
   nonzero exits are recoverable browser errors.
+- Focus mode applies edit, external-edit, completion, and project-move actions
+  to its highlighted root or subtask and remains open after successful writes.
 - The unified task editor is shared by Todos and Day Planner. Planner write
   failures keep the active draft open with its error;
   successful writes close the editor and retain the selected date and slot.
 
-Root-todo deletion, project/section movement, and subtask reordering remain out
-of scope.
+Root-todo deletion, section movement, and subtask reordering remain out of scope.
 
 Multi-task schedule, tag, priority, and completion changes use the selection,
 form, and per-project atomicity rules in SPEC0018.
@@ -74,3 +75,4 @@ form, and per-project atomicity rules in SPEC0018.
 - [SPEC0009: Day Planner](SPEC0009-day-planner.md)
 - [SPEC0011: Structured Todo Content Editor](SPEC0011-structured-todo-content-editor.md)
 - [SPEC0018: Multi-Select Task Updates](SPEC0018-multi-select-task-updates.md)
+- [SPEC0022: Task Focus Mode](SPEC0022-task-focus-mode.md)

@@ -31,6 +31,8 @@ back to the terminal bell if the native sound cannot start. A task-linked Pomodo
 weekly Markdown time log; an untracked Pomodoro does not write a log entry.
 `Ctrl+T` stops either kind of active timer early. Stopping a linked Pomodoro
 records its elapsed time; stopping an untracked Pomodoro discards it.
+In task focus mode, linked Pomodoros target the highlighted root or subtask;
+opening focus mode never starts a countdown automatically.
 
 This version provides one focus countdown at a time. It does not automatically
 start breaks, repeat cycles, pause, or complete the linked todo.
@@ -58,3 +60,7 @@ information is removed before the NOW and Pomodoro countdown.
 6. Stopping or completing removes both planner indicators.
 7. Starting another Pomodoro is blocked while any timer is active.
 8. Completion remains visible as `✓ POMODORO COMPLETE · <duration> · <task>` until the next keypress.
+
+## References
+
+- [SPEC0022: Task Focus Mode](SPEC0022-task-focus-mode.md)

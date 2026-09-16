@@ -42,6 +42,149 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_opens_and_exits_task_focus_without_changing_the_underlying_tab()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('f'), Key(ConsoleKey.Escape),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        terminal.FocusedTaskViews.Should().ContainSingle();
+        terminal.FocusedTaskViews.Single().Items.Select(item => item.Todo.Title)
+            .Should().Equal("Parent", "Child");
+        terminal.BrowserViews.Should().HaveCountGreaterThan(1);
+        terminal.TabViews.Should().OnlyContain(view => view.Tabs[0].IsSelected);
+    }
+
+    [Fact]
+    public void Run_completes_the_highlighted_subtask_and_stays_in_focus()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('f'), Key('j'), Key(ConsoleKey.Spacebar),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Contain("  - [x] Child");
+        terminal.FocusedTaskViews.Should().Contain(view =>
+            view.SelectedItem.Todo.Title == "Child" && view.SelectedItem.Todo.IsCompleted);
+    }
+
+    [Fact]
+    public void Run_focuses_the_selected_planner_task()
+    {
+        var today = new DateOnly(2026, 9, 10);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            $"# Work\n\n- [ ] Planned ⏳ {today:yyyy-MM-dd} ⏰ 06:00\n");
+        var terminal = new FakeTerminal(
+            Key('x'), Key('L'), Key('f'), Key(ConsoleKey.Escape),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem,
+            todayProvider: () => today);
+
+        application.Run();
+
+        terminal.FocusedTaskViews.Should().ContainSingle()
+            .Which.SelectedItem.Todo.Title.Should().Be("Planned");
+        terminal.PlannerViews.Should().HaveCountGreaterThan(1);
+    }
+
+    [Fact]
+    public void Run_exits_focus_when_an_external_reload_replaces_the_task()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Original\n");
+        var monitor = new QueuedFileChangeMonitor(
+            new ApplicationFileChanges(false, true),
+            () => fileSystem.Contents = "# Work\n\n- [ ] Replacement\n",
+            pollAt: 2);
+        var terminal = new FakeTerminal(
+            Key('x'), Key('f'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem,
+            fileChangeMonitor: monitor);
+
+        application.Run();
+
+        terminal.FocusedTaskViews.Should().ContainSingle()
+            .Which.SelectedItem.Todo.Title.Should().Be("Original");
+        terminal.BrowserViews.Should().Contain(view =>
+            view.State.StatusMessage == "Focused task is no longer available.");
+    }
+
+    [Fact]
+    public void Run_times_the_highlighted_focus_subtask()
+    {
+        var now = new DateTime(2026, 9, 10, 9, 0, 0);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+        var store = new MemoryTimeLogFileStore();
+        var terminal = new FakeTerminal(
+            Key('x'), Key('f'), Key('j'), Key(ConsoleKey.T, control: true),
+            Key(ConsoleKey.T, control: true), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(timer: new TimerConfiguration("/logs", Bell: false)),
+            terminal,
+            projectFileSystem: fileSystem,
+            weeklyTimeLogService: new WeeklyTimeLogService(store),
+            nowProvider: () => now = now.AddMinutes(1));
+
+        application.Run();
+
+        terminal.FocusedTaskViews.Should().Contain(view =>
+            view.TimerStatus != null && view.TimerStatus.EndsWith("· Child", StringComparison.Ordinal));
+        store.Files.Values.Should().ContainSingle(contents => contents.Contains("Child", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_moves_the_highlighted_subtask_and_follows_it_as_the_focus_root()
+    {
+        var fileSystem = new ArchiveProjectFileSystem(
+            "/todos/source.md",
+            "# Source\n\n- [ ] Parent\n  - [ ] Child\n");
+        fileSystem.Files["/todos/target.md"] = "# Target\n";
+        var keys = new List<ConsoleKeyInfo> { Key('x'), Key('f'), Key('j'), Key(':') };
+        keys.AddRange("move-todo-project Target".Select(Key));
+        keys.AddRange([Key(ConsoleKey.Enter), Key(':'), Key('q'), Key(ConsoleKey.Enter)]);
+        var terminal = new FakeTerminal([.. keys]);
+        var application = CreateApplication(
+            new FixedConfigurationLoader(projectFiles: ["/todos/source.md", "/todos/target.md"]),
+            terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run();
+
+        fileSystem.Files["/todos/source.md"].Should().NotContain("Child");
+        fileSystem.Files["/todos/target.md"].Should().Contain("- [ ] Child");
+        terminal.FocusedTaskViews.Should().Contain(view =>
+            string.Equals(view.ProjectTitle, "Target", StringComparison.OrdinalIgnoreCase) &&
+            view.Items[0].Todo.Title == "Child");
+    }
+
+    [Fact]
     public void Run_commits_and_clears_a_filter_before_exiting()
     {
         var terminal = new FakeTerminal(
@@ -141,6 +284,27 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
+    public void Run_redraws_the_todos_view_after_an_idle_input_timeout_without_changing_state()
+    {
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(':'),
+            Key('q'),
+            Key(ConsoleKey.Enter))
+        {
+            TimeoutNextTimedRead = true
+        };
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal);
+
+        var result = application.Run();
+
+        result.Should().Be(0);
+        terminal.TimedReadCount.Should().BeGreaterThan(1);
+        terminal.BrowserViews.Should().HaveCountGreaterThan(2);
+        terminal.BrowserViews[1].State.Should().Be(terminal.BrowserViews[0].State);
+    }
+
+    [Fact]
     public void Run_completes_an_untracked_pomodoro_without_logging_or_a_disabled_bell()
     {
         var now = new DateTime(2026, 8, 12, 9, 0, 0);
@@ -151,7 +315,7 @@ public sealed class TuiApplicationTests
             Key(ConsoleKey.Enter),
             Key(':'), Key('q'), Key(ConsoleKey.Enter))
         {
-            TimeoutNextTimedRead = true,
+            TimeoutAtTimedRead = 3,
             OnTimedRead = _ => now = now.AddMinutes(25)
         };
         var application = CreateApplication(
@@ -186,7 +350,7 @@ public sealed class TuiApplicationTests
             Key(ConsoleKey.Enter),
             Key(':'), Key('q'), Key(ConsoleKey.Enter))
         {
-            TimeoutNextTimedRead = true,
+            TimeoutAtTimedRead = 3,
             OnTimedRead = _ => now = now.AddMinutes(26)
         };
         var application = CreateApplication(
@@ -218,7 +382,7 @@ public sealed class TuiApplicationTests
             Key('j'),
             Key(':'), Key('q'), Key(ConsoleKey.Enter))
         {
-            TimeoutNextTimedRead = true,
+            TimeoutAtTimedRead = 3,
             OnTimedRead = _ => now = now.AddMinutes(25)
         };
         var application = CreateApplication(
@@ -560,6 +724,43 @@ public sealed class TuiApplicationTests
         terminal.BrowserViews.Should().Contain(view =>
             view.State.Error == "$EDITOR is not configured.");
         fileSystem.ReadCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void Run_opens_configuration_in_the_external_editor()
+    {
+        var launcher = new FakeExternalEditorLauncher(ExternalEditorResult.Success);
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(':'), Key('c'), Key('o'), Key('n'), Key('f'), Key('i'), Key('g'), Key(ConsoleKey.Enter),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            externalEditorLauncher: launcher);
+
+        application.Run();
+
+        launcher.Calls.Should().ContainSingle().Which.Should().Be((GlobalConfigurationPath.Resolve(), 1));
+        terminal.ExternalSuspensions.Should().Be(1);
+        terminal.ExternalResumptions.Should().Be(1);
+    }
+
+    [Fact]
+    public void Run_opens_configuration_from_the_command_palette()
+    {
+        var launcher = new FakeExternalEditorLauncher(ExternalEditorResult.Success);
+        var terminal = new FakeTerminal(
+            Key('x'), Key('?'), Key('/'), Key('c'), Key('o'), Key('n'), Key('f'), Key('i'), Key('g'),
+            Key(ConsoleKey.Enter), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            externalEditorLauncher: launcher);
+
+        application.Run();
+
+        launcher.Calls.Should().ContainSingle().Which.Should().Be((GlobalConfigurationPath.Resolve(), 1));
     }
 
     [Fact]
@@ -948,6 +1149,168 @@ public sealed class TuiApplicationTests
         terminal.BrowserViews.Last().State.Error.Should().BeNull();
     }
 
+    [Fact]
+    public void Run_reloads_changed_project_files_while_waiting_for_input()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Before\n");
+        var monitor = new QueuedFileChangeMonitor(
+            new ApplicationFileChanges(false, true),
+            () => fileSystem.Contents = "# Work\n\n- [ ] After\n");
+        var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem,
+            fileChangeMonitor: monitor);
+
+        application.Run();
+
+        terminal.BrowserViews.Any(view => view.SelectedTodo?.Title == "Before").Should().BeTrue();
+        terminal.BrowserViews.Any(view =>
+            view.SelectedTodo?.Title == "After" &&
+            view.ReloadStatus?.Message == "Projects reloaded.").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Run_keeps_the_last_valid_configuration_when_runtime_reload_fails()
+    {
+        var loader = new FailsAfterStartupConfigurationLoader();
+        var monitor = new QueuedFileChangeMonitor(new ApplicationFileChanges(true, false));
+        var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(loader, terminal, fileChangeMonitor: monitor);
+
+        application.Run();
+
+        terminal.BrowserViews.Any(view =>
+            view.ReloadStatus is { IsError: true } &&
+            view.ReloadStatus.Message.Contains("last valid configuration")).Should().BeTrue();
+        terminal.Themes.Should().OnlyContain(theme => theme == TuiThemes.Wolf);
+    }
+
+    [Fact]
+    public void Run_uses_captured_timer_settings_after_configuration_reload()
+    {
+        var now = new DateTime(2026, 8, 12, 9, 0, 0);
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Focus\n");
+        var store = new MemoryTimeLogFileStore();
+        var loader = new ReloadingTimerConfigurationLoader();
+        var monitor = new QueuedFileChangeMonitor(
+            new ApplicationFileChanges(true, false),
+            () => now = now.AddMinutes(5),
+            pollAt: 2);
+        var terminal = new FakeTerminal(
+            Key('x'),
+            Key(ConsoleKey.T, control: true),
+            Key(ConsoleKey.T, control: true),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            loader,
+            terminal,
+            new FakeApplicationStateStore("/todos/project.md"),
+            projectFileSystem: fileSystem,
+            weeklyTimeLogService: new WeeklyTimeLogService(store),
+            nowProvider: () => now,
+            fileChangeMonitor: monitor);
+
+        application.Run();
+
+        store.Files.Keys.Should().ContainSingle(path => path.StartsWith("/logs-before", StringComparison.Ordinal));
+        terminal.BrowserViews.Any(view => view.ReloadStatus?.Message == "Configuration reloaded.").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Run_rejects_a_preserved_editor_when_an_external_change_moves_its_target()
+    {
+        var fileSystem = new MutableProjectFileSystem(
+            "/todos/project.md",
+            "# Work\n\n- [ ] Original\n");
+        var monitor = new QueuedFileChangeMonitor(
+            new ApplicationFileChanges(false, true),
+            () => fileSystem.Contents = "# Work\n\n- [ ] Replacement\n- [ ] Original\n",
+            pollAt: 2);
+        var terminal = new FakeTerminal(
+            Key('x'), Key('e'), Key(ConsoleKey.S, control: true), Key(ConsoleKey.Escape),
+            Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var application = CreateApplication(
+            new FixedConfigurationLoader(),
+            terminal,
+            projectFileSystem: fileSystem,
+            fileChangeMonitor: monitor);
+
+        application.Run();
+
+        fileSystem.Contents.Should().Be("# Work\n\n- [ ] Replacement\n- [ ] Original\n");
+        terminal.BrowserViews.Any(view =>
+            view.State.Editor?.Error?.Contains("changed on disk") == true).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Run_applies_startup_task_links_after_session_loading_and_preserves_failed_startup(bool valid)
+    {
+        var fileSystem = new MutableProjectFileSystem("/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [x] Child\n");
+        var terminal = new FakeTerminal(Key('x'), Key(':'), Key('q'), Key(ConsoleKey.Enter));
+        var sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending);
+        var store = new FakeApplicationStateStore(null, sort);
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal, store,
+            projectFileSystem: fileSystem,
+            startupTaskCode: valid ? TaskLinkCode.Generate("/todos/project.md", 4) : "invalid");
+
+        application.Run().Should().Be(0);
+
+        var first = terminal.BrowserViews[0];
+        first.State.Sort.Should().Be(sort);
+        if (valid)
+        {
+            first.SelectedTodo!.Title.Should().Be("Child");
+            first.SelectedProjectPath.Should().Be("/todos/project.md");
+            first.State.ShowCompleted.Should().BeTrue();
+            store.SavedProjectPath.Should().Be("/todos/project.md");
+        }
+        else
+        {
+            first.SelectedProjectPath.Should().BeNull();
+            first.GlobalError.Should().Contain("Expected wt1-");
+            first.State.ShowCompleted.Should().BeFalse();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Run_generates_and_opens_task_links_from_browser_or_focus(bool focus)
+    {
+        var fileSystem = new MutableProjectFileSystem("/todos/project.md",
+            "# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+        var code = TaskLinkCode.Generate("/todos/project.md", 4);
+        var keys = new List<ConsoleKeyInfo> { Key('x') };
+        if (focus) keys.Add(Key('f'));
+        keys.AddRange(":task-link".Select(Key));
+        keys.Add(Key(ConsoleKey.Enter));
+        keys.Add(Key(ConsoleKey.Escape));
+        keys.AddRange((":open-task " + code).Select(Key));
+        keys.Add(Key(ConsoleKey.Enter));
+        keys.AddRange(":q".Select(Key));
+        keys.Add(Key(ConsoleKey.Enter));
+        var terminal = new FakeTerminal([.. keys]);
+        var application = CreateApplication(new FixedConfigurationLoader(), terminal,
+            projectFileSystem: fileSystem);
+
+        application.Run().Should().Be(0);
+
+        terminal.TaskLinkPanels.Should().ContainSingle();
+        terminal.TaskLinkPanels[0].Input.Text.Should().Be(TaskLinkCode.Generate("/todos/project.md", 3));
+        terminal.BrowserViews.Last().SelectedTodo!.Title.Should().Be("Child");
+        terminal.BrowserViews.Last().SelectedProjectPath.Should().Be("/todos/project.md");
+        fileSystem.Contents.Should().Be("# Work\n\n- [ ] Parent\n  - [ ] Child\n");
+    }
+
     private static TuiApplication CreateApplication(
         IApplicationConfigurationLoader configurationLoader,
         ITerminalUi terminal,
@@ -957,7 +1320,9 @@ public sealed class TuiApplicationTests
         Func<DateOnly>? todayProvider = null,
         WeeklyTimeLogService? weeklyTimeLogService = null,
         Func<DateTime>? nowProvider = null,
-        IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null)
+        IPomodoroCompletionNotifier? pomodoroCompletionNotifier = null,
+        IApplicationFileChangeMonitor? fileChangeMonitor = null,
+        string? startupTaskCode = null)
     {
         var fileSystem = projectFileSystem ?? new EmptyProjectFileSystem();
         var reader = new MarkdownTodoProjectReader();
@@ -978,7 +1343,9 @@ public sealed class TuiApplicationTests
             todayProvider: todayProvider,
             weeklyTimeLogService: weeklyTimeLogService,
             nowProvider: nowProvider,
-            pomodoroCompletionNotifier: pomodoroCompletionNotifier);
+            pomodoroCompletionNotifier: pomodoroCompletionNotifier,
+            fileChangeMonitor: fileChangeMonitor,
+            startupTaskCode: startupTaskCode);
     }
 
     private static ConsoleKeyInfo Key(char character) => new(character, ConsoleKey.Oem1, false, false, false);
@@ -988,10 +1355,11 @@ public sealed class TuiApplicationTests
 
     private sealed class FixedConfigurationLoader(
         TuiKeyBindings? bindings = null,
-        TimerConfiguration? timer = null) : IApplicationConfigurationLoader
+        TimerConfiguration? timer = null,
+        string[]? projectFiles = null) : IApplicationConfigurationLoader
     {
         public ApplicationConfiguration Load() => new(
-            ["/todos/project.md"],
+            [.. projectFiles ?? ["/todos/project.md"]],
             bindings ?? TuiKeyBindings.CreateDefaults(":q"))
         {
             Timer = timer
@@ -1001,6 +1369,30 @@ public sealed class TuiApplicationTests
     private sealed class ThrowingConfigurationLoader : IApplicationConfigurationLoader
     {
         public ApplicationConfiguration Load() => throw new InvalidDataException("missing configuration");
+    }
+
+    private sealed class FailsAfterStartupConfigurationLoader : IApplicationConfigurationLoader
+    {
+        private int loadCount;
+
+        public ApplicationConfiguration Load()
+        {
+            loadCount++;
+            if (loadCount > 1) throw new InvalidDataException("unfinished config");
+            return new ApplicationConfiguration(["/todos/project.md"], TuiKeyBindings.CreateDefaults(":q"));
+        }
+    }
+
+    private sealed class ReloadingTimerConfigurationLoader : IApplicationConfigurationLoader
+    {
+        private int loadCount;
+
+        public ApplicationConfiguration Load() => new(
+            ["/todos/project.md"],
+            TuiKeyBindings.CreateDefaults(":q"))
+        {
+            Timer = loadCount++ == 0 ? new TimerConfiguration("/logs-before") : null
+        };
     }
 
     private sealed class EmptyProjectFileSystem : IProjectFileSystem
@@ -1029,7 +1421,7 @@ public sealed class TuiApplicationTests
 
     private sealed class MutableProjectFileSystem(string path, string contents) : IProjectFileSystem
     {
-        public string Contents { get; private set; } = contents;
+        public string Contents { get; set; } = contents;
 
         public bool FileExists(string candidate) => candidate == path;
 
@@ -1038,6 +1430,30 @@ public sealed class TuiApplicationTests
         public string ReadAllText(string candidate) => Contents;
 
         public void WriteAllTextAtomically(string candidate, string updated) => Contents = updated;
+    }
+
+    private sealed class QueuedFileChangeMonitor(
+        ApplicationFileChanges changes,
+        Action? beforeChange = null,
+        int pollAt = 1) : IApplicationFileChangeMonitor
+    {
+        private int pollCount;
+
+        public void WatchProjectFiles(IEnumerable<string> paths)
+        {
+        }
+
+        public ApplicationFileChanges Poll()
+        {
+            pollCount++;
+            if (pollCount != pollAt) return ApplicationFileChanges.None;
+            beforeChange?.Invoke();
+            return changes;
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class ArchiveProjectFileSystem(string path, string contents) : IProjectFileSystem
@@ -1098,9 +1514,15 @@ public sealed class TuiApplicationTests
     {
         private readonly Queue<ConsoleKeyInfo> keyQueue = new(keys);
 
+        public List<TaskLinkPanelState> TaskLinkPanels { get; } = [];
+
+        public void ShowTaskLinkPanel(TaskLinkPanelState panel, TuiTheme theme) => TaskLinkPanels.Add(panel);
+
         public List<BrowserView> BrowserViews { get; } = [];
 
         public List<PlannerView> PlannerViews { get; } = [];
+
+        public List<FocusedTaskView> FocusedTaskViews { get; } = [];
 
         public List<TabStripView> TabViews { get; } = [];
 
@@ -1122,6 +1544,8 @@ public sealed class TuiApplicationTests
 
         public bool TimeoutNextTimedRead { get; set; }
 
+        public int? TimeoutAtTimedRead { get; init; }
+
         public Action<TimeSpan>? OnTimedRead { get; init; }
 
         public int TimedReadCount { get; private set; }
@@ -1131,10 +1555,10 @@ public sealed class TuiApplicationTests
         public ConsoleKeyInfo? ReadKey(TimeSpan timeout)
         {
             TimedReadCount++;
-            OnTimedRead?.Invoke(timeout);
-            if (TimeoutNextTimedRead)
+            if (TimeoutNextTimedRead || TimedReadCount == TimeoutAtTimedRead)
             {
                 TimeoutNextTimedRead = false;
+                OnTimedRead?.Invoke(timeout);
                 return null;
             }
 
@@ -1161,6 +1585,16 @@ public sealed class TuiApplicationTests
         {
             TabViews.Add(tabs);
             PlannerViews.Add(view);
+            KeyBindings.Add(keyBindings);
+            Themes.Add(theme);
+        }
+
+        public void ShowFocusedTask(
+            FocusedTaskView view,
+            TuiKeyBindings keyBindings,
+            TuiTheme theme)
+        {
+            FocusedTaskViews.Add(view);
             KeyBindings.Add(keyBindings);
             Themes.Add(theme);
         }

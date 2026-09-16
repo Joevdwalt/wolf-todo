@@ -46,6 +46,24 @@ public sealed class PlannerCalendarAgendaCacheTests
         await Eventually(() => !cache.IsRefreshing);
     }
 
+    [Fact]
+    public async Task Reset_discards_cached_agendas_and_loads_them_again()
+    {
+        var provider = new BlockingProvider();
+        var cache = new PlannerCalendarAgendaCache(provider);
+        var date = new DateOnly(2026, 7, 20);
+        cache.Refresh(Configuration, date);
+        await Eventually(() => provider.RequestCount == 1);
+        provider.Complete(date);
+        await Eventually(() => cache.GetAgenda(Configuration, date).SyncState == PlannerCalendarSyncState.Ready);
+
+        cache.Reset();
+        var result = cache.GetAgenda(Configuration, date);
+
+        result.SyncState.Should().Be(PlannerCalendarSyncState.Syncing);
+        await Eventually(() => provider.RequestCount == 2);
+    }
+
     private static async Task Eventually(Func<bool> condition)
     {
         for (var attempt = 0; attempt < 100; attempt++)

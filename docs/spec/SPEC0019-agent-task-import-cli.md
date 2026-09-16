@@ -47,6 +47,21 @@ expressions are not accepted. `content` is one multiline string and
 project, using the same title and path resolution rules as task creation. The
 result includes each task's project, Markdown source line, parent source line
 for nested tasks, completion state, metadata, schedule, duration, and notes.
+Each task also includes `task_code`, the short location code defined by
+[SPEC0023](SPEC0023-task-links.md), including completed tasks and nested subtasks.
+
+`wtodo get <task-code>` returns the exact task at one location defined by
+SPEC0023. Search all valid configured projects, including completed tasks and
+nested subtasks. The command accepts one code and no project filter. It is
+read-only and does not include the task's ancestors or descendants.
+
+`wtodo update <task-code> [options]` updates one resolved task in place. It
+accepts `--completed`, `--title`, `--reference`, `--priority`, repeated
+`--tag`, `--scheduled`, `--time`, `--duration-minutes`, and `--content`, plus
+explicit `--clear-reference`, `--clear-priority`, `--clear-tags`,
+`--clear-time`, `--clear-schedule`, `--clear-duration`, and `--clear-content`
+options. Omitted fields remain unchanged; direct subtasks remain unchanged.
+Setting and clearing the same field together is invalid.
 
 ## Project and Mutation Behavior
 
@@ -65,6 +80,11 @@ duplicate task content remains valid.
 The CLI does not notify a running TUI. Changes appear on the next catalog
 reload or launch.
 
+Update resolves the current task snapshot, validates a new timed schedule
+against all other configured tasks, and applies completion, field, and content
+changes through one conflict-safe atomic replacement. A task's link code stays
+valid when its source line is unchanged.
+
 ## Results
 
 Command execution writes exactly one JSON object to standard output. Creation success
@@ -73,6 +93,18 @@ zero-based input indexes with one-based Markdown `source_line` values. Failure
 contains `ok: false` and an error `code` and `message`.
 
 List success contains `ok: true`, `task_count`, and source-ordered `tasks`.
+Get success contains `ok: true` and one `task` with the same fields as a list
+entry, including `parent_source_line` and `task_code`.
+
+Update success contains `ok: true` and one updated `task` with the same fields.
+An update with no field options, invalid values, or conflicting set/clear
+options uses exit code `2`. Resolution, schedule-conflict, stale-snapshot,
+parse, and write failures use exit code `1`.
+
+Reject malformed codes with exit code `2` and `invalid_task_code`. Use exit
+code `1` and `task_not_found` when no valid configured task matches, or
+`ambiguous_task_code` when the short code matches multiple locations. Argument
+and option errors use the existing command-validation rules.
 
 Use exit code `0` for success and help, `2` for command, option, JSON-schema, or
 task-field errors, and `1` for configuration, project resolution, schedule
@@ -84,3 +116,4 @@ conflict, parse, or write failures.
 - [ADR0009: Use Conflict-Safe Markdown Mutations](../adr/ADR0009-use-conflict-safe-markdown-mutations.md)
 - [SPEC0008: Todo Scheduling Metadata](SPEC0008-todo-scheduling-metadata.md)
 - [SPEC0010: Writable Todo Workflows](SPEC0010-writable-todo-workflows.md)
+- [SPEC0023: Task Links](SPEC0023-task-links.md)

@@ -1,5 +1,6 @@
 using Spectre.Console;
 using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.DayPlanner.Rendering;
@@ -17,8 +18,11 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private readonly Func<int> heightProvider;
     private readonly BrowserRenderer browserRenderer;
     private readonly PlannerRenderer plannerRenderer;
+    private readonly FocusedTaskRenderer focusedTaskRenderer;
     private readonly TerminalInputReader inputReader;
     private readonly SurfaceThemeRenderer themeRenderer;
+    private readonly Func<string> currentDirectoryProvider;
+    private string? lastRenderedFrame;
     private bool browserRendered;
 
     public SpectreTerminalUi()
@@ -30,14 +34,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
         Func<int> widthProvider,
         Func<int> heightProvider,
         Func<DateOnly>? todayProvider = null,
-        Func<DateTime>? nowProvider = null)
+        Func<DateTime>? nowProvider = null,
+        Func<string>? currentDirectoryProvider = null)
         : this(
             widthProvider,
             heightProvider,
             new BrowserRenderer(widthProvider, heightProvider, todayProvider, nowProvider),
             new PlannerRenderer(widthProvider, heightProvider, todayProvider, nowProvider),
             new TerminalInputReader(),
-            new SurfaceThemeRenderer())
+            new SurfaceThemeRenderer(),
+            currentDirectoryProvider,
+            nowProvider)
     {
     }
 
@@ -47,14 +54,18 @@ public sealed class SpectreTerminalUi : ITerminalUi
         BrowserRenderer browserRenderer,
         PlannerRenderer plannerRenderer,
         TerminalInputReader inputReader,
-        SurfaceThemeRenderer themeRenderer)
+        SurfaceThemeRenderer themeRenderer,
+        Func<string>? currentDirectoryProvider = null,
+        Func<DateTime>? nowProvider = null)
     {
         this.widthProvider = widthProvider;
         this.heightProvider = heightProvider;
         this.browserRenderer = browserRenderer;
         this.plannerRenderer = plannerRenderer;
+        focusedTaskRenderer = new FocusedTaskRenderer(widthProvider, heightProvider, nowProvider);
         this.inputReader = inputReader;
         this.themeRenderer = themeRenderer;
+        this.currentDirectoryProvider = currentDirectoryProvider ?? (() => Environment.CurrentDirectory);
     }
 
     public void ShowSplash(string logo) => ShowSplash(logo, TuiThemes.Wolf);
@@ -98,9 +109,12 @@ public sealed class SpectreTerminalUi : ITerminalUi
         TuiKeyBindings keyBindings,
         TuiTheme theme)
     {
-        var useSynchronizedUpdate = BeginFrame();
-        browserRenderer.ShowBrowser(tabs, view, keyBindings, theme);
-        EndFrame(useSynchronizedUpdate);
+        CaptureFrame(() =>
+        {
+            var useSynchronizedUpdate = BeginFrame();
+            browserRenderer.ShowBrowser(tabs, view, keyBindings, theme);
+            EndFrame(useSynchronizedUpdate);
+        });
     }
 
     public void ShowPlanner(
@@ -109,9 +123,36 @@ public sealed class SpectreTerminalUi : ITerminalUi
         TuiKeyBindings keyBindings,
         TuiTheme theme)
     {
-        var useSynchronizedUpdate = BeginFrame();
-        plannerRenderer.ShowPlanner(tabs, view, keyBindings, theme);
-        EndFrame(useSynchronizedUpdate);
+        CaptureFrame(() =>
+        {
+            var useSynchronizedUpdate = BeginFrame();
+            plannerRenderer.ShowPlanner(tabs, view, keyBindings, theme);
+            EndFrame(useSynchronizedUpdate);
+        });
+    }
+
+    public void ShowFocusedTask(
+        FocusedTaskView view,
+        TuiKeyBindings keyBindings,
+        TuiTheme theme)
+    {
+        CaptureFrame(() =>
+        {
+            var useSynchronizedUpdate = BeginFrame();
+            focusedTaskRenderer.ShowFocusedTask(view, keyBindings, theme);
+            EndFrame(useSynchronizedUpdate);
+        });
+    }
+
+    public void ShowTaskLinkPanel(TaskLinkPanelState panel, TuiTheme theme)
+    {
+        CaptureFrame(() =>
+        {
+            var synchronized = BeginFrame();
+            AnsiConsole.Clear();
+            AnsiConsole.Write(TaskLinkPanelRenderer.Render(panel, theme, Math.Max(3, widthProvider())));
+            EndFrame(synchronized);
+        });
     }
 
     public void ShowStartupError(string message)
@@ -154,12 +195,17 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     public ScreenDumpResult DumpScreen()
     {
+        if (lastRenderedFrame is null)
+        {
+            return new ScreenDumpResult(null, "No application screen has been rendered yet.");
+        }
+
         try
         {
-            var directory = Path.Combine(Environment.CurrentDirectory, "screen-dumps");
+            var directory = Path.Combine(currentDirectoryProvider(), "screen-dumps");
             Directory.CreateDirectory(directory);
             var path = Path.Combine(directory, $"wolf-todo-screen-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
-            File.WriteAllText(path, AnsiConsole.ExportText().Replace("\r\n", "\n"));
+            File.WriteAllText(path, lastRenderedFrame.Replace("\r\n", "\n"));
             return new ScreenDumpResult(path, null);
         }
         catch (Exception exception)
@@ -172,11 +218,25 @@ public sealed class SpectreTerminalUi : ITerminalUi
 
     public ConsoleKeyInfo? ReadKey(TimeSpan timeout) => inputReader.ReadKey(timeout);
 
+    private void CaptureFrame(Action render)
+    {
+        var liveConsole = AnsiConsole.Console;
+        using var recorder = liveConsole.CreateRecorder();
+        AnsiConsole.Console = recorder;
+
+        try
+        {
+            render();
+            lastRenderedFrame = recorder.ExportText();
+        }
+        finally
+        {
+            AnsiConsole.Console = liveConsole;
+        }
+    }
+
     private bool BeginFrame()
     {
-        // Reset Spectre's recorder before every frame so :dump-screen exports
-        // exactly the current frame rather than terminal history.
-        AnsiConsole.Record();
         var useSynchronizedUpdate = browserRendered && AnsiConsole.Profile.Out.IsTerminal;
         if (browserRendered)
         {

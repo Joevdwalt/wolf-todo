@@ -20,7 +20,13 @@ using WolfTodo.Tui.Infrastructure.State;
 using WolfTodo.Tui.Infrastructure.Terminal;
 using WolfTodo.Tui.Rendering;
 
-var builder = Host.CreateApplicationBuilder(args);
+var startup = TuiStartupArguments.Parse(args);
+if (startup.Error is not null)
+{
+    Console.Error.WriteLine(startup.Error);
+    return 2;
+}
+var builder = Host.CreateApplicationBuilder();
 builder.Services.AddSingleton<MarkdownTodoProjectReader>();
 builder.Services.AddSingleton<ITodoProjectRepository, MarkdownTodoProjectRepository>();
 builder.Services.AddSingleton<ProjectCatalogLoader>();
@@ -39,6 +45,8 @@ builder.Services.AddSingleton<IGoogleCalendarEventSourceFactory>(
 builder.Services.AddSingleton<GoogleCalendarEventMapper>();
 builder.Services.AddSingleton<IPlannerCalendarAgendaProvider, GoogleCalendarAgendaProvider>();
 builder.Services.AddSingleton<PlannerCalendarAgendaCache>();
+builder.Services.AddSingleton<IPlannerCalendarCacheStore>(_ => new JsonPlannerCalendarCacheStore(
+    Path.Combine(Path.GetDirectoryName(GlobalApplicationStatePath.Resolve())!, "calendar-cache.json")));
 builder.Services.AddSingleton<ProjectTodoMutationService>();
 builder.Services.AddSingleton<TabHostPresenter>();
 builder.Services.AddSingleton<TabHostReducer>();
@@ -68,6 +76,10 @@ builder.Services.AddSingleton<IApplicationConfigurationLoader>(serviceProvider =
         GlobalConfigurationPath.Resolve(),
         File.Exists,
         File.ReadAllText));
+builder.Services.AddSingleton<IApplicationFileChangeMonitor>(
+    new PhysicalApplicationFileChangeMonitor(GlobalConfigurationPath.Resolve()));
+builder.Services.AddSingleton<ApplicationLoopWaiter>();
+builder.Services.AddSingleton<RuntimeReloadCoordinator>();
 builder.Services.AddSingleton(serviceProvider =>
     new TuiApplication(
         serviceProvider.GetRequiredService<IApplicationConfigurationLoader>(),
@@ -88,7 +100,11 @@ builder.Services.AddSingleton(serviceProvider =>
         plannerCalendarCache: serviceProvider.GetRequiredService<PlannerCalendarAgendaCache>(),
         dayScheduleExportService: serviceProvider.GetRequiredService<DayScheduleExportService>(),
         weeklyTimeLogService: serviceProvider.GetRequiredService<WeeklyTimeLogService>(),
-        pomodoroCompletionNotifier: serviceProvider.GetRequiredService<IPomodoroCompletionNotifier>()));
+        pomodoroCompletionNotifier: serviceProvider.GetRequiredService<IPomodoroCompletionNotifier>(),
+        fileChangeMonitor: serviceProvider.GetRequiredService<IApplicationFileChangeMonitor>(),
+        applicationLoopWaiter: serviceProvider.GetRequiredService<ApplicationLoopWaiter>(),
+        runtimeReloadCoordinator: serviceProvider.GetRequiredService<RuntimeReloadCoordinator>(),
+        startupTaskCode: startup.TaskCode));
 
 using var host = builder.Build();
 return host.Services.GetRequiredService<TuiApplication>().Run();

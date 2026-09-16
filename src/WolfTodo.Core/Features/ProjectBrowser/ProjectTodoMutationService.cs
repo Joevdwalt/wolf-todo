@@ -363,6 +363,7 @@ public sealed partial class ProjectTodoMutationService(
             {
                 [targetIndex] = targetPrefix.Groups[1].Value + Serialize(current with
                 {
+                    IsCompleted = update.IsCompleted ?? current.IsCompleted,
                     Title = update.Fields.Title.Trim(),
                     ExternalReference = NullIfWhiteSpace(update.Fields.ExternalReference),
                     Priority = update.Fields.Priority,

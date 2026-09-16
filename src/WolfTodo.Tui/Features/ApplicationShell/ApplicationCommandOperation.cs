@@ -10,5 +10,8 @@ public enum ApplicationCommandOperation
     MoveTodoProject,
     RollProjectToday,
     StartPomodoro,
-    DumpScreen
+    DumpScreen,
+    OpenConfiguration,
+    GenerateTaskLink,
+    OpenTaskLink
 }

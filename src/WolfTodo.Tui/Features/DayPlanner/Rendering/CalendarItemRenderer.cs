@@ -93,6 +93,7 @@ public sealed class CalendarItemRenderer
                 new Text(todo.Title, themeRenderer.Style(theme.Heading, Decoration.Bold))
             };
             AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
+            AddField(lines, "Link", TaskLinkCode.Generate(assignment.Identity.ProjectPath, assignment.Identity.SourceLine), theme, theme.Info);
             AddField(lines, "Scheduled", $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY", theme, theme.Date);
             AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
             AddField(lines, "Priority", todo.Priority?.ToString(), theme, todoRowRenderer.PriorityColor(todo.Priority, theme));

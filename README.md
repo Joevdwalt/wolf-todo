@@ -141,6 +141,7 @@ toggle_todo_selection = ["m"]
 bulk_edit_todos = ["b"]
 clear_todo_selection = ["Ctrl+M"]
 toggle_details = ["v"]
+focus_task = ["f"]
 roll_project_today = ["R"]
 remove_content = ["d"]
 save_form = ["Ctrl+S"]
@@ -215,13 +216,33 @@ Enter `:dump-screen` to save the current rendered frame as a plain-text file
 under `screen-dumps/` in the directory where Wolf Todo was launched. The app
 shows the exact saved path in its status message.
 
+Press `f` on a selected todo in Todos or Day Planner to open its distraction-free
+focus card. Use `j`/`k` to select the root or a subtask, `E` to edit it, Space to
+toggle completion, and Escape to return. Timers and Pomodoros remain optional
+and target the highlighted item.
+
+Use `:task-link` to display a selectable `wt1-` code with an 8-character hash
+for the selected task in Todos, Day Planner, or focus mode. Open it with `:open-task <code>` or launch with
+`wtodo-tui --open-task <code>`; the command palette also provides both actions.
+The Todos and Day Planner inspectors also show the selected task’s `LINK`.
+Opening selects the task in its project in Todos. Codes address the current
+Markdown location: line changes or project moves can invalidate them, and an
+old code opens another task if it now occupies that line.
+
+Enter `:config` to open Wolf Todo's global `config.toml` in `$EDITOR`. Wolf Todo
+waits for the editor and reloads valid saved configuration changes.
+
 The optional `[google_calendar]` table adds a read-only Google Calendar overlay
 to Day Planner. It always loads the primary calendar, plus any IDs in
 `additional_calendar_ids` (find an ID in the calendar's Google Calendar
 integration settings). Set `enabled = true` and provide an absolute path to a
 Desktop OAuth client JSON file. The first refresh opens Google's consent flow;
 the refresh token is stored in Wolf Todo's application-state directory, not in
-the project Markdown. `r` refreshes the selected day. Calendar meetings only
+the project Markdown. Calendar entries are cached in `calendar-cache.json` in
+that same directory and appear immediately on startup while a background sync
+updates today, the previous seven days, and the next seven days. `r` refreshes
+this window and the selected day; other dates load on demand. Failed refreshes
+keep previously cached entries visible. Calendar meetings only
 warn when a todo shares their time; they never prevent scheduling. If an
 additional calendar is unavailable, successfully loaded calendars stay visible
 and the planner identifies the failed calendar in its status line.
@@ -249,6 +270,10 @@ Each configured Markdown file is one project. Start the application with:
 ```text
 task run-tui
 ```
+
+While running, the TUI automatically reloads valid `config.toml` changes and
+external changes to configured project files. Invalid runtime configuration
+keeps the last valid settings active and shows an error until corrected.
 
 To publish the TUI and make `wtodo-tui` available from your shell, run:
 
@@ -326,6 +351,33 @@ wtodo list
 wtodo list --project "Client Work"
 ```
 
+Each listed task includes `task_code` (for example `wt1-bfe8eb02`), including
+completed tasks and nested subtasks. Use it with `:open-task <code>` in the TUI
+or `wtodo-tui --open-task <code>` from the shell.
+
+Retrieve one exact task as JSON from any configured project:
+
+```text
+wtodo get wt1-bfe8eb02
+```
+
+The result uses the same task shape as `wtodo list`. Lookup includes completed
+tasks and nested subtasks and does not change the Markdown project.
+
+Update one exact task in place by its current link code:
+
+```text
+wtodo update wt1-bfe8eb02 --completed true --priority high
+wtodo update wt1-bfe8eb02 --clear-schedule --clear-content
+```
+
+Update options are patch-style: omitted fields are preserved. Completion,
+title, reference, priority, tags, schedule, duration, and content can be
+changed; direct subtasks remain unchanged. Use the explicit `--clear-*`
+options to remove optional values. The command returns the updated task in the
+same JSON shape as `wtodo get` and refuses stale or conflicting Markdown
+changes.
+
 Each invocation targets one project. A batch is validated completely and
 written through one atomic Markdown replacement; a failure creates no tasks.
 Unknown JSON properties are rejected. Timed schedules must use a quarter-hour
@@ -360,9 +412,10 @@ date whenever the view is drawn.
 The interface uses a shared operational-console design across Todos and Day
 Planner: a responsive context header, square panels, uppercase structural
 labels, adaptive task columns, and configurable semantic foreground and surface
-colors. Wide terminals show navigation, tasks, and inspector;
-medium terminals prioritize tasks and inspector with navigation available as a
-temporary view; narrow terminals show one focused view at a time.
+colors. The Todos, Day Planner, and focus headers show the live local time as
+`TIME:HH:mm`; it refreshes while idle. Wide terminals show navigation, tasks,
+and inspector; medium terminals prioritize tasks and inspector with navigation
+available as a temporary view; narrow terminals show one focused view at a time.
 
 The `Day Planner` tab uses 15-minute slots from 06:00 through 21:45, displayed
 as two stacked task slots beneath each 30-minute time label. A todo can
