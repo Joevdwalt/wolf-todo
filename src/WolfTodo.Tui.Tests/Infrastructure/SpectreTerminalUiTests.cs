@@ -5,9 +5,13 @@ using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
 using WolfTodo.Tui.Infrastructure;
+using WolfTodo.Tui.Infrastructure.Terminal;
 using WolfTodo.Tui.Features.Tabs;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.DayPlanner.Rendering;
+using WolfTodo.Tui.Features.ProjectBrowser.Rendering;
+using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 
@@ -31,7 +35,20 @@ public sealed class SpectreTerminalUiTests
         };
         StartRecording();
 
-        new SpectreTerminalUi(() => 140, () => 30).ShowSplash("WOLF", theme);
+        var input = new TerminalInputReader(
+            () => new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false),
+            () => true,
+            () => DateTime.UnixEpoch,
+            _ => { });
+        new SpectreTerminalUi(
+            () => 140,
+            () => 30,
+            new BrowserRenderer(() => 140, () => 30),
+            new PlannerRenderer(() => 140, () => 30),
+            input,
+            new SurfaceThemeRenderer(),
+            animationClock: () => DateTimeOffset.UnixEpoch)
+            .ShowSplashAndWaitForDismissal("WOLF", theme);
         var html = RecordedHtml().ToLowerInvariant();
 
         html.Should().Contain("#010203")

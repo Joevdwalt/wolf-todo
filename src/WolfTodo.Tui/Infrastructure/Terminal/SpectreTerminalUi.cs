@@ -1,4 +1,6 @@
 using Spectre.Console;
+using Wolf.Controls;
+using Wolf.Controls.Splash;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 using WolfTodo.Tui.Features.Configuration;
@@ -22,6 +24,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private readonly TerminalInputReader inputReader;
     private readonly SurfaceThemeRenderer themeRenderer;
     private readonly Func<string> currentDirectoryProvider;
+    private readonly Func<DateTimeOffset> animationClock;
     private string? lastRenderedFrame;
     private bool browserRendered;
 
@@ -56,7 +59,8 @@ public sealed class SpectreTerminalUi : ITerminalUi
         TerminalInputReader inputReader,
         SurfaceThemeRenderer themeRenderer,
         Func<string>? currentDirectoryProvider = null,
-        Func<DateTime>? nowProvider = null)
+        Func<DateTime>? nowProvider = null,
+        Func<DateTimeOffset>? animationClock = null)
     {
         this.widthProvider = widthProvider;
         this.heightProvider = heightProvider;
@@ -66,22 +70,15 @@ public sealed class SpectreTerminalUi : ITerminalUi
         this.inputReader = inputReader;
         this.themeRenderer = themeRenderer;
         this.currentDirectoryProvider = currentDirectoryProvider ?? (() => Environment.CurrentDirectory);
+        this.animationClock = animationClock ?? (() => DateTimeOffset.UtcNow);
     }
 
-    public void ShowSplash(string logo) => ShowSplash(logo, TuiThemes.Wolf);
-
-    public void ShowSplash(string logo, TuiTheme theme)
+    public void ShowSplashAndWaitForDismissal(string logo, TuiTheme theme)
     {
         browserRendered = false;
         AnsiConsole.Clear();
 
-        var content = new Rows(
-            new Text(logo, themeRenderer.Style(theme.Accent)),
-            new Text(string.Empty),
-            new Text("Wolf Todo", themeRenderer.Style(theme.Heading, Decoration.Bold)),
-            new Text("Press any key to continue", themeRenderer.Style(theme.Muted, Decoration.Dim)));
-
-        if (widthProvider() < LongestLine(logo) || heightProvider() < 5)
+        if (widthProvider() < LongestLine(logo) + 2 || heightProvider() < LogoLineCount(logo) + 5)
         {
             AnsiConsole.Write(themeRenderer.OnSurface(
                 new Text("Wolf Todo\n", themeRenderer.Style(theme.Heading, Decoration.Bold)),
@@ -91,13 +88,59 @@ public sealed class SpectreTerminalUi : ITerminalUi
                 new Text("Press any key to continue\n", themeRenderer.Style(theme.Muted, Decoration.Dim)),
                 theme.Background,
                 true));
+            inputReader.ReadKey();
             return;
         }
 
-        AnsiConsole.Write(themeRenderer.OnSurface(
-            new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle),
-            theme.Background,
-            true));
+        var startedAt = animationClock();
+        var state = SplashBoxState.Create(
+            "Wolf Todo",
+            "Press any key to continue",
+            startedAt,
+            logo);
+        var controlTheme = ToControlTheme(theme);
+        var constraints = new ControlConstraints(
+            widthProvider(),
+            Math.Max(1, heightProvider() - 1));
+
+        if (!AnsiConsole.Profile.Out.IsTerminal)
+        {
+            AnsiConsole.Write(themeRenderer.OnSurface(
+                SplashBox.Default.Render(state, controlTheme, constraints, startedAt + SplashBox.ExpansionDuration),
+                theme.Background,
+                true));
+            inputReader.ReadKey();
+            return;
+        }
+
+        AnsiConsole.Live(new Text(string.Empty))
+            .AutoClear(false)
+            .Overflow(VerticalOverflow.Crop)
+            .Start(context =>
+            {
+                while (true)
+                {
+                    var now = animationClock();
+                    context.UpdateTarget(themeRenderer.OnSurface(
+                        SplashBox.Default.Render(state, controlTheme, constraints, now),
+                        theme.Background,
+                        true));
+                    context.Refresh();
+
+                    var nextFrame = SplashBox.Default.NextFrameAt(state, now);
+                    if (nextFrame is null)
+                    {
+                        inputReader.ReadKey();
+                        return;
+                    }
+
+                    var wait = nextFrame.Value - now;
+                    if (wait > TimeSpan.Zero && inputReader.ReadKey(wait) is not null)
+                    {
+                        return;
+                    }
+                }
+            });
     }
 
     public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings) =>
@@ -311,6 +354,23 @@ public sealed class SpectreTerminalUi : ITerminalUi
     }
 
     private static int LongestLine(string content) => content
-        .Split(Environment.NewLine, StringSplitOptions.None)
+        .Split(['\r', '\n'], StringSplitOptions.None)
         .Max(line => line.Length);
+
+    private static int LogoLineCount(string content) => content
+        .TrimEnd('\r', '\n')
+        .Split(['\r', '\n'], StringSplitOptions.None)
+        .Length;
+
+    private static ControlTheme ToControlTheme(TuiTheme theme) => new(
+        theme.Text,
+        theme.Muted,
+        theme.Accent,
+        theme.Heading,
+        theme.Border,
+        theme.BorderActive,
+        theme.Surface,
+        theme.Success,
+        theme.Warning,
+        theme.Error);
 }

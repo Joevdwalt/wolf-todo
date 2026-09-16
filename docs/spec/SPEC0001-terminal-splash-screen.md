@@ -34,6 +34,11 @@ After valid configuration is loaded, clear the terminal and render a vertically
 and horizontally centered splash screen containing the ASCII art from
 `src/WolfTodo.Tui/Assets/wolf.txt`.
 
+The splash uses the reusable `Wolf.Controls.Splash.SplashBox` control. Its
+800-millisecond animation expands horizontally first, then vertically. A key
+pressed during the animation dismisses it immediately and is consumed by the
+splash; otherwise the completed frame waits for a dismissal key.
+
 - The title `Wolf Todo`.
 - The prompt `Press any key to continue`.
 

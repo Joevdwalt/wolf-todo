@@ -224,8 +224,7 @@ public sealed class TuiApplication
 
         try
         {
-            terminalUi.ShowSplash(logo, configuration.Theme);
-            terminalUi.ReadKey();
+            terminalUi.ShowSplashAndWaitForDismissal(logo, configuration.Theme);
 
             while (true)
             {

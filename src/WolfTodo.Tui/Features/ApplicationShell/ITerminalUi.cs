@@ -7,7 +7,7 @@ namespace WolfTodo.Tui.Features.ApplicationShell;
 
 public interface ITerminalUi
 {
-    void ShowSplash(string logo, TuiTheme theme);
+    void ShowSplashAndWaitForDismissal(string logo, TuiTheme theme);
 
     void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings, TuiTheme theme);
 

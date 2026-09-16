@@ -12,7 +12,7 @@ public sealed class SplashBox : IAnimatedControl<SplashBoxState>
 
     public static TimeSpan VerticalExpansionDuration { get; } = ExpansionDuration - HorizontalExpansionDuration;
 
-    public static TimeSpan FrameInterval { get; } = TimeSpan.FromMilliseconds(33);
+    public static TimeSpan FrameInterval { get; } = TimeSpan.FromMilliseconds(16);
 
     public static SplashBox Default { get; } = new();
 
@@ -109,14 +109,29 @@ public sealed class SplashBox : IAnimatedControl<SplashBoxState>
             return new Rows(lines);
         }
 
-        var titleIndex = state.Subtitle is not null && innerHeight >= 2 ? Math.Max(0, (innerHeight / 2) - 1) : innerHeight / 2;
-        lines[titleIndex] = new Align(new Text(state.Title, new Style(theme.AccentBright, decoration: Decoration.Bold)), HorizontalAlignment.Center);
-
-        if (state.Subtitle is not null && innerHeight >= 2)
+        var content = new List<IRenderable>();
+        if (state.Logo is not null)
         {
-            lines[Math.Min(innerHeight - 1, titleIndex + 1)] = new Align(
+            foreach (var line in state.Logo.TrimEnd('\r', '\n').Split('\n'))
+            {
+                content.Add(new Align(new Text(line, new Style(theme.Accent)), HorizontalAlignment.Center));
+            }
+
+            content.Add(BlankLine(Math.Max(1, width - 2)));
+        }
+
+        content.Add(new Align(new Text(state.Title, new Style(theme.AccentBright, decoration: Decoration.Bold)), HorizontalAlignment.Center));
+        if (state.Subtitle is not null)
+        {
+            content.Add(new Align(
                 new Text(state.Subtitle, new Style(theme.Muted, decoration: Decoration.Dim)).Ellipsis(),
-                HorizontalAlignment.Center);
+                HorizontalAlignment.Center));
+        }
+
+        var contentStart = Math.Max(0, (innerHeight - content.Count) / 2);
+        for (var index = 0; index < content.Count && contentStart + index < lines.Count; index++)
+        {
+            lines[contentStart + index] = content[index];
         }
 
         return new Rows(lines);
