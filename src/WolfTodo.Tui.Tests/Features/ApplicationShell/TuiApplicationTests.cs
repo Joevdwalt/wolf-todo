@@ -1601,10 +1601,11 @@ public sealed class TuiApplicationTests
 
         public void RingBell() => BellCount++;
 
-        public void ShowSplash(string logo, TuiTheme theme)
+        public void ShowSplashAndWaitForDismissal(string logo, TuiTheme theme)
         {
             SplashShown = true;
             Themes.Add(theme);
+            _ = keyQueue.Dequeue();
         }
 
         public void ShowStartupError(string message) => StartupError = message;

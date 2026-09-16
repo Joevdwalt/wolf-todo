@@ -44,7 +44,7 @@ public sealed class ApplicationLoopWaiterTests
         public int ReadCount { get; private set; }
         public ConsoleKeyInfo? ReadKey(TimeSpan timeout) { ReadCount++; return key; }
         public ConsoleKeyInfo ReadKey() => key!.Value;
-        public void ShowSplash(string logo, TuiTheme theme) { }
+        public void ShowSplashAndWaitForDismissal(string logo, TuiTheme theme) { }
         public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings, TuiTheme theme) { }
         public void ShowPlanner(TabStripView tabs, PlannerView view, TuiKeyBindings keyBindings, TuiTheme theme) { }
         public void ShowFocusedTask(FocusedTaskView view, TuiKeyBindings keyBindings, TuiTheme theme) { }

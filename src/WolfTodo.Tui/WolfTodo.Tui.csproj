@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../Wolf.Controls/Wolf.Controls.csproj" />
     <ProjectReference Include="../WolfTodo.Core/WolfTodo.Core.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
     <PackageReference Include="Google.Apis.Calendar.v3" Version="1.75.0.4182" />
