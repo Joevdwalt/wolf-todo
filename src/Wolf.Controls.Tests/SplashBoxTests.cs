@@ -17,13 +17,19 @@ public sealed class SplashBoxTests
     }
 
     [Fact]
-    public void SizeAt_grows_from_the_small_panel_to_the_available_terminal_area()
+    public void SizeAt_expands_horizontally_before_expanding_vertically()
     {
         var start = DateTimeOffset.UnixEpoch;
         var state = SplashBoxState.Create("Wolf Controls", "Ready", start);
         var constraints = new ControlConstraints(80, 24);
 
         SplashBox.SizeAt(state, constraints, start).Should().Be(new SplashBoxSize(12, 3));
+        SplashBox.SizeAt(state, constraints, start + TimeSpan.FromMilliseconds(200)).Should().Match<SplashBoxSize>(size =>
+            size.Width > 12 && size.Width < 80 && size.Height == 3);
+        SplashBox.SizeAt(state, constraints, start + SplashBox.HorizontalExpansionDuration)
+            .Should().Be(new SplashBoxSize(80, 3));
+        SplashBox.SizeAt(state, constraints, start + TimeSpan.FromMilliseconds(600)).Should().Match<SplashBoxSize>(size =>
+            size.Width == 80 && size.Height > 3 && size.Height < 24);
         SplashBox.SizeAt(state, constraints, start + SplashBox.ExpansionDuration).Should().Be(new SplashBoxSize(80, 24));
     }
 
