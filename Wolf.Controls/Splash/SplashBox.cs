@@ -3,10 +3,14 @@ using Spectre.Console.Rendering;
 
 namespace Wolf.Controls.Splash;
 
-/// <summary>A panel that expands from a small centered box to its available terminal area.</summary>
+/// <summary>A panel that expands horizontally, then vertically, from a small centered box.</summary>
 public sealed class SplashBox : IAnimatedControl<SplashBoxState>
 {
     public static TimeSpan ExpansionDuration { get; } = TimeSpan.FromMilliseconds(800);
+
+    public static TimeSpan HorizontalExpansionDuration { get; } = TimeSpan.FromMilliseconds(400);
+
+    public static TimeSpan VerticalExpansionDuration { get; } = ExpansionDuration - HorizontalExpansionDuration;
 
     public static TimeSpan FrameInterval { get; } = TimeSpan.FromMilliseconds(33);
 
@@ -73,12 +77,22 @@ public sealed class SplashBox : IAnimatedControl<SplashBoxState>
 
     public static SplashBoxSize SizeAt(SplashBoxState state, ControlConstraints constraints, DateTimeOffset now)
     {
-        var progress = ExpansionAt(state, now);
         var targetWidth = constraints.ClampedWidth;
         var targetHeight = constraints.ClampedMaxRows;
+        var horizontalProgress = PhaseExpansionAt(state.StartedAt, HorizontalExpansionDuration, now);
+        var verticalProgress = PhaseExpansionAt(
+            state.StartedAt + HorizontalExpansionDuration,
+            VerticalExpansionDuration,
+            now);
         return new(
-            Interpolate(Math.Min(12, targetWidth), targetWidth, progress),
-            Interpolate(Math.Min(3, targetHeight), targetHeight, progress));
+            Interpolate(Math.Min(12, targetWidth), targetWidth, horizontalProgress),
+            Interpolate(Math.Min(3, targetHeight), targetHeight, verticalProgress));
+    }
+
+    private static double PhaseExpansionAt(DateTimeOffset startedAt, TimeSpan duration, DateTimeOffset now)
+    {
+        var linear = Math.Clamp((now - startedAt).TotalMilliseconds / duration.TotalMilliseconds, 0, 1);
+        return 1 - Math.Pow(1 - linear, 3);
     }
 
     private static IRenderable CreateContent(
