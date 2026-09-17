@@ -313,7 +313,6 @@ public sealed class BrowserRenderer
         var detailWidth = remainingWidth - todoWidth;
         var projectLines = FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view));
         var todoLines = FitTodoLines(view, todoWidth - 2, contentHeight, theme, today);
-        var detailLines = FitLines(DetailLines(view, theme), contentHeight, 0);
         var table = CreatePaneTable(theme,
             ("Projects", projectWidth, view.State.Focus == BrowserFocus.Projects, true),
             ($"Todos: {view.SelectedProjectTitle}", todoWidth, view.State.Focus == BrowserFocus.Todos, true),
@@ -321,8 +320,8 @@ public sealed class BrowserRenderer
         table.AddRow(
             CreateContent(projectLines),
             CreateContent(todoLines),
-            OnSurface(CreateContent(detailLines), theme.Surface2, true));
-        PadToContentHeight(table, contentHeight, projectLines.Count, todoLines.Count, detailLines.Count);
+            ConstrainedDetails(view, theme, contentHeight));
+        PadToContentHeight(table, contentHeight, projectLines.Count, todoLines.Count, contentHeight);
         WriteSurface(table, theme.Surface, true);
     }
 
@@ -363,13 +362,12 @@ public sealed class BrowserRenderer
         var detailWidth = Math.Max(28, remainingWidth * 2 / 5);
         var taskWidth = remainingWidth - detailWidth;
         var todos = FitTodoLines(view, taskWidth - 2, contentHeight, theme, today);
-        var details = FitLines(DetailLines(view, theme), contentHeight, 0);
         var table = CreatePaneTable(
             theme,
             ($"Tasks // {view.SelectedProjectTitle}", taskWidth, view.State.Focus == BrowserFocus.Todos, true),
             ("Inspector", detailWidth, view.State.Focus == BrowserFocus.Details, false));
-        table.AddRow(CreateContent(todos), OnSurface(CreateContent(details), theme.Surface2, true));
-        PadToContentHeight(table, contentHeight, todos.Count, details.Count);
+        table.AddRow(CreateContent(todos), ConstrainedDetails(view, theme, contentHeight));
+        PadToContentHeight(table, contentHeight, todos.Count, contentHeight);
         WriteSurface(table, theme.Surface, true);
     }
 
@@ -395,13 +393,13 @@ public sealed class BrowserRenderer
         {
             BrowserFocus.Projects => FitLines(ProjectLines(view, theme), contentHeight, SelectedProjectIndex(view)),
             BrowserFocus.Todos => FitTodoLines(view, contentWidth, contentHeight, theme, today),
-            _ => FitLines(DetailLines(view, theme), contentHeight, 0)
+            _ => []
         };
         var table = CreatePaneTable(theme, (title, null, true, focus != BrowserFocus.Details));
         table.AddRow(focus == BrowserFocus.Details
-            ? OnSurface(CreateContent(lines), theme.Surface2, true)
+            ? ConstrainedDetails(view, theme, contentHeight)
             : CreateContent(lines));
-        PadToContentHeight(table, contentHeight, lines.Count);
+        PadToContentHeight(table, contentHeight, focus == BrowserFocus.Details ? contentHeight : lines.Count);
 
         WriteSurface(table, theme.Surface, true);
     }
@@ -601,6 +599,12 @@ public sealed class BrowserRenderer
     {
         return lines.Count == 0 ? new Text(string.Empty) : new Rows(lines);
     }
+
+    private static IRenderable ConstrainedDetails(BrowserView view, TuiTheme theme, int contentHeight) =>
+        OnSurface(
+            new HeightConstrainedRenderable(CreateContent(DetailLines(view, theme)), contentHeight),
+            theme.Surface2,
+            true);
 
     public static int AvailableContentHeight(int terminalHeight, int statusLineCount) =>
         TerminalLayout.AvailableContentHeight(terminalHeight, statusLineCount);

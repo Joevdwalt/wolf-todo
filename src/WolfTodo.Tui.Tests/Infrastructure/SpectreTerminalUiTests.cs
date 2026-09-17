@@ -837,6 +837,47 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
+    public void ShowPlanner_keeps_multiline_notes_inside_the_terminal_height()
+    {
+        const int width = 140;
+        const int height = 30;
+        var date = new DateOnly(2026, 9, 16);
+        var note = string.Join('\n', Enumerable.Range(1, 16)
+            .Select(index => $"Update {index} contains enough detail to wrap inside the planner inspector."));
+        var todo = new TodoItem(
+            59, false, null, "Christoff Review items", null, [], null, null, "Work",
+            [new TodoNote(60, note, 16)], [])
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(9, 0)),
+            Duration = TimeSpan.FromMinutes(30)
+        };
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [todo])], []),
+            PlannerState.CreateInitial(date) with
+            {
+                SlotIndex = 12,
+                SelectedTimelineItemIdentity = "task:/todos/work.md:59"
+            });
+        var tabs = new TabStripView(
+        [
+            new TabItemView(new TabId("todos"), "Todos", false),
+            new TabItemView(new TabId("planner"), "Day Planner", true)
+        ]);
+        StartRecording(width, height);
+        var start = RecordedText().Length;
+
+        new SpectreTerminalUi(() => width, () => height)
+            .ShowPlanner(tabs, view, DefaultBindings, TuiThemes.Wolf);
+        var lines = RecordedText()[start..]
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        lines.Should().HaveCount(height - 1);
+        lines[0].Should().Contain("[DAY PLANNER]");
+        lines.Should().Contain(line => line.Contains("INSPECTOR", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains('…', StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ShowPlanner_uses_browser_semantic_colors_for_todos_and_prominent_panels()
     {
         var date = new DateOnly(2026, 7, 15);
@@ -1846,6 +1887,33 @@ public sealed class SpectreTerminalUiTests
         var lines = RenderBrowser(ViewWithTodoCount(1, BrowserFocus.Todos), 140, 30);
 
         lines.Should().HaveCount(29);
+    }
+
+    [Theory]
+    [InlineData(140, 30)]
+    [InlineData(70, 16)]
+    public void ShowBrowser_keeps_multiline_notes_inside_the_terminal_height(int width, int height)
+    {
+        var note = string.Join('\n', Enumerable.Range(1, 20)
+            .Select(index => $"Note {index} contains enough detail to wrap inside the inspector."));
+        var todo = new TodoItem(
+            1, false, null, "Multiline task", null, [], null, null, string.Empty,
+            [new TodoNote(2, note, 20)], []);
+        var view = new BrowserView(
+            BrowserState.Initial with { Focus = BrowserFocus.Details },
+            [new ProjectRow("All", 1, null, null, true)],
+            [new TodoRow(null, todo, [], true, new TodoIdentity("/todos/project.md", 1))],
+            todo,
+            "All",
+            "/todos/project.md",
+            null,
+            string.Empty);
+
+        var lines = RenderBrowser(view, width, height);
+
+        lines.Should().HaveCount(height - 1);
+        lines[0].Should().Contain("[TODOS]");
+        lines.Should().Contain(line => line.Contains('…', StringComparison.Ordinal));
     }
 
     private static BrowserView ViewWithTitle(string title)

@@ -81,8 +81,10 @@ intentional overlapping work. Esc or `h` cancels modal work.
 
 Show details for the selected assignment by default. Wide terminals place an
 `INSPECTOR` beside the timeline; narrower terminals show a compact `SELECTED`
-summary beneath it. Timeline assignments show compact state and priority before
-their title. `v` hides or restores only the Inspector for the current session;
+summary beneath it. Inspector content wraps within its physical row budget;
+overflow is clipped at the bottom and marked with an ellipsis. Timeline
+assignments show compact state and priority before their title. `v` hides or
+restores only the Inspector for the current session;
 the functional all-day pane remains accessible. When multiple todos overlap in
 the selected timeline slot, `j` and `k` select the next or prior stacked todo
 in the planner's stable display order. At either end, they continue to the
