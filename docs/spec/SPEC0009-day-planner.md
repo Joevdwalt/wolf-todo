@@ -85,18 +85,24 @@ summary beneath it. Inspector content wraps within its physical row budget;
 overflow is clipped at the bottom and marked with an ellipsis. Timeline
 assignments show compact state and priority before their title. `v` hides or
 restores only the Inspector for the current session;
-the functional all-day pane remains accessible. When multiple todos overlap in
-the selected timeline slot, `j` and `k` select the next or prior stacked todo
+the functional all-day pane remains accessible. When multiple timed items
+overlap in the selected timeline slot, `j` and `k` select the next or prior item
 in the planner's stable display order. At either end, they continue to the
-adjacent timeline slot. The Inspector shows the selected todo and a stack-count
-hint, so edit, completion, move, unschedule, timer, and external-editor actions
-target that todo.
+adjacent timeline slot. `Tab` and `Shift+Tab` remain pane controls; they do not
+cycle overlapping items. The Inspector shows the selected item and its position
+in the slot, so supported actions target that item even when it was initially
+hidden by horizontal overflow.
+
+```text
+[TIMELINE ACTIVE] ── Tab ──▶ [ALL DAY ACTIVE]
+[TIMELINE ACTIVE] ◀─ Shift+Tab ─ [ALL DAY ACTIVE]
+```
 
 When a meeting-only slot is selected, the Inspector shows its title, time range,
 duration, location, attendees, and a short description preview. Concurrent
-meetings render the earliest as the timeline block with a `+N` marker; the
-Inspector lists the other meetings. A selected todo that overlaps a meeting
-retains its todo Inspector and shows a compact Calendar conflict field.
+meetings participate in the same horizontal layout and item navigation as other
+timed items. A selected todo that overlaps a meeting retains its todo Inspector
+and shows a compact Calendar conflict field.
 
 On an occupied slot, `e` edits fields including scheduled date and time, `E` edits notes and subtasks, Ctrl+E
 opens the Markdown source in `$EDITOR`, and Space toggles completion without
@@ -112,41 +118,71 @@ assignments remain editable after selecting one with `j` or `k`.
 
 ### Overlapping Timed Items
 
-When multiple timed items occupy the same quarter-hour slot, the timeline grows
-vertically. Each item receives one physical plan row; items are never placed in
-a temporary horizontal lane. The time label and minor-tick marker appear only
-on the first row in the slot group. Every following row keeps the same fixed
-time-column width and remains part of the same slot group.
+When multiple timed items occupy the same quarter-hour slot, render them
+left-to-right in one physical plan row. Todos, meetings, calendar events,
+Pomodoros, and duration continuations use the same horizontal grammar and the
+planner's stable display order. The time label or minor-tick marker appears once
+for the slot. Overlaps never add timeline rows or wrap titles.
 
-Todos, meetings, calendar events, and duration continuations use the same row
-grammar. A continuing duration contributes its vertical spine, while items
-that start in the slot use the ordinary tree branches. The selected item uses
-`├▶`; other stacked items use `├─` and `└─` according to their position. The
-stable display order is preserved, and `j`/`k` continues to select individual
-items in that order. A duration start always uses `├─`, even when it is the
-last item starting in that slot, because its branch continues below. Selecting
-an item highlights its own start, continuation, and end rows with the active
-accent and a surface fitted to the rendered branch content; the highlight does
-not fill the unused plan width or recolor or fill the time-ruler cell. When the
-selected item starts in a stacked slot, the junction character of every stack
-row is highlighted so its branch remains visually continuous through the
-intervening rows. Its horizontal `─`, status, and title retain ordinary
-styling. Only the selected row carries `├▶`; the other highlighted rows retain
-`├─`, `│`, or `└─`.
-
-The intended 80-column shape is:
+Use `┊` to separate equal-width item segments inside the plan cell. `▶` marks
+the selected item; `○`, `✓`, `⬥`, and `◷` identify an open todo, completed
+todo, calendar item, and Pomodoro. Duration segments retain `├`, `│`, and `└`
+for start, continuation, and end. Remove secondary metadata first as segments
+contract, then ellipsize titles, and finally show only the selection, interval,
+and item glyphs. The stored title is unchanged.
 
 ```text
-│ 12:30    │ ├─ ◯ Prepare presentation                                │
-│          │ ├▶ ◯ Review presentation                                 │
-│          │ └─ ⬥ Client meeting                                      │
-│     —    │ │                                                        │
+│ 12:30    │ ▶├ ○ Prepare… ┊ ├ ⬥ Client… ┊ ├ ◷ Focus… │
+│     —    │  │             ┊ └            ┊ └          │
 ```
 
-The extra rows may increase the timeline height, but they must not change its
-width, wrap item titles, or disturb the surrounding panel borders. The current
-time marker remains a separate timeline row and is not merged into an overlap
-group.
+Visible items divide the available plan width equally:
+
+```text
+Wide:    │ ○ Prepare presentation ┊ ⬥ Client review       │
+Medium:  │ ○ Prepare…            ┊ ⬥ Client…              │
+Tight:   │ ○                     ┊ ⬥                      │
+```
+
+When every item cannot fit at its minimum representation, reserve the final
+equal-width segment for `+N`, where `N` is the total number of items omitted
+from that row. Overflow is visual only: omitted items remain in planner state,
+navigation, the Inspector, and supported actions.
+
+```text
+│ 12:30    │ ▶○ Prepare… ┊ ⬥ Review… ┊ +3                 │
+```
+
+`j` and `k` traverse every item in stable order. When selection reaches an
+omitted item, shift the contiguous visible item window to include it and update
+`+N`; the overflow count includes omitted items on either side of that window.
+The selected item always remains visible.
+
+```text
+Before j: │ ○ Prepare… ┊ ▶⬥ Review… ┊ +3                 │
+After j:  │ ⬥ Review…  ┊ ▶◷ Focus…  ┊ +3                 │
+```
+
+The Inspector identifies the selected item's logical position and shows its
+complete details. Todo actions target the selected todo; calendar items and
+Pomodoros retain their read-only behavior.
+
+```text
+┌─INSPECTOR───────────────────────────────────────────────┐
+│ ITEM 3 OF 5 · POMODORO                                  │
+│ Focus session                                           │
+│ 12:30–13:00 · 30m                                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+An active duration is highlighted in every slot it occupies, without selecting
+concurrent items. Each slot computes its equal-width segments independently.
+The current-time marker remains a separate, unsegmented timeline row:
+
+```text
+│ 12:51    │ ┣━━ NOW · 39m · Sales planning ━━━━━━━━━━━━━ │
+│ 13:00    │ ○ Prepare… ┊ ⬥ Review… ┊ +2                  │
+```
 
 When no planner modal is active, the configured command launcher opens global
 command mode. Quit, completed visibility, cancellation, and unknown-command
@@ -177,8 +213,14 @@ feedback match the Todos view.
     Markdown todo scheduling.
 11. Todos move between timed and all-day destinations without losing duration,
     and multiple todos may share one all-day destination.
-12. Overlapping timed todos remain individually selectable with `j` and `k`,
-    and each selected todo supports the normal task actions.
+12. Mixed timed items share one non-wrapping row, divide its width equally, and
+    progressively reduce to their identifying glyphs.
+13. `+N` reports visual overflow without removing items from `j`/`k`
+    navigation, the Inspector, or supported actions.
+14. Selecting an omitted item brings it into view and shows its full details
+    while `Tab` and `Shift+Tab` continue to switch planner panes.
+15. Durations preserve start, continuation, end, and active selection styling
+    without adding rows or merging with the current-time marker.
 
 ## References
 

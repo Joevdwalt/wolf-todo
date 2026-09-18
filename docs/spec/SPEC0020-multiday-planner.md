@@ -43,11 +43,9 @@ WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03 SEP
 │     —    │ │                                                                 │
 │ 06:30    │ │                                                                 │
 │     —    │ │                                                                 │
-│ 08:00    │ ├─ ⬥ NEC XON Conference and Lunch with the team…                  │
-│     —    │ │                                                                 │
-│          │ ├─ ⬥ Joe social                                                   │
-│ 10:00    │ │                                                                 │
-│          │ ├─ ⬥ weekly catch up                                              │
+│ 08:00    │ ⬥ NEC XON Conference… ┊ ○ Prepare agenda                          │
+│     —    │ │                     ┊ │                                         │
+│ 10:00    │ ⬥ weekly catch up                                                 │
 │ 10:51    │ ┣━━ NOW · 39m · Sales Sprint Planning ━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
 │ 11:30    │ │  ├─ ⬥ Sales Sprint Planning                                     │
 │ 13:00    │ │  ├─ ⬥ Performance Review                                        │
@@ -60,7 +58,7 @@ WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03 SEP
 │   ◆ Natasha Collins's birthday                                               │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ TAB PANE  J/K ITEM  H/L DAY  G/G TOP/BOTTOM  ENTER MOVE  / FILTER             │
+│ TAB PANE  J/K ITEM  H/L DAY  G/G TOP/BOTTOM  ENTER MOVE  / FILTER            │
 │ U UNSCHEDULE  A CREATE  E EDIT  SPACE COMPLETE  V DETAILS  R CALENDAR        │
 │ CALENDAR READY                                                               │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -75,14 +73,13 @@ WOLF TODO // TODOS  [DAY PLANNER]  MODE:BROWSE  THU 03–FRI 04 SEP
 ┌──────────┬─────────────────────────────┬─────────────────────────────────────┐
 │ TIME     │ THU 03                      │ FRI 04                              │
 ├──────────┼─────────────────────────────┼─────────────────────────────────────┤
-│ 08:00    │ ├─ ⬥ Team planning          │                                     │
-│     —    │ │                           │ ├─ ⬥ Catch up                       │
-│          │ ├─ ⬥ Prepare agenda         │                                     │
+│ 08:00    │ ⬥ Team planning ┊ ○ Agenda  │                                     │
+│     —    │ │               ┊ │         │ ⬥ Catch up                          │
 │ 10:51    │ ┣━━ NOW · 39m ━━━━━━━━━━━━━ │                                     │
 │ 11:30    │                             │ ├─ ○ Charlene work · 15m            │
 │ 13:00    │                             │ ├─ ⬥ Performance Review             │
 ├──────────┼─────────────────────────────┼─────────────────────────────────────┤
-│ ALL DAY  │   ◆ Natasha Collins's birthday│ —                                  │
+│ ALL DAY  │   ◆ Natasha Collins's birthday│ —                                 │
 └──────────┴─────────────────────────────┴─────────────────────────────────────┘
 ┌─SELECTED─────────────────────────────────────────────────────────────────────┐
 │ THU 03 · EMPTY TIMESLOT                                                      │
@@ -125,9 +122,9 @@ The samples establish these width and responsive rules for the new view:
   reserved according to SPEC0013.
 
 The final design may replace the samples' exact glyph arrangement, but it must
-preserve the width budget, hierarchy, selection treatment, timeline branches,
-all-day date association, synchronized scrolling, and command visibility
-established here.
+preserve the width budget, hierarchy, selection treatment, interval state,
+horizontal item segments, all-day date association, synchronized scrolling,
+and command visibility established here.
 
 ## View Model
 
@@ -203,39 +200,34 @@ outside the selected range, the timeline has no current-time marker.
 
 ### Overlapping Items Across Date Columns
 
-Multiday columns use the single-day overlap rules from SPEC0009. When several
-items occupy one slot in a date column, that column grows vertically by one
-physical row per item. No column creates a secondary horizontal lane. The time
-label is shown once for the slot group, and additional rows keep a blank,
-fixed-width time cell so all date-column separators remain aligned.
+Multiday columns use the single-day overlap rules from SPEC0009. Every visible
+date contributes exactly one cell to each quarter-hour row. Within that cell,
+todos, meetings, calendar events, Pomodoros, and duration continuations divide
+the available width into equal left-to-right segments. Long titles progressively
+truncate to their identifying glyphs and never wrap or widen a date column.
 
-The same rule applies to todos, meetings, calendar events, and duration
-continuations. A selected item retains the `├▶` cursor, ordinary stacked items
-use `├─`/`└─`, and a continuing duration retains its vertical spine. Stable
-display order and `j`/`k` item selection are unchanged.
-
-For each shared timeline slot, the multiday renderer uses the greatest number
-of physical rows required by any visible date. A date with fewer items receives
-blank cells for the remaining rows; it must not collapse, wrap, or move its
-border independently of the other date columns.
+When a date column cannot show every item at minimum width, its final segment
+shows that column's `+N` overflow count. Overflow and its visible item window
+are calculated independently per date. `j` and `k` still traverse every item in
+stable order; selecting an omitted item shifts only the active date's visible
+window so that item appears and drives the shared Inspector.
 
 The time-ruler cell for the active pane's selected timeline slot uses the same
 selection surface and accent as the selected item, regardless of whether that
-pane is first, middle, or last. This shared-ruler treatment does not copy the
-active pane's branches or selection styling into other panes.
-
-The intended 80-column shape is:
+pane is first, middle, or last. This treatment does not copy the active pane's
+item selection into other dates.
 
 ```text
-│ 12:30    │ ├─ ◯ Prepare presentation │ ├─ ⬥ Client meeting      │
-│          │ ├▶ ◯ Review presentation  │                          │
-│          │ └─ ◯ Send follow-up       │                          │
-│     —    │ │                         │                          │
+│ TIME     │ THU 03                    │ FRI 04            │
+├──────────┼───────────────────────────┼───────────────────┤
+│ 12:30    │ ▶○ Prepare… ┊ ⬥ Review…  │ ○ Call… ┊ +2      │
+│     —    │ │             ┊ └         │                   │
 ```
 
-Vertical growth is therefore local to the slot group while the overall
-multiday grid remains a single aligned table. Long titles are truncated to
-their date-column width and never cause a column or the timeline to widen.
+A busy date never increases the slot height or adds padding rows to another
+date. Every date-column separator therefore remains aligned in one shared table.
+Duration segments retain their start, continuation, end, and active styling,
+but each slot calculates segment widths independently.
 
 The multiday view uses the same task state, priority, completion, schedule,
 calendar, and selection styling as the single-day planner. It uses the shared
@@ -419,6 +411,9 @@ adaptive fallback, and viewport behavior.
     today is outside the selected range.
 19. Each date pane owns its all-day items, and the selected summary identifies
     the selected date.
+20. Overlapping timed items share one non-wrapping row per date, with equal
+    segments, per-date `+N` overflow, and selection access to omitted items.
+21. A busy date does not add slot rows or blank padding to another date column.
 
 ## References
 
