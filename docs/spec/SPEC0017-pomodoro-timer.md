@@ -39,9 +39,13 @@ start breaks, repeat cycles, pause, or complete the linked todo.
 
 While active, every Pomodoro is a temporary, read-only interval in the Day
 Planner. It is titled from its linked todo or `Pomodoro` when untracked, uses
-the timer theme color, participates only in visual overlap lanes, and is
-clipped to the selected date and planner hours. It is excluded from task
-editing, conflicts, calendar data, Markdown storage, and schedule exports.
+the timer theme color, and participates in the horizontal timed-item layout
+defined by SPEC0009. It receives an equal-width segment, progressively
+truncates to its `◷` glyph, and counts toward `+N` overflow. It remains in
+`j`/`k` item navigation when omitted from the row, and selecting it brings its
+segment into view and shows its read-only details. It is clipped to the selected
+date and planner hours and excluded from task editing, conflicts, calendar data,
+Markdown storage, and schedule exports.
 
 On today's planner, the NOW marker presents active focus before meeting data:
 `┣━━ NOW · ◷ MM:SS · <task> · NEXT <duration> · <meeting>`. The clock,
@@ -60,7 +64,11 @@ information is removed before the NOW and Pomodoro countdown.
 6. Stopping or completing removes both planner indicators.
 7. Starting another Pomodoro is blocked while any timer is active.
 8. Completion remains visible as `✓ POMODORO COMPLETE · <duration> · <task>` until the next keypress.
+9. A Pomodoro overlapping other timed items follows the shared horizontal
+   truncation, overflow, and hidden-item selection rules without becoming a
+   writable planner item.
 
 ## References
 
+- [SPEC0009: Day Planner](SPEC0009-day-planner.md)
 - [SPEC0022: Task Focus Mode](SPEC0022-task-focus-mode.md)
