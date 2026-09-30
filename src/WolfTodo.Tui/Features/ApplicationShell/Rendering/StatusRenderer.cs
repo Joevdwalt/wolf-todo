@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Spectre.Console;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Controls;
@@ -146,26 +147,28 @@ public sealed class StatusRenderer
                     $"MOVE TODO  {Shortest(keyBindings.FocusNext)} PANE  " +
                     $"{Shortest(keyBindings.MoveDown)}/{Shortest(keyBindings.MoveUp)} ITEM  " +
                     $"{Shortest(keyBindings.JumpTop)}/{Shortest(keyBindings.JumpBottom)} TOP/BOTTOM  " +
-                    $"{Shortest(keyBindings.PlannerPreviousDay)}/{Shortest(keyBindings.PlannerNextDay)} DAY  " +
-                    $"{Shortest(keyBindings.PlannerPreviousColumn)}/{Shortest(keyBindings.PlannerNextColumn)} PANE  " +
+                    PlannerMoveDateNavigation(view, keyBindings) +
                     "Enter PLACE  Esc CANCEL"
                 ],
                 _ =>
-                [
-                    $"{Shortest(keyBindings.FocusNext)} PANE  " +
-                    $"{Shortest(keyBindings.MoveDown)}/{Shortest(keyBindings.MoveUp)} ITEM  " +
-                    $"{Shortest(keyBindings.JumpTop)}/{Shortest(keyBindings.JumpBottom)} TOP/BOTTOM  " +
-                    PlannerDateNavigation(view, keyBindings) +
-                    $"{Shortest(keyBindings.PlannerToday)} TODAY  {Shortest(keyBindings.Open)} ASSIGN/MOVE  " +
-                    $"{Shortest(keyBindings.FilterMode)} FILTER  " +
-                    $"{Shortest(keyBindings.PlannerUnschedule)} UNSCHEDULE  " +
-                    $"{Shortest(keyBindings.PlannerExportSchedule)} EXPORT  " +
-                    $"{Shortest(keyBindings.CreateTodo)} CREATE  {Shortest(keyBindings.EditTodo)} EDIT  " +
-                    $"{Shortest(keyBindings.ToggleTodo)} COMPLETE  {Shortest(keyBindings.ToggleDetails)} DETAILS" +
-                    (view.CalendarAgenda.SyncState == PlannerCalendarSyncState.Disabled
-                        ? string.Empty
-                        : $"  {Shortest(keyBindings.PlannerRefreshCalendar)} CALENDAR {CalendarStatus(view.CalendarAgenda)}")
-                ]
+                    view.State.ViewMode == PlannerViewMode.MultiDay
+                        ? PlannerMultiDayBrowseFooter(keyBindings)
+                        :
+                        [
+                            $"{Shortest(keyBindings.FocusNext)} PANE  " +
+                            $"{Shortest(keyBindings.MoveDown)}/{Shortest(keyBindings.MoveUp)} ITEM  " +
+                            $"{Shortest(keyBindings.JumpTop)}/{Shortest(keyBindings.JumpBottom)} TOP/BOTTOM  " +
+                            PlannerDateNavigation(view, keyBindings) +
+                            $"{Shortest(keyBindings.PlannerToday)} TODAY  {Shortest(keyBindings.Open)} ASSIGN/MOVE  " +
+                            $"{Shortest(keyBindings.FilterMode)} FILTER  " +
+                            $"{Shortest(keyBindings.PlannerUnschedule)} UNSCHEDULE  " +
+                            $"{Shortest(keyBindings.PlannerExportSchedule)} EXPORT  " +
+                            $"{Shortest(keyBindings.CreateTodo)} CREATE  {Shortest(keyBindings.EditTodo)} EDIT  " +
+                            $"{Shortest(keyBindings.ToggleTodo)} COMPLETE  {Shortest(keyBindings.ToggleDetails)} DETAILS" +
+                            (view.CalendarAgenda.SyncState == PlannerCalendarSyncState.Disabled
+                                ? string.Empty
+                                : $"  {Shortest(keyBindings.PlannerRefreshCalendar)} CALENDAR {CalendarStatus(view.CalendarAgenda)}")
+                        ]
             };
 
             if (view.CalendarAgenda.Warning is not null)
@@ -227,6 +230,26 @@ public sealed class StatusRenderer
               $"{Shortest(bindings.PlannerDecreaseRange)}/{Shortest(bindings.PlannerIncreaseRange)} RANGE  " +
               $"{Shortest(bindings.PlannerToggleView)} SINGLE  "
             : $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  ";
+
+    private string PlannerMoveDateNavigation(PlannerView view, TuiKeyBindings bindings) =>
+        view.State.ViewMode == WolfTodo.Tui.Features.DayPlanner.PlannerViewMode.MultiDay
+            ? $"{Shortest(bindings.PlannerPreviousColumn)}/{Shortest(bindings.PlannerNextColumn)} DATE  "
+            : $"{Shortest(bindings.PlannerPreviousDay)}/{Shortest(bindings.PlannerNextDay)} DAY  ";
+
+    private IReadOnlyList<string> PlannerMultiDayBrowseFooter(TuiKeyBindings bindings)
+    {
+        var first = $"{Shortest(bindings.PlannerPreviousColumn)}/{Shortest(bindings.PlannerNextColumn)} DATE  " +
+                    $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} ITEM  " +
+                    $"{Shortest(bindings.FocusNext)} PANE  " +
+                    $"{Shortest(bindings.PlannerDecreaseRange)}/{Shortest(bindings.PlannerIncreaseRange)} RANGE  " +
+                    $"{Shortest(bindings.PlannerToggleView)} SINGLE  {Shortest(bindings.PlannerToday)} TODAY";
+        var open = bindings.Open.Where(gesture => !bindings.PlannerPreviousColumn.Contains(gesture) && !bindings.PlannerNextColumn.Contains(gesture)).ToImmutableArray();
+        var move = open.IsEmpty ? string.Empty : $"{TuiKeyBindings.ShortestDisplayName(open)} MOVE  ";
+        var second = move + $"{Shortest(bindings.CreateTodo)} CREATE  " +
+                     $"{Shortest(bindings.EditTodo)} EDIT  {Shortest(bindings.ToggleTodo)} COMPLETE  " +
+                     $"{Shortest(bindings.PlannerUnschedule)} UNSCHEDULE  {Shortest(bindings.FilterMode)} FILTER";
+        return [first, second];
+    }
 
     public string SortHint(BrowserState state, TuiKeyBindings bindings)
     {

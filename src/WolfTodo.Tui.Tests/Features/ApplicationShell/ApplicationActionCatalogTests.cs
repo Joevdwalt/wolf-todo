@@ -2,6 +2,7 @@ using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Tests.Features.ApplicationShell;
@@ -31,5 +32,26 @@ public sealed class ApplicationActionCatalogTests
             TuiKeyBindings.CreateDefaults(":q"), focusedTask: view);
         items.Single(item => item.Action == ApplicationActionId.GenerateTaskLink).IsEnabled.Should().BeTrue();
         items.Single(item => item.Action == ApplicationActionId.OpenTaskLink).IsEnabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Create_exposes_contextual_single_and_multiday_navigation_actions()
+    {
+        var date = new DateOnly(2026, 9, 4);
+        var planner = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []),
+            PlannerState.CreateInitial(date) with { ViewMode = PlannerViewMode.MultiDay });
+
+        var items = new ApplicationActionCatalog().Create(
+            false,
+            null,
+            planner,
+            TuiKeyBindings.CreateDefaults(":q"));
+
+        items.Single(item => item.Action == ApplicationActionId.PlannerPreviousDay).IsEnabled.Should().BeFalse();
+        items.Single(item => item.Action == ApplicationActionId.PlannerNextDay).IsEnabled.Should().BeFalse();
+        items.Single(item => item.Action == ApplicationActionId.PlannerPreviousColumn).IsEnabled.Should().BeTrue();
+        items.Single(item => item.Action == ApplicationActionId.PlannerNextColumn).IsEnabled.Should().BeTrue();
+        items.Single(item => item.Action == ApplicationActionId.PlannerToggleView).IsEnabled.Should().BeTrue();
     }
 }

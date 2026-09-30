@@ -125,6 +125,25 @@ public sealed class StatusRendererTests
     }
 
     [Fact]
+    public void PlannerStatus_uses_column_navigation_while_moving_in_multiday()
+    {
+        var state = PlannerState.CreateInitial(new DateOnly(2026, 8, 4)) with
+        {
+            ViewMode = PlannerViewMode.MultiDay,
+            Mode = PlannerMode.MoveTodo
+        };
+        var view = new PlannerView(state, [new PlannerSlotView(new TimeOnly(9, 0), [], true)], [], []);
+
+        var text = string.Join(' ', renderer.PlannerStatus(
+            view,
+            TuiKeyBindings.CreateDefaults(":q"),
+            240,
+            30).Select(line => line.Text));
+
+        text.Should().Contain("h/l DATE").And.NotContain("[/] DAY");
+    }
+
+    [Fact]
     public void BrowserStatus_shows_a_persistent_pomodoro_completion_when_no_timer_is_active()
     {
         var view = new BrowserView(BrowserState.Initial, [], [], null, "All", null, null, "Empty")

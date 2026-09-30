@@ -19,7 +19,7 @@ public sealed record PlannerState(
     // Markdown schedules remain owned by individual todos.
     public PlannerViewMode ViewMode { get; init; } = PlannerViewMode.SingleDay;
 
-    public int VisibleDayCount { get; init; } = 1;
+    public int VisibleDayCount { get; init; } = 2;
 
     // The first date shown in the multiday timeline. Keeping this separate
     // from SelectedDate lets h/l move through visible columns before the

@@ -16,9 +16,22 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         TimeSpan? defaultDuration = null) =>
         action switch
         {
-            PlannerAction.PreviousDay => Transition(WithVisibleDate(state, state.SelectedDate.AddDays(-1))),
-            PlannerAction.NextDay => Transition(WithVisibleDate(state, state.SelectedDate.AddDays(1))),
+            PlannerAction.PreviousDay => Transition(state.ViewMode == PlannerViewMode.SingleDay
+                ? WithVisibleDate(state, state.SelectedDate.AddDays(-1))
+                : state),
+            PlannerAction.NextDay => Transition(state.ViewMode == PlannerViewMode.SingleDay
+                ? WithVisibleDate(state, state.SelectedDate.AddDays(1))
+                : state),
             PlannerAction.Today => Transition(WithVisibleDate(state, todayProvider())),
+            PlannerAction.ToggleView => Transition(ToggleView(state)),
+            PlannerAction.IncreaseRange => Transition(ResizeRange(state, 1)),
+            PlannerAction.DecreaseRange => Transition(ResizeRange(state, -1)),
+            PlannerAction.PreviousColumn => Transition(state.ViewMode == PlannerViewMode.MultiDay
+                ? WithVisibleDate(state, state.SelectedDate.AddDays(-1))
+                : state),
+            PlannerAction.NextColumn => Transition(state.ViewMode == PlannerViewMode.MultiDay
+                ? WithVisibleDate(state, state.SelectedDate.AddDays(1))
+                : state),
             PlannerAction.Create when view.Projects.Length > 0 => Transition(state with
             {
                 Editor = todoEditorReducer.CreateEditor(
@@ -113,13 +126,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesPlannerToggleView(key))
         {
-            var enteringMultiDay = state.ViewMode == PlannerViewMode.SingleDay;
-            return Transition(state with
-            {
-                ViewMode = enteringMultiDay ? PlannerViewMode.MultiDay : PlannerViewMode.SingleDay,
-                VisibleStartDate = enteringMultiDay ? state.SelectedDate : null,
-                Error = null
-            });
+            return Transition(ToggleView(state));
         }
 
         if (state.Mode is PlannerMode.Browse or PlannerMode.MoveTodo &&
@@ -129,7 +136,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 (bindings.MatchesPlannerIncreaseRange(key) || bindings.MatchesPlannerDecreaseRange(key)))
             {
                 var delta = bindings.MatchesPlannerIncreaseRange(key) ? 1 : -1;
-                return Transition(state with { VisibleDayCount = Math.Clamp(state.VisibleDayCount + delta, 1, 3), Error = null });
+                return Transition(ResizeRange(state, delta));
             }
 
             var movesPreviousColumn = bindings.MatchesPlannerPreviousColumn(key);
@@ -259,7 +266,8 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             });
         }
 
-        if (bindings.MatchesPlannerPreviousDay(key) || bindings.MatchesPlannerNextDay(key))
+        if (state.ViewMode == PlannerViewMode.SingleDay &&
+            (bindings.MatchesPlannerPreviousDay(key) || bindings.MatchesPlannerNextDay(key)))
         {
             var offset = bindings.MatchesPlannerPreviousDay(key) ? -1 : 1;
             return Transition(WithVisibleDate(state, state.SelectedDate.AddDays(offset)));
@@ -409,6 +417,39 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
         return char.IsControl(key.KeyChar)
             ? Transition(state)
             : Transition(state with { FilterDraft = state.FilterDraft + key.KeyChar, PickerIndex = 0 });
+    }
+
+    private static PlannerState ToggleView(PlannerState state)
+    {
+        var enteringMultiDay = state.ViewMode == PlannerViewMode.SingleDay;
+        return state with
+        {
+            ViewMode = enteringMultiDay ? PlannerViewMode.MultiDay : PlannerViewMode.SingleDay,
+            VisibleStartDate = enteringMultiDay ? state.SelectedDate : null,
+            Error = null
+        };
+    }
+
+    private static PlannerState ResizeRange(PlannerState state, int delta)
+    {
+        if (state.ViewMode != PlannerViewMode.MultiDay)
+        {
+            return state;
+        }
+
+        var dayCount = Math.Clamp(state.VisibleDayCount + delta, 1, 3);
+        var visibleStart = state.VisibleStartDate ?? state.SelectedDate;
+        var visibleEnd = visibleStart.AddDays(dayCount - 1);
+        if (state.SelectedDate < visibleStart)
+        {
+            visibleStart = state.SelectedDate;
+        }
+        else if (state.SelectedDate > visibleEnd)
+        {
+            visibleStart = state.SelectedDate.AddDays(1 - dayCount);
+        }
+
+        return state with { VisibleDayCount = dayCount, VisibleStartDate = visibleStart, Error = null };
     }
 
     private static int MoveIndex(int current, int offset, int count) =>

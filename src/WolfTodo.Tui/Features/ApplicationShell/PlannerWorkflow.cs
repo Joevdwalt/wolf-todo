@@ -60,7 +60,18 @@ public sealed class PlannerWorkflow(
     public void Refresh(ApplicationConfiguration configuration, PlannerState state)
     {
         calendarCache.RefreshWindow(configuration.GoogleCalendar);
-        calendarCache.Refresh(configuration.GoogleCalendar, state.SelectedDate);
+        if (state.ViewMode == PlannerViewMode.MultiDay)
+        {
+            var start = state.VisibleStartDate ?? state.SelectedDate;
+            for (var offset = 0; offset < state.VisibleDayCount; offset++)
+            {
+                calendarCache.Refresh(configuration.GoogleCalendar, start.AddDays(offset));
+            }
+        }
+        else
+        {
+            calendarCache.Refresh(configuration.GoogleCalendar, state.SelectedDate);
+        }
     }
 
     public PlannerTransition Reduce(
