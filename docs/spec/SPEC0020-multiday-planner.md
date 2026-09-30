@@ -276,9 +276,10 @@ SELECTED: 09:30–10:30 · 60m · Write brief (todo)
 ```
 
 If several items finish in the same slot, each visible item gets its own
-`→│HH:mm` segment. An ending item and a new start also share the row; neither
-adds height. On a tight segment, omit the finish cue only when the selection
-marker, item glyph, and cue cannot all fit.
+`→│HH:mm` segment directly beneath its item glyph. A lone item returns its
+finish cue to the shared date guide. An ending item and a new start also share
+the row; neither adds height. On a tight segment, omit the finish cue only when
+the selection marker, item glyph, and cue cannot all fit.
 
 ### Wide and narrow terminals
 
