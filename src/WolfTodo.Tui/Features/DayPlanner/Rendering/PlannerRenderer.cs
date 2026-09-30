@@ -398,7 +398,9 @@ public sealed class PlannerRenderer
             .Concat(hasOverflow ? [$" +{itemRows.Length - visibleItemCount}".Length] : [])
             .ToArray();
         var fitsNaturally = naturalWidths.Sum() <= availableSegmentWidth;
-        var segmentWidths = fitsNaturally
+        var segmentWidths = entryCount == 1
+            ? [availableSegmentWidth]
+            : fitsNaturally
             ? naturalWidths
             : Enumerable.Range(0, entryCount)
                 .Select(index => availableSegmentWidth / entryCount +
@@ -520,6 +522,14 @@ public sealed class PlannerRenderer
                 1 => "…",
                 _ => row.Title[..(titleWidth - 1)].TrimEnd() + "…"
             };
+        // Keep the finish marker in a fixed trailing column for a single path.
+        // The renderer's date pane already owns the full width, so padding the
+        // title makes the cue line up even when titles have different lengths.
+        if (showFinish && firstSegment && width != int.MaxValue)
+        {
+            title = title.PadRight(titleWidth);
+        }
+
         return row with { BranchGlyph = branchGlyph, Title = title,
             Metadata = metadata, IsSelectionBridge = false };
     }
@@ -557,12 +567,7 @@ public sealed class PlannerRenderer
         return Enumerable.Range(start, end - start).ToArray();
     }
 
-    public IRenderable PlannerTimelineCell(
-        IReadOnlyList<PlannerTimelineRenderRow> renderRows,
-        TuiTheme theme) =>
-        PlannerTimelineCell(renderRows, renderRows.Count, theme);
-
-    public IRenderable PlannerTimelineCell(
+   public IRenderable PlannerTimelineCell(
         IReadOnlyList<PlannerTimelineRenderRow> renderRows,
         int height,
         TuiTheme theme) =>
@@ -583,7 +588,7 @@ public sealed class PlannerRenderer
     private IRenderable PlannerTimelinePaddingLine(TuiTheme theme) =>
         new Text("│", themeRenderer.Style(theme.Muted, Decoration.Dim));
 
-    private IRenderable PlannerDayAllDayCell(
+    public IRenderable PlannerDayAllDayCell(
         PlannerView view,
         PlannerDayColumnView column,
         int height,
@@ -599,24 +604,51 @@ public sealed class PlannerRenderer
         {
             CalendarAgenda = column.CalendarAgenda
         };
-        var lines = column.CalendarAgenda.AllDayItems.Length == 0
-            ? column.IsActive && paneView.State.Focus == PlannerFocus.AllDay
+        var lines = column.CalendarAgenda.AllDayItems.Length == 0 ? column.IsActive && paneView.State.Focus == PlannerFocus.AllDay
                 ? new IRenderable[] { new Text("▶ — ADD ALL-DAY TASK", themeRenderer.Style(theme.AccentBright, Decoration.Bold)) }
                 : [new Text("—", themeRenderer.Style(theme.Muted, Decoration.Dim))]
-            : calendarItemRenderer.FitLines(column.CalendarAgenda.AllDayItems.Select((item, index) =>
-            {
-                var selected = column.IsActive && paneView.State.Focus == PlannerFocus.AllDay && index == paneView.State.AllDayIndex;
-                var glyph = item.IsCompleted ? "✓" : item.Assignment is null ? "◆" : "○";
-                var color = selected ? theme.AccentBright : item.IsCompleted ? theme.Muted : item.Assignment is null ? theme.Info : theme.Text;
-                return (IRenderable)new Text($"{(selected ? "▶" : " ")} {glyph} {item.Title}",
-                    themeRenderer.Style(color, selected ? Decoration.Bold : item.IsCompleted ? Decoration.Dim : Decoration.None)).Ellipsis();
-            }).ToArray(), height, paneView.State.AllDayIndex).ToArray();
+            : calendarItemRenderer.FitLines(column.CalendarAgenda.AllDayItems.Select((item, index) => GetFitLine(column, theme, paneView, index, item))
+                .ToArray(), height, paneView.State.AllDayIndex).ToArray();
+        
         var content = new Rows(lines.Take(height).Concat(Enumerable.Range(lines.Length, Math.Max(0, height - lines.Length))
             .Select(_ => (IRenderable)new Text("—", themeRenderer.Style(theme.Muted, Decoration.Dim)))
             .ToArray()));
+        
         return column.IsActive
             ? themeRenderer.OnSurface(content, theme.Surface2, true)
             : content;
+    }
+
+    public IRenderable GetFitLine(
+        PlannerDayColumnView column,
+        TuiTheme theme,
+        PlannerView paneView,
+        int index,
+        PlannerCalendarAllDayItem item)
+    {
+        var selected = column.IsActive
+                       && paneView.State.Focus == PlannerFocus.AllDay
+                       && index == paneView.State.AllDayIndex;
+
+        var glyph = item.IsCompleted switch
+        {
+            true => "✓",
+            false when item.Assignment is null => "◆",
+            false => "○"
+        };
+
+        var (color, decoration) = selected switch
+        {
+            true => (theme.AccentBright, Decoration.Bold),
+            false when item.IsCompleted => (theme.Muted, Decoration.Dim),
+            false when item.Assignment is null => (theme.Info, Decoration.None),
+            false => (theme.Text, Decoration.None)
+        };
+
+        var marker = selected ? "▶" : " ";
+
+        return new Text($"{marker} {glyph} {item.Title}",
+            themeRenderer.Style(color, decoration)).Ellipsis();
     }
 
     public void AddPlannerTimelineRows(

@@ -485,6 +485,13 @@ public sealed class PlannerRendererTests
         var endingRow = lines.Single(line => line.Contains("│ 10:00") && line.Contains("→│10:15"));
 
         endingRow.Split("→│10:15").Length.Should().Be(3);
+        var overlapStart = lines.Single(line => line.Contains("│ 09:30") && line.Contains("Draft") && line.Contains("Review"));
+        var startSegments = overlapStart.Split('┊');
+        var endSegments = endingRow.Split('┊');
+        startSegments[1].Should().Contain("  ○ Review");
+        endSegments[1].Should().Contain(" →│10:15",
+            "the finish marker keeps the exact spacing used by the second item lane");
+
         lines.Single(line => line.Contains("│ 11:00") && line.Contains("Quick call"))
             .Should().Contain("→│11:15");
         lines.Count(line => line.Contains("│ 10:00")).Should().Be(1);
@@ -515,6 +522,35 @@ public sealed class PlannerRendererTests
             .Should().Contain("Late work").And.NotContain("→│");
         Render(renderer.PlannerCompactDetail(view, TuiThemes.Wolf), 80)
             .Should().Contain("21:45–WED 05 01:45 · 240m");
+    }
+
+    [Fact]
+    public void MultiDay_finish_cues_align_after_titles_of_different_lengths()
+    {
+        var date = new DateOnly(2026, 8, 4);
+        var tasks = new[]
+        {
+            Todo("Short") with { Schedule = new TodoSchedule(date, new TimeOnly(9, 0)),
+                Duration = TimeSpan.FromMinutes(15) },
+            Todo("A much longer task title") with { SourceLine = 2,
+                Schedule = new TodoSchedule(date, new TimeOnly(10, 0)), Duration = TimeSpan.FromMinutes(15) }
+        };
+        var presented = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/fixtures/work.md", tasks.ToImmutableArray())], []),
+            PlannerState.CreateInitial(date));
+        var view = presented with
+        {
+            State = presented.State with { ViewMode = PlannerViewMode.MultiDay },
+            DayColumns = [new PlannerDayColumnView(date, presented.Slots, presented.CalendarAgenda, true)]
+        };
+        var output = Render(new PlannerRenderer(() => 80, () => 80,
+            nowProvider: () => new DateTime(2026, 8, 6))
+            .CreatePlannerMultiDayTimelineTable(view, 64, TuiThemes.Wolf), 80);
+        var shortLine = output.Split(Environment.NewLine).Single(line => line.Contains("Short") && line.Contains("→│09:15"));
+        var longLine = output.Split(Environment.NewLine).Single(line => line.Contains("longer task title") && line.Contains("→│10:15"));
+
+        shortLine.IndexOf("→│09:15", StringComparison.Ordinal)
+            .Should().Be(longLine.IndexOf("→│10:15", StringComparison.Ordinal));
     }
 
     [Fact]
