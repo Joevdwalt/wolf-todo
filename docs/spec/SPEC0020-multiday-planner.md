@@ -43,9 +43,9 @@ complete range, and unrendered dates remain reachable by range navigation.
 The existing single-day layout is the visual baseline. Every rendered line,
 including borders and command hints, fits within 80 terminal cells at an
 80-column width. The compact timeline uses a fixed 10-cell time column; date
-columns share the remaining width. Allocate column
-width before rendering content. Remove secondary metadata, then truncate long
-titles with an ellipsis; content never wraps or widens a date column.
+columns share the remaining width. Allocate column width before rendering
+content. Remove secondary metadata, then truncate titles with an ellipsis;
+content never wraps or widens a date column.
 
 ### Vertical layout
 
@@ -61,7 +61,26 @@ specified by [SPEC0013](SPEC0013-operational-console-design-system.md).
 Each visible date shows quarter-hour slots from 06:00 through 21:45, timed
 todos, duration blocks, and configured calendar items. Items appear only under
 their scheduled date. A todo without an explicit duration is instantaneous;
-duration blocks stop at the end of their scheduled date.
+duration blocks stop at the end of their scheduled date. Each date uses one
+timeline guide: item glyphs occupy its lane, and `│` connects the rows between.
+The guide remains visible on empty slots and after an item ends; it does not
+by itself mean an item continues.
+
+### Duration finish cues
+
+Show `→│HH:mm` in the last occupied slot of each timed todo, calendar item,
+and active Pomodoro. The time is the item's actual end, including ends between
+quarter-hour ticks. A one-slot item shows its title and finish cue on the same
+row. Instantaneous todos have no cue. A finish cue never adds a physical row.
+Format the selected timed item as `DATE · START–END · DURATION · TITLE (SOURCE)`;
+preserve the timing before truncating its title or source on narrow terminals.
+
+If an item continues beyond the 21:45 slot, show no false finish cue at the
+bottom of the timeline. Its selected summary shows its actual end and duration,
+including the next date when applicable; its block does not continue into the
+next date's column. The selected summary also shows the full start, end, and
+duration when an item's finish is outside the scrolled window or hidden by
+horizontal overflow.
 
 ### Current-time marker
 
@@ -74,22 +93,31 @@ Each date has its own all-day area directly below its timeline. Date-only todos
 and read-only calendar items stay under their owning date. Only the active
 date's all-day item can be selected; other dates remain visually quiet. The
 selected summary shows the date and, when relevant, time and item source.
+For an all-day todo, it also shows any explicit duration as an estimate;
+all-day calendar items have no timeline finish cue.
 
 ### Overlapping items
 
 Apply the [SPEC0009](SPEC0009-day-planner.md) overlap rules independently in
 each date column. Each quarter-hour row has one cell per date; simultaneous
-items divide that cell into equal left-to-right segments. Titles shrink to
-identifying glyphs and never wrap. A busy date adds neither slot height nor
-padding to other columns. Duration segments retain start, continuation, end,
-and active styling, with widths calculated per slot.
+items sit left to right at their natural widths, leaving spare space at the
+right. While durations overlap, each item has a temporary path in stable
+display order: `│` for continuation and `→│HH:mm` in its final occupied slot.
+Keep a continuing item's path identifiable until it ends; when one remains,
+collapse it onto the date guide on the next slot. An ending item and a new
+start may share one row. Tight cells shrink titles before finish cues, then
+fall back to identifying glyphs without wrapping. A busy date adds neither
+slot height nor padding to other columns. The selected item's path retains
+active styling through its occupied slots.
 
 ### Overflow selection
 
 When minimum segment widths cannot show every item, the final segment shows
 that date's `+N` count. Each date has its own visible item window. `j` and `k`
 traverse every item in stable order; selecting a hidden item shifts only the
-active date's window and updates the Inspector.
+active date's window and updates the selected summary. The selected item's
+glyph and finish cue take priority over its title; if even the cue cannot fit,
+the selected summary remains the complete source of timing information.
 
 ### Active-date styling
 
@@ -171,28 +199,33 @@ wrapping the timeline.
 
 ## UX Designs
 
-These wireframes show structure and interaction; exact glyphs and colors may
-follow the shared planner design system. Rows between the examples are omitted.
+These wireframes show behavior; exact colors follow the shared design system.
+Rows omitted between examples do not imply a different slot height. The arrow
+marks an item's actual finish on its last occupied row, while a plain `│` can
+be the date guide alone.
 
 ### Two columns at 80 cells
 
-The selected range contains three dates, while the terminal fits two. The
-header exposes the full range; `l` can reach Saturday. `▶` marks the active
-date and item, and the current-time marker appears only under today.
+The selected range contains three dates, but two fit. The selected summary
+retains the item's full time range if its finish row scrolls out of view. The
+current-time marker appears only under today.
 
 ```text
 WOLF TODO / DAY PLANNER / MULTIDAY       THU 03–SAT 05 SEP (2 OF 3)
 ┌──────────┬───────────────────────────────┬───────────────────────────────┐
 │TIME      │▶ THU 03                       │FRI 04                         │
 ├──────────┼───────────────────────────────┼───────────────────────────────┤
-│08:00     │  ○ Plan sprint                │  ⬥ Team sync                  │
-│09:30     │▶ ○ Write brief ┊ ⬥ Review     │  ○ Call client                │
-│10:51     │  ┣━━ NOW · 39m                │                               │
-│11:30     │  │                            │  ○ Follow up                  │
-│ALL DAY   │  ◆ Birthday                   │  —                            │
+│09:30     │▶ ○ Write brief ┊  ⬥ Review    │  ⬥ Team sync                  │
+│09:45     │  │             ┊  │           │  │                            │
+│10:00     │  │             ┊ →│10:15      │ →│10:15                       │
+│10:15     │ →│10:30                       │  ○ Follow up                  │
+│10:30     │  │                            │ →│10:45                       │
+│10:51     │  ┣━━ NOW · 39m                │  │                            │
+├──────────┼───────────────────────────────┼───────────────────────────────┤
+│ALL DAY   │  ◆ Birthday                   │  ○ Send report                │
 └──────────┴───────────────────────────────┴───────────────────────────────┘
 ┌─SELECTED─────────────────────────────────────────────────────────────────┐
-│THU 03 · 09:30 · Write brief (todo)                                       │
+│THU 03 · 09:30–10:30 · 60m · Write brief (todo)                            │
 └──────────────────────────────────────────────────────────────────────────┘
 ┌─COMMANDS─────────────────────────────────────────────────────────────────┐
 │H/L DATE  J/K ITEM  TAB PANE  +/- DAYS  S SINGLE DAY                      │
@@ -200,63 +233,73 @@ WOLF TODO / DAY PLANNER / MULTIDAY       THU 03–SAT 05 SEP (2 OF 3)
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Three columns on a wide terminal
+Review's temporary path ends on the 10:00 row. Write brief then occupies the
+single guide and ends on the 10:15 row. The plain guide on 10:30 is not part
+of Write brief.
 
-All range dates are visible. The active column owns selection. The `+2` item
-can be reached with `j`/`k` without enlarging Friday's row.
+### Other interval shapes
+
+The left labels below are slot starts, not item end times. Each example uses
+one physical row per slot.
+
+```text
+ONE SLOT                 SAME FINISH               END AND NEW START
+09:30  ○ Call →│09:45    09:30   ○ Draft ┊  ⬥ Sync   10:00  →│10:15 ┊ ○ Next
+                         09:45   │       ┊  │
+                         10:00  →│10:15  ┊ →│10:15
+
+BETWEEN TICKS            INSTANTANEOUS             EMPTY
+09:30  ⬥ Sync            09:30  ○ Send email        09:30  │
+09:45  │
+10:00  →│10:10
+SELECTED: 09:40–10:10 · 30m · Sync (calendar)
+```
+
+An item starting during another duration gets a new temporary path. Paths
+retain their item identity through a crowded interval; when one remains, it
+returns to the date guide on the following slot. A 15-minute item places title
+and finish in its single row. A todo without an explicit duration has no
+finish cue.
+
+### Crowded slots and selection
+
+Items use their existing stable navigation order. The active date alone shifts
+its visible path window to show the selected item; `+N` counts the items hidden
+on either side. The selected item's glyph and finish cue take priority over
+its title, and its complete timing remains in SELECTED.
+
+```text
+09:30  ▶ ○ Write… ┊  ⬥ Review ┊ +2
+09:45    │        ┊  │        ┊ +2
+10:00    │        ┊ →│10:15   ┊ +2
+SELECTED: 09:30–10:30 · 60m · Write brief (todo)
+```
+
+If several items finish in the same slot, each visible item gets its own
+`→│HH:mm` segment. An ending item and a new start also share the row; neither
+adds height. On a tight segment, omit the finish cue only when the selection
+marker, item glyph, and cue cannot all fit.
+
+### Wide and narrow terminals
+
+A wide terminal may show all three dates; each date computes its own overlap
+paths and `+N` window. A narrow terminal may show only the active date, but
+the full range and date position stay visible. `h`/`l` expose hidden dates and
+`s` opens the active date in single-day view.
 
 ```text
 WOLF TODO / DAY PLANNER / MULTIDAY / THU 03–SAT 05 SEP
 ┌──────────┬────────────────────────────┬────────────────────────────┬────────────────────────────┐
-│TIME      │  THU 03                    │ [FRI 04]                   │  SAT 05                    │
+│TIME      │  THU 03                    │▶ FRI 04                    │  SAT 05                    │
 ├──────────┼────────────────────────────┼────────────────────────────┼────────────────────────────┤
-│09:30     │  ○ Write brief             │▶ ○ Call      ┊ ⬥ Review    │  ○ Draft                   │
-│10:00     │  │                         │  ○ Follow up ┊ +2          │  │                         │
+│09:30     │  ○ Write brief             │▶ ○ Call ┊ ⬥ Review         │  ○ Draft                   │
+│09:45     │  │                         │  │      ┊ │                │  │                         │
+│10:00     │ →│10:15                    │ →│10:15 ┊ +2               │  │                         │
+│10:15     │  │                         │  │                         │ →│10:30                    │
 │ALL DAY   │  ◆ Birthday                │  —                         │  ◆ Conference              │
 └──────────┴────────────────────────────┴────────────────────────────┴────────────────────────────┘
-SELECTED: FRI 04 · 09:30 · Call (todo)
+SELECTED: FRI 04 · 09:30–10:15 · 45m · Call (todo)
 ```
-
-### Two columns on a tall terminal
-
-A tall terminal expands the shared timeline window while keeping the selected
-summary, all-day row, and commands below it. Both dates scroll together, and
-the selected slot stays aligned across columns.
-
-```text
-WOLF TODO / DAY PLANNER / MULTIDAY       THU 03–SAT 05 SEP (2 OF 3)
-┌──────────┬───────────────────────────────┬───────────────────────────────┐
-│TIME      │  THU 03                       │ [FRI 04]                      │
-├──────────┼───────────────────────────────┼───────────────────────────────┤
-│06:00     │  │                            │  │                            │
-│07:00     │  ○ Review inbox               │  │                            │
-│08:00     │  ○ Plan sprint                │  ⬥ Team sync                  │
-│09:00     │  │                            │  │                            │
-│09:30     │  ○ Write brief ┊ ⬥ Review     │▶ ○ Call client                │
-│10:00     │  │                            │  ○ Follow up                  │
-│10:51     │  ┣━━ NOW · 39m                │  │                            │
-│11:30     │  │                            │  ⬥ Project review             │
-│12:00     │  ○ Lunch                      │  │                            │
-│13:30     │  ⬥ Planning session           │  ○ Draft proposal             │
-│15:00     │  │                            │  ⬥ Office hours               │
-│16:30     │  ○ Send notes                 │  │                            │
-│17:00     │  │                            │  │                            │
-├──────────┼───────────────────────────────┼───────────────────────────────┤
-│ALL DAY   │  ◆ Birthday                   │  —                            │
-└──────────┴───────────────────────────────┴───────────────────────────────┘
-┌─SELECTED─────────────────────────────────────────────────────────────────┐
-│FRI 04 · 09:30 · Call client (todo)                                       │
-└──────────────────────────────────────────────────────────────────────────┘
-┌─COMMANDS─────────────────────────────────────────────────────────────────┐
-│H/L DATE  J/K ITEM  TAB PANE  +/- DAYS  S SINGLE DAY                      │
-│ENTER MOVE  A CREATE  E EDIT  U UNSCHEDULE  / FILTER                      │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-### One column on a narrow terminal
-
-The range and active date remain visible. `h`/`l` reveal the other dates; `s`
-opens Friday in the single-day detail view.
 
 ```text
 DAY PLANNER / THU 03–SAT 05 SEP / FRI 04 (2/3)
@@ -264,21 +307,39 @@ DAY PLANNER / THU 03–SAT 05 SEP / FRI 04 (2/3)
 │TIME      │▶ FRI 04                       │
 ├──────────┼───────────────────────────────┤
 │09:30     │▶ ○ Call      ┊  ⬥ Review      │
-│10:00     │  ○ Follow up ┊  +2            │
+│09:45     │  │           ┊  │             │
+│10:00     │ →│10:15      ┊ →│10:15        │
 │ALL DAY   │  —                            │
 └──────────┴───────────────────────────────┘
-SELECTED: FRI 04 · 09:30 · Call
+SELECTED: FRI 04 · 09:30–10:15 · 45m · Call
 H/L DATE  J/K ITEM  TAB PANE  S DETAIL
 ```
 
-### Moving a task between dates
+Short terminals scroll all visible dates together. Scrolling a finish row
+out of view does not remove its start, end, or duration from SELECTED. The NOW
+row stays separate from interval paths and appears only in today's column.
+
+### End of the visible day and all-day items
+
+An interval that continues past 22:00 has no finish cue in the 21:45 row.
+SELECTED shows its actual finish and duration, with the next date when needed.
+Its visible block stops under its scheduled date; the next date's column does
+not gain a continuation. All-day todos and calendar items stay in their own
+date's ALL DAY area. An explicit all-day todo duration appears as an estimate
+in SELECTED, while an all-day calendar item has no timeline finish cue.
+
+### Moving and editing
 
 ```text
-THU 03 · 09:30 · Write brief  → Enter: MOVE
-FRI 04 · 09:30                → l: choose Friday
-FRI 04 · ALL DAY              → Tab: choose all-day instead
-FRI 04 · ALL DAY              → Enter: save; Escape: cancel
+THU 03 · 09:30–10:30 · Write brief  → Enter: MOVE
+FRI 04 · 09:30                     → l: choose Friday
+FRI 04 · ALL DAY                   → Tab: choose all-day instead
+FRI 04 · ALL DAY                   → Enter: save; Escape: cancel
 ```
+
+Moving or editing a todo recalculates its path and finish cue. Calendar items
+remain read-only. Actions still target the selected item when its path is
+behind `+N`.
 
 ## References
 

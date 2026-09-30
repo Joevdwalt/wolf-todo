@@ -66,12 +66,16 @@ public sealed class DayPlannerPresenter
                     .Concat(meetings.Select(meeting => MeetingItem(meeting, time)))
                     .Concat(focusItems)
                     .ToImmutableArray();
+                // Multiday paths and j/k selection share chronological lane order.
+                var displayedItems = state.ViewMode == PlannerViewMode.MultiDay
+                    ? timelineItems.OrderBy(item => item.Start).ToImmutableArray()
+                    : timelineItems;
                 return new PlannerSlotView(
                     time,
                     items,
                     isActiveDate && state.Focus == PlannerFocus.Timeline && index == slotIndex)
                 {
-                    Items = timelineItems,
+                    Items = displayedItems,
                     Meetings = meetings
                 };
             })
@@ -162,7 +166,8 @@ public sealed class DayPlannerPresenter
 
         return todo.Duration is null
             ? time == schedule.Time
-            : time >= schedule.Time && time < schedule.Time.Value.Add(todo.Duration.Value);
+            : time >= schedule.Time &&
+              time.ToTimeSpan() - schedule.Time.Value.ToTimeSpan() < todo.Duration.Value;
     }
 
     private static PlannerTimelineItemView TaskItem(PlannerAssignment assignment, TimeOnly time)
@@ -178,7 +183,7 @@ public sealed class DayPlannerPresenter
             start,
             end,
             duration is null ? PlannerTimeShape.Instant : PlannerTimeShape.Duration,
-            IntervalState(start, end, duration, time),
+            IntervalState(start, duration, time),
             todo.IsCompleted,
             false,
             assignment);
@@ -194,7 +199,7 @@ public sealed class DayPlannerPresenter
             meeting.Start,
             meeting.End,
             PlannerTimeShape.Duration,
-            IntervalState(meeting.Start, meeting.End, meeting.End - meeting.Start, time),
+            IntervalState(meeting.Start, meeting.End - meeting.Start, time),
             false,
             false,
             null,
@@ -213,7 +218,7 @@ public sealed class DayPlannerPresenter
             start,
             end,
             PlannerTimeShape.Duration,
-            IntervalState(start, end, end - start, time),
+            IntervalState(start, end - start, time),
             false,
             false);
 
@@ -238,24 +243,26 @@ public sealed class DayPlannerPresenter
         return (TimeOnly.FromDateTime(start), TimeOnly.FromDateTime(end));
     }
 
-    private static PlannerIntervalState IntervalState(TimeOnly start, TimeOnly end, TimeSpan? duration, TimeOnly time)
+    private static PlannerIntervalState IntervalState(TimeOnly start, TimeSpan? duration, TimeOnly time)
     {
         if (duration is null)
         {
             return PlannerIntervalState.Instant;
         }
 
-        if (duration <= TimeSpan.FromMinutes(15))
+        var slotStart = time.ToTimeSpan();
+        var slotEnd = slotStart + TimeSpan.FromMinutes(15);
+        var intervalStart = start.ToTimeSpan();
+        var intervalEnd = intervalStart + duration.Value;
+        var begins = intervalStart >= slotStart && intervalStart < slotEnd;
+        var ends = intervalEnd > slotStart && intervalEnd <= slotEnd;
+        return (begins, ends) switch
         {
-            return PlannerIntervalState.StartAndEnd;
-        }
-
-        if (start >= time && start < time.AddMinutes(15))
-        {
-            return PlannerIntervalState.Start;
-        }
-
-        return time.AddMinutes(15) >= end ? PlannerIntervalState.End : PlannerIntervalState.Continue;
+            (true, true) => PlannerIntervalState.StartAndEnd,
+            (true, false) => PlannerIntervalState.Start,
+            (false, true) => PlannerIntervalState.End,
+            _ => PlannerIntervalState.Continue
+        };
     }
 
     private static bool Matches(PlannerAssignment assignment, string filter) =>

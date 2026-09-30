@@ -189,6 +189,44 @@ public sealed class DayPlannerPresenterTests
     }
 
     [Fact]
+    public void CreateView_marks_a_short_between_tick_meeting_in_both_occupied_slots()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var agenda = new PlannerCalendarAgenda([], [
+            new PlannerCalendarMeeting("Quick sync", new TimeOnly(9, 40), new TimeOnly(9, 50))
+        ], PlannerCalendarSyncState.Ready);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([], []), PlannerState.CreateInitial(date), agenda);
+
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 30))
+            .Items.Single().IntervalState.Should().Be(PlannerIntervalState.Start);
+        view.Slots.Single(slot => slot.Time == new TimeOnly(9, 45))
+            .Items.Single().IntervalState.Should().Be(PlannerIntervalState.End);
+        view.Slots.Single(slot => slot.Time == new TimeOnly(10, 0)).Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CreateView_orders_multiday_overlap_paths_like_item_navigation()
+    {
+        var date = new DateOnly(2026, 7, 15);
+        var laterTask = Todo("Later task") with
+        {
+            Schedule = new TodoSchedule(date, new TimeOnly(9, 45)),
+            Duration = TimeSpan.FromMinutes(30)
+        };
+        var agenda = new PlannerCalendarAgenda([], [
+            new PlannerCalendarMeeting("Earlier meeting", new TimeOnly(9, 30), new TimeOnly(10, 15))
+        ], PlannerCalendarSyncState.Ready);
+        var view = new DayPlannerPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [laterTask])], []),
+            PlannerState.CreateInitial(date) with { ViewMode = PlannerViewMode.MultiDay, SlotIndex = 15 }, agenda);
+
+        view.SelectedSlot.Items.Select(item => item.Title)
+            .Should().Equal("Earlier meeting", "Later task");
+        view.SelectedItem!.Title.Should().Be("Earlier meeting");
+    }
+
+    [Fact]
     public void CreateView_adds_and_clips_the_active_pomodoro_as_a_read_only_timeline_block()
     {
         var date = new DateOnly(2026, 7, 15);

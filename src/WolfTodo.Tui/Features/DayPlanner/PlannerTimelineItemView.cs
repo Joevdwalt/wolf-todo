@@ -45,5 +45,5 @@ public sealed record PlannerTimelineItemView(
     // without turning overlapping items into the selected target.
     bool IsSelectionBridge = false)
 {
-    public TimeSpan? Duration => TimeShape == PlannerTimeShape.Duration ? End - Start : null;
+    public TimeSpan? Duration => TimeShape == PlannerTimeShape.Duration ? Assignment?.Todo.Duration ?? End - Start : null;
 }

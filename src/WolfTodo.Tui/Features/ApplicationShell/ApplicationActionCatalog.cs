@@ -97,6 +97,10 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
         var plannerExportReason = plannerReason ?? (plannerExportEnabled
             ? null
             : "Configure [planner.export] to enable day schedule export.");
+        var plannerDayReason = plannerReason ??
+                               (planner!.State.ViewMode == PlannerViewMode.MultiDay
+                                   ? "Switch to single-day view first."
+                                   : null);
         var timerReason = timerRunning
             ? null
             : !timerEnabled
@@ -173,11 +177,26 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
             Item(ApplicationActionId.BrowserJumpBottom, "Todos", "Jump to bottom",
                 "Select the last item in the focused list", Shortest(bindings.JumpBottom), browserReason),
             Item(ApplicationActionId.PlannerPreviousDay, "Planner", "Previous day",
-                "Move the planner back one day", Shortest(bindings.PlannerPreviousDay), plannerReason),
+                "Move the planner back one day", Shortest(bindings.PlannerPreviousDay), plannerDayReason),
             Item(ApplicationActionId.PlannerNextDay, "Planner", "Next day",
-                "Move the planner forward one day", Shortest(bindings.PlannerNextDay), plannerReason),
+                "Move the planner forward one day", Shortest(bindings.PlannerNextDay), plannerDayReason),
             Item(ApplicationActionId.PlannerToday, "Planner", "Go to today",
                 "Return the planner to today", Shortest(bindings.PlannerToday), plannerReason),
+            Item(ApplicationActionId.PlannerToggleView, "Planner",
+                planner?.State.ViewMode == PlannerViewMode.MultiDay ? "Show single-day view" : "Show multiday view",
+                "Switch between the day and multiday planner", Shortest(bindings.PlannerToggleView), plannerReason),
+            Item(ApplicationActionId.PlannerIncreaseRange, "Planner", "Show more dates",
+                "Increase the multiday range by one date", Shortest(bindings.PlannerIncreaseRange),
+                plannerReason ?? (planner!.State.ViewMode == PlannerViewMode.MultiDay ? null : "Switch to multiday view first.")),
+            Item(ApplicationActionId.PlannerDecreaseRange, "Planner", "Show fewer dates",
+                "Decrease the multiday range by one date", Shortest(bindings.PlannerDecreaseRange),
+                plannerReason ?? (planner!.State.ViewMode == PlannerViewMode.MultiDay ? null : "Switch to multiday view first.")),
+            Item(ApplicationActionId.PlannerPreviousColumn, "Planner", "Previous date",
+                "Select the previous date in the multiday range", Shortest(bindings.PlannerPreviousColumn),
+                plannerReason ?? (planner!.State.ViewMode == PlannerViewMode.MultiDay ? null : "Switch to multiday view first.")),
+            Item(ApplicationActionId.PlannerNextColumn, "Planner", "Next date",
+                "Select the next date in the multiday range", Shortest(bindings.PlannerNextColumn),
+                plannerReason ?? (planner!.State.ViewMode == PlannerViewMode.MultiDay ? null : "Switch to multiday view first.")),
             Item(ApplicationActionId.PlannerRefreshCalendar, "Planner", "Refresh calendar",
                 "Connect to or refresh the primary Google Calendar", Shortest(bindings.PlannerRefreshCalendar),
                 plannerReason),

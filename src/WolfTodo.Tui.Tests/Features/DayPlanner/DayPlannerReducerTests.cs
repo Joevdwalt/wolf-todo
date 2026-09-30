@@ -26,6 +26,21 @@ public sealed class DayPlannerReducerTests
     }
 
     [Fact]
+    public void Reduce_keeps_previous_and_next_day_controls_single_day_only()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today) with { ViewMode = PlannerViewMode.MultiDay };
+
+        var previous = reducer.Reduce(state, Key('['), Bindings, View(state)).State;
+        var next = reducer.Reduce(state, Key(']'), Bindings, View(state)).State;
+        var paletteNext = reducer.ReduceAction(state, PlannerAction.NextDay, View(state)).State;
+
+        previous.SelectedDate.Should().Be(Today);
+        next.SelectedDate.Should().Be(Today);
+        paletteNext.SelectedDate.Should().Be(Today);
+    }
+
+    [Fact]
     public void Reduce_toggles_multiday_and_uses_vim_columns_without_opening_a_todo()
     {
         var reducer = new DayPlannerReducer(() => Today);
@@ -37,9 +52,10 @@ public sealed class DayPlannerReducerTests
         var previous = reducer.Reduce(next, Key('h'), Bindings, View(next, Todo("Scheduled"))).State;
 
         multiday.ViewMode.Should().Be(PlannerViewMode.MultiDay);
+        multiday.VisibleDayCount.Should().Be(2);
         multiday.VisibleStartDate.Should().Be(Today);
         next.SelectedDate.Should().Be(Today.AddDays(1));
-        next.VisibleStartDate.Should().Be(Today.AddDays(1));
+        next.VisibleStartDate.Should().Be(Today);
         next.Mode.Should().Be(PlannerMode.Browse);
         previous.SelectedDate.Should().Be(Today);
     }
@@ -48,7 +64,11 @@ public sealed class DayPlannerReducerTests
     public void Reduce_limits_multiday_range_to_one_through_three_days()
     {
         var reducer = new DayPlannerReducer(() => Today);
-        var state = PlannerState.CreateInitial(Today) with { ViewMode = PlannerViewMode.MultiDay };
+        var state = PlannerState.CreateInitial(Today) with
+        {
+            ViewMode = PlannerViewMode.MultiDay,
+            VisibleDayCount = 1
+        };
 
         var two = reducer.Reduce(state, Key('+'), Bindings, View(state)).State;
         var three = reducer.Reduce(two, Key('+'), Bindings, View(two)).State;
@@ -59,6 +79,45 @@ public sealed class DayPlannerReducerTests
         three.VisibleDayCount.Should().Be(3);
         stillThree.VisibleDayCount.Should().Be(3);
         twoAgain.VisibleDayCount.Should().Be(2);
+    }
+
+    [Fact]
+    public void Reduce_shrinking_range_reanchors_around_the_selected_date()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today) with
+        {
+            ViewMode = PlannerViewMode.MultiDay,
+            VisibleDayCount = 3,
+            VisibleStartDate = Today,
+            SelectedDate = Today.AddDays(2)
+        };
+
+        var reduced = reducer.Reduce(state, Key('-'), Bindings, View(state)).State;
+
+        reduced.VisibleDayCount.Should().Be(2);
+        reduced.VisibleStartDate.Should().Be(Today.AddDays(1));
+        reduced.SelectedDate.Should().Be(Today.AddDays(2));
+    }
+
+    [Fact]
+    public void ReduceAction_supports_view_range_and_column_controls()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today);
+        var view = View(state);
+
+        var multi = reducer.ReduceAction(state, PlannerAction.ToggleView, view).State;
+        var increased = reducer.ReduceAction(multi, PlannerAction.IncreaseRange, View(multi)).State;
+        var next = reducer.ReduceAction(increased, PlannerAction.NextColumn, View(increased)).State;
+        var single = reducer.ReduceAction(next, PlannerAction.ToggleView, View(next)).State;
+        var ignoredColumn = reducer.ReduceAction(single, PlannerAction.PreviousColumn, View(single)).State;
+
+        multi.ViewMode.Should().Be(PlannerViewMode.MultiDay);
+        increased.VisibleDayCount.Should().Be(3);
+        next.SelectedDate.Should().Be(Today.AddDays(1));
+        single.ViewMode.Should().Be(PlannerViewMode.SingleDay);
+        ignoredColumn.SelectedDate.Should().Be(next.SelectedDate);
     }
 
     [Fact]

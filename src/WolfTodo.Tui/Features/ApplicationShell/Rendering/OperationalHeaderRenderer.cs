@@ -20,10 +20,13 @@ public sealed class OperationalHeaderRenderer
         DateOnly date,
         DateTime now,
         int openCount,
-        int errorCount)
+        int errorCount,
+        DateOnly? rangeStart = null,
+        DateOnly? rangeEnd = null)
     {
         var segments = new List<(string Text, Color Color, Decoration Decoration)>();
-        if (terminalWidth >= 60)
+        var hasSelectedRange = rangeStart is not null && rangeEnd is not null;
+        if (terminalWidth >= 60 && (!hasSelectedRange || terminalWidth >= 100))
         {
             segments.Add(("WOLF TODO // ", theme.Heading, Decoration.Bold));
             for (var index = 0; index < view.Tabs.Length; index++)
@@ -48,9 +51,14 @@ public sealed class OperationalHeaderRenderer
             segments.Add(($"[{active.Title.ToUpperInvariant()}]", theme.Accent, Decoration.Bold));
         }
 
+        if (hasSelectedRange)
+        {
+            segments.Add(($"  {DateRangePositionLabel(rangeStart!.Value, rangeEnd!.Value, date)}", theme.Date, Decoration.None));
+        }
+
         segments.Add(($"  TIME:{now:HH:mm}", theme.Now, Decoration.Bold));
         segments.Add(($"  MODE:{mode}", theme.SecondaryText, Decoration.None));
-        if (terminalWidth >= 80)
+        if (!hasSelectedRange && terminalWidth >= 80)
         {
             segments.Add(($"  {date.ToString("ddd dd MMM").ToUpperInvariant()}", theme.Date, Decoration.None));
         }
@@ -95,5 +103,19 @@ public sealed class OperationalHeaderRenderer
 
         themeRenderer.WriteSurface(new Markup(output.ToString()), theme.Background, true);
         AnsiConsole.WriteLine();
+    }
+
+    public static string DateRangeLabel(DateOnly start, DateOnly end) =>
+        start == end
+            ? start.ToString("ddd dd MMM").ToUpperInvariant()
+            : start.Month == end.Month
+            ? $"{start:ddd dd}–{end:ddd dd MMM}".ToUpperInvariant()
+            : $"{start:ddd dd MMM}–{end:ddd dd MMM}".ToUpperInvariant();
+
+    public static string DateRangePositionLabel(DateOnly start, DateOnly end, DateOnly selected)
+    {
+        var position = Math.Clamp(selected.DayNumber - start.DayNumber + 1, 1, end.DayNumber - start.DayNumber + 1);
+        var count = end.DayNumber - start.DayNumber + 1;
+        return $"{DateRangeLabel(start, end)} ({position} OF {count})";
     }
 }

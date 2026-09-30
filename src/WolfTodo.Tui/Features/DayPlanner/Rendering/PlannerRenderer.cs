@@ -50,7 +50,7 @@ public sealed class PlannerRenderer
         var now = nowProvider();
         RenderPlannerHeader(tabs, view, keyBindings, theme, context, now);
 
-        var timelineTable = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 1
+        var timelineTable = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 0
             ? CreatePlannerMultiDayTimelineTable(view, context.AvailableRows, theme)
             : CreatePlannerTimelineTable(
                 WindowPlannerTimeline(
@@ -82,14 +82,16 @@ public sealed class PlannerRenderer
         var editorDialog = CreatePlannerEditorDialog(view, keyBindings, width, height);
         var status = statusRenderer.PlannerStatus(view, keyBindings, width, height);
         var wideLayout = width >= 120;
-        var isMultiDay = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 1;
+        var isMultiDay = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 0;
         var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
                             view.State.Focus == PlannerFocus.AllDay;
         // Multiday owns all-day content inside each date pane. The legacy
         // full-width panel belongs to the single-day layout only.
         var showAllDayPanel = !isMultiDay && (allDayVisible || (wideLayout && view.State.ShowDetails));
         var wideSidePanels = !isMultiDay && wideLayout && (view.State.ShowDetails || showAllDayPanel);
-        var compactDetails = !isMultiDay && IsPlannerCompactDetailsVisible(view, wideSidePanels);
+        var compactDetails = isMultiDay
+            ? view.State.Mode == PlannerMode.Browse && view.State.Editor is null && view.CommandPalette is null && view.GlobalCommand is null
+            : IsPlannerCompactDetailsVisible(view, wideSidePanels);
         var narrowAllDayHeight = PlannerNarrowAllDayHeight(view, wideSidePanels, showAllDayPanel);
         var pickerHeight = TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows);
         pickerHeight += view.PomodoroPrompt is null ? 0 : PomodoroPromptRenderer.Height;
@@ -99,6 +101,15 @@ public sealed class PlannerRenderer
             pickerHeight,
             compactDetails,
             narrowAllDayHeight);
+        if (isMultiDay)
+        {
+            // Multiday keeps all-day content and a compact selected-item panel
+            // below the shared timeline. Keep those rows inside the viewport.
+            var allDayRows = Math.Max(1, Math.Min(4, view.DayColumns.IsDefaultOrEmpty
+                ? 1
+                : view.DayColumns.Max(column => column.CalendarAgenda.AllDayItems.Length)));
+            availableRows = Math.Max(1, availableRows - allDayRows);
+        }
         var timelineWidth = wideSidePanels ? Math.Max(40, (width * 2 / 3) - 2) : width;
 
         return new PlannerRenderContext(
@@ -125,7 +136,12 @@ public sealed class PlannerRenderer
         TuiKeyBindings keyBindings,
         TuiTheme theme,
         PlannerRenderContext context,
-        DateTime now) =>
+        DateTime now)
+    {
+        var rangeStart = view.State.ViewMode == PlannerViewMode.MultiDay
+            ? view.State.VisibleStartDate ?? view.State.SelectedDate
+            : (DateOnly?)null;
+        var rangeEnd = rangeStart?.AddDays(view.State.VisibleDayCount - 1);
         operationalHeaderRenderer.Write(
             tabs,
             keyBindings,
@@ -135,7 +151,10 @@ public sealed class PlannerRenderer
             view.State.SelectedDate,
             now,
             view.OpenTodoCount,
-            view.ProjectErrorCount);
+            view.ProjectErrorCount,
+            rangeStart,
+            rangeEnd);
+    }
 
     public Table CreatePlannerTimelineTable(
         IReadOnlyList<PlannerTimelineRow> timelineRows,
@@ -185,7 +204,10 @@ public sealed class PlannerRenderer
         // Reserve the fixed ruler, borders, and separators before selecting
         // panes. The active pane is always retained when the terminal can
         // show fewer dates than the selected range.
-        var maxColumns = Math.Max(1, (widthProvider() - 12) / 25);
+        var terminalWidth = widthProvider();
+        // TIME occupies 10 cells. Reserve borders and two padding cells per
+        // date before enforcing its 24-cell content minimum.
+        var maxColumns = Math.Max(1, (terminalWidth - 12) / 27);
         if (columns.Count > maxColumns)
         {
             var activeIndex = Math.Max(0, columns.ToList().FindIndex(column => column.IsActive));
@@ -199,46 +221,99 @@ public sealed class PlannerRenderer
             "TIME",
             themeRenderer.Style(theme.Heading, Decoration.Bold)))
         {
-            Width = 10,
-            NoWrap = true
+            Width = 8,
+            NoWrap = true,
+            Padding = new Padding(1, 0)
         });
-        var paneWidth = Math.Max(24, (widthProvider() - 12 - columns.Count) / columns.Count);
+        var paneWidth = Math.Max(24, (terminalWidth - 12 - columns.Count) / columns.Count - 2);
         foreach (var column in columns)
         {
-            var heading = column.Date.ToString("ddd dd MMM").ToUpperInvariant();
+            var heading = (column.IsActive ? "▶ " : "  ") + column.Date.ToString("ddd dd").ToUpperInvariant();
             table.AddColumn(new TableColumn(new Text(
                 heading,
                 themeRenderer.Style(column.IsActive ? theme.AccentBright : theme.Accent, Decoration.Bold)))
             {
                 Width = paneWidth,
-                NoWrap = true
+                NoWrap = true,
+                Padding = new Padding(1, 0)
             });
         }
 
-        foreach (var slotIndex in WindowPlannerMultiDaySlots(columns, selectedSlotIndex, availableRows))
+        var now = nowProvider();
+        var today = DateOnly.FromDateTime(now);
+        var currentTime = new TimeOnly(now.Hour, now.Minute);
+        var todayColumn = columns.FirstOrDefault(column => column.Date == today);
+        var showNow = todayColumn is not null && availableRows >= 2;
+        var markerSlotIndex = todayColumn is null
+            ? -1
+            : Enumerable.Range(0, todayColumn.Slots.Length)
+                .FirstOrDefault(index => todayColumn.Slots[index].Time >= currentTime, -1);
+        if (todayColumn is not null && markerSlotIndex < 0)
         {
+            markerSlotIndex = todayColumn.Slots.Length;
+        }
+
+        var slotsToRender = WindowPlannerMultiDaySlots(
+            columns,
+            selectedSlotIndex,
+            Math.Max(1, availableRows - (showNow ? 1 : 0)));
+        if (showNow && slotsToRender.Count > 0)
+        {
+            var todaySlots = todayColumn!.Slots;
+            var markerAnchor = Math.Clamp(markerSlotIndex, 0, todaySlots.Length - 1);
+            var requiredStart = Math.Min(selectedSlotIndex, markerAnchor);
+            var requiredEnd = Math.Max(selectedSlotIndex, markerAnchor);
+            var slotBudget = Math.Max(1, availableRows - 1);
+            if (requiredEnd - requiredStart + 1 <= slotBudget)
+            {
+                var start = requiredStart;
+                var end = requiredEnd + 1;
+                while (start > 0 && end - start < slotBudget)
+                {
+                    start--;
+                }
+
+                while (end < todaySlots.Length && end - start < slotBudget)
+                {
+                    end++;
+                }
+
+                slotsToRender = Enumerable.Range(start, end - start).ToArray();
+            }
+        }
+
+        var includesNow = showNow && slotsToRender.Count > 0 &&
+                          markerSlotIndex >= slotsToRender[0] &&
+                          markerSlotIndex <= slotsToRender[^1] + 1;
+        foreach (var slotIndex in slotsToRender)
+        {
+            if (includesNow && markerSlotIndex == slotIndex)
+            {
+                AddPlannerMultiDayNowRow(table, columns, today, currentTime, now, theme, view);
+            }
+
             var slotRows = columns
                 .Select(column => PlannerTimelineRenderModel.ForSlot(column.Slots[slotIndex]))
                 .ToArray();
-            var height = slotRows.Max(rows => rows.Count);
             var activeRows = slotRows.FirstOrDefault(rows => rows.Any(renderRow => renderRow.IsSelected));
-            var timeRows = Enumerable.Range(0, height)
-                .Select(row => row == 0
-                    ? PlannerTimeRulerLine(
-                        activeRows?[0] ?? slotRows[0][0],
-                        theme,
-                        selected: activeRows is not null)
-                    : new Text(string.Empty))
-                .Cast<IRenderable>()
-                .ToArray();
-            var cells = new List<IRenderable> { new Rows(timeRows) };
-            cells.AddRange(slotRows.Select(rows => PlannerTimelineCell(rows, height, theme)));
+            var timeCell = PlannerTimeRulerLine(
+                activeRows?[0] ?? slotRows[0][0],
+                theme,
+                selected: activeRows is not null);
+            var cells = new List<IRenderable> { timeCell };
+            cells.AddRange(columns.Select((column, index) => PlannerMultiDayTimelineCell(
+                column.Slots[slotIndex], slotRows[index], column.Date, paneWidth, theme, view?.ActiveFocusBlock)));
             table.AddRow(cells.ToArray());
+        }
+
+        if (includesNow && markerSlotIndex > slotsToRender[^1])
+        {
+            AddPlannerMultiDayNowRow(table, columns, today, currentTime, now, theme, view);
         }
 
         if (view is not null)
         {
-            var allDayHeight = Math.Max(1, columns.Max(column => column.CalendarAgenda.AllDayItems.Length));
+            var allDayHeight = Math.Max(1, Math.Min(4, columns.Max(column => column.CalendarAgenda.AllDayItems.Length)));
             var allDayCells = new List<IRenderable>
             {
                 new Text("ALL DAY", themeRenderer.Style(theme.Heading, Decoration.Bold))
@@ -250,15 +325,214 @@ public sealed class PlannerRenderer
         return table;
     }
 
+    private void AddPlannerMultiDayNowRow(
+        Table table,
+        IReadOnlyList<PlannerDayColumnView> columns,
+        DateOnly today,
+        TimeOnly currentTime,
+        DateTime now,
+        TuiTheme theme,
+        PlannerView? view)
+    {
+        var meetings = columns.First(column => column.Date == today).CalendarAgenda.Meetings;
+        var nextMeeting = NextMeeting(meetings, currentTime);
+        var focus = view?.ActiveFocusBlock;
+        var remaining = focus?.Remaining(now);
+        var cells = new List<IRenderable>
+        {
+            new Text(currentTime.ToString("HH:mm"), themeRenderer.Style(theme.Now, Decoration.Bold))
+        };
+        foreach (var column in columns)
+        {
+            cells.Add(column.Date != today
+                ? new Text("  │", themeRenderer.Style(theme.Muted, Decoration.Dim))
+                : new TimelineMarkerRenderable(
+                    themeRenderer.Style(theme.Now, Decoration.Bold),
+                    nextMeeting is null ? null : nextMeeting.Start - currentTime,
+                    nextMeeting?.Title,
+                    themeRenderer.Style(theme.Timer, Decoration.Bold),
+                    remaining,
+                    remaining is null ? null : focus?.TodoTitle,
+                    leftPadding: 2));
+        }
+
+        table.AddRow(cells.ToArray());
+    }
+
+    private IRenderable PlannerMultiDayTimelineCell(
+        PlannerSlotView slot,
+        IReadOnlyList<PlannerTimelineRenderRow> rows,
+        DateOnly date,
+        int contentWidth,
+        TuiTheme theme,
+        PlannerFocusBlock? activeFocusBlock)
+    {
+        const int separatorWidth = 2;
+        if (slot.Items.Length == 0)
+        {
+            var empty = rows[0];
+            return empty.IsSelected
+                ? PlannerTimelineRenderLine(CompactPlannerMultiDayRow(empty, null, contentWidth, false, true), theme)
+                : new Text("  │", themeRenderer.Style(theme.Muted, Decoration.Dim));
+        }
+
+        // Earlier starts retain their path when another item joins the slot.
+        // Equal starts retain the presenter's stable item order.
+        var itemRows = slot.Items.Select((item, index) => (Item: item, Row: rows[index], Index: index))
+            .OrderBy(entry => entry.Item.Start)
+            .ThenBy(entry => entry.Index)
+            .ToArray();
+        var capacity = Math.Max(1, (contentWidth + separatorWidth) / (8 + separatorWidth));
+        var visibleItemCount = itemRows.Length <= capacity ? itemRows.Length : Math.Max(1, capacity - 1);
+        var selectedIndex = Array.FindIndex(itemRows, entry => entry.Row.IsSelected || entry.Row.IsActive);
+        var start = itemRows.Length <= visibleItemCount || selectedIndex < 0
+            ? 0
+            : Math.Clamp(selectedIndex - visibleItemCount / 2, 0, itemRows.Length - visibleItemCount);
+        var visibleRows = itemRows.Skip(start).Take(visibleItemCount).ToArray();
+        var hasOverflow = itemRows.Length > visibleItemCount;
+        var entryCount = visibleRows.Length + (hasOverflow ? 1 : 0);
+        var separatorCount = entryCount - 1;
+        var availableSegmentWidth = Math.Max(entryCount, contentWidth - separatorCount * separatorWidth);
+        var naturalWidths = visibleRows.Select((entry, index) => PlannerMultiDayNaturalWidth(
+                entry.Row, entry.Item, ShowMultiDayFinish(entry.Item, date, activeFocusBlock), index == 0))
+            .Concat(hasOverflow ? [$" +{itemRows.Length - visibleItemCount}".Length] : [])
+            .ToArray();
+        var fitsNaturally = naturalWidths.Sum() <= availableSegmentWidth;
+        var segmentWidths = fitsNaturally
+            ? naturalWidths
+            : Enumerable.Range(0, entryCount)
+                .Select(index => availableSegmentWidth / entryCount +
+                                 (index < availableSegmentWidth % entryCount ? 1 : 0))
+                .ToArray();
+        var entries = visibleRows.Select((entry, index) =>
+        {
+            var compact = CompactPlannerMultiDayRow(entry.Row, entry.Item, segmentWidths[index],
+                ShowMultiDayFinish(entry.Item, date, activeFocusBlock), index == 0);
+            var line = compact.StatusGlyph.Length == 0
+                ? PlannerMultiDayPathLine(compact, theme)
+                : PlannerTimelineRenderLine(compact, theme);
+            return entry.Row.IsActive || entry.Row.IsSelected
+                ? themeRenderer.OnSurface(line, theme.Surface2)
+                : line;
+        }).ToList();
+        if (hasOverflow)
+        {
+            entries.Add(new Text($" +{itemRows.Length - visibleItemCount}",
+                themeRenderer.Style(theme.Warning, Decoration.Bold)));
+        }
+
+        var cell = new Table().NoBorder().Collapse().HideHeaders();
+        var cellContents = new List<IRenderable>();
+        for (var index = 0; index < entries.Count; index++)
+        {
+            cell.AddColumn(new TableColumn(entries[index])
+            {
+                Width = segmentWidths[index],
+                NoWrap = true,
+                Padding = new Padding(0, 0)
+            });
+            cellContents.Add(entries[index]);
+            if (index < separatorCount)
+            {
+                var separator = new Text(" ┊", themeRenderer.Style(theme.Muted, Decoration.Dim));
+                cell.AddColumn(new TableColumn(separator)
+                {
+                    Width = separatorWidth,
+                    NoWrap = true,
+                    Padding = new Padding(0, 0)
+                });
+                cellContents.Add(separator);
+            }
+        }
+
+        cell.AddRow(cellContents.ToArray());
+        return cell;
+    }
+
+    private IRenderable PlannerMultiDayPathLine(PlannerTimelineRenderRow row, TuiTheme theme)
+    {
+        var color = row.IsActive || row.IsSelected ? theme.AccentBright :
+            row.ItemType == PlannerItemType.Pomodoro ? theme.Timer : theme.BorderActive;
+        return new Text(row.BranchGlyph, themeRenderer.Style(color,
+            row.IsActive || row.IsSelected ? Decoration.Bold : Decoration.None)).Ellipsis();
+    }
+
+    private static bool ShowMultiDayFinish(
+        PlannerTimelineItemView item,
+        DateOnly date,
+        PlannerFocusBlock? activeFocusBlock) =>
+        item.TimeShape == PlannerTimeShape.Duration &&
+        item.IntervalState is (PlannerIntervalState.End or PlannerIntervalState.StartAndEnd) &&
+        (item.ItemType != PlannerItemType.Pomodoro ||
+         activeFocusBlock is null ||
+         activeFocusBlock.EndsAt <= date.ToDateTime(new TimeOnly(22, 0)));
+
+    private static int PlannerMultiDayNaturalWidth(
+        PlannerTimelineRenderRow row,
+        PlannerTimelineItemView item,
+        bool showFinish,
+        bool firstSegment)
+    {
+        var compact = CompactPlannerMultiDayRow(row, item, int.MaxValue, showFinish, firstSegment);
+        return compact.BranchGlyph.GetCellWidth() +
+               (compact.StatusGlyph.Length == 0 ? 0 :
+                   1 + compact.StatusGlyph.GetCellWidth() + 1 + compact.Title.GetCellWidth() +
+                   (compact.Metadata.Length == 0 ? 0 : 1 + compact.Metadata.GetCellWidth()));
+    }
+
+    private static PlannerTimelineRenderRow CompactPlannerMultiDayRow(
+        PlannerTimelineRenderRow row,
+        PlannerTimelineItemView? item,
+        int width,
+        bool showFinish,
+        bool firstSegment)
+    {
+        if (row.IsEmpty)
+        {
+            return row with { BranchGlyph = row.IsSelected ? "▶ │" : "  │", IsSelectionBridge = false };
+        }
+
+        if (row.StatusGlyph.Length == 0)
+        {
+            var path = showFinish ? $"→│{item!.End:HH:mm}" : "│";
+            var branch = showFinish
+                ? (row.IsSelected ? (firstSegment ? "▶" : " ▶") : " ") + path
+                : row.IsSelected ? (firstSegment ? "▶ │" : " ▶ │") : "  │";
+            return row with { BranchGlyph = branch, Title = string.Empty,
+                Metadata = string.Empty, IsSelectionBridge = false };
+        }
+
+        var metadata = showFinish ? $"→│{item!.End:HH:mm}" : string.Empty;
+        var branchGlyph = row.IsSelected ? (firstSegment ? "▶" : " ▶") : " ";
+        var fixedWidth = branchGlyph.GetCellWidth() + 1 + row.StatusGlyph.GetCellWidth() + 1;
+        var available = Math.Max(0, width - fixedWidth);
+        if (metadata.Length + 1 > available)
+        {
+            metadata = string.Empty;
+        }
+
+        var titleWidth = Math.Max(0, available - (metadata.Length == 0 ? 0 : metadata.Length + 1));
+        var title = row.Title.Length <= titleWidth
+            ? row.Title
+            : titleWidth switch
+            {
+                0 => string.Empty,
+                1 => "…",
+                _ => row.Title[..(titleWidth - 1)].TrimEnd() + "…"
+            };
+        return row with { BranchGlyph = branchGlyph, Title = title,
+            Metadata = metadata, IsSelectionBridge = false };
+    }
+
     public IReadOnlyList<int> WindowPlannerMultiDaySlots(
         IReadOnlyList<PlannerDayColumnView> columns,
         int selectedSlotIndex,
         int availableRows)
     {
         var slotCount = columns.Min(column => column.Slots.Length);
-        var heights = Enumerable.Range(0, slotCount)
-            .Select(index => columns.Max(column => PlannerTimelineRenderModel.ForSlot(column.Slots[index]).Count))
-            .ToArray();
+        // Multiday overlaps share one horizontal row, so a busy date never
+        // consumes additional vertical space in the synchronized window.
+        var heights = Enumerable.Repeat(1, slotCount).ToArray();
         if (heights.Sum() <= availableRows)
         {
             return Enumerable.Range(0, slotCount).ToArray();
@@ -316,7 +590,9 @@ public sealed class PlannerRenderer
         TuiTheme theme)
     {
         var paneView = new PlannerView(
-            column.IsActive ? view.State : view.State.RestorePane(column.Date),
+            column.IsActive
+                ? view.State
+                : view.State.RestorePane(column.Date) with { Focus = PlannerFocus.Timeline },
             column.Slots,
             [],
             [])
@@ -325,12 +601,22 @@ public sealed class PlannerRenderer
         };
         var lines = column.CalendarAgenda.AllDayItems.Length == 0
             ? column.IsActive && paneView.State.Focus == PlannerFocus.AllDay
-                ? new IRenderable[] { new Text("> — ADD ALL-DAY TASK", themeRenderer.Style(theme.AccentBright, Decoration.Bold)) }
+                ? new IRenderable[] { new Text("▶ — ADD ALL-DAY TASK", themeRenderer.Style(theme.AccentBright, Decoration.Bold)) }
                 : [new Text("—", themeRenderer.Style(theme.Muted, Decoration.Dim))]
-            : calendarItemRenderer.AllDayAgendaLines(paneView, theme, height).ToArray();
-        return new Rows(lines.Concat(Enumerable.Range(lines.Length, height - lines.Length)
+            : calendarItemRenderer.FitLines(column.CalendarAgenda.AllDayItems.Select((item, index) =>
+            {
+                var selected = column.IsActive && paneView.State.Focus == PlannerFocus.AllDay && index == paneView.State.AllDayIndex;
+                var glyph = item.IsCompleted ? "✓" : item.Assignment is null ? "◆" : "○";
+                var color = selected ? theme.AccentBright : item.IsCompleted ? theme.Muted : item.Assignment is null ? theme.Info : theme.Text;
+                return (IRenderable)new Text($"{(selected ? "▶" : " ")} {glyph} {item.Title}",
+                    themeRenderer.Style(color, selected ? Decoration.Bold : item.IsCompleted ? Decoration.Dim : Decoration.None)).Ellipsis();
+            }).ToArray(), height, paneView.State.AllDayIndex).ToArray();
+        var content = new Rows(lines.Take(height).Concat(Enumerable.Range(lines.Length, Math.Max(0, height - lines.Length))
             .Select(_ => (IRenderable)new Text("—", themeRenderer.Style(theme.Muted, Decoration.Dim)))
             .ToArray()));
+        return column.IsActive
+            ? themeRenderer.OnSurface(content, theme.Surface2, true)
+            : content;
     }
 
     public void AddPlannerTimelineRows(
@@ -891,6 +1177,11 @@ public sealed class PlannerRenderer
 
     public IRenderable PlannerCompactDetail(PlannerView view, TuiTheme theme)
     {
+        if (view.State.ViewMode == PlannerViewMode.MultiDay)
+        {
+            return PlannerMultiDayCompactDetail(view, theme);
+        }
+
         if (view.State.Focus == PlannerFocus.AllDay)
         {
             var item = view.SelectedAllDayItem;
@@ -949,6 +1240,65 @@ public sealed class PlannerRenderer
             theme.Muted,
             Decoration.Dim);
         return new Markup(line.ToString()).Ellipsis();
+    }
+
+    private IRenderable PlannerMultiDayCompactDetail(PlannerView view, TuiTheme theme)
+    {
+        var date = view.State.SelectedDate;
+        var dateLabel = date.ToString("ddd dd").ToUpperInvariant();
+        if (view.State.Focus == PlannerFocus.AllDay)
+        {
+            var item = view.SelectedAllDayItem;
+            if (item is null)
+            {
+                return new Text($"{dateLabel} · ALL DAY · Empty destination",
+                    themeRenderer.Style(theme.Muted, Decoration.Dim)).Ellipsis();
+            }
+
+            var estimate = item.Assignment?.Todo.Duration is { } duration
+                ? $" · {todoRowRenderer.FormatDuration(duration)} estimate"
+                : string.Empty;
+            var source = item.Assignment is null ? "calendar" : "todo";
+            return new Text($"{dateLabel} · ALL DAY{estimate} · {item.Title} ({source})",
+                themeRenderer.Style(theme.Heading, Decoration.Bold)).Ellipsis();
+        }
+
+        if (view.SelectedItem is { } selected)
+        {
+            var source = selected.ItemType switch
+            {
+                PlannerItemType.Task => "todo",
+                PlannerItemType.Pomodoro => "pomodoro",
+                _ => "calendar"
+            };
+            var focus = selected.ItemType == PlannerItemType.Pomodoro ? view.ActiveFocusBlock : null;
+            var duration = focus is null
+                ? selected.Assignment?.Todo.Duration ?? selected.Duration
+                : focus.EndsAt - focus.StartedAt;
+            var start = focus is null ? selected.Start : TimeOnly.FromDateTime(focus.StartedAt);
+            var startDate = focus is null ? date : DateOnly.FromDateTime(focus.StartedAt);
+            var range = duration is { } span
+                ? FormatMultiDayTimeRange(startDate, start, span)
+                : start.ToString("HH:mm");
+            var durationLabel = duration is { } timed
+                ? $" · {(int)timed.TotalMinutes}m"
+                : string.Empty;
+            return new Text($"{dateLabel} · {range}{durationLabel} · {selected.Title} ({source})",
+                themeRenderer.Style(selected.Meeting is null ? theme.Heading : theme.Info, Decoration.Bold)).Ellipsis();
+        }
+
+        return new Text($"{dateLabel} · {view.SelectedSlot.Time:HH:mm} · Empty destination",
+            themeRenderer.Style(theme.Muted, Decoration.Dim)).Ellipsis();
+    }
+
+    private static string FormatMultiDayTimeRange(DateOnly date, TimeOnly start, TimeSpan duration)
+    {
+        var startAt = date.ToDateTime(start);
+        var endAt = startAt.Add(duration);
+        var endLabel = endAt.Date == startAt.Date
+            ? endAt.ToString("HH:mm")
+            : endAt.ToString("ddd dd HH:mm").ToUpperInvariant();
+        return $"{start:HH:mm}–{endLabel}";
     }
 
     public IRenderable CreateContent(IReadOnlyList<IRenderable> lines) =>

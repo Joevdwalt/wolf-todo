@@ -9,7 +9,8 @@ internal sealed class TimelineMarkerRenderable(
     string? nextMeetingTitle = null,
     Style? timerStyle = null,
     TimeSpan? pomodoroRemaining = null,
-    string? pomodoroTitle = null) : IRenderable
+    string? pomodoroTitle = null,
+    int leftPadding = 0) : IRenderable
 {
     public Measurement Measure(RenderOptions options, int maxWidth) => new(maxWidth, maxWidth);
 
@@ -20,9 +21,17 @@ internal sealed class TimelineMarkerRenderable(
             yield break;
         }
 
-        var segments = pomodoroRemaining is { } remaining
-            ? PomodoroSegments(maxWidth, remaining)
-            : MeetingSegments(maxWidth);
+        var prefixWidth = Math.Min(leftPadding, maxWidth);
+        var markerWidth = maxWidth - prefixWidth;
+        var segments = markerWidth == 0
+            ? new List<Segment>()
+            : pomodoroRemaining is { } remaining
+                ? PomodoroSegments(markerWidth, remaining)
+                : MeetingSegments(markerWidth);
+        if (prefixWidth > 0)
+        {
+            segments.Insert(0, new Segment(new string(' ', prefixWidth), nowStyle, null));
+        }
         var usedWidth = segments.Sum(segment => segment.Text.GetCellWidth());
         if (usedWidth < maxWidth)
         {
