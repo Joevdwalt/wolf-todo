@@ -29,6 +29,9 @@ editor for it; the footer presents uppercase `E`. External editing remains
 available. Escape closes a nested editor before a subsequent Escape exits focus
 mode and restores the unchanged originating tab state.
 
+The focus card shows `LINK: <code>` for the highlighted root task or subtask.
+The displayed location code follows selection as focus moves through the tree.
+
 Stopwatch and linked Pomodoro actions target the highlighted item. Entering
 focus does not start either. The timer row appears only while a timer is active
 and retains the existing single-timer, switching, completion, and logging rules.
@@ -52,7 +55,8 @@ available in the originating view.
 
 1. `f` focuses a selected browser or planner todo without starting a timer.
 2. Focus rendering contains only the focus header, task card, active overlays,
-   and contextual footer at wide, medium, narrow, and short sizes.
+   and contextual footer at wide, medium, narrow, and short sizes; its link
+   identifies the highlighted Markdown task.
 3. Movement selects nested subtasks; `E` edits and Space toggles the highlighted
    item while focus remains active.
 4. Stopwatch and Pomodoro actions use the highlighted root or subtask and render
