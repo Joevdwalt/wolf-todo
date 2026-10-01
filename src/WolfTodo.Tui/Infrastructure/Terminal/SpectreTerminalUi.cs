@@ -43,7 +43,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             widthProvider,
             heightProvider,
             new BrowserRenderer(widthProvider, heightProvider, todayProvider, nowProvider),
-            new PlannerRenderer(widthProvider, heightProvider, todayProvider, nowProvider),
+            new PlannerRenderer(widthProvider, heightProvider, nowProvider),
             new TerminalInputReader(),
             new SurfaceThemeRenderer(),
             currentDirectoryProvider,

@@ -103,6 +103,10 @@ each date column. Each quarter-hour row has one cell per date; simultaneous
 items sit left to right at their natural widths, leaving spare space at the
 right. While durations overlap, each item has a temporary path in stable
 display order: `│` for continuation and `→│HH:mm` in its final occupied slot.
+An overlap segment retains at least the natural width of its start title while
+the item continues, keeping its separator aligned across occupied rows.
+When new items join an overlap, they keep their columns on later rows even
+after earlier items finish; the vacated columns become one guide spacer.
 Keep a continuing item's path identifiable until it ends; when one remains,
 collapse it onto the date guide on the next slot. An ending item and a new
 start may share one row. Tight cells shrink titles before finish cues, then
