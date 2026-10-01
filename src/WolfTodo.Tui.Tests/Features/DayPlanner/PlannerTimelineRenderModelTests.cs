@@ -55,6 +55,26 @@ public sealed class PlannerTimelineRenderModelTests
         row.StatusGlyph.Should().Be("⬥");
     }
 
+    [Theory]
+    [InlineData(PlannerItemType.Task, false, "○")]
+    [InlineData(PlannerItemType.Task, true, "✓")]
+    [InlineData(PlannerItemType.Meeting, false, "⬥")]
+    [InlineData(PlannerItemType.CalendarEvent, false, "⬥")]
+    [InlineData(PlannerItemType.Pomodoro, false, "◷")]
+    public void ForSlot_maps_each_item_type_to_its_status_glyph(
+        PlannerItemType itemType,
+        bool isCompleted,
+        string expectedGlyph)
+    {
+        var item = Item("Item", PlannerIntervalState.StartAndEnd, TimeSpan.FromMinutes(15)) with
+        {
+            ItemType = itemType,
+            IsCompleted = isCompleted
+        };
+
+        PlannerTimelineRenderModel.ForSlot(Slot(item)).Single().StatusGlyph.Should().Be(expectedGlyph);
+    }
+
     [Fact]
     public void ForSlot_uses_the_same_cursor_for_every_selected_duration_slot()
     {

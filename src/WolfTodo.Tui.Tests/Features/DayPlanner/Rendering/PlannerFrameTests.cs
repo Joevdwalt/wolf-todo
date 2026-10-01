@@ -65,8 +65,11 @@ public sealed class PlannerFrameTests
         var durationPaneWidth = dividers[2] - durationPaneStart;
         var overlapPaneStart = dividers[0] + 1;
         var overlapPaneWidth = dividers[1] - overlapPaneStart;
-        lines[startRow + 1].Substring(overlapPaneStart, overlapPaneWidth)
-            .Should().Contain("│ ┊  │", "overlapping durations retain separate paths");
+        var overlapStart = lines[startRow].Substring(overlapPaneStart, overlapPaneWidth);
+        var overlapContinuation = lines[startRow + 1].Substring(overlapPaneStart, overlapPaneWidth);
+        overlapContinuation.Should().Contain("┊  │", "overlapping durations retain separate paths");
+        overlapContinuation.IndexOf('┊').Should().Be(overlapStart.IndexOf('┊'),
+            "the first path keeps the width of its title");
         lines[startRow + 2].Substring(overlapPaneStart, overlapPaneWidth)
             .Should().Contain("→│10:15", "the meeting finishes on its last occupied row");
         lines[startRow + 3].Substring(overlapPaneStart, overlapPaneWidth)
