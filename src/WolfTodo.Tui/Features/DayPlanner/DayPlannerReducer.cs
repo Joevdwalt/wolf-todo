@@ -4,9 +4,12 @@ using WolfTodo.Core.Features.ProjectBrowser;
 
 namespace WolfTodo.Tui.Features.DayPlanner;
 
-public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
+public sealed class DayPlannerReducer(
+    Func<DateOnly>? todayProvider = null,
+    Func<TimeOnly>? timeProvider = null)
 {
     private readonly Func<DateOnly> todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
+    private readonly Func<TimeOnly> timeProvider = timeProvider ?? (() => TimeOnly.FromDateTime(DateTime.Now));
     private readonly TodoEditorReducer todoEditorReducer = new(todayProvider);
 
     public PlannerTransition ReduceAction(
@@ -22,7 +25,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
             PlannerAction.NextDay => Transition(state.ViewMode == PlannerViewMode.SingleDay
                 ? WithVisibleDate(state, state.SelectedDate.AddDays(1))
                 : state),
-            PlannerAction.Today => Transition(WithVisibleDate(state, todayProvider())),
+            PlannerAction.Today => Transition(JumpToNow(state)),
             PlannerAction.ToggleView => Transition(ToggleView(state)),
             PlannerAction.IncreaseRange => Transition(ResizeRange(state, 1)),
             PlannerAction.DecreaseRange => Transition(ResizeRange(state, -1)),
@@ -275,7 +278,7 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
 
         if (bindings.MatchesPlannerToday(key))
         {
-            return Transition(WithVisibleDate(state, todayProvider()));
+            return Transition(JumpToNow(state));
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesToggleDetails(key))
@@ -486,6 +489,22 @@ public sealed class DayPlannerReducer(Func<DateOnly>? todayProvider = null)
                 : null,
             AllDayIndex = destinationCursor?.AllDayIndex ?? 0,
             VisibleStartDate = visibleStart,
+            Error = null
+        };
+    }
+
+    private PlannerState JumpToNow(PlannerState state)
+    {
+        var now = timeProvider();
+        var stateAtToday = WithVisibleDate(state, todayProvider());
+        var minutesSincePlannerStart = (now.Hour * 60 + now.Minute) - (6 * 60);
+        var slotIndex = Math.Clamp(minutesSincePlannerStart / 15, 0, DayPlannerPresenter.SlotCount - 1);
+
+        return stateAtToday with
+        {
+            SlotIndex = slotIndex,
+            Focus = PlannerFocus.Timeline,
+            SelectedTimelineItemIdentity = null,
             Error = null
         };
     }

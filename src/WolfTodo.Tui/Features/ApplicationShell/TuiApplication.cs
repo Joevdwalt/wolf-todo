@@ -98,6 +98,7 @@ public sealed class TuiApplication
         this.externalEditorLauncher = externalEditorLauncher;
         this.plannerCalendarCache = plannerCalendarCache;
         this.todayProvider = todayProvider ?? (() => DateOnly.FromDateTime(DateTime.Today));
+        var resolvedNowProvider = nowProvider ?? (() => DateTime.Now);
         this.fileChangeMonitor = fileChangeMonitor;
         this.applicationLoopWaiter = applicationLoopWaiter;
         this.runtimeReloadCoordinator = runtimeReloadCoordinator;
@@ -105,7 +106,9 @@ public sealed class TuiApplication
         this.actionCatalog = actionCatalog ?? new ApplicationActionCatalog(this.todayProvider);
         this.plannerWorkflow = plannerWorkflow ?? new PlannerWorkflow(
             plannerPresenter ?? new DayPlannerPresenter(),
-            plannerReducer ?? new DayPlannerReducer(),
+            plannerReducer ?? new DayPlannerReducer(
+                this.todayProvider,
+                () => TimeOnly.FromDateTime(resolvedNowProvider())),
             plannerCalendarCache ?? new PlannerCalendarAgendaCache(new DisabledPlannerCalendarAgendaProvider()),
             dayScheduleExportService,
             externalEditorLauncher,
@@ -118,7 +121,7 @@ public sealed class TuiApplication
             this.todayProvider);
         this.timerWorkflow = timerWorkflow ?? new TimerWorkflow(
             weeklyTimeLogService,
-            nowProvider ?? (() => DateTime.Now),
+            resolvedNowProvider,
             pomodoroCompletionNotifier,
             terminalUi);
         this.focusedTaskPresenter = new FocusedTaskPresenter();

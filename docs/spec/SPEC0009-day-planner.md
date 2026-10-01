@@ -76,8 +76,10 @@ unscheduled todos from valid projects. Show several candidates at once, keep
 the selection visible while scrolling, and update the list while filter input
 changes. The same action on an occupied slot starts move mode. `u` unschedules,
 `[`/`]` change dates, `g`/`G` jump to the first/final timeline slots, and `T`
-returns to today. `/` opens the same picker with its filter active and permits
-intentional overlapping work. Esc or `h` cancels modal work.
+jumps to today's current quarter-hour, focusing the timeline and clamping to
+06:00 or 21:45 outside planner hours. `/` opens the same picker with its
+filter active and permits intentional overlapping work. Esc or `h` cancels
+modal work.
 
 Show details for the selected assignment by default. Wide terminals place an
 `INSPECTOR` beside the timeline; narrower terminals show a compact `SELECTED`

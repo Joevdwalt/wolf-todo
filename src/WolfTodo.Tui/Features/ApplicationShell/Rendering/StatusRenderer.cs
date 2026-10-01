@@ -159,7 +159,7 @@ public sealed class StatusRenderer
                             $"{Shortest(keyBindings.MoveDown)}/{Shortest(keyBindings.MoveUp)} ITEM  " +
                             $"{Shortest(keyBindings.JumpTop)}/{Shortest(keyBindings.JumpBottom)} TOP/BOTTOM  " +
                             PlannerDateNavigation(view, keyBindings) +
-                            $"{Shortest(keyBindings.PlannerToday)} TODAY  {Shortest(keyBindings.Open)} ASSIGN/MOVE  " +
+                            $"{Shortest(keyBindings.PlannerToday)} NOW  {Shortest(keyBindings.Open)} ASSIGN/MOVE  " +
                             $"{Shortest(keyBindings.FilterMode)} FILTER  " +
                             $"{Shortest(keyBindings.PlannerUnschedule)} UNSCHEDULE  " +
                             $"{Shortest(keyBindings.PlannerExportSchedule)} EXPORT  " +
@@ -242,7 +242,7 @@ public sealed class StatusRenderer
                     $"{Shortest(bindings.MoveDown)}/{Shortest(bindings.MoveUp)} ITEM  " +
                     $"{Shortest(bindings.FocusNext)} PANE  " +
                     $"{Shortest(bindings.PlannerDecreaseRange)}/{Shortest(bindings.PlannerIncreaseRange)} RANGE  " +
-                    $"{Shortest(bindings.PlannerToggleView)} SINGLE  {Shortest(bindings.PlannerToday)} TODAY";
+                    $"{Shortest(bindings.PlannerToggleView)} SINGLE  {Shortest(bindings.PlannerToday)} NOW";
         var open = bindings.Open.Where(gesture => !bindings.PlannerPreviousColumn.Contains(gesture) && !bindings.PlannerNextColumn.Contains(gesture)).ToImmutableArray();
         var move = open.IsEmpty ? string.Empty : $"{TuiKeyBindings.ShortestDisplayName(open)} MOVE  ";
         var second = move + $"{Shortest(bindings.CreateTodo)} CREATE  " +

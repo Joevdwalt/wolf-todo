@@ -12,9 +12,9 @@ public sealed class DayPlannerReducerTests
     private static readonly TuiKeyBindings Bindings = TuiKeyBindings.CreateDefaults(":q");
 
     [Fact]
-    public void Reduce_moves_between_dates_and_returns_to_today()
+    public void Reduce_moves_between_dates_and_jumps_to_the_current_slot()
     {
-        var reducer = new DayPlannerReducer(() => Today);
+        var reducer = new DayPlannerReducer(() => Today, () => new TimeOnly(10, 51));
         var state = PlannerState.CreateInitial(Today);
         var view = View(state);
 
@@ -23,6 +23,60 @@ public sealed class DayPlannerReducerTests
 
         tomorrow.SelectedDate.Should().Be(Today.AddDays(1));
         returned.SelectedDate.Should().Be(Today);
+        returned.SlotIndex.Should().Be(19);
+        returned.Focus.Should().Be(PlannerFocus.Timeline);
+    }
+
+    [Theory]
+    [InlineData(5, 59, 0)]
+    [InlineData(6, 0, 0)]
+    [InlineData(21, 44, 62)]
+    [InlineData(21, 45, 63)]
+    [InlineData(23, 0, 63)]
+    public void Reduce_jumps_to_the_containing_slot_and_clamps_to_planner_hours(
+        int hour,
+        int minute,
+        int expectedSlot)
+    {
+        var reducer = new DayPlannerReducer(
+            () => Today,
+            () => new TimeOnly(hour, minute));
+        var state = PlannerState.CreateInitial(Today) with
+        {
+            SelectedDate = Today.AddDays(-1),
+            Focus = PlannerFocus.AllDay,
+            Mode = PlannerMode.MoveTodo,
+            MovingTodo = new TodoIdentity("/todos/work.md", 1),
+            SelectedTimelineItemIdentity = "task:/todos/work.md:1"
+        };
+
+        var reduced = reducer.Reduce(state, Key('T'), Bindings, View(state)).State;
+
+        reduced.SelectedDate.Should().Be(Today);
+        reduced.SlotIndex.Should().Be(expectedSlot);
+        reduced.Focus.Should().Be(PlannerFocus.Timeline);
+        reduced.Mode.Should().Be(PlannerMode.MoveTodo);
+        reduced.SelectedTimelineItemIdentity.Should().BeNull();
+    }
+
+    [Fact]
+    public void ReduceAction_jumps_to_now_and_reanchors_a_multiday_range()
+    {
+        var reducer = new DayPlannerReducer(() => Today, () => new TimeOnly(14, 23));
+        var state = PlannerState.CreateInitial(Today.AddDays(-5)) with
+        {
+            ViewMode = PlannerViewMode.MultiDay,
+            VisibleDayCount = 3,
+            VisibleStartDate = Today.AddDays(-5),
+            Focus = PlannerFocus.AllDay
+        };
+
+        var reduced = reducer.ReduceAction(state, PlannerAction.Today, View(state)).State;
+
+        reduced.SelectedDate.Should().Be(Today);
+        reduced.VisibleStartDate.Should().Be(Today.AddDays(-2));
+        reduced.SlotIndex.Should().Be(33);
+        reduced.Focus.Should().Be(PlannerFocus.Timeline);
     }
 
     [Fact]

@@ -160,6 +160,11 @@ and adjust the maximum between one and three dates. The configurable
 and `l` and apply only in multiday view. Show range controls in the contextual
 command panel.
 
+The existing `planner_today` binding (`T` by default) jumps to the current
+quarter-hour on today's active date, focuses the timeline, and re-anchors the
+visible range when today is outside it. Before 06:00 it selects 06:00; at or
+after 21:45 it selects 21:45.
+
 ### Move mode
 
 During a move, `h` and `l` change date panes without leaving Move mode.

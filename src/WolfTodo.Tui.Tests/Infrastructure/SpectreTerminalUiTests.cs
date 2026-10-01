@@ -351,7 +351,7 @@ public sealed class SpectreTerminalUiTests
             .And.Contain("Prepare proposal")
             .And.Contain("[/] DAY")
             .And.Contain("g/G TOP/BOTTOM")
-            .And.Contain("T TODAY")
+            .And.Contain("T NOW")
             .And.Contain("/ FILTER");
     }
 
@@ -608,7 +608,7 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(DefaultTabs, view, DefaultBindings, theme);
         var output = RecordedText()[start..];
         var markerLine = output.Split(Environment.NewLine)
-            .Single(line => line.Contains("NOW", StringComparison.Ordinal));
+            .Single(line => line.Contains("┣━━ NOW", StringComparison.Ordinal));
         output.Should().Contain("TIME:14:23");
         var html = NormalizeHtml(RecordedHtml());
 
@@ -715,7 +715,6 @@ public sealed class SpectreTerminalUiTests
         var html = NormalizeHtml(RecordedHtml());
 
         output.Should().Contain("NOW · ◷ 25:00 · Deep work · NEXT 45m · Team meeting");
-        StyleBefore(html, "now").Should().Contain("#101112");
         StyleBefore(html, "◷ 25:00").Should().Contain("#131415");
         StyleBefore(html, "next 45m").Should().Contain("#101112");
     }
@@ -742,10 +741,10 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
         var lines = RecordedText()[start..]
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        var markerIndex = Array.FindIndex(lines, line => line.Contains("NOW", StringComparison.Ordinal));
+        var markerIndex = Array.FindIndex(lines, line => line.Contains("┣━━ NOW", StringComparison.Ordinal));
         var slotIndex = Array.FindIndex(lines, line =>
             line.Contains($"│ {adjacentSlot}", StringComparison.Ordinal) &&
-            !line.Contains("NOW", StringComparison.Ordinal));
+            !line.Contains("┣━━ NOW", StringComparison.Ordinal));
 
         markerIndex.Should().BeGreaterThanOrEqualTo(0);
         slotIndex.Should().BeGreaterThanOrEqualTo(0);
@@ -767,7 +766,7 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
         var output = RecordedText()[start..];
 
-        output.Should().Contain("06:00").And.NotContain("NOW");
+        output.Should().Contain("06:00").And.NotContain("┣━━ NOW");
     }
 
     [Fact]
@@ -785,7 +784,7 @@ public sealed class SpectreTerminalUiTests
             .ShowPlanner(DefaultTabs, view, DefaultBindings, TuiThemes.Wolf);
         var output = RecordedText()[start..];
 
-        output.Should().NotContain("NOW");
+        output.Should().NotContain("┣━━ NOW");
     }
 
     [Theory]

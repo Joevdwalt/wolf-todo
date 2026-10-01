@@ -425,7 +425,7 @@ slot with Wolf Todo's `⏰ HH:mm` time before all task markers and the
 Obsidian Tasks-compatible `⏳ YYYY-MM-DD` scheduled date, for example
 `Prepare proposal ⏰ 09:30 ⏱ 30m #work ⏳ 2026-07-15`. Enter
 assigns an unscheduled todo or moves an existing assignment, `u` unschedules,
-and `[`/`]` change days, while `T` returns to today. A timed task reserves consecutive slots for its
+and `[`/`]` change days, while `T` jumps to today's current quarter-hour. A timed task reserves consecutive slots for its
 explicit `⏱ <minutes>m` duration; tasks without one are instantaneous. The
 planner's default duration is prefilled only for new tasks created there.
 Timed tasks and calendar items may overlap; each is shown as a stable timeline
