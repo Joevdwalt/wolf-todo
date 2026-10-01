@@ -7,6 +7,7 @@ using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Tests.Features.ApplicationShell.Rendering;
 
+[Collection("Planner frames")]
 public sealed class OperationalHeaderRendererTests
 {
     private static readonly IAnsiConsole BaseConsole = AnsiConsole.Console;

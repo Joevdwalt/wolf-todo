@@ -15,6 +15,7 @@ using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Tests.Infrastructure;
 
+[Collection("Planner frames")]
 public sealed class SpectreTerminalUiTests
 {
     private static readonly TuiKeyBindings DefaultBindings = TuiKeyBindings.CreateDefaults(":q");
@@ -87,10 +88,32 @@ public sealed class SpectreTerminalUiTests
         output.Should().Contain("WOLF TODO // FOCUS")
             .And.Contain("Prepare workshop")
             .And.Contain("Write slides")
+            .And.Contain("LINK: " + TaskLinkCode.Generate(identity.ProjectPath, identity.SourceLine))
             .And.Contain("TIMER 00:05")
             .And.Contain("TIME:14:23")
             .And.NotContain("DAY PLANNER")
             .And.NotContain("TODOS: ALL");
+    }
+
+    [Fact]
+    public void ShowFocusedTask_renders_the_selected_subtask_link_within_the_visible_card_window()
+    {
+        var grandchild = new TodoItem(7, false, null, "Review final draft", null, [], null, null, string.Empty, [], []);
+        var child = new TodoItem(5, false, null, "Write slides", null, [], null, null, string.Empty, [], [grandchild]);
+        var root = new TodoItem(3, false, null, "Prepare workshop", null, [], null, null, string.Empty, [], [child]);
+        var rootIdentity = new TodoIdentity("/work.md", root.SourceLine);
+        var selectedIdentity = new TodoIdentity("/work.md", grandchild.SourceLine);
+        var state = FocusedTaskState.Create(rootIdentity, root) with { SelectedIdentity = selectedIdentity };
+        var view = new FocusedTaskPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/work.md", [root])], []), state)!;
+        StartRecording(80, 15);
+
+        new SpectreTerminalUi(() => 80, () => 15).ShowFocusedTask(view, DefaultBindings, TuiThemes.Wolf);
+        var output = RecordedText();
+
+        output.Should().Contain("Review final draft")
+            .And.Contain("LINK: " + TaskLinkCode.Generate(selectedIdentity.ProjectPath, selectedIdentity.SourceLine))
+            .And.NotContain("LINK: " + TaskLinkCode.Generate(rootIdentity.ProjectPath, rootIdentity.SourceLine));
     }
 
     [Fact]

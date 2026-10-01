@@ -63,7 +63,7 @@ public sealed class FocusedTaskRenderer(
     private void WriteCard(FocusedTaskView view, TuiTheme theme, int width, int availableRows)
     {
         var lines = CardLines(view, theme);
-        var selectedLine = lines.FindIndex(line => line.ItemIdentity == view.State.SelectedIdentity);
+        var selectedLine = lines.FindLastIndex(line => line.ItemIdentity == view.State.SelectedIdentity);
         var visible = FitLines(
             lines.Select(line => line.Renderable).ToArray(),
             availableRows,
@@ -88,6 +88,10 @@ public sealed class FocusedTaskRenderer(
         var lines = new List<CardLine>();
         var root = view.Items[0];
         lines.Add(ItemLine(root, theme, title: true));
+        if (root.IsSelected)
+        {
+            lines.Add(TaskLinkLine(root, theme));
+        }
 
         var metadata = Metadata(root.Todo);
         if (metadata.Length > 0)
@@ -107,7 +111,14 @@ public sealed class FocusedTaskRenderer(
         {
             lines.Add(new CardLine(new Text(string.Empty)));
             lines.Add(new CardLine(new Text("CHECKLIST", themeRenderer.Style(theme.Heading, Decoration.Bold))));
-            lines.AddRange(view.Items.Skip(1).Select(item => ItemLine(item, theme, title: false)));
+            foreach (var item in view.Items.Skip(1))
+            {
+                lines.Add(ItemLine(item, theme, title: false));
+                if (item.IsSelected)
+                {
+                    lines.Add(TaskLinkLine(item, theme));
+                }
+            }
         }
 
         if (root.Todo.Notes.Length == 0 && view.Items.Length == 1)
@@ -131,6 +142,12 @@ public sealed class FocusedTaskRenderer(
                 : themeRenderer.Style(title ? theme.Heading : theme.Text, title ? Decoration.Bold : Decoration.None);
         return new CardLine(new Text($"{prefix}{tree}{glyph} {item.Todo.Title}", style), item.Identity);
     }
+
+    private CardLine TaskLinkLine(FocusedTaskItem item, TuiTheme theme) =>
+        new(
+            new Text($"   LINK: {TaskLinkCode.Generate(item.Identity.ProjectPath, item.Identity.SourceLine)}",
+                themeRenderer.Style(theme.Info)),
+            item.Identity);
 
     private static string Metadata(TodoItem todo)
     {

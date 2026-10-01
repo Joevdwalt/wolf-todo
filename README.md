@@ -218,8 +218,9 @@ shows the exact saved path in its status message.
 
 Press `f` on a selected todo in Todos or Day Planner to open its distraction-free
 focus card. Use `j`/`k` to select the root or a subtask, `E` to edit it, Space to
-toggle completion, and Escape to return. Timers and Pomodoros remain optional
-and target the highlighted item.
+toggle completion, and Escape to return. The card shows the highlighted task's
+`LINK: wt1-…` code. Timers and Pomodoros remain optional and target the
+highlighted item.
 
 Use `:task-link` to display a selectable `wt1-` code with an 8-character hash
 for the selected task in Todos, Day Planner, or focus mode. Open it with `:open-task <code>` or launch with

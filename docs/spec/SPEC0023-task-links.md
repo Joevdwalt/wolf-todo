@@ -80,6 +80,9 @@ the highlighted root or subtask in task focus mode. Calendar-only items and
 empty selections report that a Markdown task must be selected. Generation
 does not navigate or start a timer.
 
+The focus card also displays `LINK: <code>` for its highlighted item, updating
+as selection moves between the root and nested subtasks.
+
 The command palette exposes `Generate task link`, disabled with a reason when
 there is no eligible selection. No default keyboard shortcut, automatic
 clipboard operation, or operating-system URL handler is required.
