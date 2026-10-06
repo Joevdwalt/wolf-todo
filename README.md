@@ -518,7 +518,8 @@ source, so a failed source write cannot lose the task.
 Nested todos are always expanded in the Todos list and inspector. Unicode
 `├─`, `└─`, and `│` connectors show sibling and ancestor relationships. A
 filter that matches a descendant keeps its visible ancestor path as normal,
-selectable todo rows so the result retains useful tree context.
+selectable todo rows so the result retains useful tree context. A matching
+task also reveals its eligible nested subtasks, even when they do not match.
 Todos with tags show a compact `#work #now` line beneath the title. The tag
 line follows the task's tree indentation and remains attached to its task while
 the list scrolls. Tree continuation bars remain visible through tag lines so

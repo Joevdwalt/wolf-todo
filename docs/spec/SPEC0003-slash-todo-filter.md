@@ -51,16 +51,21 @@ notes, or other detail text.
 Apply completed-todo visibility before filtering. Match every flattened todo
 and subtask independently. When a subtask matches, retain its eligible ancestor
 path as normal selectable rows so the visible result remains a meaningful tree.
-Do not include unrelated siblings or descendants. If completion visibility
-hides an ancestor, promote its visible descendants to the nearest visible
-level and recalculate their tree connectors.
+For every matching todo, also show its eligible recursive subtask tree even
+when those descendants do not match the query. Ancestors included only as
+context do not reveal unrelated siblings or descendants. Descendants must still
+pass completed-todo visibility and any active `@today` or saved-view criteria.
+If completion visibility hides an ancestor, promote its visible descendants to
+the nearest visible level and recalculate their tree connectors.
 
 Apply the active session sort after filtering. Changing or clearing a filter
 does not reset the selected sort property or direction.
 
-When `@today` is selected, intersect the slash query with the virtual view:
-eligible todos must both match the query and be scheduled for the current local
-date. Ancestors retained for tree context do not need to match either condition.
+In `@today` and saved views, direct search matches and descendants revealed by
+those matches must satisfy the virtual view's criteria. For `@today`, that means
+being scheduled for the current local date; saved views use their configured
+query. Ancestors retained for tree context do not need to match the search or
+view criteria.
 
 Only show project and section headings that contain matching rows. Project
 active-todo counts remain unfiltered. When no visible row matches, show
@@ -76,11 +81,13 @@ active-todo counts remain unfiltered. When no visible row matches, show
 4. A tag can be found with either `now` or `#now`.
 5. A schedule can be found by its date, time, or combined value.
 6. A matching nested subtask appears with its visible ancestor path even when
-   those ancestors do not match; unrelated branches remain hidden.
+   those ancestors do not match; its descendants appear even when they do not
+   match, while unrelated branches remain hidden.
 7. `:completed` continues to control whether matching completed todos are
    eligible for display.
 8. Filtering never modifies project Markdown files.
-9. Filtering from many rows to one row keeps the status panel at the same
+9. Search expansion keeps completion and virtual-view eligibility in effect.
+10. Filtering from many rows to one row keeps the status panel at the same
    terminal-relative position in every responsive layout.
 
 ## References
