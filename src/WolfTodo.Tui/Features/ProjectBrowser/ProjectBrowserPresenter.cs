@@ -241,12 +241,19 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         bool todayOnly,
         DateOnly today,
         SavedSidebarView? savedView,
-        string projectTitle)
+        string projectTitle,
+        bool searchMatchInAncestor = false)
     {
         var visible = ImmutableArray.CreateBuilder<VisibleTodo>();
 
         foreach (var todo in OrderTodos(todos, sort))
         {
+            var isVisibleByCompletion = showCompleted || !todo.IsCompleted;
+            var matchesToday = !todayOnly || todo.Schedule?.Date == today;
+            var matchesSavedView = savedView is null || savedView.Query.Matches(todo, projectTitle, today);
+            var matchesFilter = filter.Length == 0 || MatchesFilter(todo, filter);
+            var expandsSearchMatch = searchMatchInAncestor ||
+                (isVisibleByCompletion && matchesToday && matchesSavedView && matchesFilter);
             var children = BuildVisibleForest(
                 todo.Subtasks,
                 sort,
@@ -255,17 +262,15 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
                 todayOnly,
                 today,
                 savedView,
-                projectTitle);
-            if (!showCompleted && todo.IsCompleted)
+                projectTitle,
+                expandsSearchMatch);
+            if (!isVisibleByCompletion)
             {
                 visible.AddRange(children);
                 continue;
             }
 
-            var matchesToday = !todayOnly || todo.Schedule?.Date == today;
-            var matchesSavedView = savedView is null || savedView.Query.Matches(todo, projectTitle, today);
-            var matchesFilter = filter.Length == 0 || MatchesFilter(todo, filter);
-            if ((matchesToday && matchesSavedView && matchesFilter) || children.Length > 0)
+            if ((matchesToday && matchesSavedView && (matchesFilter || searchMatchInAncestor)) || children.Length > 0)
             {
                 visible.Add(new VisibleTodo(todo, children));
             }

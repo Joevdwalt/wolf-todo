@@ -268,8 +268,13 @@ public sealed class ProjectBrowserPresenterTests
     [Fact]
     public void CreateView_uses_the_filter_draft_live_while_filter_mode_is_active()
     {
+        var matchingTodo = Todo("Renew contract") with
+        {
+            SourceLine = 1,
+            Subtasks = [Todo("Review renewal terms") with { SourceLine = 2 }]
+        };
         var catalog = new ProjectCatalog(
-            [Project("Alpha", Todo("Renew contract"), Todo("Prepare invoice"))],
+            [Project("Alpha", matchingTodo, Todo("Prepare invoice") with { SourceLine = 3 })],
             []);
         var state = BrowserState.Initial with
         {
@@ -279,9 +284,16 @@ public sealed class ProjectBrowserPresenterTests
         };
 
         var result = presenter.CreateView(catalog, state);
+        var committed = presenter.CreateView(catalog, state with
+        {
+            IsFilterMode = false,
+            FilterText = "renew"
+        });
 
         result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
-            .Should().Equal("Renew contract");
+            .Should().Equal("Renew contract", "Review renewal terms");
+        committed.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Renew contract", "Review renewal terms");
     }
 
     [Fact]
@@ -339,6 +351,125 @@ public sealed class ProjectBrowserPresenterTests
         todoRows[0].TreePath.Should().BeEmpty();
         todoRows[1].TreePath.Should().Equal(TodoTreeSegment.LastSibling);
         result.SelectableTodoCount.Should().Be(2);
+    }
+
+    [Fact]
+    public void CreateView_search_match_reveals_its_full_recursive_subtask_tree()
+    {
+        var grandchild = Todo("Review draft") with { SourceLine = 3 };
+        var child = Todo("Draft outline") with { SourceLine = 2, Subtasks = [grandchild] };
+        var unrelated = Todo("Unrelated sibling") with { SourceLine = 4 };
+        var parent = Todo("Prepare proposal") with
+        {
+            SourceLine = 1,
+            Subtasks = [child, unrelated]
+        };
+        var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
+
+        var result = presenter.CreateView(
+            catalog,
+            BrowserState.Initial with { FilterText = "proposal" });
+        var rows = result.Todos.Where(row => row.Todo is not null).ToArray();
+
+        rows.Select(row => row.Todo!.Title)
+            .Should().Equal("Prepare proposal", "Draft outline", "Review draft", "Unrelated sibling");
+        rows.Select(row => row.Identity!.SourceLine).Should().Equal(1, 2, 3, 4);
+        rows.Select(row => TodoTreeFormatter.Format(row.TreePath))
+            .Should().Equal(string.Empty, "├─ ", "│  └─ ", "└─ ");
+    }
+
+    [Fact]
+    public void CreateView_match_in_a_descendant_reveals_only_that_descendants_subtree()
+    {
+        var matchingGrandchild = Todo("Matching grandchild") with
+        {
+            SourceLine = 3,
+            Subtasks = [Todo("Grandchild follow-up") with { SourceLine = 4 }]
+        };
+        var matchingChild = Todo("Matching child") with
+        {
+            SourceLine = 2,
+            Subtasks = [matchingGrandchild]
+        };
+        var parent = Todo("Context parent") with
+        {
+            SourceLine = 1,
+            Subtasks = [matchingChild, Todo("Unrelated sibling") with { SourceLine = 5 }]
+        };
+        var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
+
+        var result = presenter.CreateView(
+            catalog,
+            BrowserState.Initial with { FilterText = "matching child" });
+
+        result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Context parent", "Matching child", "Matching grandchild", "Grandchild follow-up");
+    }
+
+    [Fact]
+    public void CreateView_expanded_search_descendants_obey_completed_visibility()
+    {
+        var parent = Todo("Matching parent") with
+        {
+            SourceLine = 1,
+            Subtasks =
+            [
+                Todo("Open child") with { SourceLine = 2 },
+                Todo("Completed child", completed: true) with { SourceLine = 3 }
+            ]
+        };
+        var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
+
+        var hidden = presenter.CreateView(catalog, BrowserState.Initial with { FilterText = "matching" });
+        var shown = presenter.CreateView(
+            catalog,
+            BrowserState.Initial with { FilterText = "matching", ShowCompleted = true });
+
+        hidden.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Matching parent", "Open child");
+        shown.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Matching parent", "Open child", "Completed child");
+    }
+
+    [Fact]
+    public void CreateView_search_expansion_keeps_today_and_saved_view_eligibility()
+    {
+        var today = new DateOnly(2026, 7, 22);
+        SavedTodoQuery.TryParse("scheduled:t-1", out var query, out _).Should().BeTrue();
+        var todayParent = ScheduledTodo("Matching today parent", today, 9) with
+        {
+            SourceLine = 1,
+            Subtasks =
+            [
+                ScheduledTodo("Today child", today, 10) with { SourceLine = 2 },
+                ScheduledTodo("Tomorrow child", today.AddDays(1), 11) with { SourceLine = 3 }
+            ]
+        };
+        var yesterdayParent = ScheduledTodo("Matching yesterday parent", today.AddDays(-1), 12) with
+        {
+            SourceLine = 4,
+            Subtasks =
+            [
+                ScheduledTodo("Yesterday child", today.AddDays(-1), 13) with { SourceLine = 5 },
+                ScheduledTodo("Today child", today, 14) with { SourceLine = 6 }
+            ]
+        };
+        var catalog = new ProjectCatalog([Project("Alpha", todayParent, yesterdayParent)], []);
+        var queryView = new SavedSidebarView("@yesterday", query, TodoSort.Source);
+        var queryPresenter = new ProjectBrowserPresenter(() => today);
+
+        var todayResult = queryPresenter.CreateView(
+            catalog,
+            BrowserState.Initial with { ProjectIndex = 1, FilterText = "matching" });
+        var savedResult = queryPresenter.CreateView(
+            catalog,
+            BrowserState.Initial with { ProjectIndex = 2, FilterText = "matching" },
+            [queryView]);
+
+        todayResult.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Matching today parent", "Today child");
+        savedResult.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Matching yesterday parent", "Yesterday child");
     }
 
     [Fact]
