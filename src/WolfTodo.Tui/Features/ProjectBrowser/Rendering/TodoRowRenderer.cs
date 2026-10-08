@@ -103,7 +103,7 @@ public sealed class TodoRowRenderer
         var visibleTreeWidth = Math.Min(treeWidth, Math.Max(0, layout.TaskWidth - 1));
         var visibleTree = FitColumn(treeContinuation, visibleTreeWidth);
         var tagWidth = layout.TaskWidth - visibleTreeWidth;
-        var tags = string.Join(' ', todo.Tags.Select(tag => $"#{tag}"));
+        var tags = FormatTags(todo.Tags);
         var tagColor = row.IsSelected
             ? theme.AccentBright
             : row.IsMarked ? theme.Accent : todo.IsCompleted ? theme.Muted : theme.Tag;
@@ -132,12 +132,12 @@ public sealed class TodoRowRenderer
         var cursor = selected ? TodoGlyphs.SelectedGlyph : " ";
         var treePrefix = TodoTreeFormatter.Format(treePath);
         var status = StatusGlyph(todo.IsCompleted);
-        var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
         var priority = PriorityCode(todo.Priority);
-        var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
+        var tags = todo.Tags.Length == 0 ? string.Empty : $" {FormatTags(todo.Tags)}";
         var schedule = todo.Schedule is null
             ? string.Empty
             : $" {TodoGlyphs.ScheduleGlyph} {FormatSchedule(todo.Schedule)}";
+        var reference = FormatReference(todo.ExternalReference);
         var line = new System.Text.StringBuilder();
         var (cursorColor, cursorDecoration) = (selected, todo.IsCompleted) switch
         {
@@ -191,8 +191,14 @@ public sealed class TodoRowRenderer
             ? schedule.Date.ToString("yyyy-MM-dd")
             : $"{schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}";
 
+    public string FormatReference(string? externalReference) =>
+        externalReference is null ? string.Empty : $"{externalReference} - ";
+
+    public string FormatTags(IEnumerable<string> tags, string separator = " ") =>
+        string.Join(separator, tags.Select(tag => $"#{tag}"));
+
     public string? FormatDuration(TimeSpan? duration) =>
-        duration is null ? null : $"{(int)duration.Value.TotalMinutes}m";
+        duration is { } value ? $"{(int)value.TotalMinutes}m" : null;
 
     public string PriorityCode(TodoPriority? priority) => priority switch
     {

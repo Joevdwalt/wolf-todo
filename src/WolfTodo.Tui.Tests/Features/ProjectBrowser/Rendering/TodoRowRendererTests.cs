@@ -30,6 +30,21 @@ public sealed class TodoRowRendererTests
     }
 
     [Fact]
+    public void FormatTags_preserves_requested_separator_and_prefixes_each_tag()
+    {
+        renderer.FormatTags(["home", "urgent"]).Should().Be("#home #urgent");
+        renderer.FormatTags(["home", "urgent"], ", ").Should().Be("#home, #urgent");
+        renderer.FormatTags([]).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void FormatReference_adds_a_delimiter_only_when_a_reference_exists()
+    {
+        renderer.FormatReference("REF-1").Should().Be("REF-1 - ");
+        renderer.FormatReference(null).Should().BeEmpty();
+    }
+
+    [Fact]
     public void PriorityCode_maps_known_priorities_and_missing_priority()
     {
         renderer.PriorityCode(TodoPriority.Highest).Should().Be("!");

@@ -100,7 +100,7 @@ public sealed class CalendarItemRenderer
             AddField(
                 lines,
                 "Tags",
-                todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
+                todo.Tags.Length == 0 ? null : todoRowRenderer.FormatTags(todo.Tags, ", "),
                 theme,
                 theme.Tag);
             AddField(lines, "Duration", todoRowRenderer.FormatDuration(todo.Duration), theme, theme.Info);
@@ -177,8 +177,8 @@ public sealed class CalendarItemRenderer
         var baseColor = selected ? theme.AccentBright : completed ? theme.Muted : theme.Text;
         var markerColor = selected ? theme.AccentBright : completed ? theme.Muted : theme.Accent;
         var priorityColor = selected ? theme.AccentBright : completed ? theme.Muted : todoRowRenderer.PriorityColor(todo.Priority, theme);
-        var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
-        var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
+        var reference = todoRowRenderer.FormatReference(todo.ExternalReference);
+        var tags = todo.Tags.Length == 0 ? string.Empty : $" {todoRowRenderer.FormatTags(todo.Tags)}";
         var schedule = todo.Schedule is null
             ? string.Empty
             : $" {TodoGlyphs.ScheduleGlyph} {todoRowRenderer.FormatSchedule(todo.Schedule)}";

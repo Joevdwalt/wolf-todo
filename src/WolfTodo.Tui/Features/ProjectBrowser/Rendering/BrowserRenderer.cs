@@ -555,7 +555,7 @@ public sealed class BrowserRenderer
             AddField(
                 lines,
                 "Tags",
-                todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
+                todo.Tags.Length == 0 ? null : TodoRowRenderer.Default.FormatTags(todo.Tags, ", "),
                 theme,
                 theme.Tag);
             AddField(
@@ -724,26 +724,15 @@ public sealed class BrowserRenderer
     }
 
     public static string FormatSchedule(TodoSchedule schedule) =>
-        schedule.Time is null
-            ? schedule.Date.ToString("yyyy-MM-dd")
-            : $"{schedule.Date:yyyy-MM-dd} {schedule.Time:HH:mm}";
+        TodoRowRenderer.Default.FormatSchedule(schedule);
 
-    public static string? FormatDuration(TimeSpan? duration) => duration is null
-        ? null
-        : $"{(int)duration.Value.TotalMinutes}m";
+    public static string? FormatDuration(TimeSpan? duration) =>
+        TodoRowRenderer.Default.FormatDuration(duration);
 
-    public static string PriorityCode(TodoPriority? priority) => priority switch
-    {
-        TodoPriority.Highest => "!",
-        TodoPriority.High => "H",
-        TodoPriority.Medium => "M",
-        TodoPriority.Low => "L",
-        TodoPriority.Lowest => ".",
-        _ => "-"
-    };
+    public static string PriorityCode(TodoPriority? priority) => TodoRowRenderer.Default.PriorityCode(priority);
 
     public static string TodoStatusGlyph(bool isCompleted) =>
-        isCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
+        TodoRowRenderer.Default.StatusGlyph(isCompleted);
 
     public static string Truncate(string value, int width)
     {
@@ -796,56 +785,11 @@ public sealed class BrowserRenderer
         TodoItem todo,
         ImmutableArray<TodoTreeSegment> treePath,
         bool selected,
-        TuiTheme theme)
-    {
-        var cursor = selected ? TodoGlyphs.SelectedGlyph : " ";
-        var treePrefix = TodoTreeFormatter.Format(treePath);
-        var status = TodoStatusGlyph(todo.IsCompleted);
-        var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
-        var priority = PriorityCode(todo.Priority);
-        var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
-        var schedule = todo.Schedule is null
-            ? string.Empty
-            : $" {TodoGlyphs.ScheduleGlyph} {FormatSchedule(todo.Schedule)}";
+        TuiTheme theme) =>
+        TodoRowRenderer.Default.DetailLine(todo, treePath, selected, theme);
 
-        var line = new System.Text.StringBuilder();
-        AppendStyled(
-            line,
-            cursor,
-            selected ? theme.Accent : todo.IsCompleted ? theme.Muted : theme.Text,
-            selected ? Decoration.Bold : todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(
-            line,
-            $" {treePrefix}",
-            selected ? theme.Accent : theme.Muted,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(
-            line,
-            status,
-            todo.IsCompleted ? theme.Muted : theme.Accent,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(line, $" {priority}", todo.IsCompleted ? theme.Muted : PriorityColor(todo.Priority, theme));
-        AppendStyled(
-            line,
-            $" {reference}{todo.Title}",
-            todo.IsCompleted ? theme.Muted : theme.Text,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(line, tags, todo.IsCompleted ? theme.Muted : theme.Tag,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        AppendStyled(line, schedule, todo.IsCompleted ? theme.Muted : theme.Date,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        return new Markup(line.ToString());
-    }
-
-    public static Color PriorityColor(TodoPriority? priority, TuiTheme theme) => priority switch
-    {
-        TodoPriority.Highest => theme.Error,
-        TodoPriority.High => theme.Warning,
-        TodoPriority.Medium => theme.Accent,
-        TodoPriority.Low => theme.Muted,
-        TodoPriority.Lowest => theme.Muted,
-        _ => theme.Text
-    };
+    public static Color PriorityColor(TodoPriority? priority, TuiTheme theme) =>
+        TodoRowRenderer.Default.PriorityColor(priority, theme);
 
     public static void AddField(
         List<IRenderable> lines,
