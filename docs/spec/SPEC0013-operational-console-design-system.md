@@ -56,7 +56,7 @@ width after borders and padding are accounted for; they must never wrap or
 increase a panel's measured height. This visual truncation never changes the
 stored Markdown text.
 
-The project navigator renders the virtual `@today` entry with the semantic date
+The project navigator renders configured saved-view entries with the semantic date
 foreground while it is inactive. The normal bright accent and elevated surface
 take precedence while it is selected.
 

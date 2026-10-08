@@ -1,3 +1,5 @@
+using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.TaskFocus;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.DayPlanner;
@@ -21,6 +23,53 @@ public sealed class ApplicationPaletteDispatcher(
     TabHostReducer tabReducer,
     ProjectTodoMutationService? mutationService)
 {
+    private static readonly IReadOnlyDictionary<ApplicationActionId, FocusedTaskAction> FocusedTaskActions =
+        new Dictionary<ApplicationActionId, FocusedTaskAction>
+        {
+            [ApplicationActionId.ExitTaskFocus] = FocusedTaskAction.Exit,
+            [ApplicationActionId.FocusEdit] = FocusedTaskAction.Edit,
+            [ApplicationActionId.FocusEditExternal] = FocusedTaskAction.EditExternal,
+            [ApplicationActionId.FocusToggleCompleted] = FocusedTaskAction.ToggleCompleted
+        };
+
+    private static readonly IReadOnlyDictionary<ApplicationActionId, BrowserAction> BrowserActions =
+        new Dictionary<ApplicationActionId, BrowserAction>
+        {
+            [ApplicationActionId.BrowserFilter] = BrowserAction.Filter,
+            [ApplicationActionId.BrowserSort] = BrowserAction.Sort,
+            [ApplicationActionId.BrowserCreate] = BrowserAction.Create,
+            [ApplicationActionId.BrowserEdit] = BrowserAction.Edit,
+            [ApplicationActionId.BrowserEditExternal] = BrowserAction.EditExternal,
+            [ApplicationActionId.BrowserToggleCompleted] = BrowserAction.ToggleCompleted,
+            [ApplicationActionId.BrowserToggleSelection] = BrowserAction.ToggleSelection,
+            [ApplicationActionId.BrowserBulkEdit] = BrowserAction.BulkEdit,
+            [ApplicationActionId.BrowserClearSelection] = BrowserAction.ClearSelection,
+            [ApplicationActionId.BrowserRollProjectToday] = BrowserAction.RollProjectToday,
+            [ApplicationActionId.BrowserToggleDetails] = BrowserAction.ToggleDetails,
+            [ApplicationActionId.BrowserJumpTop] = BrowserAction.JumpTop,
+            [ApplicationActionId.BrowserJumpBottom] = BrowserAction.JumpBottom
+        };
+
+    private static readonly IReadOnlyDictionary<ApplicationActionId, PlannerAction> PlannerActions =
+        new Dictionary<ApplicationActionId, PlannerAction>
+        {
+            [ApplicationActionId.PlannerPreviousDay] = PlannerAction.PreviousDay,
+            [ApplicationActionId.PlannerNextDay] = PlannerAction.NextDay,
+            [ApplicationActionId.PlannerToday] = PlannerAction.Today,
+            [ApplicationActionId.PlannerToggleView] = PlannerAction.ToggleView,
+            [ApplicationActionId.PlannerIncreaseRange] = PlannerAction.IncreaseRange,
+            [ApplicationActionId.PlannerDecreaseRange] = PlannerAction.DecreaseRange,
+            [ApplicationActionId.PlannerPreviousColumn] = PlannerAction.PreviousColumn,
+            [ApplicationActionId.PlannerNextColumn] = PlannerAction.NextColumn,
+            [ApplicationActionId.PlannerAssignOrMove] = PlannerAction.AssignOrMove,
+            [ApplicationActionId.PlannerUnschedule] = PlannerAction.Unschedule,
+            [ApplicationActionId.PlannerCreate] = PlannerAction.Create,
+            [ApplicationActionId.PlannerEdit] = PlannerAction.Edit,
+            [ApplicationActionId.PlannerEditExternal] = PlannerAction.EditExternal,
+            [ApplicationActionId.PlannerToggleCompleted] = PlannerAction.ToggleCompleted,
+            [ApplicationActionId.PlannerToggleDetails] = PlannerAction.ToggleDetails
+        };
+
     public ApplicationInputResult Handle(ApplicationInputContext context, ConsoleKeyInfo key)
     {
         var paletteView = context.PaletteView ?? palettePresenter.CreateView(
@@ -40,116 +89,26 @@ public sealed class ApplicationPaletteDispatcher(
             context.Configuration.KeyBindings,
             paletteView);
         var state = context.State with { Palette = transition.State };
-        var catalog = context.Catalog;
-        if (transition.Action is null)
+        return transition.Action is { } action
+            ? HandleAction(state, context, action)
+            : new ApplicationInputResult(state, context.Catalog);
+    }
+
+    private ApplicationInputResult HandleAction(
+        ApplicationState state,
+        ApplicationInputContext context,
+        ApplicationActionId action)
+    {
+        var globalResult = HandleGlobalAction(state, context, action);
+        if (globalResult is not null)
         {
-            return new ApplicationInputResult(state, catalog);
+            return globalResult;
         }
 
-        var action = transition.Action.Value;
-        if (action == ApplicationActionId.Exit)
+        var focusedResult = HandleFocusedTaskAction(state, context, action);
+        if (focusedResult is not null)
         {
-            state = timerWorkflow.Stop(
-                state,
-                context.Configuration,
-                state.Tabs.ActiveTab.Value == "todos");
-            return new ApplicationInputResult(state, catalog, state.Timer is null);
-        }
-
-        if (action == ApplicationActionId.GenerateTaskLink)
-        {
-            return new ApplicationInputResult(
-                taskLinkWorkflow.Generate(
-                    state,
-                    catalog,
-                    context.BrowserView,
-                    context.PlannerView,
-                    context.FocusedTaskView),
-                catalog);
-        }
-
-        if (action == ApplicationActionId.OpenTaskLink)
-        {
-            return new ApplicationInputResult(
-                taskLinkWorkflow.Prompt(state),
-                catalog);
-        }
-
-        if (action == ApplicationActionId.OpenConfiguration)
-        {
-            return new ApplicationInputResult(commandDispatcher.OpenConfiguration(state), catalog);
-        }
-
-        if (action == ApplicationActionId.ToggleTimer)
-        {
-            state = context.FocusedTaskView is not null
-                ? timerWorkflow.ToggleFocused(
-                    state,
-                    context.FocusedTaskView,
-                    context.Configuration,
-                    state.Tabs.ActiveTab.Value == "todos")
-                : timerWorkflow.Toggle(
-                    state,
-                    context.BrowserView,
-                    context.PlannerView,
-                    catalog,
-                    context.Configuration,
-                    state.Tabs.ActiveTab.Value == "todos");
-            return new ApplicationInputResult(state, catalog);
-        }
-
-        if (action is ApplicationActionId.StartPomodoro or ApplicationActionId.StartUntrackedPomodoro)
-        {
-            state = context.FocusedTaskView is not null
-                ? timerWorkflow.OpenPomodoroPromptFocused(
-                    state,
-                    context.FocusedTaskView,
-                    context.Configuration,
-                    state.Tabs.ActiveTab.Value == "todos")
-                : timerWorkflow.OpenPomodoroPrompt(
-                    state,
-                    context.BrowserView,
-                    context.PlannerView,
-                    catalog,
-                    context.Configuration,
-                    action == ApplicationActionId.StartUntrackedPomodoro,
-                    state.Tabs.ActiveTab.Value == "todos");
-            return new ApplicationInputResult(state, catalog);
-        }
-
-        if (action == ApplicationActionId.FocusSelectedTask)
-        {
-            return new ApplicationInputResult(
-                ApplicationInputDispatcher.OpenFocusedTask(state, context.BrowserView, context.PlannerView),
-                catalog);
-        }
-
-        if (context.FocusedTaskView is not null)
-        {
-            var focusAction = action switch
-            {
-                ApplicationActionId.ExitTaskFocus => FocusedTaskAction.Exit,
-                ApplicationActionId.FocusEdit => FocusedTaskAction.Edit,
-                ApplicationActionId.FocusEditExternal => FocusedTaskAction.EditExternal,
-                ApplicationActionId.FocusToggleCompleted => FocusedTaskAction.ToggleCompleted,
-                _ => (FocusedTaskAction?)null
-            };
-            if (focusAction is not null)
-            {
-                var transitionToApply = focusedTaskReducer.ReduceAction(
-                    state.FocusedTask!,
-                    focusAction.Value,
-                    context.FocusedTaskView);
-                var result = focusedTaskWorkflow.ApplyTransition(
-                    state,
-                    transitionToApply,
-                    catalog,
-                    context.Configuration,
-                    mutationService);
-                return new ApplicationInputResult(result.State, result.Catalog);
-            }
-
-            return new ApplicationInputResult(state, catalog);
+            return focusedResult;
         }
 
         if (action == ApplicationActionId.ToggleCompleted)
@@ -164,14 +123,12 @@ public sealed class ApplicationPaletteDispatcher(
                     Error = null
                 }
             };
-            return new ApplicationInputResult(state, catalog);
+            return new ApplicationInputResult(state, context.Catalog);
         }
 
         if (action is ApplicationActionId.NextTab or ApplicationActionId.PreviousTab)
         {
-            var direction = action == ApplicationActionId.NextTab
-                ? TabDirection.Next
-                : TabDirection.Previous;
+            var direction = action == ApplicationActionId.NextTab ? TabDirection.Next : TabDirection.Previous;
             var tabs = tabReducer.Move(state.Tabs, context.Tabs, direction);
             state = state with
             {
@@ -180,95 +137,169 @@ public sealed class ApplicationPaletteDispatcher(
                     ? state.Browser
                     : ApplicationInputDispatcher.ClearBrowserMarks(state.Browser)
             };
-            return new ApplicationInputResult(state, catalog);
+            return new ApplicationInputResult(state, context.Catalog);
         }
 
-        if (state.Tabs.ActiveTab.Value == "todos")
+        return state.Tabs.ActiveTab.Value == "todos"
+            ? HandleBrowserAction(state, context, action)
+            : HandlePlannerAction(state, context, action);
+    }
+
+    private ApplicationInputResult? HandleGlobalAction(
+        ApplicationState state,
+        ApplicationInputContext context,
+        ApplicationActionId action)
+    {
+        if (action == ApplicationActionId.Exit)
         {
-            var browserAction = action switch
-            {
-                ApplicationActionId.BrowserFilter => BrowserAction.Filter,
-                ApplicationActionId.BrowserSort => BrowserAction.Sort,
-                ApplicationActionId.BrowserCreate => BrowserAction.Create,
-                ApplicationActionId.BrowserEdit => BrowserAction.Edit,
-                ApplicationActionId.BrowserEditExternal => BrowserAction.EditExternal,
-                ApplicationActionId.BrowserToggleCompleted => BrowserAction.ToggleCompleted,
-                ApplicationActionId.BrowserToggleSelection => BrowserAction.ToggleSelection,
-                ApplicationActionId.BrowserBulkEdit => BrowserAction.BulkEdit,
-                ApplicationActionId.BrowserClearSelection => BrowserAction.ClearSelection,
-                ApplicationActionId.BrowserRollProjectToday => BrowserAction.RollProjectToday,
-                ApplicationActionId.BrowserToggleDetails => BrowserAction.ToggleDetails,
-                ApplicationActionId.BrowserJumpTop => BrowserAction.JumpTop,
-                ApplicationActionId.BrowserJumpBottom => BrowserAction.JumpBottom,
-                _ => (BrowserAction?)null
-            };
-            if (browserAction is not null)
-            {
-                var browserTransition = browserReducer.ReduceAction(
-                    state.Browser,
-                    browserAction.Value,
-                    context.BrowserView!);
-                var result = browserWorkflow.ApplyTransition(
-                    state,
-                    browserTransition,
-                    catalog,
-                    context.Configuration,
-                    mutationService);
-                return new ApplicationInputResult(result.State, result.Catalog);
-            }
-
-            return new ApplicationInputResult(state, catalog);
+            state = timerWorkflow.Stop(
+                state,
+                context.Configuration,
+                state.Tabs.ActiveTab.Value == "todos");
+            return new ApplicationInputResult(state, context.Catalog, state.Timer is null);
         }
 
+        return action switch
+        {
+            ApplicationActionId.GenerateTaskLink => new ApplicationInputResult(
+                taskLinkWorkflow.Generate(
+                    state,
+                    context.Catalog,
+                    context.BrowserView,
+                    context.PlannerView,
+                    context.FocusedTaskView),
+                context.Catalog),
+            ApplicationActionId.OpenTaskLink => new ApplicationInputResult(
+                taskLinkWorkflow.Prompt(state), context.Catalog),
+            ApplicationActionId.OpenConfiguration => new ApplicationInputResult(
+                commandDispatcher.OpenConfiguration(state), context.Catalog),
+            ApplicationActionId.ToggleTimer or
+                ApplicationActionId.StartPomodoro or
+                ApplicationActionId.StartUntrackedPomodoro => HandleTimerAction(state, context, action),
+            ApplicationActionId.FocusSelectedTask => new ApplicationInputResult(
+                ApplicationInputDispatcher.OpenFocusedTask(state, context.BrowserView, context.PlannerView),
+                context.Catalog),
+            _ => null
+        };
+    }
+
+    private ApplicationInputResult HandleTimerAction(
+        ApplicationState state,
+        ApplicationInputContext context,
+        ApplicationActionId action)
+    {
+        var isTodos = state.Tabs.ActiveTab.Value == "todos";
+        if (action == ApplicationActionId.ToggleTimer)
+        {
+            state = context.FocusedTaskView is { } focusedTask
+                ? timerWorkflow.ToggleFocused(state, focusedTask, context.Configuration, isTodos)
+                : timerWorkflow.Toggle(
+                    state,
+                    context.BrowserView,
+                    context.PlannerView,
+                    context.Catalog,
+                    context.Configuration,
+                    isTodos);
+        }
+        else
+        {
+            state = context.FocusedTaskView is { } focusedTask
+                ? timerWorkflow.OpenPomodoroPromptFocused(state, focusedTask, context.Configuration, isTodos)
+                : timerWorkflow.OpenPomodoroPrompt(
+                    state,
+                    context.BrowserView,
+                    context.PlannerView,
+                    context.Catalog,
+                    context.Configuration,
+                    action == ApplicationActionId.StartUntrackedPomodoro,
+                    isTodos);
+        }
+
+        return new ApplicationInputResult(state, context.Catalog);
+    }
+
+    private ApplicationInputResult? HandleFocusedTaskAction(
+        ApplicationState state,
+        ApplicationInputContext context,
+        ApplicationActionId action)
+    {
+        if (context.FocusedTaskView is null)
+        {
+            return null;
+        }
+
+        if (!FocusedTaskActions.TryGetValue(action, out var focusedAction))
+        {
+            return new ApplicationInputResult(state, context.Catalog);
+        }
+
+        var transition = focusedTaskReducer.ReduceAction(
+            state.FocusedTask!,
+            focusedAction,
+            context.FocusedTaskView);
+        var result = focusedTaskWorkflow.ApplyTransition(
+            state,
+            transition,
+            context.Catalog,
+            context.Configuration,
+            mutationService);
+        return new ApplicationInputResult(result.State, result.Catalog);
+    }
+
+    private ApplicationInputResult HandleBrowserAction(
+        ApplicationState state,
+        ApplicationInputContext context,
+        ApplicationActionId action)
+    {
+        if (!BrowserActions.TryGetValue(action, out var browserAction))
+        {
+            return new ApplicationInputResult(state, context.Catalog);
+        }
+
+        var transition = browserReducer.ReduceAction(state.Browser, browserAction, context.BrowserView!);
+        var result = browserWorkflow.ApplyTransition(
+            state,
+            transition,
+            context.Catalog,
+            context.Configuration,
+            mutationService);
+        return new ApplicationInputResult(result.State, result.Catalog);
+    }
+
+    private ApplicationInputResult HandlePlannerAction(
+        ApplicationState state,
+        ApplicationInputContext context,
+        ApplicationActionId action)
+    {
         if (action == ApplicationActionId.PlannerRefreshCalendar)
         {
             plannerWorkflow.Refresh(context.Configuration, state.Planner);
-            return new ApplicationInputResult(state, catalog);
+            return new ApplicationInputResult(state, context.Catalog);
         }
 
         if (action == ApplicationActionId.PlannerExportSchedule)
         {
             return new ApplicationInputResult(
                 plannerWorkflow.Export(state, context.PlannerView!, context.Configuration),
-                catalog);
+                context.Catalog);
         }
 
-        var plannerAction = action switch
+        if (!PlannerActions.TryGetValue(action, out var plannerAction))
         {
-            ApplicationActionId.PlannerPreviousDay => PlannerAction.PreviousDay,
-            ApplicationActionId.PlannerNextDay => PlannerAction.NextDay,
-            ApplicationActionId.PlannerToday => PlannerAction.Today,
-            ApplicationActionId.PlannerToggleView => PlannerAction.ToggleView,
-            ApplicationActionId.PlannerIncreaseRange => PlannerAction.IncreaseRange,
-            ApplicationActionId.PlannerDecreaseRange => PlannerAction.DecreaseRange,
-            ApplicationActionId.PlannerPreviousColumn => PlannerAction.PreviousColumn,
-            ApplicationActionId.PlannerNextColumn => PlannerAction.NextColumn,
-            ApplicationActionId.PlannerAssignOrMove => PlannerAction.AssignOrMove,
-            ApplicationActionId.PlannerUnschedule => PlannerAction.Unschedule,
-            ApplicationActionId.PlannerCreate => PlannerAction.Create,
-            ApplicationActionId.PlannerEdit => PlannerAction.Edit,
-            ApplicationActionId.PlannerEditExternal => PlannerAction.EditExternal,
-            ApplicationActionId.PlannerToggleCompleted => PlannerAction.ToggleCompleted,
-            ApplicationActionId.PlannerToggleDetails => PlannerAction.ToggleDetails,
-            _ => (PlannerAction?)null
-        };
-        if (plannerAction is null)
-        {
-            return new ApplicationInputResult(state, catalog);
+            return new ApplicationInputResult(state, context.Catalog);
         }
 
-        var plannerTransition = plannerWorkflow.ReduceAction(
+        var transition = plannerWorkflow.ReduceAction(
             state.Planner,
-            plannerAction.Value,
+            plannerAction,
             context.Configuration,
             context.PlannerView!);
-        var plannerResult = plannerWorkflow.ApplyTransition(
+        var result = plannerWorkflow.ApplyTransition(
             state,
-            plannerTransition,
-            catalog,
+            transition,
+            context.Catalog,
             context.Configuration,
             mutationService);
-        return new ApplicationInputResult(plannerResult.State, plannerResult.Catalog);
+        return new ApplicationInputResult(result.State, result.Catalog);
     }
-
 }

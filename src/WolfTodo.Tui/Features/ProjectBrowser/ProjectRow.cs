@@ -14,7 +14,6 @@ public sealed record ProjectRow(
 public enum ProjectRowKind
 {
     All,
-    Today,
     SavedQuery,
     Project,
     Error

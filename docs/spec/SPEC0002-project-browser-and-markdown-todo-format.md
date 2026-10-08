@@ -206,21 +206,25 @@ focuses Details in every responsive layout.
 
 ## Project and Todo Presentation
 
-The project sidebar begins with `All` and the virtual `@today` view, followed by
-configured saved-query views, valid projects, then source and project errors. Show the active-todo count
-beside `All` and each valid project. Beside `@today`, show the active count of
-tasks scheduled for the current local date. Prefix error entries with `!`.
+The project sidebar begins with `All`, followed by configured saved-query
+views, valid projects, then source and project errors. Show the active-todo
+count beside `All` and each valid project. A configured `@today` view using
+`scheduled:t` counts open tasks scheduled for the current local date. Prefix
+error entries with `!`.
 
-`@today` aggregates all valid projects but includes only todos whose scheduled
-date equals today. Exclude overdue, future, and unscheduled todos. Preserve the
-visible ancestor path of a matching subtask without including unrelated tree
-branches. Keep project and section grouping, active sorting, and completed-todo
-visibility. Treat creation like `All`, requiring a configured destination
-project. Rescheduling, completing, or editing a todo so it no longer qualifies
-removes it after reload. Re-evaluate the local date on each redraw.
+Saved views aggregate all valid projects and use their configured query and
+order. A configured `@today` view reevaluates the local date on each redraw.
+Treat creation like `All`, requiring a configured destination project.
+Rescheduling, completing, or editing a todo so it no longer qualifies removes
+it after reload.
 
 Configured saved-query views follow the same aggregate-view behavior and are
-defined by [SPEC0014](SPEC0014-configurable-sidebar-queries.md).
+defined by [SPEC0014](SPEC0014-configurable-sidebar-queries.md). A task that
+matches a saved query shows its eligible recursive subtasks as tree context;
+those descendants can inherit query eligibility from the matching task and
+remain subject to `:completed`. The session `/` filter narrows rows within the view, retaining
+matching rows' eligible descendants and ancestor paths. Sidebar counts include
+only direct open query matches.
 
 In `All`, group active todos by project in project sort order. Within a project,
 group by heading path and preserve todo source order. In an individual project,
@@ -313,8 +317,9 @@ Markdown source order.
    or invalid sort independently falls back to source order.
 10. Every launch opens the Todos tab with the Todos pane focused, even when the
     previous session exited from Day Planner.
-11. Selecting `@today` shows only tasks scheduled for the current local date
-    across valid projects. It is not persisted and reopens as `All` after exit.
+11. Configuring `@today` with `scheduled:t` shows direct matches scheduled for
+    the current local date across valid projects and their eligible descendants.
+    The selection is not persisted and reopens as `All` after exit.
 
 ## References
 

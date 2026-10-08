@@ -1,3 +1,4 @@
+using WolfTodo.Tui.Features.Commands;
 using System.Collections.Immutable;
 using System.Reflection;
 using Spectre.Console;
@@ -115,7 +116,7 @@ public sealed class TomlApplicationConfigurationLoader(
         }
 
         var result = ImmutableArray.CreateBuilder<SavedSidebarView>();
-        var titles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "All", "@today" };
+        var titles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "All" };
         for (var index = 0; index < items.Count; index++)
         {
             var item = items[index];

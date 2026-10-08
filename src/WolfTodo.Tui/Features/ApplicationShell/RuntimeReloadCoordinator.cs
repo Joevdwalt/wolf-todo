@@ -42,7 +42,7 @@ public sealed class RuntimeReloadCoordinator(
             {
                 Browser = state.Browser with
                 {
-                    ProjectIndex = ResolveProjectIndex(selection, catalog, configuration.SidebarItems),
+                    ProjectIndex = SidebarIndexResolver.Resolve(selection, catalog, configuration.SidebarItems),
                     PendingTodoSelection = null,
                     StatusMessage = null
                 }
@@ -68,37 +68,4 @@ public sealed class RuntimeReloadCoordinator(
         return new RuntimeReloadResult(state with { ReloadStatus = status }, configuration, catalog);
     }
 
-    public static int ResolveProjectIndex(
-        SidebarSelectionAnchor selection,
-        ProjectCatalog catalog,
-        IReadOnlyList<SavedSidebarView> sidebarItems)
-    {
-        if (selection.Kind == ProjectRowKind.All) return 0;
-        if (selection.Kind == ProjectRowKind.Today) return 1;
-        if (selection.Kind == ProjectRowKind.SavedQuery)
-        {
-            var savedIndex = sidebarItems
-                .Select((item, index) => (item, index))
-                .FirstOrDefault(candidate => candidate.item.Title == selection.Identifier).index;
-            return sidebarItems.Any(item => item.Title == selection.Identifier) ? savedIndex + 2 : 0;
-        }
-
-        var comparison = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-        var projectIndex = catalog.Projects
-            .Select((project, index) => (project, index))
-            .FirstOrDefault(candidate => string.Equals(candidate.project.Path, selection.Identifier, comparison));
-        if (projectIndex.project is not null)
-        {
-            return projectIndex.index + sidebarItems.Count + 2;
-        }
-
-        var errorIndex = catalog.Errors
-            .Select((error, index) => (error, index))
-            .FirstOrDefault(candidate => string.Equals(candidate.error.Path, selection.Identifier, comparison));
-        return errorIndex.error is null
-            ? 0
-            : catalog.Projects.Length + sidebarItems.Count + errorIndex.index + 2;
-    }
 }

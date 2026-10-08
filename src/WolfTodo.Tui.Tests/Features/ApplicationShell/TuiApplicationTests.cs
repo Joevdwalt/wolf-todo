@@ -1,3 +1,7 @@
+using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.TaskFocus;
+using WolfTodo.Tui.Features.TaskLinks;
+using WolfTodo.Tui.Features.Timing;
 using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Core.Infrastructure.Markdown;
@@ -625,8 +629,10 @@ public sealed class TuiApplicationTests
     }
 
     [Fact]
-    public void Run_does_not_persist_today_as_a_project_selection()
+    public void Run_does_not_persist_configured_today_as_a_project_selection()
     {
+        SavedTodoQuery.TryParse("scheduled:t", out var query, out _).Should().BeTrue();
+        var todayView = new SavedSidebarView("@today", query, TodoSort.Source);
         var stateStore = new FakeApplicationStateStore(null);
         var terminal = new FakeTerminal(
             Key('x'),
@@ -635,7 +641,8 @@ public sealed class TuiApplicationTests
             Key(':'),
             Key('q'),
             Key(ConsoleKey.Enter));
-        var application = CreateApplication(new FixedConfigurationLoader(), terminal, stateStore);
+        var application = CreateApplication(
+            new FixedConfigurationLoader(sidebarItems: [todayView]), terminal, stateStore);
 
         application.Run();
 
@@ -1356,13 +1363,15 @@ public sealed class TuiApplicationTests
     private sealed class FixedConfigurationLoader(
         TuiKeyBindings? bindings = null,
         TimerConfiguration? timer = null,
-        string[]? projectFiles = null) : IApplicationConfigurationLoader
+        string[]? projectFiles = null,
+        SavedSidebarView[]? sidebarItems = null) : IApplicationConfigurationLoader
     {
         public ApplicationConfiguration Load() => new(
             [.. projectFiles ?? ["/todos/project.md"]],
             bindings ?? TuiKeyBindings.CreateDefaults(":q"))
         {
-            Timer = timer
+            Timer = timer,
+            SidebarItems = [.. sidebarItems ?? []]
         };
     }
 

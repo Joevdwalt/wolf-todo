@@ -136,18 +136,8 @@ public sealed class PlannerWorkflow(
                 return (Failure(state, "External editing is unavailable."), catalog);
             }
 
-            ExternalEditorResult externalResult;
-            terminalUi.SuspendForExternalProcess();
-            try
-            {
-                externalResult = externalEditorLauncher.Open(
-                    transition.ProjectPath,
-                    transition.TodoIdentity.SourceLine);
-            }
-            finally
-            {
-                terminalUi.ResumeAfterExternalProcess();
-            }
+            var externalResult = new ExternalEditorSession(terminalUi, externalEditorLauncher)
+                .Open(transition.ProjectPath, transition.TodoIdentity.SourceLine);
 
             if (externalResult.Started)
             {
@@ -164,7 +154,9 @@ public sealed class PlannerWorkflow(
             return (Failure(state, "Todo writing is unavailable."), catalog);
         }
 
-        var expected = transition.ExpectedTodo ?? FindTodo(catalog, transition.TodoIdentity);
+        var expected = transition.ExpectedTodo ?? (transition.TodoIdentity is { } todoIdentity
+            ? TodoTree.FindBySourceLine(catalog, todoIdentity.ProjectPath, todoIdentity.SourceLine)
+            : null);
         catalog = catalogLoader.Load(configuration.ProjectFiles);
         var schedule = transition.ScheduleTarget == PlannerScheduleTarget.AllDay
             ? new TodoSchedule(state.Planner.SelectedDate)
@@ -282,28 +274,4 @@ public sealed class PlannerWorkflow(
         }
     };
 
-    private static TodoItem? FindTodo(ProjectCatalog catalog, TodoIdentity? identity)
-    {
-        if (identity is null)
-        {
-            return null;
-        }
-
-        var project = catalog.Projects.FirstOrDefault(candidate => candidate.Path == identity.ProjectPath);
-        return project is null
-            ? null
-            : Flatten(project.Todos).FirstOrDefault(todo => todo.SourceLine == identity.SourceLine);
-    }
-
-    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
-    {
-        foreach (var todo in todos)
-        {
-            yield return todo;
-            foreach (var subtask in Flatten(todo.Subtasks))
-            {
-                yield return subtask;
-            }
-        }
-    }
 }

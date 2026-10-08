@@ -22,7 +22,7 @@ public sealed class DayPlannerPresenter
         var focusInterval = ClipFocusBlock(activeFocusBlock, state.SelectedDate);
         
         var assignments = catalog.Projects
-            .SelectMany(project => Flatten(project.Todos)
+            .SelectMany(project => TodoTree.Enumerate(project.Todos)
                 .Select(todo => new PlannerAssignment(
                     new TodoIdentity(project.Path, todo.SourceLine),
                     project.Title,
@@ -277,15 +277,4 @@ public sealed class DayPlannerPresenter
         value?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true;
 
     
-    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
-    {
-        foreach (var todo in todos)
-        {
-            yield return todo;
-            foreach (var subtask in Flatten(todo.Subtasks))
-            {
-                yield return subtask;
-            }
-        }
-    }
 }

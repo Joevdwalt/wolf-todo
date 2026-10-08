@@ -1,0 +1,238 @@
+using WolfTodo.Tui.Features.Commands;
+using FluentAssertions;
+using WolfTodo.Tui.Features.ApplicationShell;
+using WolfTodo.Tui.Features.Configuration;
+
+namespace WolfTodo.Tui.Tests.Features.Commands;
+
+public sealed class ApplicationCommandReducerTests
+{
+    private static readonly TuiKeyBindings Bindings = TuiKeyBindings.CreateDefaults(":q");
+    private readonly ApplicationCommandReducer reducer = new();
+
+    [Fact]
+    public void Reduce_parses_task_link_commands_and_completes_their_names()
+    {
+        var generate = reducer.Reduce(new ApplicationCommandState(true, ":task-link", null), Key(ConsoleKey.Enter), Bindings);
+        generate.Operation.Should().Be(ApplicationCommandOperation.GenerateTaskLink);
+        var open = reducer.Reduce(new ApplicationCommandState(true, ":open-task abc", null), Key(ConsoleKey.Enter), Bindings);
+        open.Operation.Should().Be(ApplicationCommandOperation.OpenTaskLink);
+        open.TaskCode.Should().Be("abc");
+        reducer.Reduce(new ApplicationCommandState(true, ":open-task", null), Key(ConsoleKey.Enter), Bindings)
+            .State.Error.Should().Be("Usage: :open-task <code>");
+        reducer.Reduce(new ApplicationCommandState(true, ":open-t", null), Key(ConsoleKey.Tab), Bindings)
+            .State.Value.Should().Be(":open-task");
+        reducer.Reduce(new ApplicationCommandState(true, ":task-l", null), Key(ConsoleKey.Tab), Bindings)
+            .State.Value.Should().Be(":task-link");
+    }
+
+    [Fact]
+    public void Reduce_opens_and_submits_the_global_quit_command()
+    {
+        var opened = reducer.Reduce(ApplicationCommandState.Initial, Key(':'), Bindings).State;
+        var typed = reducer.Reduce(opened, Key('q'), Bindings).State;
+        var submitted = reducer.Reduce(typed, Key(ConsoleKey.Enter), Bindings);
+
+        opened.Should().Be(new ApplicationCommandState(true, ":", null));
+        submitted.Operation.Should().Be(ApplicationCommandOperation.Exit);
+        submitted.State.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Reduce_exposes_completed_and_unknown_command_results()
+    {
+        var completed = reducer.Reduce(
+            new ApplicationCommandState(true, ":completed", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+        var unknown = reducer.Reduce(
+            new ApplicationCommandState(true, ":wat", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        completed.Operation.Should().Be(ApplicationCommandOperation.ToggleCompleted);
+        unknown.Operation.Should().Be(ApplicationCommandOperation.None);
+        unknown.State.Error.Should().Be("Unknown command: :wat");
+    }
+
+    [Fact]
+    public void Reduce_opens_the_command_palette_with_the_help_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":help", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.OpenPalette);
+        result.State.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public void Reduce_completes_a_unique_command_prefix_with_tab()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":roll", null),
+            Key(ConsoleKey.Tab),
+            Bindings);
+
+        result.State.Value.Should().Be(":roll-today");
+        result.State.CompletionSeed.Should().BeNull();
+    }
+
+    [Fact]
+    public void Reduce_cycles_ambiguous_command_completions_and_resets_after_typing()
+    {
+        var state = new ApplicationCommandState(true, ":", null);
+
+        var first = reducer.Reduce(state, Key(ConsoleKey.Tab), Bindings);
+        var second = reducer.Reduce(first.State, Key(ConsoleKey.Tab), Bindings);
+        var typed = reducer.Reduce(second.State, Key('x'), Bindings);
+
+        first.State.Value.Should().Be(":archive");
+        second.State.Value.Should().Be(":completed");
+        typed.State.Value.Should().Be(":completedx");
+        typed.State.CompletionSeed.Should().BeNull();
+        typed.State.CompletionIndex.Should().Be(-1);
+    }
+
+    [Fact]
+    public void Reduce_completes_configured_commands()
+    {
+        var bindings = Bindings with { ToggleCompletedCommand = ":done" };
+
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":do", null),
+            Key(ConsoleKey.Tab),
+            bindings);
+
+        result.State.Value.Should().Be(":done");
+    }
+
+    [Fact]
+    public void Reduce_submits_the_roll_today_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":roll-today", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.RollProjectToday);
+        result.State.Should().Be(ApplicationCommandState.Initial);
+    }
+
+    [Fact]
+    public void Reduce_submits_the_archive_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":archive", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.ArchiveCompleted);
+        result.State.Should().Be(ApplicationCommandState.Initial);
+    }
+
+    [Fact]
+    public void Reduce_submits_the_screen_dump_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":dump-screen", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.DumpScreen);
+        result.State.Should().Be(ApplicationCommandState.Initial);
+    }
+
+    [Fact]
+    public void Reduce_submits_and_completes_the_configuration_command()
+    {
+        var submitted = reducer.Reduce(
+            new ApplicationCommandState(true, ":config", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+        var completed = reducer.Reduce(
+            new ApplicationCommandState(true, ":conf", null),
+            Key(ConsoleKey.Tab),
+            Bindings);
+
+        submitted.Operation.Should().Be(ApplicationCommandOperation.OpenConfiguration);
+        submitted.State.Should().Be(ApplicationCommandState.Initial);
+        completed.State.Value.Should().Be(":config");
+    }
+
+    [Fact]
+    public void Reduce_parses_a_project_title_for_the_move_todo_command()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":move-todo-project Personal Admin", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.MoveTodoProject);
+        result.ProjectTitle.Should().Be("Personal Admin");
+    }
+
+    [Theory]
+    [InlineData(":pomodoro 45", 45, false)]
+    [InlineData(":pomodoro 10 --untracked", 10, true)]
+    public void Reduce_parses_numeric_pomodoro_commands(string value, int minutes, bool untracked)
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, value, null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.StartPomodoro);
+        result.PomodoroDurationSource.Should().Be(PomodoroDurationSource.ExplicitMinutes);
+        result.PomodoroMinutes.Should().Be(minutes);
+        result.PomodoroUntracked.Should().Be(untracked);
+    }
+
+    [Fact]
+    public void Reduce_parses_selected_task_duration_for_a_pomodoro()
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, ":pomodoro task", null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.StartPomodoro);
+        result.PomodoroDurationSource.Should().Be(PomodoroDurationSource.SelectedTask);
+    }
+
+    [Theory]
+    [InlineData(":pomodoro")]
+    [InlineData(":pomodoro 0")]
+    [InlineData(":pomodoro 961")]
+    [InlineData(":pomodoro task --untracked")]
+    public void Reduce_rejects_invalid_pomodoro_commands(string value)
+    {
+        var result = reducer.Reduce(
+            new ApplicationCommandState(true, value, null),
+            Key(ConsoleKey.Enter),
+            Bindings);
+
+        result.Operation.Should().Be(ApplicationCommandOperation.None);
+        result.State.Error.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void Reduce_cancels_and_keeps_the_colon_when_backspacing()
+    {
+        var backed = reducer.Reduce(
+            new ApplicationCommandState(true, ":", null),
+            Key(ConsoleKey.Backspace),
+            Bindings);
+        var cancelled = reducer.Reduce(backed.State, Key(ConsoleKey.Escape), Bindings);
+
+        backed.State.Value.Should().Be(":");
+        cancelled.State.Should().Be(ApplicationCommandState.Initial);
+    }
+
+    private static ConsoleKeyInfo Key(char character) =>
+        new(character, ConsoleKey.NoName, false, false, false);
+
+    private static ConsoleKeyInfo Key(ConsoleKey key) =>
+        new('\0', key, false, false, false);
+}

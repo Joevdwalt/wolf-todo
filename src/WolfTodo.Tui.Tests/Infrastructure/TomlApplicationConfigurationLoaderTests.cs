@@ -165,12 +165,20 @@ public sealed class TomlApplicationConfigurationLoaderTests
             quit = ":q"
 
             [[sidebar.items]]
+            title = "@today"
+            query = "scheduled:t"
+            order = "scheduled asc"
+
+            [[sidebar.items]]
             title = "@yesterday"
             query = "scheduled:t-1"
             order = "scheduled desc"
             """);
 
-        var item = loader.Load().SidebarItems.Should().ContainSingle().Subject;
+        var items = loader.Load().SidebarItems;
+        items.Select(item => item.Title).Should().Equal("@today", "@yesterday");
+        items[0].Query.Source.Should().Be("scheduled:t");
+        var item = items[1];
 
         item.Title.Should().Be("@yesterday");
         item.Query.Source.Should().Be("scheduled:t-1");
@@ -178,7 +186,7 @@ public sealed class TomlApplicationConfigurationLoaderTests
     }
 
     [Theory]
-    [InlineData("title = \"@today\"\nquery = \"scheduled:t-1\"\norder = \"scheduled asc\"", "*duplicated or reserved*")]
+    [InlineData("title = \"All\"\nquery = \"scheduled:t-1\"\norder = \"scheduled asc\"", "*duplicated or reserved*")]
     [InlineData("title = \"@bad\"\nquery = \"due:t-1\"\norder = \"scheduled asc\"", "*query*field*not supported*")]
     [InlineData("title = \"@bad\"\nquery = \"scheduled:t-1\"\norder = \"random\"", "*order must be*")]
     public void Load_rejects_invalid_saved_sidebar_items(string item, string expectedMessage)

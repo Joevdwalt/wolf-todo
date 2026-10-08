@@ -42,12 +42,6 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
             ? "No projects found"
             : filter.Length > 0
                 ? $"No todos match /{filter}"
-            : selectedProject.Kind == ProjectRowKind.Today
-                ? state.ShowCompleted
-                    ? "No todos scheduled today"
-                    : HasCompletedTodos(selectedProject, catalog, today)
-                        ? "No active todos scheduled today — use :completed to show completed todos"
-                        : "No active todos scheduled today"
             : selectedProject.Kind == ProjectRowKind.SavedQuery
                 ? state.ShowCompleted
                     ? $"No todos match {selectedProject.Title}"
@@ -90,14 +84,7 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
                 null,
                 null,
                 state.ProjectIndex == 0,
-                ProjectRowKind.All),
-            new(
-                "@today",
-                catalog.Projects.Sum(project => CountActiveToday(project.Todos, today)),
-                null,
-                null,
-                state.ProjectIndex == 1,
-                ProjectRowKind.Today)
+                ProjectRowKind.All)
         };
 
         rows.AddRange(sidebarItems.Select((item, index) => new ProjectRow(
@@ -105,7 +92,7 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
             CountActive(catalog, item, today),
             null,
             null,
-            state.ProjectIndex == index + 2,
+            state.ProjectIndex == index + 1,
             ProjectRowKind.SavedQuery,
             item)));
 
@@ -114,7 +101,7 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
             CountActive(project.Todos),
             project,
             null,
-            state.ProjectIndex == index + sidebarItems.Length + 2,
+            state.ProjectIndex == index + sidebarItems.Length + 1,
             ProjectRowKind.Project)));
 
         rows.AddRange(catalog.Errors.Select((error, index) => new ProjectRow(
@@ -122,7 +109,7 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
             0,
             null,
             error,
-            state.ProjectIndex == catalog.Projects.Length + sidebarItems.Length + index + 2,
+            state.ProjectIndex == catalog.Projects.Length + sidebarItems.Length + index + 1,
             ProjectRowKind.Error)));
 
         return [.. rows];
@@ -158,13 +145,12 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
                 sort,
                 state.ShowCompleted,
                 filter,
-                selectedProject.Kind == ProjectRowKind.Today,
                 today,
                 selectedProject.SavedView,
                 project.Title);
             var visibleTodos = FlattenVisible(visibleForest).ToArray();
 
-            if ((filter.Length > 0 || selectedProject.Kind is ProjectRowKind.Today or ProjectRowKind.SavedQuery) &&
+            if ((filter.Length > 0 || selectedProject.Kind == ProjectRowKind.SavedQuery) &&
                 visibleTodos.Length == 0)
             {
                 continue;
@@ -238,39 +224,41 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         TodoSort sort,
         bool showCompleted,
         string filter,
-        bool todayOnly,
         DateOnly today,
         SavedSidebarView? savedView,
         string projectTitle,
-        bool searchMatchInAncestor = false)
+        bool searchMatchInAncestor = false,
+        bool savedViewMatchInAncestor = false)
     {
         var visible = ImmutableArray.CreateBuilder<VisibleTodo>();
 
         foreach (var todo in OrderTodos(todos, sort))
         {
             var isVisibleByCompletion = showCompleted || !todo.IsCompleted;
-            var matchesToday = !todayOnly || todo.Schedule?.Date == today;
             var matchesSavedView = savedView is null || savedView.Query.Matches(todo, projectTitle, today);
+            var isEligibleInView = matchesSavedView || savedViewMatchInAncestor;
             var matchesFilter = filter.Length == 0 || MatchesFilter(todo, filter);
             var expandsSearchMatch = searchMatchInAncestor ||
-                (isVisibleByCompletion && matchesToday && matchesSavedView && matchesFilter);
+                (isVisibleByCompletion && isEligibleInView && matchesFilter);
+            var expandsSavedViewMatch = savedViewMatchInAncestor ||
+                (savedView is not null && isVisibleByCompletion && matchesSavedView);
             var children = BuildVisibleForest(
                 todo.Subtasks,
                 sort,
                 showCompleted,
                 filter,
-                todayOnly,
                 today,
                 savedView,
                 projectTitle,
-                expandsSearchMatch);
+                expandsSearchMatch,
+                expandsSavedViewMatch);
             if (!isVisibleByCompletion)
             {
                 visible.AddRange(children);
                 continue;
             }
 
-            if ((matchesToday && matchesSavedView && (matchesFilter || searchMatchInAncestor)) || children.Length > 0)
+            if ((isEligibleInView && (matchesFilter || searchMatchInAncestor)) || children.Length > 0)
             {
                 visible.Add(new VisibleTodo(todo, children));
             }
@@ -416,10 +404,6 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
     private static int CountActive(IEnumerable<TodoItem> todos) =>
         Flatten(todos, TodoSort.Source).Count(item => !item.Todo.IsCompleted);
 
-    private static int CountActiveToday(IEnumerable<TodoItem> todos, DateOnly today) =>
-        Flatten(todos, TodoSort.Source).Count(item =>
-            !item.Todo.IsCompleted && item.Todo.Schedule?.Date == today);
-
     private static int CountActive(ProjectCatalog catalog, SavedSidebarView view, DateOnly today) =>
         catalog.Projects.Sum(project => Flatten(project.Todos, TodoSort.Source).Count(item =>
             !item.Todo.IsCompleted && view.Query.Matches(item.Todo, project.Title, today)));
@@ -436,7 +420,6 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         return projects.Any(project =>
             Flatten(project.Todos, TodoSort.Source).Any(item =>
                 item.Todo.IsCompleted &&
-                (selectedProject.Kind != ProjectRowKind.Today || item.Todo.Schedule?.Date == today) &&
                 (selectedProject.SavedView is null ||
                  selectedProject.SavedView.Query.Matches(item.Todo, project.Title, today))));
     }

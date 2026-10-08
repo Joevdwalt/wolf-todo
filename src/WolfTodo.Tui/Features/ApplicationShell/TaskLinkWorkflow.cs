@@ -1,3 +1,6 @@
+using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.TaskFocus;
+using WolfTodo.Tui.Features.TaskLinks;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
@@ -77,7 +80,7 @@ public sealed class TaskLinkWorkflow
             Command = ApplicationCommandState.Initial,
             Browser = state.Browser with
             {
-                ProjectIndex = catalog.Projects.IndexOf(project) + sidebarItemCount + 2,
+                ProjectIndex = SidebarIndexResolver.ResolveProjectPath(project.Path, catalog, sidebarItemCount),
                 TodoIndex = 0,
                 PendingTodoSelection = new TodoIdentity(project.Path, todo.SourceLine),
                 Focus = BrowserFocus.Todos,

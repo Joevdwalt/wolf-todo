@@ -1,3 +1,6 @@
+using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.TaskFocus;
+using WolfTodo.Tui.Features.Timing;
 using System.Collections.Immutable;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
@@ -207,7 +210,8 @@ public sealed class TuiApplication
         plannerCalendarCache?.EnsureWindow(configuration.GoogleCalendar);
         var session = applicationStateStore.Load();
         var selectedProjectPath = session.SelectedProjectPath;
-        var initialProjectIndex = FindProjectIndex(catalog, selectedProjectPath, configuration.SidebarItems.Length);
+        var initialProjectIndex = SidebarIndexResolver.ResolveProjectPath(
+            selectedProjectPath, catalog, configuration.SidebarItems.Length);
         var browserState = BrowserState.Initial with
         {
             ProjectIndex = initialProjectIndex,
@@ -296,39 +300,6 @@ public sealed class TuiApplication
             runtimeMonitor.Dispose();
             terminalUi.SetCursorVisible(true);
         }
-    }
-
-    private static int FindProjectIndex(
-        ProjectCatalog catalog,
-        string? selectedProjectPath,
-        int savedSidebarItemCount)
-    {
-        if (selectedProjectPath is null)
-        {
-            return 0;
-        }
-
-        var comparison = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-
-        for (var index = 0; index < catalog.Projects.Length; index++)
-        {
-            if (string.Equals(catalog.Projects[index].Path, selectedProjectPath, comparison))
-            {
-                return index + savedSidebarItemCount + 2;
-            }
-        }
-
-        for (var index = 0; index < catalog.Errors.Length; index++)
-        {
-            if (string.Equals(catalog.Errors[index].Path, selectedProjectPath, comparison))
-            {
-                return catalog.Projects.Length + savedSidebarItemCount + index + 2;
-            }
-        }
-
-        return 0;
     }
 
     private static void EnsureSupportedTab(TabId activeTab)

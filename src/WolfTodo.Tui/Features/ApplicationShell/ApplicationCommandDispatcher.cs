@@ -1,3 +1,5 @@
+using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.TaskFocus;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
@@ -207,16 +209,8 @@ public sealed class ApplicationCommandDispatcher(
             };
         }
 
-        ExternalEditorResult result;
-        terminalUi.SuspendForExternalProcess();
-        try
-        {
-            result = externalEditorLauncher.Open(GlobalConfigurationPath.Resolve(), 1);
-        }
-        finally
-        {
-            terminalUi.ResumeAfterExternalProcess();
-        }
+        var result = new ExternalEditorSession(terminalUi, externalEditorLauncher)
+            .Open(GlobalConfigurationPath.Resolve(), 1);
 
         return result.Error is null
             ? state
