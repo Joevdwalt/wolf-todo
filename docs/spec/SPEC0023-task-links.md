@@ -52,9 +52,10 @@ task but does not include ancestors or descendants. The command is read-only.
 `wtodo update <task-code> [options]` searches the same locations and applies a
 patch to the exact task. Omitted fields are preserved; completion, title,
 metadata, schedule, duration, and notes/content can be changed. Explicit
-`--clear-*` options remove optional values. Direct subtasks are preserved. The
-updated task is returned using the same list-entry shape, and the mutation is
-conflict-safe and atomic.
+`--clear-*` options remove optional values. Repeated `--subtask` and
+`--completed-subtask` options append unchecked and completed direct subtasks;
+existing subtasks are preserved. The updated task is returned using the same
+list-entry shape, and the mutation is conflict-safe and atomic.
 
 Malformed codes fail with `invalid_task_code`; missing locations fail with
 `task_not_found`; collisions fail with `ambiguous_task_code`. Failed lookups

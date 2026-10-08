@@ -349,6 +349,48 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public void Update_appends_unchecked_and_completed_subtasks_to_a_parent()
+    {
+        var fixture = new CliApplicationFixture(markdown: """
+            - [ ] Parent
+              - existing note
+              - [ ] Existing child
+                - nested note
+            - [ ] Sibling
+            """);
+        var code = TaskLinkCode.Generate("/todos/work.md", 1);
+
+        var exitCode = fixture.Application.Run([
+            "update", code, "--subtask", "First new child", "--subtask", "Second new child",
+            "--completed-subtask", "Already done"]);
+
+        exitCode.Should().Be(0);
+        fixture.FileSystem.WriteCount.Should().Be(1);
+        fixture.FileSystem.Contents.TrimEnd().Should().Be(
+            "- [ ] Parent\n" +
+            "  - existing note\n" +
+            "  - [ ] Existing child\n" +
+            "    - nested note\n" +
+            "  - [ ] First new child\n" +
+            "  - [ ] Second new child\n" +
+            "  - [x] Already done\n" +
+            "- [ ] Sibling");
+    }
+
+    [Fact]
+    public void Update_rejects_empty_subtask_titles_without_writing()
+    {
+        var fixture = new CliApplicationFixture(markdown: "- [ ] Parent\n");
+        var code = TaskLinkCode.Generate("/todos/work.md", 1);
+
+        var exitCode = fixture.Application.Run(["update", code, "--subtask", " "]);
+
+        exitCode.Should().Be(2);
+        fixture.FileSystem.WriteCount.Should().Be(0);
+        fixture.Output.ToString().Should().Contain("\"code\":\"invalid_task\"");
+    }
+
+    [Fact]
     public void Update_rejects_missing_changes_and_conflicting_options_without_writing()
     {
         var fixture = new CliApplicationFixture(markdown: "- [ ] Task\n");
