@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Spectre.Console;
 using WolfTodo.Tui.Features.DayPlanner;
+using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Features.DayPlanner.Rendering;
 
@@ -149,7 +150,7 @@ public sealed class PlannerMultiDayCellLayout
         var statusWidth = row.StatusGlyph.Length == 0 ? 1 : row.StatusGlyph.GetCellWidth();
         var labelWidth = prefixWidth + 1 + statusWidth + 1 + item.Title.GetCellWidth();
         var finishWidth = item.TimeShape == PlannerTimeShape.Duration
-            ? prefixWidth + $"→│{item.End:HH:mm}".GetCellWidth()
+            ? prefixWidth + $"{TodoGlyphs.PlannerFinishArrow}{TodoGlyphs.TreeContinuationGlyph}{item.End:HH:mm}".GetCellWidth()
             : 0;
         var renderedWidth = compact.BranchGlyph.GetCellWidth();
         if (compact.StatusGlyph.Length > 0)
@@ -174,19 +175,29 @@ public sealed class PlannerMultiDayCellLayout
     {
         if (row.IsEmpty)
         {
-            return row with { BranchGlyph = row.IsSelected ? "▶ │" : "  │", IsSelectionBridge = false };
+            return row with
+            {
+                BranchGlyph = row.IsSelected
+                    ? $"{TodoGlyphs.PlannerSelectedPointer} {TodoGlyphs.TreeContinuationGlyph}"
+                    : $"  {TodoGlyphs.TreeContinuationGlyph}",
+                IsSelectionBridge = false
+            };
         }
 
         var prefix = LanePrefix(row.IsSelected, firstSegment, reserveSelectionColumn);
         if (row.StatusGlyph.Length == 0)
         {
-            var path = showFinish ? $"→│{item!.End:HH:mm}" : "│";
-            var branch = showFinish ? prefix + path : prefix + " │";
+            var path = showFinish
+                ? $"{TodoGlyphs.PlannerFinishArrow}{TodoGlyphs.TreeContinuationGlyph}{item!.End:HH:mm}"
+                : TodoGlyphs.TreeContinuationGlyph;
+            var branch = showFinish ? prefix + path : prefix + $" {TodoGlyphs.TreeContinuationGlyph}";
             return row with { BranchGlyph = branch, Title = string.Empty,
                 Metadata = string.Empty, IsSelectionBridge = false };
         }
 
-        var cue = showFinish ? $"→│{item!.End:HH:mm}" : string.Empty;
+        var cue = showFinish
+            ? $"{TodoGlyphs.PlannerFinishArrow}{TodoGlyphs.TreeContinuationGlyph}{item!.End:HH:mm}"
+            : string.Empty;
         var fixedWidth = prefix.GetCellWidth() + 1 + row.StatusGlyph.GetCellWidth() + 1;
         var available = Math.Max(0, width - fixedWidth);
         var cueWidth = cue.GetCellWidth();
@@ -219,8 +230,8 @@ public sealed class PlannerMultiDayCellLayout
 
     private static string LanePrefix(bool selected, bool firstSegment, bool reserveSelectionColumn = false) => selected switch
     {
-        true when firstSegment => "▶",
-        true => " ▶",
+        true when firstSegment => TodoGlyphs.PlannerSelectedPointer,
+        true => $" {TodoGlyphs.PlannerSelectedPointer}",
         false when reserveSelectionColumn && !firstSegment => "  ",
         false => " "
     };

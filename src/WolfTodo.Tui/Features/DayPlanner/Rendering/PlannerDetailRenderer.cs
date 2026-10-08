@@ -102,7 +102,8 @@ public sealed class PlannerDetailRenderer
         {
             lines.Add(new Text(string.Empty));
             lines.Add(new Text("NOTES", themeRenderer.Style(theme.Heading, Decoration.Bold)));
-            lines.AddRange(todo.Notes.Select(note => new Text($"• {note.Text}", themeRenderer.Style(theme.Text))));
+            lines.AddRange(todo.Notes.Select(note =>
+                new Text($"{TodoGlyphs.NoteBullet} {note.Text}", themeRenderer.Style(theme.Text))));
         }
 
         if (todo.Subtasks.Length > 0)

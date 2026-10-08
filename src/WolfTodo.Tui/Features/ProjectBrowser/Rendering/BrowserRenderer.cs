@@ -451,7 +451,7 @@ public sealed class BrowserRenderer
                 : row.Kind == ProjectRowKind.SavedQuery ? theme.Date : theme.Text;
             AppendStyled(
                 line,
-                row.IsSelected ? ">" : " ",
+                row.IsSelected ? TodoGlyphs.SelectedGlyph : " ",
                 rowColor,
                 row.IsSelected ? Decoration.Bold : Decoration.None);
             AppendStyled(
@@ -579,7 +579,8 @@ public sealed class BrowserRenderer
                 {
                     lines.Add(new Text(string.Empty));
                     lines.Add(new Text("NOTES", ThemeStyle(theme.Heading, Decoration.Bold)));
-                    lines.AddRange(todo.Notes.Select(note => new Text($"• {note.Text}", ThemeStyle(theme.Text))));
+                    lines.AddRange(todo.Notes.Select(note =>
+                        new Text($"{TodoGlyphs.NoteBullet} {note.Text}", ThemeStyle(theme.Text))));
                 }
 
                 if (todo.Subtasks.Length > 0)
@@ -797,7 +798,7 @@ public sealed class BrowserRenderer
         bool selected,
         TuiTheme theme)
     {
-        var cursor = selected ? ">" : " ";
+        var cursor = selected ? TodoGlyphs.SelectedGlyph : " ";
         var treePrefix = TodoTreeFormatter.Format(treePath);
         var status = TodoStatusGlyph(todo.IsCompleted);
         var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
@@ -805,7 +806,7 @@ public sealed class BrowserRenderer
         var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
         var schedule = todo.Schedule is null
             ? string.Empty
-            : $" ⏳ {FormatSchedule(todo.Schedule)}";
+            : $" {TodoGlyphs.ScheduleGlyph} {FormatSchedule(todo.Schedule)}";
 
         var line = new System.Text.StringBuilder();
         AppendStyled(

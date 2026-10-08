@@ -1,6 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Controls;
 
@@ -68,7 +69,7 @@ public sealed class SelectList : ITuiComponent<SelectListView, SelectListOutcome
                 var color = !option.IsEnabled ? theme.Muted : selected ? theme.AccentBright : theme.Text;
                 var decoration = !option.IsEnabled ? Decoration.Dim : selected ? Decoration.Bold : Decoration.None;
                 var detail = string.IsNullOrWhiteSpace(option.Detail) ? string.Empty : $"  {option.Detail}";
-                lines.Add(new Text($"{(selected ? ">" : " ")} {option.Label}{detail}",
+                lines.Add(new Text($"{(selected ? TodoGlyphs.SelectedGlyph : " ")} {option.Label}{detail}",
                     new Style(color, decoration: decoration)).Ellipsis());
             }
         }

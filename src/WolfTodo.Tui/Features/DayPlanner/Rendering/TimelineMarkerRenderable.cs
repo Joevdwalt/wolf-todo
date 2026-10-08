@@ -1,5 +1,6 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
+using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Features.DayPlanner.Rendering;
 
@@ -53,8 +54,8 @@ internal sealed class TimelineMarkerRenderable(
     private List<Segment> PomodoroSegments(int maxWidth, TimeSpan remaining)
     {
         var timer = timerStyle ?? nowStyle;
-        const string nowPrefix = "┣━━ NOW · ";
-        var pomodoroCountdown = $"◷ {FormatCountdown(remaining)}";
+        var nowPrefix = $"{TodoGlyphs.PlannerNowMarkerPrefix} NOW · ";
+        var pomodoroCountdown = $"{TodoGlyphs.PomodoroGlyph} {FormatCountdown(remaining)}";
         var meetingPrefix = timeUntilNextMeeting is { } meetingCountdown
             ? $" · NEXT {FormatDuration(meetingCountdown)}"
             : string.Empty;
@@ -102,10 +103,10 @@ internal sealed class TimelineMarkerRenderable(
     {
         if (timeUntilNextMeeting is not { } countdown)
         {
-            return "┣━━ NOW ";
+            return $"{TodoGlyphs.PlannerNowMarkerPrefix} NOW ";
         }
 
-        var prefix = $"┣━━ NOW · {FormatDuration(countdown)}";
+        var prefix = $"{TodoGlyphs.PlannerNowMarkerPrefix} NOW · {FormatDuration(countdown)}";
         var title = Normalize(nextMeetingTitle);
         if (title is null)
         {

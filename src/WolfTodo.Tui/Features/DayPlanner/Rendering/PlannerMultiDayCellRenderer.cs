@@ -37,7 +37,7 @@ public sealed class PlannerMultiDayCellRenderer
         {
             var laneEntries = laneSegments.Select(segment => segment.Row is { } row
                 ? RenderItem(row, theme)
-                : new Text("  │", themeRenderer.Style(theme.Muted, Decoration.Dim))).ToArray();
+                : new Text($"  {TodoGlyphs.TreeContinuationGlyph}", themeRenderer.Style(theme.Muted, Decoration.Dim))).ToArray();
             return BuildCellTable(laneEntries, plan.SegmentWidths, theme);
         }
 
@@ -53,7 +53,7 @@ public sealed class PlannerMultiDayCellRenderer
     private IRenderable RenderEmptySlot(PlannerTimelineRenderRow row, TuiTheme theme) =>
         row.IsSelected
             ? lineRenderer.PlannerTimelineRenderLine(row, theme)
-            : new Text("  │", themeRenderer.Style(theme.Muted, Decoration.Dim));
+            : new Text($"  {TodoGlyphs.TreeContinuationGlyph}", themeRenderer.Style(theme.Muted, Decoration.Dim));
 
     // Continuation rows contain only a path; starts carry a status glyph and title.
     private IRenderable RenderItem(PlannerTimelineRenderRow row, TuiTheme theme)
