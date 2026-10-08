@@ -33,12 +33,13 @@ public sealed class PlannerTimelineLineRenderer
         var selected = row.IsSelected;
         var active = row.IsActive;
         var selectionBridge = row.IsSelectionBridge && !active;
-        var completed = row.ItemType == PlannerItemType.Task && row.StatusGlyph == "✓";
+        var completed = row.ItemType == PlannerItemType.Task &&
+            row.StatusGlyph == TodoGlyphs.CompletedTodoGlyph;
         var color = row switch
         {
             { ItemType: PlannerItemType.Pomodoro } => theme.Timer,
             { IsActive: true } => theme.AccentBright,
-            { ItemType: PlannerItemType.Task, StatusGlyph: "✓" } => theme.Muted,
+            { ItemType: PlannerItemType.Task, StatusGlyph: TodoGlyphs.CompletedTodoGlyph } => theme.Muted,
             { ItemType: PlannerItemType.Task } => theme.Text,
             { ItemType: null } => theme.Muted,
             { ItemType: PlannerItemType.Meeting or PlannerItemType.CalendarEvent } => theme.Info,
@@ -93,7 +94,7 @@ public sealed class PlannerTimelineLineRenderer
         {
             var glyphColor = row switch
             {
-                { ItemType: PlannerItemType.Task, StatusGlyph: "✓" } => color,
+                { ItemType: PlannerItemType.Task, StatusGlyph: TodoGlyphs.CompletedTodoGlyph } => color,
                 { ItemType: PlannerItemType.Task, IsActive: true } => theme.AccentBright,
                 { ItemType: PlannerItemType.Task } => theme.Accent,
                 PlannerTimelineRenderRow otherRow => color

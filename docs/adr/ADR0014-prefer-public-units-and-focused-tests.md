@@ -29,6 +29,10 @@ Prefer extracting focused public classes or public methods over growing a large
 adapter with many private helpers. Composition roots and adapter APIs should
 remain small and primarily glue focused units together.
 
+Focused presentation operations that apply a consistent style or format to a
+segment, such as appending a detail segment with completion styling, are useful
+public behavior boundaries when they can be named and tested independently.
+
 Tests should target the smallest practical observable behavior. Maintain a
 small set of top-level API tests to prove wiring and integration, but do not
 rely on comprehensive tests through the main API when behavior can be verified

@@ -20,9 +20,6 @@ public sealed class BrowserRenderer
 {
     private const int TodoSelectionLookAheadRows = 10;
 
-    private const string OpenTodoGlyph = "◯";
-    private const string CompletedTodoGlyph = "✓";
-
     private readonly Func<int> widthProvider;
     private readonly Func<int> heightProvider;
     private readonly Func<DateOnly> todayProvider;
@@ -745,7 +742,7 @@ public sealed class BrowserRenderer
     };
 
     public static string TodoStatusGlyph(bool isCompleted) =>
-        isCompleted ? CompletedTodoGlyph : OpenTodoGlyph;
+        isCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
 
     public static string Truncate(string value, int width)
     {

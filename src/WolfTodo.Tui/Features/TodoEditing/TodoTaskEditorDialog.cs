@@ -4,6 +4,7 @@ using Spectre.Console.Rendering;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Features.TodoEditing;
 
@@ -121,7 +122,7 @@ public static class TodoTaskEditorDialog
             var selection = TodoTaskEditorState.ContentIndex + 1 + index;
             var selected = selection == editor.SelectedIndex;
             var marker = selected ? ">" : " ";
-            var icon = subtask.IsCompleted ? "✓" : "◯";
+            var icon = subtask.IsCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
             var suffix = subtask.DescendantCount > 0 ? $"  +{subtask.DescendantCount} nested" : string.Empty;
             var branch = index == editor.Subtasks.Length - 1 ? "└─" : "├─";
             var prefix = $"{marker} {branch} {icon} - ";

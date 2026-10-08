@@ -10,8 +10,6 @@ namespace WolfTodo.Tui.Features.ProjectBrowser.Rendering;
 
 public sealed class TodoRowRenderer
 {
-    private const string OpenTodoGlyph = "◯";
-    private const string CompletedTodoGlyph = "✓";
     private static readonly SurfaceThemeRenderer ThemeRenderer = new();
 
     public static TodoRowRenderer Default { get; } = new();
@@ -39,8 +37,8 @@ public sealed class TodoRowRenderer
     public IRenderable ListRow(TodoRow row, TodoColumnLayout layout, TuiTheme theme)
     {
         var todo = row.Todo!;
-        var cursor = row.IsSelected ? ">" : " ";
-        var mark = row.IsMarked ? "*" : " ";
+        var cursor = row.IsSelected ? TodoGlyphs.SelectedGlyph : " ";
+        var mark = row.IsMarked ? TodoGlyphs.MarkedGlyph : " ";
         var treePrefix = TodoTreeFormatter.Format(row.TreePath);
         var status = StatusGlyph(todo.IsCompleted);
         var priority = PriorityCode(todo.Priority);
@@ -131,48 +129,60 @@ public sealed class TodoRowRenderer
         bool selected,
         TuiTheme theme)
     {
-        var cursor = selected ? ">" : " ";
+        var cursor = selected ? TodoGlyphs.SelectedGlyph : " ";
         var treePrefix = TodoTreeFormatter.Format(treePath);
         var status = StatusGlyph(todo.IsCompleted);
         var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
         var priority = PriorityCode(todo.Priority);
         var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
         var schedule = todo.Schedule is null ? string.Empty : $" ⏳ {FormatSchedule(todo.Schedule)}";
-
         var line = new System.Text.StringBuilder();
+        var (cursorColor, cursorDecoration) = (selected, todo.IsCompleted) switch
+        {
+            (true, _) => (theme.Accent, Decoration.Bold),
+            (false, true) => (theme.Muted, Decoration.Dim),
+            (false, false) => (theme.Text, Decoration.None)
+        };
+        var treeColor = selected ? theme.Accent : theme.Muted;
+
         ThemeRenderer.AppendStyled(
             line,
             cursor,
-            selected ? theme.Accent : todo.IsCompleted ? theme.Muted : theme.Text,
-            selected ? Decoration.Bold : todo.IsCompleted ? Decoration.Dim : Decoration.None);
+            cursorColor,
+            cursorDecoration);
         ThemeRenderer.AppendStyled(
             line,
             $" {treePrefix}",
-            selected ? theme.Accent : theme.Muted,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        ThemeRenderer.AppendStyled(
+            treeColor,
+            CompletedDecoration(todo.IsCompleted));
+        AppendDetailSegment(line, status, theme.Accent, todo.IsCompleted, theme);
+        AppendDetailSegment(
             line,
-            status,
-            todo.IsCompleted ? theme.Muted : theme.Accent,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        ThemeRenderer.AppendStyled(line, $" {priority}", todo.IsCompleted ? theme.Muted : PriorityColor(todo.Priority, theme));
-        ThemeRenderer.AppendStyled(
-            line,
-            $" {reference}{todo.Title}",
-            todo.IsCompleted ? theme.Muted : theme.Text,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        ThemeRenderer.AppendStyled(
-            line,
-            tags,
-            todo.IsCompleted ? theme.Muted : theme.Tag,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
-        ThemeRenderer.AppendStyled(
-            line,
-            schedule,
-            todo.IsCompleted ? theme.Muted : theme.Date,
-            todo.IsCompleted ? Decoration.Dim : Decoration.None);
+            $" {priority}",
+            PriorityColor(todo.Priority, theme),
+            todo.IsCompleted,
+            theme);
+        AppendDetailSegment(line, $" {reference}{todo.Title}", theme.Text, todo.IsCompleted, theme);
+        AppendDetailSegment(line, tags, theme.Tag, todo.IsCompleted, theme);
+        AppendDetailSegment(line, schedule, theme.Date, todo.IsCompleted, theme);
+
         return new Markup(line.ToString());
     }
+
+    public static void AppendDetailSegment(
+        System.Text.StringBuilder line,
+        string value,
+        Color color,
+        bool isCompleted,
+        TuiTheme theme) =>
+        ThemeRenderer.AppendStyled(
+            line,
+            value,
+            isCompleted ? theme.Muted : color,
+            CompletedDecoration(isCompleted));
+
+    private static Decoration CompletedDecoration(bool isCompleted) =>
+        isCompleted ? Decoration.Dim : Decoration.None;
 
     public string FormatSchedule(TodoSchedule schedule) =>
         schedule.Time is null
@@ -193,7 +203,7 @@ public sealed class TodoRowRenderer
     };
 
     public string StatusGlyph(bool isCompleted) =>
-        isCompleted ? CompletedTodoGlyph : OpenTodoGlyph;
+        isCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
 
     public string FitColumn(string value, int width)
     {

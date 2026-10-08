@@ -140,7 +140,7 @@ public sealed class FocusedTaskRenderer(
     {
         var prefix = item.IsSelected ? "> " : "  ";
         var tree = title ? string.Empty : TodoTreeFormatter.Format(item.TreePath);
-        var glyph = item.Todo.IsCompleted ? "✓" : "◯";
+        var glyph = item.Todo.IsCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
         var style = item.IsSelected
             ? themeRenderer.Style(theme.AccentBright, Decoration.Bold)
             : item.Todo.IsCompleted
