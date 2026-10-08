@@ -138,7 +138,7 @@ public sealed class FocusedTaskRenderer(
 
     private CardLine ItemLine(FocusedTaskItem item, TuiTheme theme, bool title)
     {
-        var prefix = item.IsSelected ? "> " : "  ";
+        var prefix = item.IsSelected ? $"{TodoGlyphs.SelectedGlyph} " : "  ";
         var tree = title ? string.Empty : TodoTreeFormatter.Format(item.TreePath);
         var glyph = item.Todo.IsCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
         var style = item.IsSelected
@@ -166,7 +166,7 @@ public sealed class FocusedTaskRenderer(
                 ? $"{todo.Schedule.Date:yyyy-MM-dd} {time:HH:mm}"
                 : $"{todo.Schedule.Date:yyyy-MM-dd}");
         }
-        if (todo.Duration is { } duration) values.Add($"◷ {(int)duration.TotalMinutes}m");
+        if (todo.Duration is { } duration) values.Add($"{TodoGlyphs.PomodoroGlyph} {(int)duration.TotalMinutes}m");
         if (!string.IsNullOrWhiteSpace(todo.ExternalReference)) values.Add(todo.ExternalReference);
         return string.Join("  ", values);
     }

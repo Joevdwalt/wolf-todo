@@ -83,7 +83,8 @@ public sealed class PlannerMultiDayTimelineRenderer
         var paneWidth = Math.Max(24, (terminalWidth - 12 - columns.Count) / columns.Count - 2);
         foreach (var column in columns)
         {
-            var heading = (column.IsActive ? "▶ " : "  ") + column.Date.ToString("ddd dd").ToUpperInvariant();
+            var heading = (column.IsActive ? $"{TodoGlyphs.PlannerSelectedPointer} " : "  ") +
+                          column.Date.ToString("ddd dd").ToUpperInvariant();
             table.AddColumn(new TableColumn(new Text(
                 heading,
                 themeRenderer.Style(column.IsActive ? theme.AccentBright : theme.Accent, Decoration.Bold)))
@@ -161,7 +162,7 @@ public sealed class PlannerMultiDayTimelineRenderer
         foreach (var column in columns)
         {
             cells.Add(column.Date != today
-                ? new Text("  │", themeRenderer.Style(theme.Muted, Decoration.Dim))
+                ? new Text($"  {TodoGlyphs.TreeContinuationGlyph}", themeRenderer.Style(theme.Muted, Decoration.Dim))
                 : new TimelineMarkerRenderable(
                     themeRenderer.Style(theme.Now, Decoration.Bold),
                     nextMeeting is null ? null : nextMeeting.Start - currentTime,
@@ -201,15 +202,20 @@ public sealed class PlannerMultiDayTimelineRenderer
         }
         else if (column.IsActive && paneView.State.Focus == PlannerFocus.AllDay)
         {
-            lines = [new Text("▶ — ADD ALL-DAY TASK", themeRenderer.Style(theme.AccentBright, Decoration.Bold))];
+            lines =
+            [
+                new Text(
+                    $"{TodoGlyphs.PlannerSelectedPointer} {TodoGlyphs.PlannerTimeTick} ADD ALL-DAY TASK",
+                    themeRenderer.Style(theme.AccentBright, Decoration.Bold))
+            ];
         }
         else
         {
-            lines = [new Text("—", themeRenderer.Style(theme.Muted, Decoration.Dim))];
+            lines = [new Text(TodoGlyphs.PlannerTimeTick, themeRenderer.Style(theme.Muted, Decoration.Dim))];
         }
 
         var content = new Rows(lines.Take(height).Concat(Enumerable.Repeat<IRenderable>(
-                new Text("—", themeRenderer.Style(theme.Muted, Decoration.Dim)),
+                new Text(TodoGlyphs.PlannerTimeTick, themeRenderer.Style(theme.Muted, Decoration.Dim)),
                 Math.Max(0, height - lines.Length)))
             .ToArray());
 
@@ -232,8 +238,8 @@ public sealed class PlannerMultiDayTimelineRenderer
         var glyph = item.IsCompleted switch
         {
             true => TodoGlyphs.CompletedTodoGlyph,
-            false when item.Assignment is null => "◆",
-            false => "○"
+            false when item.Assignment is null => TodoGlyphs.PlannerCalendarItem,
+            false => TodoGlyphs.PlannerOpenTaskStatus
         };
 
         var (color, decoration) = selected switch
@@ -244,7 +250,7 @@ public sealed class PlannerMultiDayTimelineRenderer
             false => (theme.Text, Decoration.None)
         };
 
-        var marker = selected ? "▶" : " ";
+        var marker = selected ? TodoGlyphs.PlannerSelectedPointer : " ";
 
         return new Text($"{marker} {glyph} {item.Title}",
             themeRenderer.Style(color, decoration)).Ellipsis();

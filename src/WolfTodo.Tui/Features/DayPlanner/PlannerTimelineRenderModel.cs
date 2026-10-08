@@ -19,8 +19,9 @@ public static class PlannerTimelineRenderModel
         return
         [
             new PlannerTimelineRenderRow(
-                timeLabel, minorTick, minorTick ? "—" : string.Empty,
-                slot.IsSelected ? "├▶" : "│", string.Empty, string.Empty, string.Empty,
+                timeLabel, minorTick, minorTick ? TodoGlyphs.PlannerTimeTick : string.Empty,
+                slot.IsSelected ? TodoGlyphs.PlannerSelectedBranch : TodoGlyphs.TreeContinuationGlyph,
+                string.Empty, string.Empty, string.Empty,
                 slot.IsSelected, false, false, null, null)
         ];
     }
@@ -46,7 +47,7 @@ public static class PlannerTimelineRenderModel
             ? $"· {(int)duration.TotalMinutes}m"
             : string.Empty;
         return new PlannerTimelineRenderRow(
-            timeLabel, minorTick, minorTick ? "—" : string.Empty,
+            timeLabel, minorTick, minorTick ? TodoGlyphs.PlannerTimeTick : string.Empty,
             branch, status, hasContent ? item.Title : string.Empty, metadata,
             item.IsSelected, item.IsActive, item.IsSelectionBridge, item.ItemType, item.IntervalState);
     }
@@ -54,10 +55,10 @@ public static class PlannerTimelineRenderModel
     private static string StatusGlyph(PlannerTimelineItemView item) => item.ItemType switch
     {
         PlannerItemType.Task when item.IsCompleted => TodoGlyphs.CompletedTodoGlyph,
-        PlannerItemType.Task => "○",
-        PlannerItemType.Meeting => "⬥",
-        PlannerItemType.CalendarEvent => "⬥",
-        PlannerItemType.Pomodoro => "◷",
+        PlannerItemType.Task => TodoGlyphs.PlannerOpenTaskStatus,
+        PlannerItemType.Meeting => TodoGlyphs.PlannerMeetingStatus,
+        PlannerItemType.CalendarEvent => TodoGlyphs.PlannerMeetingStatus,
+        PlannerItemType.Pomodoro => TodoGlyphs.PomodoroGlyph,
         PlannerItemType unknownItemType => throw new ArgumentOutOfRangeException(
             nameof(item.ItemType), unknownItemType, "Unsupported planner item type.")
     };
@@ -66,19 +67,19 @@ public static class PlannerTimelineRenderModel
     {
         if (item.IsSelected)
         {
-            return "├▶";
+            return TodoGlyphs.PlannerSelectedBranch;
         }
 
         var isLastOfSeveralItems = index == count - 1 && count > 1;
         var branch = item.IntervalState switch
         {
-            PlannerIntervalState.Start => "├─",
-            PlannerIntervalState.Continue => "│",
-            PlannerIntervalState.End => "└─",
-            PlannerIntervalState.Instant when isLastOfSeveralItems => "└─",
-            PlannerIntervalState.Instant => "├─",
-            PlannerIntervalState.StartAndEnd when isLastOfSeveralItems => "└─",
-            PlannerIntervalState.StartAndEnd => "├─",
+            PlannerIntervalState.Start => TodoGlyphs.TreeBranchGlyph,
+            PlannerIntervalState.Continue => TodoGlyphs.TreeContinuationGlyph,
+            PlannerIntervalState.End => TodoGlyphs.TreeEndBranchGlyph,
+            PlannerIntervalState.Instant when isLastOfSeveralItems => TodoGlyphs.TreeEndBranchGlyph,
+            PlannerIntervalState.Instant => TodoGlyphs.TreeBranchGlyph,
+            PlannerIntervalState.StartAndEnd when isLastOfSeveralItems => TodoGlyphs.TreeEndBranchGlyph,
+            PlannerIntervalState.StartAndEnd => TodoGlyphs.TreeBranchGlyph,
             PlannerIntervalState unknownIntervalState => throw new ArgumentOutOfRangeException(
                 nameof(item.IntervalState), unknownIntervalState, "Unsupported planner interval state.")
         };
@@ -86,9 +87,9 @@ public static class PlannerTimelineRenderModel
         // Keep a selected duration's bridged lane open, but only replace a
         // glyph that would otherwise close it. Starts and continuations retain
         // their ordinary ├─ and │ shapes.
-        if (item.IsSelectionBridge && branch == "└─" && index < count - 1)
+        if (item.IsSelectionBridge && branch == TodoGlyphs.TreeEndBranchGlyph && index < count - 1)
         {
-            return "├─";
+            return TodoGlyphs.TreeBranchGlyph;
         }
 
         return branch;

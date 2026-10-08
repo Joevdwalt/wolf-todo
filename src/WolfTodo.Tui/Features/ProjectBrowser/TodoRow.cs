@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Features.ProjectBrowser;
 
@@ -35,10 +36,12 @@ public static class TodoTreeFormatter
         var prefix = new System.Text.StringBuilder();
         foreach (var segment in path[..^1])
         {
-            prefix.Append(segment == TodoTreeSegment.HasFollowingSibling ? "│  " : "   ");
+            prefix.Append(segment == TodoTreeSegment.HasFollowingSibling ? $"{TodoGlyphs.TreeContinuationGlyph}  " : "   ");
         }
 
-        prefix.Append(path[^1] == TodoTreeSegment.HasFollowingSibling ? "├─ " : "└─ ");
+        prefix.Append(path[^1] == TodoTreeSegment.HasFollowingSibling
+            ? $"{TodoGlyphs.TreeBranchGlyph} "
+            : $"{TodoGlyphs.TreeEndBranchGlyph} ");
         return prefix.ToString();
     }
 
@@ -50,6 +53,6 @@ public static class TodoTreeFormatter
         }
 
         return string.Concat(path.Select(segment =>
-            segment == TodoTreeSegment.HasFollowingSibling ? "│  " : "   "));
+            segment == TodoTreeSegment.HasFollowingSibling ? $"{TodoGlyphs.TreeContinuationGlyph}  " : "   "));
     }
 }

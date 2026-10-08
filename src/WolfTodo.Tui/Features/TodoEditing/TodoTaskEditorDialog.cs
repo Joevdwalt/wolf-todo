@@ -121,10 +121,12 @@ public static class TodoTaskEditorDialog
             var subtask = editor.Subtasks[index];
             var selection = TodoTaskEditorState.ContentIndex + 1 + index;
             var selected = selection == editor.SelectedIndex;
-            var marker = selected ? ">" : " ";
+            var marker = selected ? TodoGlyphs.SelectedGlyph : " ";
             var icon = subtask.IsCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
             var suffix = subtask.DescendantCount > 0 ? $"  +{subtask.DescendantCount} nested" : string.Empty;
-            var branch = index == editor.Subtasks.Length - 1 ? "└─" : "├─";
+            var branch = index == editor.Subtasks.Length - 1
+                ? TodoGlyphs.TreeEndBranchGlyph
+                : TodoGlyphs.TreeBranchGlyph;
             var prefix = $"{marker} {branch} {icon} - ";
             var value = prefix + Truncate(subtask.Title, Math.Max(1, width - prefix.Length - suffix.Length)) + suffix;
             rows.Add((selection, new(value, selected

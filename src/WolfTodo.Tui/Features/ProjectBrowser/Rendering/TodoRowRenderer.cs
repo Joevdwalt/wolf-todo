@@ -135,7 +135,9 @@ public sealed class TodoRowRenderer
         var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
         var priority = PriorityCode(todo.Priority);
         var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
-        var schedule = todo.Schedule is null ? string.Empty : $" ⏳ {FormatSchedule(todo.Schedule)}";
+        var schedule = todo.Schedule is null
+            ? string.Empty
+            : $" {TodoGlyphs.ScheduleGlyph} {FormatSchedule(todo.Schedule)}";
         var line = new System.Text.StringBuilder();
         var (cursorColor, cursorDecoration) = (selected, todo.IsCompleted) switch
         {

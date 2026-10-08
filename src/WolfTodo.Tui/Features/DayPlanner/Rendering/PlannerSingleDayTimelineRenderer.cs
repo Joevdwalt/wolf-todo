@@ -50,7 +50,7 @@ public sealed class PlannerSingleDayTimelineRenderer
             .ToArray());
 
     private IRenderable PlannerTimelinePaddingLine(TuiTheme theme) =>
-        new Text("│", themeRenderer.Style(theme.Muted, Decoration.Dim));
+        new Text(TodoGlyphs.TreeContinuationGlyph, themeRenderer.Style(theme.Muted, Decoration.Dim));
 
     public void AddPlannerTimelineRows(
         Table table,

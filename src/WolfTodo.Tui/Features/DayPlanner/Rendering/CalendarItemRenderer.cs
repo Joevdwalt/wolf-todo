@@ -14,7 +14,7 @@ public sealed class CalendarItemRenderer
     private readonly TodoRowRenderer todoRowRenderer = new();
 
     public string MeetingHint(PlannerSlotView slot) =>
-        slot.Meetings.Length == 0 ? string.Empty : $"  ⚠ {MeetingLabel(slot.Meetings[0])}" +
+        slot.Meetings.Length == 0 ? string.Empty : $"  {TodoGlyphs.PlannerMeetingWarning} {MeetingLabel(slot.Meetings[0])}" +
             (slot.Meetings.Length > 1 ? $" +{slot.Meetings.Length - 1}" : string.Empty);
 
     public string MeetingLabel(PlannerCalendarMeeting meeting) =>
@@ -133,7 +133,9 @@ public sealed class CalendarItemRenderer
         if (view.CalendarAgenda.AllDayItems.Length == 0)
         {
             return view.State.Focus == PlannerFocus.AllDay
-                ? [new Text("> — ADD ALL-DAY TASK", themeRenderer.Style(theme.AccentBright, Decoration.Bold))]
+                ? [new Text(
+                    $"{TodoGlyphs.SelectedGlyph} {TodoGlyphs.PlannerTimeTick} ADD ALL-DAY TASK",
+                    themeRenderer.Style(theme.AccentBright, Decoration.Bold))]
                 : [new Text("NO ALL-DAY ITEMS", themeRenderer.Style(theme.Muted, Decoration.Dim))];
         }
 
@@ -145,7 +147,7 @@ public sealed class CalendarItemRenderer
                 return CalendarTodoLine(
                     item.Todo,
                     item.ProjectTitle,
-                    selected ? ">" : " ",
+                    selected ? TodoGlyphs.SelectedGlyph : " ",
                     selected,
                     string.Empty,
                     theme).Ellipsis();
@@ -153,7 +155,9 @@ public sealed class CalendarItemRenderer
 
             var color = selected ? theme.AccentBright : item.IsCompleted ? theme.Muted :
                 item.Kind == PlannerCalendarItemKind.Todo ? theme.Text : theme.Info;
-            return (IRenderable)new Text($"{(selected ? ">" : " ")} ◆ {item.Title}", themeRenderer.Style(
+            return (IRenderable)new Text(
+                $"{(selected ? TodoGlyphs.SelectedGlyph : " ")} {TodoGlyphs.PlannerCalendarItem} {item.Title}",
+                themeRenderer.Style(
                 color,
                 selected ? Decoration.Bold : item.IsCompleted ? Decoration.Dim : Decoration.None)).Ellipsis();
         }).ToArray();
@@ -175,7 +179,9 @@ public sealed class CalendarItemRenderer
         var priorityColor = selected ? theme.AccentBright : completed ? theme.Muted : todoRowRenderer.PriorityColor(todo.Priority, theme);
         var reference = todo.ExternalReference is null ? string.Empty : $"{todo.ExternalReference} - ";
         var tags = todo.Tags.Length == 0 ? string.Empty : $" {string.Join(' ', todo.Tags.Select(tag => $"#{tag}"))}";
-        var schedule = todo.Schedule is null ? string.Empty : $" ⏳ {todoRowRenderer.FormatSchedule(todo.Schedule)}";
+        var schedule = todo.Schedule is null
+            ? string.Empty
+            : $" {TodoGlyphs.ScheduleGlyph} {todoRowRenderer.FormatSchedule(todo.Schedule)}";
         var line = new System.Text.StringBuilder();
 
         themeRenderer.AppendStyled(line, $"{prefix} ", baseColor, decoration);
