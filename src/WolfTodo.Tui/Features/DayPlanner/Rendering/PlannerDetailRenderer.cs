@@ -78,7 +78,7 @@ public sealed class PlannerDetailRenderer
         calendarItemRenderer.AddField(
             lines,
             "Tags",
-            todo.Tags.Length == 0 ? null : string.Join(", ", todo.Tags.Select(tag => $"#{tag}")),
+            todo.Tags.Length == 0 ? null : todoRowRenderer.FormatTags(todo.Tags, ", "),
             theme,
             theme.Tag);
         calendarItemRenderer.AddField(
@@ -165,7 +165,7 @@ public sealed class PlannerDetailRenderer
         {
             assignment.ProjectTitle,
             todo.Priority?.ToString(),
-            todo.Tags.Length == 0 ? null : string.Join(' ', todo.Tags.Select(tag => $"#{tag}")),
+            todo.Tags.Length == 0 ? null : todoRowRenderer.FormatTags(todo.Tags),
             todo.Schedule is null ? null : todoRowRenderer.FormatSchedule(todo.Schedule)
         };
         var line = new System.Text.StringBuilder();

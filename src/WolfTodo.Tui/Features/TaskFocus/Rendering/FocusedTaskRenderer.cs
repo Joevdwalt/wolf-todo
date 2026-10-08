@@ -10,6 +10,7 @@ using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.ProjectBrowser.Rendering;
 using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Features.TaskFocus.Rendering;
@@ -158,7 +159,7 @@ public sealed class FocusedTaskRenderer(
     private static string Metadata(TodoItem todo)
     {
         var values = new List<string>();
-        if (todo.Tags.Length > 0) values.Add(string.Join(' ', todo.Tags.Select(tag => $"#{tag}")));
+        if (todo.Tags.Length > 0) values.Add(TodoRowRenderer.Default.FormatTags(todo.Tags));
         if (todo.Priority is not null) values.Add(todo.Priority.ToString()!.ToUpperInvariant());
         if (todo.Schedule is not null)
         {

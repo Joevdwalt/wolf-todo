@@ -51,7 +51,7 @@ public sealed class NaturalStringComparer : IComparer<string>
         return (left.Length - leftIndex).CompareTo(right.Length - rightIndex);
     }
 
-    private static int CompareNumber(string left, ref int leftIndex, string right, ref int rightIndex)
+    public static int CompareNumber(string left, ref int leftIndex, string right, ref int rightIndex)
     {
         var leftStart = leftIndex;
         var rightStart = rightIndex;
