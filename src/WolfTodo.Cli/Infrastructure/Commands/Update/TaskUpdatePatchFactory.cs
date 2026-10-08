@@ -18,6 +18,10 @@ public sealed class TaskUpdatePatchFactory
         var durationText = CommandOptionValues.OptionalSingle(command.DurationMinutes, "--duration-minutes");
         var duration = ParseDuration(durationText);
         var content = CommandOptionValues.OptionalSingle(command.Content, "--content");
+        var subtasksToAdd = command.Subtasks
+            .Select(title => BuildSubtask(title, false))
+            .Concat(command.CompletedSubtasks.Select(title => BuildSubtask(title, true)))
+            .ToImmutableArray();
 
         if (title is not null && (string.IsNullOrWhiteSpace(title) || title.IndexOfAny(['\r', '\n']) >= 0))
             throw new CommandException("invalid_task", "Option --title must be a non-empty single-line string.");
@@ -71,13 +75,22 @@ public sealed class TaskUpdatePatchFactory
             ClearDuration = command.ClearDuration,
             HasContent = content is not null,
             Content = content,
-            ClearContent = command.ClearContent
+            ClearContent = command.ClearContent,
+            SubtasksToAdd = subtasksToAdd
         };
 
         if (!patch.HasChanges)
             throw new CommandException("missing_update", "Command update requires at least one field option.");
 
         return patch;
+    }
+
+    private static TodoSubtaskUpdate BuildSubtask(string title, bool completed)
+    {
+        if (string.IsNullOrWhiteSpace(title) || title.IndexOfAny(['\r', '\n']) >= 0)
+            throw new CommandException("invalid_task", "Subtask titles must be non-empty single-line strings.");
+
+        return new TodoSubtaskUpdate(null, title.Trim(), completed);
     }
 
     private static bool? ParseCompleted(string[] values)

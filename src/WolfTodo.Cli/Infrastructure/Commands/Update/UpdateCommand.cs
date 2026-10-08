@@ -23,6 +23,8 @@ public sealed class UpdateCommand(UpdateCommandHandler handler)
     [Option("--clear-duration")] public bool ClearDuration { get; set; }
     [Option("--content", CommandOptionType.MultipleValue)] public string[] Content { get; set; } = [];
     [Option("--clear-content")] public bool ClearContent { get; set; }
+    [Option("--subtask", CommandOptionType.MultipleValue)] public string[] Subtasks { get; set; } = [];
+    [Option("--completed-subtask", CommandOptionType.MultipleValue)] public string[] CompletedSubtasks { get; set; } = [];
 
     public int OnExecute() => handler.Execute(this);
 }

@@ -60,7 +60,9 @@ accepts `--completed`, `--title`, `--reference`, `--priority`, repeated
 `--tag`, `--scheduled`, `--time`, `--duration-minutes`, and `--content`, plus
 explicit `--clear-reference`, `--clear-priority`, `--clear-tags`,
 `--clear-time`, `--clear-schedule`, `--clear-duration`, and `--clear-content`
-options. Omitted fields remain unchanged; direct subtasks remain unchanged.
+options. Repeated `--subtask` and `--completed-subtask` options append unchecked
+and completed direct subtasks. Omitted fields and existing subtasks remain
+unchanged.
 Setting and clearing the same field together is invalid.
 
 ## Project and Mutation Behavior

@@ -29,10 +29,11 @@ public sealed record TaskUpdatePatch
     public bool HasContent { get; init; }
     public string? Content { get; init; }
     public bool ClearContent { get; init; }
+    public ImmutableArray<TodoSubtaskUpdate> SubtasksToAdd { get; init; } = [];
 
     public bool HasChanges =>
         Completed is not null || HasTitle || HasReference || ClearReference ||
         HasPriority || ClearPriority || HasTags || ClearTags || HasScheduledDate ||
         HasTime || ClearTime || ClearSchedule || HasDuration || ClearDuration ||
-        HasContent || ClearContent;
+        HasContent || ClearContent || !SubtasksToAdd.IsEmpty;
 }

@@ -35,5 +35,7 @@ public static class CliHelpText
                                   --clear-schedule
                                   --duration-minutes <minutes> | --clear-duration
                                   --content <multiline-text> | --clear-content
+                                  --subtask <title>                   Repeatable, unchecked
+                                  --completed-subtask <title>         Repeatable, completed
                                 """;
 }

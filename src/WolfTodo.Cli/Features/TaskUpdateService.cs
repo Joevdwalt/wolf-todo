@@ -43,7 +43,7 @@ public sealed class TaskUpdateService(
             return TaskUpdateResult.Failure(update.ErrorCode!, update.Error);
         }
 
-        if (SameTask(match.Todo, desired))
+        if (SameTask(match.Todo, desired) && patch.SubtasksToAdd.IsEmpty)
         {
             return TaskUpdateResult.Success(match, changed: false);
         }
@@ -127,7 +127,8 @@ public sealed class TaskUpdateService(
         };
 
         ImmutableArray<TodoSubtaskUpdate> subtasks = [.. current.Subtasks.Select(subtask =>
-            new TodoSubtaskUpdate(subtask.SourceLine, subtask.Title, subtask.IsCompleted))];
+            new TodoSubtaskUpdate(subtask.SourceLine, subtask.Title, subtask.IsCompleted)),
+            .. patch.SubtasksToAdd];
 
         return TaskUpdateBuildResult.Success(new TodoTaskUpdate(
             new TodoUpdate(

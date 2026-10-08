@@ -370,14 +370,16 @@ Update one exact task in place by its current link code:
 ```text
 wtodo update wt1-bfe8eb02 --completed true --priority high
 wtodo update wt1-bfe8eb02 --clear-schedule --clear-content
+wtodo update wt1-bfe8eb02 --subtask "Draft proposal" --completed-subtask "Confirm scope"
 ```
 
 Update options are patch-style: omitted fields are preserved. Completion,
 title, reference, priority, tags, schedule, duration, and content can be
-changed; direct subtasks remain unchanged. Use the explicit `--clear-*`
-options to remove optional values. The command returns the updated task in the
-same JSON shape as `wtodo get` and refuses stale or conflicting Markdown
-changes.
+changed. Repeated `--subtask` and `--completed-subtask` options append unchecked
+and completed direct subtasks in that order. Existing subtasks can be updated
+using their own task codes. Use the explicit `--clear-*` options to remove
+optional values. The command returns the updated task in the same JSON shape as
+`wtodo get` and refuses stale or conflicting Markdown changes.
 
 Each invocation targets one project. A batch is validated completely and
 written through one atomic Markdown replacement; a failure creates no tasks.
