@@ -1,3 +1,4 @@
+using WolfTodo.Tui.Features.Timing;
 using System.Diagnostics;
 using WolfTodo.Tui.Features.ApplicationShell;
 

@@ -16,7 +16,7 @@ public sealed class ProjectBrowserPresenterTests
         var marked = new TodoIdentity("/Alpha.md", 2);
         var state = BrowserState.Initial with
         {
-            ProjectIndex = 2,
+            ProjectIndex = 1,
             MarkedTodos = [marked]
         };
 
@@ -29,7 +29,7 @@ public sealed class ProjectBrowserPresenterTests
     }
 
     [Fact]
-    public void CreateView_adds_today_below_all_and_aggregates_tasks_scheduled_today()
+    public void CreateView_configured_today_aggregates_tasks_scheduled_today()
     {
         var today = new DateOnly(2026, 7, 19);
         var todayPresenter = new ProjectBrowserPresenter(() => today);
@@ -48,10 +48,11 @@ public sealed class ProjectBrowserPresenterTests
 
         var result = todayPresenter.CreateView(
             catalog,
-            BrowserState.Initial with { ProjectIndex = 1 });
+            BrowserState.Initial with { ProjectIndex = 1 },
+            [TodayView()]);
 
         result.Projects.Select(row => row.Title).Should().Equal("All", "@today", "Alpha", "Beta");
-        result.Projects[1].Kind.Should().Be(ProjectRowKind.Today);
+        result.Projects[1].Kind.Should().Be(ProjectRowKind.SavedQuery);
         result.Projects[1].ActiveCount.Should().Be(2);
         result.SelectedProjectTitle.Should().Be("@today");
         result.SelectedProjectPath.Should().BeNull();
@@ -62,7 +63,7 @@ public sealed class ProjectBrowserPresenterTests
     }
 
     [Fact]
-    public void CreateView_today_honors_completed_visibility_filtering_and_sorting()
+    public void CreateView_configured_today_honors_completed_visibility_filtering_and_its_order()
     {
         var today = new DateOnly(2026, 7, 19);
         var todayPresenter = new ProjectBrowserPresenter(() => today);
@@ -82,8 +83,9 @@ public sealed class ProjectBrowserPresenterTests
             Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending)
         };
 
-        var hidden = todayPresenter.CreateView(catalog, state);
-        var shown = todayPresenter.CreateView(catalog, state with { ShowCompleted = true });
+        var nameOrder = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending);
+        var hidden = todayPresenter.CreateView(catalog, state, [TodayView(nameOrder)]);
+        var shown = todayPresenter.CreateView(catalog, state with { ShowCompleted = true }, [TodayView(nameOrder)]);
 
         hidden.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
             .Should().Equal("Alpha 2", "Alpha 10");
@@ -100,11 +102,11 @@ public sealed class ProjectBrowserPresenterTests
             []);
         var state = BrowserState.Initial with { ProjectIndex = 1 };
 
-        var result = new ProjectBrowserPresenter(() => today).CreateView(catalog, state);
+        var result = new ProjectBrowserPresenter(() => today).CreateView(catalog, state, [TodayView()]);
 
         result.Todos.Where(row => row.Todo is not null).Should().BeEmpty();
         result.EmptyMessage.Should().Be(
-            "No active todos scheduled today — use :completed to show completed todos");
+            "No active todos match @today — use :completed to show completed todos");
     }
 
     [Fact]
@@ -122,7 +124,8 @@ public sealed class ProjectBrowserPresenterTests
 
         var result = new ProjectBrowserPresenter(() => today).CreateView(
             catalog,
-            BrowserState.Initial with { ProjectIndex = 1 });
+            BrowserState.Initial with { ProjectIndex = 1 },
+            [TodayView()]);
         var rows = result.Todos.Where(row => row.Todo is not null).ToArray();
 
         rows.Select(row => row.Todo!.Title).Should().Equal("Parent", "Scheduled child");
@@ -148,15 +151,15 @@ public sealed class ProjectBrowserPresenterTests
                 ScheduledTodo("Yesterday late", today.AddDays(-1), 16),
                 ScheduledTodo("Yesterday done", today.AddDays(-1), 12, completed: true))],
             []);
-        var state = BrowserState.Initial with { ProjectIndex = 2 };
+        var state = BrowserState.Initial with { ProjectIndex = 1 };
         var queryPresenter = new ProjectBrowserPresenter(() => today);
 
         var hidden = queryPresenter.CreateView(catalog, state, [savedView]);
         var shown = queryPresenter.CreateView(catalog, state with { ShowCompleted = true }, [savedView]);
 
-        hidden.Projects.Select(row => row.Title).Should().Equal("All", "@today", "@yesterday", "Alpha");
-        hidden.Projects[2].Kind.Should().Be(ProjectRowKind.SavedQuery);
-        hidden.Projects[2].ActiveCount.Should().Be(2);
+        hidden.Projects.Select(row => row.Title).Should().Equal("All", "@yesterday", "Alpha");
+        hidden.Projects[1].Kind.Should().Be(ProjectRowKind.SavedQuery);
+        hidden.Projects[1].ActiveCount.Should().Be(2);
         hidden.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
             .Should().Equal("Yesterday late", "Yesterday early");
         shown.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
@@ -178,11 +181,111 @@ public sealed class ProjectBrowserPresenterTests
 
         var result = new ProjectBrowserPresenter(() => today).CreateView(
             catalog,
-            BrowserState.Initial with { ProjectIndex = 2, FilterText = "report" },
+            BrowserState.Initial with { ProjectIndex = 1, FilterText = "report" },
             [savedView]);
 
         result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
             .Should().Equal("Write report");
+    }
+
+    [Fact]
+    public void CreateView_saved_query_match_reveals_eligible_recursive_subtasks_and_keeps_direct_count()
+    {
+        SavedTodoQuery.TryParse("tag:focus", out var query, out _).Should().BeTrue();
+        var grandchild = Todo("Grandchild") with { SourceLine = 3 };
+        var child = Todo("Child") with { SourceLine = 2, Subtasks = [grandchild] };
+        var parent = Todo("Matching parent") with
+        {
+            SourceLine = 1,
+            Tags = ["focus"],
+            Subtasks = [child, Todo("Completed child", completed: true) with { SourceLine = 4 }]
+        };
+        var view = new SavedSidebarView("@focus", query, TodoSort.Source);
+        var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
+
+        var hidden = presenter.CreateView(catalog, BrowserState.Initial with { ProjectIndex = 1 }, [view]);
+        var shown = presenter.CreateView(
+            catalog,
+            BrowserState.Initial with { ProjectIndex = 1, ShowCompleted = true },
+            [view]);
+
+        hidden.Projects[1].ActiveCount.Should().Be(1);
+        hidden.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Matching parent", "Child", "Grandchild");
+        hidden.Todos.Where(row => row.Todo is not null).Select(row => row.Identity!.SourceLine)
+            .Should().Equal(1, 2, 3);
+        shown.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Matching parent", "Child", "Grandchild", "Completed child");
+    }
+
+    [Fact]
+    public void CreateView_saved_query_match_under_unmatched_parent_keeps_only_its_path_and_search_narrows_expansion()
+    {
+        SavedTodoQuery.TryParse("tag:focus", out var query, out _).Should().BeTrue();
+        var match = Todo("Matching child") with
+        {
+            SourceLine = 2,
+            Tags = ["focus"],
+            Subtasks = [Todo("Child detail") with { SourceLine = 3 }]
+        };
+        var parent = Todo("Context parent") with
+        {
+            SourceLine = 1,
+            Subtasks = [match, Todo("Unrelated sibling") with { SourceLine = 4 }]
+        };
+        var view = new SavedSidebarView("@focus", query, TodoSort.Source);
+        var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
+
+        var expanded = presenter.CreateView(catalog, BrowserState.Initial with { ProjectIndex = 1 }, [view]);
+        var filtered = presenter.CreateView(
+            catalog,
+            BrowserState.Initial with { ProjectIndex = 1, FilterText = "matching child" },
+            [view]);
+        var noSearchMatch = presenter.CreateView(
+            catalog,
+            BrowserState.Initial with { ProjectIndex = 1, FilterText = "absent" },
+            [view]);
+
+        expanded.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Context parent", "Matching child", "Child detail");
+        filtered.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Context parent", "Matching child", "Child detail");
+        noSearchMatch.Todos.Where(row => row.Todo is not null).Should().BeEmpty();
+        expanded.Projects[1].ActiveCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void CreateView_search_finds_a_nonmatching_child_revealed_by_a_saved_query_parent()
+    {
+        SavedTodoQuery.TryParse("tag:focus", out var query, out _).Should().BeTrue();
+        var parent = Todo("Focus parent") with
+        {
+            SourceLine = 1,
+            Tags = ["focus"],
+            Subtasks =
+            [
+                Todo("Needle child") with
+                {
+                    SourceLine = 2,
+                    Subtasks = [Todo("Detail") with { SourceLine = 3 }]
+                },
+                Todo("Other child") with { SourceLine = 4 }
+            ]
+        };
+        var view = new SavedSidebarView("@focus", query, TodoSort.Source);
+        var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
+
+        var result = presenter.CreateView(
+            catalog,
+            BrowserState.Initial with { ProjectIndex = 1, FilterText = "needle" },
+            [view]);
+        var rows = result.Todos.Where(row => row.Todo is not null).ToArray();
+
+        rows.Select(row => row.Todo!.Title).Should().Equal("Focus parent", "Needle child", "Detail");
+        rows.Select(row => row.Identity!.SourceLine).Should().Equal(1, 2, 3);
+        rows.Select(row => TodoTreeFormatter.Format(row.TreePath))
+            .Should().Equal(string.Empty, "└─ ", "   └─ ");
+        result.Projects[1].ActiveCount.Should().Be(1);
     }
 
     [Fact]
@@ -197,7 +300,7 @@ public sealed class ProjectBrowserPresenterTests
 
         var result = presenter.CreateView(catalog, BrowserState.Initial);
 
-        result.Projects[0].Title.Should().Be("All");
+        result.Projects.Select(row => row.Title).Should().Equal("All", "Alpha", "Beta");
         result.Projects[0].ActiveCount.Should().Be(2);
         result.Todos.Where(row => row.Heading is not null).Select(row => row.Heading)
             .Should().Equal("Alpha", "Beta");
@@ -225,7 +328,7 @@ public sealed class ProjectBrowserPresenterTests
     public void CreateView_exposes_selected_source_error_as_a_diagnostic()
     {
         var catalog = new ProjectCatalog([], [new ProjectSourceError("missing", "/missing", "not found")]);
-        var state = BrowserState.Initial with { ProjectIndex = 2 };
+        var state = BrowserState.Initial with { ProjectIndex = 1 };
 
         var result = presenter.CreateView(catalog, state);
 
@@ -305,13 +408,13 @@ public sealed class ProjectBrowserPresenterTests
                 Project("Beta", Todo("Beta match"), Todo("Beta other"))
             ],
             []);
-        var state = BrowserState.Initial with { ProjectIndex = 3, FilterText = "match" };
+        var state = BrowserState.Initial with { ProjectIndex = 2, FilterText = "match" };
 
         var result = presenter.CreateView(catalog, state);
 
         result.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
             .Should().Equal("Beta match");
-        result.Projects[2].ActiveCount.Should().Be(2);
+        result.Projects[1].ActiveCount.Should().Be(2);
     }
 
     [Fact]
@@ -432,7 +535,7 @@ public sealed class ProjectBrowserPresenterTests
     }
 
     [Fact]
-    public void CreateView_search_expansion_keeps_today_and_saved_view_eligibility()
+    public void CreateView_configured_today_and_yesterday_share_saved_view_descendant_context()
     {
         var today = new DateOnly(2026, 7, 22);
         SavedTodoQuery.TryParse("scheduled:t-1", out var query, out _).Should().BeTrue();
@@ -460,16 +563,17 @@ public sealed class ProjectBrowserPresenterTests
 
         var todayResult = queryPresenter.CreateView(
             catalog,
-            BrowserState.Initial with { ProjectIndex = 1, FilterText = "matching" });
+            BrowserState.Initial with { ProjectIndex = 1, FilterText = "matching" },
+            [TodayView()]);
         var savedResult = queryPresenter.CreateView(
             catalog,
-            BrowserState.Initial with { ProjectIndex = 2, FilterText = "matching" },
+            BrowserState.Initial with { ProjectIndex = 1, FilterText = "matching" },
             [queryView]);
 
         todayResult.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
-            .Should().Equal("Matching today parent", "Today child");
+            .Should().Equal("Matching today parent", "Today child", "Tomorrow child");
         savedResult.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
-            .Should().Equal("Matching yesterday parent", "Yesterday child");
+            .Should().Equal("Matching yesterday parent", "Yesterday child", "Today child");
     }
 
     [Fact]
@@ -481,7 +585,7 @@ public sealed class ProjectBrowserPresenterTests
         var parent = Todo("Parent") with { SourceLine = 1, Subtasks = [firstChild, lastChild] };
         var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
 
-        var result = presenter.CreateView(catalog, BrowserState.Initial with { ProjectIndex = 2 });
+        var result = presenter.CreateView(catalog, BrowserState.Initial with { ProjectIndex = 1 });
         var rows = result.Todos.Where(row => row.Todo is not null).ToArray();
 
         rows.Select(row => row.Todo!.Title).Should().Equal(
@@ -504,7 +608,7 @@ public sealed class ProjectBrowserPresenterTests
         var parent = Todo("Completed parent", completed: true) with { SourceLine = 1, Subtasks = [child] };
         var catalog = new ProjectCatalog([Project("Alpha", parent)], []);
 
-        var result = presenter.CreateView(catalog, BrowserState.Initial with { ProjectIndex = 2 });
+        var result = presenter.CreateView(catalog, BrowserState.Initial with { ProjectIndex = 1 });
         var row = result.Todos.Single(item => item.Todo is not null);
 
         row.Todo.Should().BeSameAs(child);
@@ -538,7 +642,7 @@ public sealed class ProjectBrowserPresenterTests
             []);
         var state = BrowserState.Initial with
         {
-            ProjectIndex = 2,
+            ProjectIndex = 1,
             Sort = new TodoSort(TodoSortProperty.Name, direction)
         };
 
@@ -573,7 +677,7 @@ public sealed class ProjectBrowserPresenterTests
             []);
         var state = BrowserState.Initial with
         {
-            ProjectIndex = 2,
+            ProjectIndex = 1,
             Sort = new TodoSort(TodoSortProperty.Schedule, direction)
         };
 
@@ -600,7 +704,7 @@ public sealed class ProjectBrowserPresenterTests
             []);
         var state = BrowserState.Initial with
         {
-            ProjectIndex = 2,
+            ProjectIndex = 1,
             Sort = new TodoSort(TodoSortProperty.Tags, direction)
         };
 
@@ -633,7 +737,7 @@ public sealed class ProjectBrowserPresenterTests
             []);
         var state = BrowserState.Initial with
         {
-            ProjectIndex = 2,
+            ProjectIndex = 1,
             Sort = new TodoSort(TodoSortProperty.Priority, direction)
         };
 
@@ -677,7 +781,7 @@ public sealed class ProjectBrowserPresenterTests
         var catalog = new ProjectCatalog([Project("Alpha", parent, sibling)], []);
         var state = BrowserState.Initial with
         {
-            ProjectIndex = 2,
+            ProjectIndex = 1,
             Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending)
         };
 
@@ -695,7 +799,7 @@ public sealed class ProjectBrowserPresenterTests
             []);
         var state = BrowserState.Initial with
         {
-            ProjectIndex = 2,
+            ProjectIndex = 1,
             ShowCompleted = true,
             Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending)
         };
@@ -714,7 +818,7 @@ public sealed class ProjectBrowserPresenterTests
             []);
         var state = BrowserState.Initial with
         {
-            ProjectIndex = 2,
+            ProjectIndex = 1,
             TodoIndex = 0,
             Sort = new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending),
             PendingTodoSelection = new TodoIdentity("/Alpha.md", 1)
@@ -725,6 +829,12 @@ public sealed class ProjectBrowserPresenterTests
         result.SelectedTodo!.Title.Should().Be("Zulu");
         result.State.TodoIndex.Should().Be(1);
         result.State.PendingTodoSelection.Should().BeNull();
+    }
+
+    private static SavedSidebarView TodayView(TodoSort? order = null)
+    {
+        SavedTodoQuery.TryParse("scheduled:t", out var query, out _).Should().BeTrue();
+        return new SavedSidebarView("@today", query, order ?? TodoSort.Source);
     }
 
     private static TodoProject Project(string title, params TodoItem[] todos) => new(title, $"/{title}.md", [.. todos]);

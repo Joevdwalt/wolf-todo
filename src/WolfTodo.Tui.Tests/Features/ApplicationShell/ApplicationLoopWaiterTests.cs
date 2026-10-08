@@ -1,3 +1,4 @@
+using WolfTodo.Tui.Features.TaskFocus;
 using FluentAssertions;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.Configuration;

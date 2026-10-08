@@ -1,3 +1,5 @@
+using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.TaskFocus;
 using FluentAssertions;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
@@ -27,7 +29,7 @@ public sealed class TaskLinkWorkflowTests
         var opened = workflow.Open(state, Catalog, TaskLinkCode.Generate(Project.Path, 4), 2);
         opened.Tabs.ActiveTab.Should().Be(new TabId("todos"));
         opened.FocusedTask.Should().BeNull();
-        opened.Browser.ProjectIndex.Should().Be(4);
+        opened.Browser.ProjectIndex.Should().Be(3);
         opened.Browser.ShowCompleted.Should().BeTrue();
         opened.Browser.Sort.Should().Be(state.Browser.Sort);
         opened.Browser.FilterText.Should().BeEmpty();

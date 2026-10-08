@@ -1,3 +1,6 @@
+using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.Timing.Rendering;
+using WolfTodo.Tui.Features.TodoEditing;
 using System.Collections.Immutable;
 using Spectre.Console;
 using Spectre.Console.Rendering;
@@ -448,7 +451,7 @@ public sealed class BrowserRenderer
             var line = new System.Text.StringBuilder();
             var rowColor = row.IsSelected
                 ? theme.AccentBright
-                : row.Kind is ProjectRowKind.Today or ProjectRowKind.SavedQuery ? theme.Date : theme.Text;
+                : row.Kind == ProjectRowKind.SavedQuery ? theme.Date : theme.Text;
             AppendStyled(
                 line,
                 row.IsSelected ? ">" : " ",

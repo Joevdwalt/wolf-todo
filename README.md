@@ -37,6 +37,10 @@ Run repository automation through named tasks declared in `TaskFile.yml`.
 This includes build, test, formatting, linting, generation, and maintenance
 operations. Do not use repository scripts directly as the normal workflow.
 
+This repo also uses wtodo cli for task management. If i refer to a task with a
+wt task no, you should invoke this command. Use the skill associacted with wtodo
+for further guidence.
+
 ### Testing in Rider
 
 Wolf Todo uses Microsoft Testing Platform (MTP) with xUnit v3. To discover and
@@ -93,6 +97,11 @@ files = [
   "/absolute/path/to/project-one.md",
   "/absolute/path/to/project-two.md"
 ]
+
+[[sidebar.items]]
+title = "@today"
+query = "scheduled:t"
+order = "scheduled asc"
 
 [[sidebar.items]]
 title = "@yesterday"
@@ -393,13 +402,12 @@ arguments or input, and `1` means configuration, project, parsing, conflict, or
 write failure. An already-running TUI does not watch files; imported tasks
 appear on its next normal catalog reload or launch.
 
-The project sidebar includes a virtual `@today` view directly below `All`.
-It gathers tasks scheduled for the current local date from every valid project,
-keeps project grouping and the active sort, and combines with the `/` filter.
-Completed scheduled tasks remain controlled by `:completed`. Because `@today`
-is a temporary view, closing there reopens `All` on the next launch.
+The project sidebar always starts with `All`. Configure `@today` as a saved
+view with `query = "scheduled:t"` to show tasks scheduled for the current local
+date from every valid project. Saved views are temporary selections, so
+closing there reopens `All` on the next launch.
 
-Additional virtual views can be declared with `[[sidebar.items]]`. Each item
+Virtual views are declared with `[[sidebar.items]]`. Each item
 requires a unique `title`, an AND-combined `query`, and an `order`. Query terms
 use `field:value` syntax. Supported fields are `scheduled`, `tag`, `project`,
 `text`, and `priority`. Scheduled values accept ISO dates and the editor's
@@ -407,10 +415,12 @@ relative expressions (`t`, `t-1`, `t+1`, `w+1`, `mon`, `monday`) plus `<`,
 `<=`, `>`, and `>=`;
 for example `scheduled:<t` finds overdue work. Orders are `source`, `name`,
 `scheduled`, `tags`, `file`, or `priority`, optionally followed by `asc` or
-`desc`. Saved views appear below `@today`, aggregate all projects, retain tree
-context, combine with the live `/` filter, and continue to use `:completed` for
-completed visibility. Relative dates are reevaluated against the current local
-date whenever the view is drawn.
+`desc`. Saved views appear below `All` in configuration order, aggregate all
+projects, and show eligible recursive subtasks beneath a matching task. The live `/` filter
+narrows rows while retaining matching rows' eligible descendants and ancestor
+paths; `:completed` controls visibility of matches and context rows. Saved-view
+counts include only direct open query matches. Relative dates are reevaluated
+against the current local date whenever the view is drawn.
 
 The interface uses a shared operational-console design across Todos and Day
 Planner: a responsive context header, square panels, uppercase structural

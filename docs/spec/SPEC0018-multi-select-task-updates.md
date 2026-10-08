@@ -15,8 +15,8 @@ scheduled date, tag change, priority, or completion update from the Todos view.
   unmarks the task under the Todos cursor. The configured `bulk_edit_todos`
   gesture, `b` by default, opens the bulk editor. The configured
   `clear_todo_selection` gesture, `Ctrl+M` by default, clears every mark.
-- Marks work in concrete projects, All, `@today`, saved-query views, and nested
-  subtasks. Headings and project errors cannot be marked. Marks survive browser
+- Marks work in concrete projects, All, configured views (including `@today`),
+  and nested subtasks. Headings and project errors cannot be marked. Marks survive browser
   navigation, project-view changes, sorting, filtering, and a cancelled or
   rejected bulk edit. They are not persisted and clear when leaving Todos,
   after their successful update, or after another successful write that may

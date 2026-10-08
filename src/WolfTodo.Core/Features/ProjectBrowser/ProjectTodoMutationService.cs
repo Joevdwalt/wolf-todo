@@ -119,7 +119,7 @@ public sealed partial class ProjectTodoMutationService(
                 return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
             }
 
-            var currentByLine = Flatten(parsed.Project.Todos).ToDictionary(todo => todo.SourceLine);
+            var currentByLine = TodoTree.Enumerate(parsed.Project.Todos).ToDictionary(todo => todo.SourceLine);
             if (expected.Any(todo =>
                     !currentByLine.TryGetValue(todo.SourceLine, out var current) ||
                     !SameTarget(current, todo)))
@@ -166,7 +166,7 @@ public sealed partial class ProjectTodoMutationService(
     {
         try
         {
-            var expectedTodos = Flatten(expected.Todos)
+            var expectedTodos = TodoTree.Enumerate(expected.Todos)
                 .Where(todo => !todo.IsCompleted && todo.Schedule?.Date < targetDate)
                 .ToArray();
             if (expectedTodos.Length == 0)
@@ -182,7 +182,7 @@ public sealed partial class ProjectTodoMutationService(
                 return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
             }
 
-            var currentTodos = Flatten(parsed.Project.Todos)
+            var currentTodos = TodoTree.Enumerate(parsed.Project.Todos)
                 .Where(todo => !todo.IsCompleted && todo.Schedule?.Date < targetDate)
                 .ToArray();
             var expectedByLine = expectedTodos.ToDictionary(todo => todo.SourceLine);
@@ -244,7 +244,7 @@ public sealed partial class ProjectTodoMutationService(
                 return TodoMutationResult.Failure(source.Error ?? "Source project cannot be parsed.");
             }
 
-            var current = Flatten(source.Project.Todos).SingleOrDefault(todo => todo.SourceLine == expected.SourceLine);
+            var current = TodoTree.Enumerate(source.Project.Todos).SingleOrDefault(todo => todo.SourceLine == expected.SourceLine);
             if (current is null || !SameTree(current, expected))
             {
                 return TodoMutationResult.Failure("The todo changed on disk. Reload it before moving it.");
@@ -324,7 +324,7 @@ public sealed partial class ProjectTodoMutationService(
                 return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
             }
 
-            var current = Flatten(parsed.Project.Todos)
+            var current = TodoTree.Enumerate(parsed.Project.Todos)
                 .SingleOrDefault(todo => todo.SourceLine == expected.SourceLine);
             if (current is null || !SameTree(current, expected))
             {
@@ -619,7 +619,7 @@ public sealed partial class ProjectTodoMutationService(
                 return TodoMutationResult.Failure(parsed.Error ?? "Project cannot be parsed.");
             }
 
-            var current = Flatten(parsed.Project.Todos)
+            var current = TodoTree.Enumerate(parsed.Project.Todos)
                 .SingleOrDefault(todo => todo.SourceLine == expected.SourceLine);
             if (current is null || !SameTarget(current, expected))
             {
@@ -955,17 +955,6 @@ public sealed partial class ProjectTodoMutationService(
             subtask.Title,
             subtask.IsCompleted))]);
 
-    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
-    {
-        foreach (var todo in todos)
-        {
-            yield return todo;
-            foreach (var subtask in Flatten(todo.Subtasks))
-            {
-                yield return subtask;
-            }
-        }
-    }
 
     private static int FindSectionEnd(IReadOnlyList<string> lines, int start)
     {

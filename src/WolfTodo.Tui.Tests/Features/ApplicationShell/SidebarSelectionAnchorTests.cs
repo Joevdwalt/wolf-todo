@@ -13,7 +13,7 @@ public sealed class SidebarSelectionAnchorTests
         var project = new TodoProject("Work", "/todos/work.md", []);
         var view = new ProjectBrowserPresenter().CreateView(
             new ProjectCatalog([project], []),
-            BrowserState.Initial with { ProjectIndex = 2 });
+            BrowserState.Initial with { ProjectIndex = 1 });
 
         SidebarSelectionAnchor.Capture(view).Should()
             .Be(new SidebarSelectionAnchor(ProjectRowKind.Project, "/todos/work.md"));

@@ -52,20 +52,20 @@ Apply completed-todo visibility before filtering. Match every flattened todo
 and subtask independently. When a subtask matches, retain its eligible ancestor
 path as normal selectable rows so the visible result remains a meaningful tree.
 For every matching todo, also show its eligible recursive subtask tree even
-when those descendants do not match the query. Ancestors included only as
-context do not reveal unrelated siblings or descendants. Descendants must still
-pass completed-todo visibility and any active `@today` or saved-view criteria.
+when those descendants do not match the search text. In a saved view, the
+revealed descendants may inherit eligibility from a query-matching ancestor,
+even when only the descendant matches `/`. Ancestors included only as context
+do not reveal unrelated siblings or descendants. Descendants must still pass
+completed-todo visibility and the saved-view eligibility rule.
 If completion visibility hides an ancestor, promote its visible descendants to
 the nearest visible level and recalculate their tree connectors.
 
 Apply the active session sort after filtering. Changing or clearing a filter
 does not reset the selected sort property or direction.
 
-In `@today` and saved views, direct search matches and descendants revealed by
-those matches must satisfy the virtual view's criteria. For `@today`, that means
-being scheduled for the current local date; saved views use their configured
-query. Ancestors retained for tree context do not need to match the search or
-view criteria.
+In a saved view, including a configured `@today`, rows must match the
+configured query directly or descend from a direct query match. Ancestors
+retained for tree context do not need to match the search or view criteria.
 
 Only show project and section headings that contain matching rows. Project
 active-todo counts remain unfiltered. When no visible row matches, show
@@ -86,7 +86,7 @@ active-todo counts remain unfiltered. When no visible row matches, show
 7. `:completed` continues to control whether matching completed todos are
    eligible for display.
 8. Filtering never modifies project Markdown files.
-9. Search expansion keeps completion and virtual-view eligibility in effect.
+9. Search expansion keeps completion and saved-view eligibility in effect.
 10. Filtering from many rows to one row keeps the status panel at the same
    terminal-relative position in every responsive layout.
 

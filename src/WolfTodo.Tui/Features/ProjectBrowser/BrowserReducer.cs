@@ -1,3 +1,4 @@
+using WolfTodo.Tui.Features.TodoEditing;
 using System.Collections.Immutable;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Core.Features.ProjectBrowser;
@@ -455,7 +456,7 @@ public sealed class BrowserReducer
         }
 
         var today = todayProvider();
-        if (!Flatten(project.Todos).Any(todo =>
+        if (!TodoTree.Enumerate(project.Todos).Any(todo =>
                 !todo.IsCompleted && todo.Schedule?.Date < today))
         {
             return Transition(state with
@@ -475,17 +476,6 @@ public sealed class BrowserReducer
             view.SelectedTodoIdentity);
     }
 
-    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
-    {
-        foreach (var todo in todos)
-        {
-            yield return todo;
-            foreach (var subtask in Flatten(todo.Subtasks))
-            {
-                yield return subtask;
-            }
-        }
-    }
 
     private static BrowserTransition Jump(BrowserState state, BrowserView view, bool bottom) =>
         state.Focus == BrowserFocus.Projects

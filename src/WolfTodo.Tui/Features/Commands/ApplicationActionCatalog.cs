@@ -1,0 +1,238 @@
+using WolfTodo.Tui.Features.TaskFocus;
+using System.Collections.Immutable;
+using WolfTodo.Core.Features.ProjectBrowser;
+using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Features.DayPlanner;
+using WolfTodo.Tui.Features.ProjectBrowser;
+
+namespace WolfTodo.Tui.Features.Commands;
+
+public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = null)
+{
+    private readonly Func<DateOnly> todayProvider = todayProvider ??
+        (() => DateOnly.FromDateTime(DateTime.Today));
+
+    public ImmutableArray<CommandPaletteItem> Create(
+        bool browserActive,
+        BrowserView? browser,
+        PlannerView? planner,
+        TuiKeyBindings bindings,
+        bool plannerExportEnabled = false,
+        bool timerEnabled = false,
+        bool timerRunning = false,
+        FocusedTaskView? focusedTask = null)
+    {
+        if (focusedTask is not null)
+        {
+            var focusTimerReason = timerRunning
+                ? null
+                : timerEnabled ? null : "Configure [timer] to enable task timing.";
+            var focusPomodoroReason = !timerEnabled
+                ? "Configure [timer] to enable Pomodoro timing."
+                : timerRunning ? "Stop the active timer first." : null;
+            return
+            [
+                Item(ApplicationActionId.Exit, "Application", "Quit", "Exit Wolf Todo",
+                    bindings.QuitCommand),
+                Item(ApplicationActionId.OpenConfiguration, "Application", "Edit configuration",
+                    "Open config.toml in $EDITOR", ApplicationCommandCatalog.Configuration),
+                Item(ApplicationActionId.GenerateTaskLink, "Application", "Generate task link",
+                    "Display a code for the highlighted Markdown location", ApplicationCommandCatalog.TaskLink),
+                Item(ApplicationActionId.OpenTaskLink, "Application", "Open task link",
+                    "Enter a task code to open in Todos", ApplicationCommandCatalog.OpenTask),
+                Item(ApplicationActionId.ExitTaskFocus, "Focus", "Exit focus",
+                    "Return to the previous view", Shortest(bindings.Back)),
+                Item(ApplicationActionId.FocusEdit, "Focus", "Edit highlighted task",
+                    "Edit fields, notes, schedule, and subtasks", Shortest(bindings.EditTodoContent)),
+                Item(ApplicationActionId.FocusEditExternal, "Focus", "Edit in $EDITOR",
+                    "Open the highlighted task in its Markdown source", Shortest(bindings.EditTodoExternal)),
+                Item(ApplicationActionId.FocusToggleCompleted, "Focus", "Toggle highlighted task",
+                    "Change the highlighted checkbox", Shortest(bindings.ToggleTodo)),
+                Item(ApplicationActionId.ToggleTimer, "Focus", timerRunning ? "Stop timer" : "Start timer",
+                    "Start, stop, or switch timing for the highlighted task",
+                    Shortest(bindings.ToggleTimer), focusTimerReason),
+                Item(ApplicationActionId.StartPomodoro, "Focus", "Start Pomodoro",
+                    "Start a countdown for the highlighted task",
+                    Shortest(bindings.StartPomodoro), focusPomodoroReason)
+            ];
+        }
+
+        var browserReason = browserActive ? null : "Available in the Todos tab.";
+        var plannerReason = browserActive ? "Available in the Day Planner tab." : null;
+        var selectedReason = browserReason ?? (browser?.SelectedTodo is null ? "Select a todo first." : null);
+        var markedReason = browserReason ?? (browser?.State.MarkedTodos.Count > 0
+            ? null
+            : "Mark at least one todo first.");
+        var selectedProject = browser?.Projects.FirstOrDefault(project => project.IsSelected)?.Project;
+        var rollReason = browserReason ?? (selectedProject is null
+            ? "Select a project first."
+            : TodoTree.Enumerate(selectedProject.Todos).Any(todo =>
+                !todo.IsCompleted && todo.Schedule?.Date < todayProvider())
+                ? null
+                : "The selected project has no incomplete overdue tasks.");
+        var browserCreateReason = browserReason ??
+            (browser!.Projects.Any(project => project.Project is not null)
+                ? null
+                : "No valid projects are available.");
+        var readOnlyAllDay = planner?.State.Focus == PlannerFocus.AllDay &&
+                             planner.SelectedAllDayItem is not null &&
+                             planner.SelectedAllDayAssignment is null;
+        var plannerCreateReason = plannerReason ?? (planner!.Projects.Length == 0
+            ? "No valid projects are available."
+            : null);
+        var plannerSelectedReason = plannerReason ?? (readOnlyAllDay
+            ? "Calendar all-day items are read-only."
+            : planner!.SelectedFocusedAssignment is not null
+                ? null
+                : planner.State.Focus == PlannerFocus.AllDay
+                    ? "No todo is selected in All Day."
+                    : planner.SelectedSlot.Assignments.Length > 1
+                        ? "Resolve the conflicting timeslot first."
+                        : "No todo is assigned to this timeslot.");
+        var plannerAssignReason = plannerReason ?? (readOnlyAllDay
+            ? "Calendar all-day items are read-only."
+            : planner!.State.Focus == PlannerFocus.Timeline && planner.SelectedSlot.Assignments.Length > 1
+                ? "Resolve the conflicting timeslot first."
+                : null);
+        var plannerUnscheduleReason = plannerSelectedReason;
+        var plannerExportReason = plannerReason ?? (plannerExportEnabled
+            ? null
+            : "Configure [planner.export] to enable day schedule export.");
+        var plannerDayReason = plannerReason ??
+                               (planner!.State.ViewMode == PlannerViewMode.MultiDay
+                                   ? "Switch to single-day view first."
+                                   : null);
+        var timerReason = timerRunning
+            ? null
+            : !timerEnabled
+                ? "Configure [timer] to enable task timing."
+            : browserActive ? selectedReason : plannerSelectedReason;
+        var pomodoroReason = !timerEnabled
+            ? "Configure [timer] to enable Pomodoro timing."
+            : timerRunning
+                ? "Stop the active timer first."
+                : null;
+        var untrackedPomodoroReason = !timerEnabled
+            ? "Configure [timer] to enable Pomodoro timing."
+            : timerRunning
+                ? "Stop the active timer first."
+                : null;
+        return
+        [
+            Item(ApplicationActionId.Exit, "Application", "Quit", "Exit Wolf Todo",
+                bindings.QuitCommand),
+            Item(ApplicationActionId.OpenConfiguration, "Application", "Edit configuration",
+                "Open config.toml in $EDITOR", ApplicationCommandCatalog.Configuration),
+            Item(ApplicationActionId.GenerateTaskLink, "Application", "Generate task link",
+                "Display a code for the selected Markdown location", ApplicationCommandCatalog.TaskLink,
+                browserActive ? selectedReason : planner?.SelectedFocusedAssignment is null
+                    ? "Select a Markdown task first." : null),
+            Item(ApplicationActionId.OpenTaskLink, "Application", "Open task link",
+                "Enter a task code to open in Todos", ApplicationCommandCatalog.OpenTask),
+            Item(ApplicationActionId.ToggleCompleted, "Application", "Toggle completed",
+                "Show or hide completed todos", bindings.ToggleCompletedCommand),
+            Item(ApplicationActionId.ToggleTimer, "Application", timerRunning ? "Stop timer" : "Start timer",
+                "Start or stop timing the selected todo", Shortest(bindings.ToggleTimer), timerReason),
+            Item(ApplicationActionId.StartPomodoro, "Application", "Start Pomodoro",
+                "Start for the selected todo, or untracked when none is selected",
+                Shortest(bindings.StartPomodoro), pomodoroReason),
+            Item(ApplicationActionId.StartUntrackedPomodoro, "Application", "Start untracked Pomodoro",
+                "Start a Pomodoro without a todo or time-log entry",
+                Shortest(bindings.StartUntrackedPomodoro), untrackedPomodoroReason),
+            Item(ApplicationActionId.FocusSelectedTask, "Application", "Focus selected task",
+                "Hide other views and work on the selected task", Shortest(bindings.FocusTask),
+                browserActive ? selectedReason : plannerSelectedReason),
+            Item(ApplicationActionId.NextTab, "Application", "Next tab", "Select the next application tab",
+                Shortest(bindings.TabNext)),
+            Item(ApplicationActionId.PreviousTab, "Application", "Previous tab",
+                "Select the previous application tab", Shortest(bindings.TabPrevious)),
+            Item(ApplicationActionId.BrowserFilter, "Todos", "Filter todos", "Edit the todo filter",
+                Shortest(bindings.FilterMode), browserReason),
+            Item(ApplicationActionId.BrowserSort, "Todos", "Sort todos", "Choose a presentation order",
+                Shortest(bindings.SortMode), browserReason),
+            Item(ApplicationActionId.BrowserCreate, "Todos", "Create todo", "Add a todo to a project",
+                Shortest(bindings.CreateTodo), browserCreateReason),
+            Item(ApplicationActionId.BrowserEdit, "Todos", "Edit todo",
+                "Edit fields, notes, and subtasks in one dialog", Shortest(bindings.EditTodo), selectedReason),
+            Item(ApplicationActionId.BrowserEditExternal, "Todos", "Edit in $EDITOR",
+                "Open the Markdown source at the selected todo", Shortest(bindings.EditTodoExternal), selectedReason),
+            Item(ApplicationActionId.BrowserToggleCompleted, "Todos", "Toggle selected todo",
+                "Change the selected checkbox", Shortest(bindings.ToggleTodo), selectedReason),
+            Item(ApplicationActionId.BrowserToggleSelection, "Todos", "Mark or unmark todo",
+                "Toggle the cursor task in the bulk selection",
+                Shortest(bindings.ToggleTodoSelection), selectedReason),
+            Item(ApplicationActionId.BrowserBulkEdit, "Todos", "Bulk edit marked tasks",
+                "Update schedule, tags, priority, or completion",
+                Shortest(bindings.BulkEditTodos), markedReason),
+            Item(ApplicationActionId.BrowserClearSelection, "Todos", "Clear task marks",
+                "Remove every task from the bulk selection",
+                Shortest(bindings.ClearTodoSelection), markedReason),
+            Item(ApplicationActionId.BrowserRollProjectToday, "Todos", "Roll project to today",
+                "Move incomplete overdue tasks in the selected project to today",
+                Shortest(bindings.RollProjectToday), rollReason),
+            Item(ApplicationActionId.BrowserToggleDetails, "Todos",
+                browser?.State.ShowDetails == false ? "Show details" : "Hide details",
+                "Show or hide the selected todo preview", Shortest(bindings.ToggleDetails), browserReason),
+            Item(ApplicationActionId.BrowserJumpTop, "Todos", "Jump to top",
+                "Select the first item in the focused list", Shortest(bindings.JumpTop), browserReason),
+            Item(ApplicationActionId.BrowserJumpBottom, "Todos", "Jump to bottom",
+                "Select the last item in the focused list", Shortest(bindings.JumpBottom), browserReason),
+            Item(ApplicationActionId.PlannerPreviousDay, "Planner", "Previous day",
+                "Move the planner back one day", Shortest(bindings.PlannerPreviousDay), plannerDayReason),
+            Item(ApplicationActionId.PlannerNextDay, "Planner", "Next day",
+                "Move the planner forward one day", Shortest(bindings.PlannerNextDay), plannerDayReason),
+            Item(ApplicationActionId.PlannerToday, "Planner", "Jump to now",
+                "Select today's current quarter-hour", Shortest(bindings.PlannerToday), plannerReason),
+            Item(ApplicationActionId.PlannerToggleView, "Planner",
+                planner?.State.ViewMode == PlannerViewMode.MultiDay ? "Show single-day view" : "Show multiday view",
+                "Switch between the day and multiday planner", Shortest(bindings.PlannerToggleView), plannerReason),
+            Item(ApplicationActionId.PlannerIncreaseRange, "Planner", "Show more dates",
+                "Increase the multiday range by one date", Shortest(bindings.PlannerIncreaseRange),
+                plannerReason ?? (planner!.State.ViewMode == PlannerViewMode.MultiDay ? null : "Switch to multiday view first.")),
+            Item(ApplicationActionId.PlannerDecreaseRange, "Planner", "Show fewer dates",
+                "Decrease the multiday range by one date", Shortest(bindings.PlannerDecreaseRange),
+                plannerReason ?? (planner!.State.ViewMode == PlannerViewMode.MultiDay ? null : "Switch to multiday view first.")),
+            Item(ApplicationActionId.PlannerPreviousColumn, "Planner", "Previous date",
+                "Select the previous date in the multiday range", Shortest(bindings.PlannerPreviousColumn),
+                plannerReason ?? (planner!.State.ViewMode == PlannerViewMode.MultiDay ? null : "Switch to multiday view first.")),
+            Item(ApplicationActionId.PlannerNextColumn, "Planner", "Next date",
+                "Select the next date in the multiday range", Shortest(bindings.PlannerNextColumn),
+                plannerReason ?? (planner!.State.ViewMode == PlannerViewMode.MultiDay ? null : "Switch to multiday view first.")),
+            Item(ApplicationActionId.PlannerRefreshCalendar, "Planner", "Refresh calendar",
+                "Connect to or refresh the primary Google Calendar", Shortest(bindings.PlannerRefreshCalendar),
+                plannerReason),
+            Item(ApplicationActionId.PlannerExportSchedule, "Planner", "Export day schedule",
+                "Write the selected day's schedule to the configured weekly Markdown note",
+                Shortest(bindings.PlannerExportSchedule), plannerExportReason),
+            Item(ApplicationActionId.PlannerAssignOrMove, "Planner", "Assign or move todo",
+                "Use the selected planner destination", Shortest(bindings.Open), plannerAssignReason),
+            Item(ApplicationActionId.PlannerUnschedule, "Planner", "Unschedule todo",
+                "Remove the selected assignment", Shortest(bindings.PlannerUnschedule), plannerUnscheduleReason),
+            Item(ApplicationActionId.PlannerCreate, "Planner", "Create scheduled todo",
+                "Create a todo in the selected planner destination", Shortest(bindings.CreateTodo), plannerCreateReason),
+            Item(ApplicationActionId.PlannerEdit, "Planner", "Edit todo",
+                "Edit fields, notes, and subtasks in one dialog", Shortest(bindings.EditTodo), plannerSelectedReason),
+            Item(ApplicationActionId.PlannerEditExternal, "Planner", "Edit in $EDITOR",
+                "Open the Markdown source at the selected todo", Shortest(bindings.EditTodoExternal),
+                plannerSelectedReason),
+            Item(ApplicationActionId.PlannerToggleCompleted, "Planner", "Toggle selected todo",
+                "Change the selected checkbox", Shortest(bindings.ToggleTodo), plannerSelectedReason),
+            Item(ApplicationActionId.PlannerToggleDetails, "Planner",
+                planner?.State.ShowDetails == false ? "Show details" : "Hide details",
+                "Show or hide the selected todo preview", Shortest(bindings.ToggleDetails), plannerReason)
+        ];
+    }
+
+    private static CommandPaletteItem Item(
+        ApplicationActionId action,
+        string group,
+        string label,
+        string description,
+        string binding,
+        string? disabledReason = null) =>
+        new(action, group, label, description, binding, disabledReason is null, disabledReason);
+
+    private static string Shortest(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>
+        TuiKeyBindings.ShortestDisplayName(gestures);
+
+}

@@ -1,3 +1,8 @@
+using WolfTodo.Tui.Controls;
+using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.TaskFocus;
+using WolfTodo.Tui.Features.TaskLinks;
+using WolfTodo.Tui.Features.TodoEditing;
 using FluentAssertions;
 using System.Collections.Immutable;
 using Spectre.Console;
@@ -277,7 +282,7 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
-    public void ShowBrowser_renders_today_as_a_date_colored_virtual_project()
+    public void ShowBrowser_renders_configured_today_as_a_date_colored_virtual_project()
     {
         var view = ViewWithTitle("Renew contract");
         view = view with
@@ -285,7 +290,7 @@ public sealed class SpectreTerminalUiTests
             Projects =
             [
                 new ProjectRow("All", 1, null, null, true, ProjectRowKind.All),
-                new ProjectRow("@today", 1, null, null, false, ProjectRowKind.Today)
+                new ProjectRow("@today", 1, null, null, false, ProjectRowKind.SavedQuery)
             ]
         };
         var theme = TuiThemes.Wolf with { Date = new Color(1, 2, 3) };

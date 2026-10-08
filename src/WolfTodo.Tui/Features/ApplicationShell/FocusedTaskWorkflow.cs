@@ -1,3 +1,4 @@
+using WolfTodo.Tui.Features.TaskFocus;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
@@ -61,7 +62,7 @@ public sealed class FocusedTaskWorkflow(
             ? new TodoIdentity(transition.Identity.ProjectPath, line)
             : transition.Identity;
         var rootIdentity = transition.Identity == focus.RootIdentity ? updatedIdentity : focus.RootIdentity;
-        var rootSnapshot = FindTodo(catalog, rootIdentity);
+        var rootSnapshot = TodoTree.FindBySourceLine(catalog, rootIdentity.ProjectPath, rootIdentity.SourceLine);
         if (rootSnapshot is null)
         {
             return (CloseWithMessage(state, "Focused task is no longer available."), catalog);
@@ -109,7 +110,7 @@ public sealed class FocusedTaskWorkflow(
 
         catalog = catalogLoader.Load(configuration.ProjectFiles);
         var identity = new TodoIdentity(target.Path, result.SourceLine.Value);
-        var moved = FindTodo(catalog, identity);
+        var moved = TodoTree.FindBySourceLine(catalog, identity.ProjectPath, identity.SourceLine);
         if (moved is null)
         {
             return (CloseWithMessage(state, "Focused task is no longer available."), catalog);
@@ -145,18 +146,8 @@ public sealed class FocusedTaskWorkflow(
             return (Failure(state, "External editing is unavailable."), catalog);
         }
 
-        ExternalEditorResult result;
-        terminalUi.SuspendForExternalProcess();
-        try
-        {
-            result = externalEditorLauncher.Open(
-                transition.Identity.ProjectPath,
-                transition.Identity.SourceLine);
-        }
-        finally
-        {
-            terminalUi.ResumeAfterExternalProcess();
-        }
+        var result = new ExternalEditorSession(terminalUi, externalEditorLauncher)
+            .Open(transition.Identity.ProjectPath, transition.Identity.SourceLine);
 
         if (result.Started)
         {
@@ -180,20 +171,4 @@ public sealed class FocusedTaskWorkflow(
         }
     };
 
-    private static TodoItem? FindTodo(ProjectCatalog catalog, TodoIdentity identity)
-    {
-        var project = catalog.Projects.FirstOrDefault(candidate => candidate.Path == identity.ProjectPath);
-        return project is null
-            ? null
-            : Flatten(project.Todos).FirstOrDefault(todo => todo.SourceLine == identity.SourceLine);
-    }
-
-    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
-    {
-        foreach (var todo in todos)
-        {
-            yield return todo;
-            foreach (var child in Flatten(todo.Subtasks)) yield return child;
-        }
-    }
 }

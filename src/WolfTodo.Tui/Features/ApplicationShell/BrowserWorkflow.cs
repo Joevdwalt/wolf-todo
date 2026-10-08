@@ -86,7 +86,7 @@ public sealed class BrowserWorkflow(
         var target = catalog.Projects.FirstOrDefault(project =>
             string.Equals(project.Title, targetTitle, StringComparison.OrdinalIgnoreCase));
         var source = catalog.Projects.FirstOrDefault(project => project.Path == identity.ProjectPath);
-        var todo = source is null ? null : Flatten(source.Todos).FirstOrDefault(item => item.SourceLine == identity.SourceLine);
+        var todo = source is null ? null : TodoTree.FindBySourceLine(source.Todos, identity.SourceLine);
         if (target is null)
         {
             return (state with { Browser = state.Browser with { Error = $"Project not found: {targetTitle}" } }, catalog);
@@ -103,17 +103,17 @@ public sealed class BrowserWorkflow(
         }
 
         catalog = catalogLoader.Load(configuration.ProjectFiles);
-        var targetIndex = catalog.Projects
-            .Select((project, index) => (project, index))
-            .FirstOrDefault(candidate => candidate.project.Path == target.Path).index;
         return (state with
         {
             Browser = state.Browser with
             {
                 Focus = BrowserFocus.Todos,
-                ProjectIndex = Math.Max(0, targetIndex),
+                ProjectIndex = SidebarIndexResolver.ResolveProjectPath(
+                    target.Path, catalog, configuration.SidebarItems.Length),
                 TodoIndex = 0,
-                PendingTodoSelection = null,
+                PendingTodoSelection = result.SourceLine is { } sourceLine
+                    ? new TodoIdentity(target.Path, sourceLine)
+                    : null,
                 Error = null,
                 MarkedTodos = [],
                 MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
@@ -216,7 +216,7 @@ public sealed class BrowserWorkflow(
             var groupIdentities = group.ToArray();
             var expected = groupIdentities
                 .Select(identity => transition.ExpectedTodos?.GetValueOrDefault(identity) ??
-                                    FindTodo(expectedCatalog, identity))
+                                    TodoTree.FindBySourceLine(expectedCatalog, identity.ProjectPath, identity.SourceLine))
                 .ToArray();
             TodoMutationResult result;
             if (expected.Any(todo => todo is null))
@@ -290,18 +290,8 @@ public sealed class BrowserWorkflow(
             }, catalog);
         }
 
-        ExternalEditorResult result;
-        terminalUi.SuspendForExternalProcess();
-        try
-        {
-            result = externalEditorLauncher.Open(
-                transition.ProjectPath,
-                transition.TodoIdentity.SourceLine);
-        }
-        finally
-        {
-            terminalUi.ResumeAfterExternalProcess();
-        }
+        var result = new ExternalEditorSession(terminalUi, externalEditorLauncher)
+            .Open(transition.ProjectPath, transition.TodoIdentity.SourceLine);
 
         if (result.Started)
         {
@@ -349,7 +339,9 @@ public sealed class BrowserWorkflow(
                 : mutationService.RollOverdueToDate(transition.ProjectPath, expectedProject, today);
         }
 
-        var expected = transition.ExpectedTodo ?? FindTodo(expectedCatalog, transition.TodoIdentity);
+        var expected = transition.ExpectedTodo ?? (transition.TodoIdentity is { } todoIdentity
+            ? TodoTree.FindBySourceLine(expectedCatalog, todoIdentity.ProjectPath, todoIdentity.SourceLine)
+            : null);
         if (expected is null)
         {
             return TodoMutationResult.Failure("The selected todo cannot be found.");
@@ -365,28 +357,4 @@ public sealed class BrowserWorkflow(
         };
     }
 
-    private static TodoItem? FindTodo(ProjectCatalog catalog, TodoIdentity? identity)
-    {
-        if (identity is null)
-        {
-            return null;
-        }
-
-        var project = catalog.Projects.FirstOrDefault(candidate => candidate.Path == identity.ProjectPath);
-        return project is null
-            ? null
-            : Flatten(project.Todos).FirstOrDefault(todo => todo.SourceLine == identity.SourceLine);
-    }
-
-    private static IEnumerable<TodoItem> Flatten(IEnumerable<TodoItem> todos)
-    {
-        foreach (var todo in todos)
-        {
-            yield return todo;
-            foreach (var subtask in Flatten(todo.Subtasks))
-            {
-                yield return subtask;
-            }
-        }
-    }
 }
