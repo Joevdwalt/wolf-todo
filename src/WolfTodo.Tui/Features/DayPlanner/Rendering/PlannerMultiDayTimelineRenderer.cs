@@ -231,7 +231,7 @@ public sealed class PlannerMultiDayTimelineRenderer
 
         var glyph = item.IsCompleted switch
         {
-            true => "✓",
+            true => TodoGlyphs.CompletedTodoGlyph,
             false when item.Assignment is null => "◆",
             false => "○"
         };

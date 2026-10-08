@@ -1,3 +1,5 @@
+using WolfTodo.Tui.Rendering;
+
 namespace WolfTodo.Tui.Features.DayPlanner;
 
 public static class PlannerTimelineRenderModel
@@ -51,7 +53,7 @@ public static class PlannerTimelineRenderModel
 
     private static string StatusGlyph(PlannerTimelineItemView item) => item.ItemType switch
     {
-        PlannerItemType.Task when item.IsCompleted => "✓",
+        PlannerItemType.Task when item.IsCompleted => TodoGlyphs.CompletedTodoGlyph,
         PlannerItemType.Task => "○",
         PlannerItemType.Meeting => "⬥",
         PlannerItemType.CalendarEvent => "⬥",
