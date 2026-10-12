@@ -148,17 +148,17 @@ public sealed class BrowserRenderer
         }
         else if (context.SelectList is not null)
         {
-            AnsiConsole.Write(SelectList.Default.Render(
+            AnsiConsole.Write(TuiControlAdapter.Render(
                 context.SelectList,
                 theme,
-                new TuiComponentConstraints(context.Width, context.SelectRows)));
+                new ControlConstraints(context.Width, context.SelectRows)));
         }
         else if (context.TextBox is { } activeTextBox)
         {
-            AnsiConsole.Write(MultilineTextBox.Default.Render(
+            AnsiConsole.Write(TuiControlAdapter.Render(
                 activeTextBox,
                 theme,
-                new TuiComponentConstraints(context.Width, context.TextBoxRows),
+                new ControlConstraints(context.Width, context.TextBoxRows),
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
     }
@@ -193,7 +193,7 @@ public sealed class BrowserRenderer
 
     public static MultilineTextBoxState? TodoEditorTextBox(TodoTaskEditorState editor) => editor.ContentTextBox;
 
-    public static SelectListView? BrowserSelectList(BrowserView view, TuiKeyBindings bindings)
+    public static SelectListState? BrowserSelectList(BrowserView view, TuiKeyBindings bindings)
     {
         if (view.CommandPalette is not null)
         {
@@ -216,7 +216,7 @@ public sealed class BrowserRenderer
                 bindings);
     }
 
-    public static SelectListView CommandPaletteSelectList(CommandPaletteView palette, TuiKeyBindings bindings) =>
+    public static SelectListState CommandPaletteSelectList(CommandPaletteView palette, TuiKeyBindings bindings) =>
         new(
             "Command palette",
             palette.Items.Select(item => new SelectOption(
@@ -229,7 +229,7 @@ public sealed class BrowserRenderer
             CommandPaletteFooter(bindings),
             palette.State.Error);
 
-    public static SelectListView BulkEditorSelectList(
+    public static SelectListState BulkEditorSelectList(
         TodoBulkEditorState editor,
         TuiKeyBindings bindings) => new(
         $"Bulk update {editor.SelectedCount} task(s)",
@@ -250,7 +250,7 @@ public sealed class BrowserRenderer
     private static string BulkValue(string value, string clearValue, string clearLabel) =>
         value.Length == 0 ? "UNCHANGED" : value == clearValue ? clearLabel : value;
 
-    public static SelectListView? TodoEditorSelectList(
+    public static SelectListState? TodoEditorSelectList(
         TodoTaskEditorState editor,
         IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings)
@@ -262,7 +262,7 @@ public sealed class BrowserRenderer
 
         if (editor.IsChoosingProject)
         {
-            return new SelectListView(
+            return new SelectListState(
                 "Choose project",
                 projects.Select(project => new SelectOption(project.Title)).ToArray(),
                 editor.ProjectPickerIndex,

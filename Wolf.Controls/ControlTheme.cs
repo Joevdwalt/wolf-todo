@@ -15,6 +15,8 @@ public sealed record ControlTheme(
     Color Warning,
     Color Error)
 {
+    public Color SecondaryText { get; init; } = Text;
+
     /// <summary>A neutral theme that preserves the terminal's configured palette.</summary>
     public static ControlTheme Default { get; } = new(
         Color.Default,

@@ -54,9 +54,9 @@ public sealed class TodoBulkEditorReducer(Func<DateOnly>? todayProvider = null)
 
         return new(state with
         {
-            FieldTextBox = TextBox.Create(
+            FieldTextBox = TextBoxState.Create(
                 FieldLabel(state.SelectedField),
-                editable: true,
+                isEditable: true,
                 FieldValue(state),
                 isActive: true),
             Error = null
@@ -138,7 +138,7 @@ public sealed class TodoBulkEditorReducer(Func<DateOnly>? todayProvider = null)
         ConsoleKeyInfo key,
         TuiKeyBindings bindings)
     {
-        var transition = TextBox.Default.Reduce(state.FieldTextBox!, key, bindings);
+        var transition = TuiControlAdapter.ReduceTextBox(state.FieldTextBox!, key);
         if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
             return new(state with { FieldTextBox = null, Error = null });

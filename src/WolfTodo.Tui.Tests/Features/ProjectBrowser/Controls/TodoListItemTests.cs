@@ -24,10 +24,10 @@ public sealed class TodoListItemTests
     public void Component_measures_grouped_tag_rows_and_renders_the_item()
     {
         var state = State(marked: true);
-        ITuiComponent<TodoListItemState, TodoListItemOutcome> component = TodoListItem.Default;
+        var component = TodoListItem.Default;
 
-        component.Measure(state, new TuiComponentConstraints(40, 2)).Should().Be(2);
-        component.Render(state, TuiThemes.Wolf, new TuiComponentConstraints(40, 2)).Should().NotBeNull();
+        component.Measure(state, new ControlConstraints(40, 2)).Should().Be(2);
+        component.Render(state, TuiThemes.Wolf, new ControlConstraints(40, 2)).Should().NotBeNull();
     }
 
     private static TodoListItemState State(bool marked)

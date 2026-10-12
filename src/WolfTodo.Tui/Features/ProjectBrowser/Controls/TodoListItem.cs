@@ -6,13 +6,13 @@ using WolfTodo.Tui.Features.ProjectBrowser.Rendering;
 
 namespace WolfTodo.Tui.Features.ProjectBrowser.Controls;
 
-public sealed class TodoListItem : ITuiComponent<TodoListItemState, TodoListItemOutcome>
+public sealed class TodoListItem
 {
     private readonly TodoRowRenderer rowRenderer = TodoRowRenderer.Default;
 
     public static TodoListItem Default { get; } = new();
 
-    public TuiComponentTransition<TodoListItemState, TodoListItemOutcome> Reduce(
+    public ControlTransition<TodoListItemState, TodoListItemOutcome> Reduce(
         TodoListItemState state,
         ConsoleKeyInfo key,
         TuiKeyBindings bindings) =>
@@ -20,18 +20,18 @@ public sealed class TodoListItem : ITuiComponent<TodoListItemState, TodoListItem
             ? ToggleMark(state)
             : new(state, TodoListItemOutcome.Editing);
 
-    public TuiComponentTransition<TodoListItemState, TodoListItemOutcome> ToggleMark(
+    public ControlTransition<TodoListItemState, TodoListItemOutcome> ToggleMark(
         TodoListItemState state) => new(
         state with { Row = state.Row with { IsMarked = !state.Row.IsMarked } },
         TodoListItemOutcome.MarkToggled);
 
-    public int Measure(TodoListItemState state, TuiComponentConstraints constraints) =>
+    public int Measure(TodoListItemState state, ControlConstraints constraints) =>
         state.Row.Todo?.Tags.Length > 0 ? 2 : 1;
 
     public IRenderable Render(
         TodoListItemState state,
         TuiTheme theme,
-        TuiComponentConstraints constraints) => new Rows(RenderLines(state, theme));
+        ControlConstraints constraints) => new Rows(RenderLines(state, theme));
 
     public IReadOnlyList<IRenderable> RenderLines(TodoListItemState state, TuiTheme theme)
     {

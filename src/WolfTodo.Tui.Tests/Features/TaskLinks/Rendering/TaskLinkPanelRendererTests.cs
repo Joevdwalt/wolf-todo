@@ -23,7 +23,7 @@ public sealed class TaskLinkPanelRendererTests
             Out = new AnsiConsoleOutput(writer)
         });
         console.Profile.Width = 120;
-        var panel = new TaskLinkPanelState(TextBox.Create("TASK LINK", true, "wt1-example", true), opening, "Work · Line 3");
+        var panel = new TaskLinkPanelState(TextBoxState.Create("TASK LINK", true, "wt1-example", true), opening, "Work · Line 3");
         console.Write(TaskLinkPanelRenderer.Render(panel, TuiThemes.Wolf, 120));
         writer.ToString().Should().Contain("Work · Line 3").And.Contain("wt1-example")
             .And.Contain(opening ? "Enter OPEN" : "Ctrl+A SELECT");

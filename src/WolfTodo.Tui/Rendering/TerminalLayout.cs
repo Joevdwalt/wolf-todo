@@ -45,14 +45,14 @@ public static class TerminalLayout
         dialog is null ? null : dialog.Height - 2;
 
     public static int PickerHeight(
-        SelectListView? selectList,
+        SelectListState? selectList,
         int width,
         int selectRows,
         MultilineTextBoxState? textBox,
         int textBoxRows) =>
         selectList is not null
-            ? SelectList.Default.Measure(selectList, new TuiComponentConstraints(width, selectRows))
+            ? SelectList.Default.Measure(selectList, new ControlConstraints(width, selectRows))
             : textBox is not null
-                ? MultilineTextBox.Default.Measure(textBox, new TuiComponentConstraints(width, textBoxRows))
+                ? MultilineTextBox.Default.Measure(textBox, new ControlConstraints(width, textBoxRows))
                 : 0;
 }

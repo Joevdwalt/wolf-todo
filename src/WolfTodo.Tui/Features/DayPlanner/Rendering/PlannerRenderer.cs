@@ -278,17 +278,17 @@ public sealed class PlannerRenderer
         }
         else if (context.SelectList is not null)
         {
-            AnsiConsole.Write(SelectList.Default.Render(
+            AnsiConsole.Write(TuiControlAdapter.Render(
                 context.SelectList,
                 theme,
-                new TuiComponentConstraints(context.Width, context.SelectRows)));
+                new ControlConstraints(context.Width, context.SelectRows)));
         }
         else if (context.TextBox is { } activeTextBox)
         {
-            AnsiConsole.Write(MultilineTextBox.Default.Render(
+            AnsiConsole.Write(TuiControlAdapter.Render(
                 activeTextBox,
                 theme,
-                new TuiComponentConstraints(context.Width, context.TextBoxRows),
+                new ControlConstraints(context.Width, context.TextBoxRows),
                 TuiKeyBindings.ShortestDisplayName(keyBindings.SaveForm)));
         }
     }

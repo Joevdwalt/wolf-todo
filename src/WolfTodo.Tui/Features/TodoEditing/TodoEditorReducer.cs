@@ -101,7 +101,7 @@ public sealed class TodoEditorReducer
             {
                 return Transition(editor with
                 {
-                    FieldTextBox = TextBox.Create(
+                    FieldTextBox = TextBoxState.Create(
                         FieldLabel(editor.SelectedField),
                         true,
                         SelectedFieldValue(editor),
@@ -181,8 +181,8 @@ public sealed class TodoEditorReducer
         TuiKeyBindings bindings,
         IReadOnlyList<TodoEditorProjectOption> projects)
     {
-        var transition = SelectList.Default.Reduce(
-            new SelectListView(
+        var transition = TuiControlAdapter.ReduceSelectList(
+            new SelectListState(
                 "Choose project",
                 projects.Select(project => new SelectOption(project.Title)).ToArray(),
                 editor.ProjectPickerIndex,
@@ -214,7 +214,7 @@ public sealed class TodoEditorReducer
         ConsoleKeyInfo key,
         TuiKeyBindings bindings)
     {
-        var transition = TextBox.Default.Reduce(editor.FieldTextBox!, key, bindings);
+        var transition = TuiControlAdapter.ReduceTextBox(editor.FieldTextBox!, key);
         if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
             return Transition(editor with { FieldTextBox = null, Error = null });
@@ -239,7 +239,7 @@ public sealed class TodoEditorReducer
         ConsoleKeyInfo key,
         TuiKeyBindings bindings)
     {
-        var transition = MultilineTextBox.Default.Reduce(editor.ContentTextBox!, key, bindings);
+        var transition = TuiControlAdapter.ReduceMultilineTextBox(editor.ContentTextBox!, key, bindings);
         if (transition.Outcome == MultilineTextBoxOutcome.Cancelled)
         {
             return Transition(editor with { ContentTextBox = null, Error = null });
@@ -263,7 +263,7 @@ public sealed class TodoEditorReducer
         ConsoleKeyInfo key,
         TuiKeyBindings bindings)
     {
-        var transition = TextBox.Default.Reduce(editor.SubtaskTextBox!, key, bindings);
+        var transition = TuiControlAdapter.ReduceTextBox(editor.SubtaskTextBox!, key);
         if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
             return Transition(editor with
@@ -322,14 +322,14 @@ public sealed class TodoEditorReducer
         {
             Mode = TodoTaskEditorMode.Edit,
             IsAddingSubtask = true,
-            SubtaskTextBox = TextBox.Create("Add subtask", true, string.Empty, isActive: true),
+            SubtaskTextBox = TextBoxState.Create("Add subtask", true, string.Empty, isActive: true),
             Error = null
         });
 
     private static TodoEditorTransition BeginSubtaskEdit(TodoTaskEditorState editor) =>
         Transition(editor with
         {
-            SubtaskTextBox = TextBox.Create(
+            SubtaskTextBox = TextBoxState.Create(
                 "Subtask",
                 true,
                 editor.Subtasks[editor.SelectedSubtaskIndex].Title,

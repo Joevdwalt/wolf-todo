@@ -220,13 +220,13 @@ public sealed class FocusedTaskRenderer(
             var rows = TerminalLayout.SelectListRows(height);
             return SelectList.Default.Measure(
                 CommandPaletteSelectList(view.CommandPalette, bindings),
-                new TuiComponentConstraints(width, rows));
+                new ControlConstraints(width, rows));
         }
 
         return view.State.Editor?.ContentTextBox is { } textBox
             ? MultilineTextBox.Default.Measure(
                 textBox,
-                new TuiComponentConstraints(width, TerminalLayout.TextBoxRows(height)))
+                new ControlConstraints(width, TerminalLayout.TextBoxRows(height)))
             : 0;
     }
 
@@ -243,17 +243,17 @@ public sealed class FocusedTaskRenderer(
         }
         else if (view.CommandPalette is not null)
         {
-            AnsiConsole.Write(SelectList.Default.Render(
+            AnsiConsole.Write(TuiControlAdapter.Render(
                 CommandPaletteSelectList(view.CommandPalette, bindings),
                 theme,
-                new TuiComponentConstraints(width, TerminalLayout.SelectListRows(height))));
+                new ControlConstraints(width, TerminalLayout.SelectListRows(height))));
         }
         else if (view.State.Editor?.ContentTextBox is { } textBox)
         {
-            AnsiConsole.Write(MultilineTextBox.Default.Render(
+            AnsiConsole.Write(TuiControlAdapter.Render(
                 textBox,
                 theme,
-                new TuiComponentConstraints(width, TerminalLayout.TextBoxRows(height)),
+                new ControlConstraints(width, TerminalLayout.TextBoxRows(height)),
                 TuiKeyBindings.ShortestDisplayName(bindings.SaveForm)));
         }
     }
@@ -271,7 +271,7 @@ public sealed class FocusedTaskRenderer(
         return lines.Skip(start).Take(contentHeight).ToArray();
     }
 
-    private static SelectListView CommandPaletteSelectList(
+    private static SelectListState CommandPaletteSelectList(
         CommandPaletteView palette,
         TuiKeyBindings bindings) => new(
         "Command palette",

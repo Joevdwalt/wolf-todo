@@ -1,11 +1,12 @@
-namespace WolfTodo.Tui.Controls;
+namespace Wolf.Controls;
 
 public sealed record MultilineTextBoxState(
     string Label,
     string Text,
     int Cursor,
     bool IsMultiline,
-    int? SelectionAnchor = null)
+    int? SelectionAnchor = null,
+    string SaveHint = "Ctrl+S")
 {
     public int ClampedCursor => Math.Clamp(Cursor, 0, Text.Length);
 
@@ -17,9 +18,9 @@ public sealed record MultilineTextBoxState(
 
     public int SelectionLength => Math.Abs(ClampedCursor - ClampedSelectionAnchor);
 
-    public static MultilineTextBoxState Create(string label, string text, bool isMultiline)
+    public static MultilineTextBoxState Create(string label, string text, bool isMultiline, string saveHint = "Ctrl+S")
     {
         var normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal);
-        return new MultilineTextBoxState(label, normalized, normalized.Length, isMultiline);
+        return new(label, normalized, normalized.Length, isMultiline, SaveHint: saveHint);
     }
 }

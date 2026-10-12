@@ -31,7 +31,7 @@ public sealed class TaskLinkWorkflow
         return state with
         {
             TaskLinkPanel = new TaskLinkPanelState(
-                TextBox.Create("TASK LINK", true, code, true) with { SelectionAnchor = 0 },
+                TextBoxState.Create("TASK LINK", true, code, true) with { SelectionAnchor = 0 },
                 false, $"{project.Title} · Line {identity.SourceLine} · Links to the current location."),
             Palette = CommandPaletteState.Closed,
             Command = ApplicationCommandState.Initial
@@ -40,7 +40,7 @@ public sealed class TaskLinkWorkflow
 
     public ApplicationState Prompt(ApplicationState state) => state with
     {
-        TaskLinkPanel = new TaskLinkPanelState(TextBox.Create("OPEN TASK LINK", true, "", true),
+        TaskLinkPanel = new TaskLinkPanelState(TextBoxState.Create("OPEN TASK LINK", true, "", true),
             true, "Enter the code for a configured Markdown task."),
         Palette = CommandPaletteState.Closed,
         Command = ApplicationCommandState.Initial
@@ -55,7 +55,7 @@ public sealed class TaskLinkWorkflow
         if (!panel.IsOpening && key.Key is not (ConsoleKey.LeftArrow or ConsoleKey.RightArrow or
                 ConsoleKey.Home or ConsoleKey.End) &&
             !(key.Key == ConsoleKey.A && key.Modifiers.HasFlag(ConsoleModifiers.Control))) return state;
-        var transition = TextBox.Default.Reduce(panel.Input, key, bindings);
+        var transition = TuiControlAdapter.ReduceTextBox(panel.Input, key);
         if (transition.Outcome == TextBoxOutcome.Accepted)
             return Open(state with { TaskLinkPanel = null }, catalog, panel.Input.Text.Trim(), sidebarItemCount);
         return state with { TaskLinkPanel = panel with { Input = transition.State! } };

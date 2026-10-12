@@ -62,6 +62,7 @@ internal static class GalleryRenderer
     {
         DemoId.TextBox => TextBox.Default.Render(state.TextBox, ControlTheme.Default, constraints),
         DemoId.SelectList => SelectList.Default.Render(state.SelectList, ControlTheme.Default, constraints),
+        DemoId.MultilineTextBox => MultilineTextBox.Default.Render(state.MultilineTextBox, ControlTheme.Default, constraints),
         DemoId.Spinner => Spinner.Default.Render(new SpinnerState("Loading controls"), ControlTheme.Default, constraints, now),
         DemoId.ProgressBar => ProgressBar.ProgressBar.Default.Render(
             new ProgressState("Downloading", state.PreviousProgressValue, state.ProgressValue, state.ProgressChangedAt),
@@ -80,13 +81,16 @@ internal static class GalleryRenderer
         $"[{(state.ActiveDemo == DemoId.Spinner ? "SPINNER" : "3 Spinner")}]  " +
         $"[{(state.ActiveDemo == DemoId.ProgressBar ? "PROGRESS" : "4 Progress")}]  " +
         $"[{(state.ActiveDemo == DemoId.Toast ? "TOAST" : "5 Toast")}]  " +
-        $"[{(state.ActiveDemo == DemoId.Splash ? "SPLASH" : "6 Splash")}]";
+        $"[{(state.ActiveDemo == DemoId.Splash ? "SPLASH" : "6 Splash")}]  " +
+        $"[{(state.ActiveDemo == DemoId.MultilineTextBox ? "MULTILINE" : "7 Multiline")}]";
 
     private static string Footer(GalleryState state) => state.Mode == GalleryMode.FocusedControl
-        ? "CONTROL FOCUSED // Enter ACCEPT // Esc CANCEL"
+        ? state.ActiveDemo == DemoId.MultilineTextBox
+            ? "CONTROL FOCUSED // Enter NEWLINE // Ctrl+S SAVE // Esc CANCEL"
+            : "CONTROL FOCUSED // Enter ACCEPT // Esc CANCEL"
         : state.ActiveDemo switch
         {
-            DemoId.TextBox or DemoId.SelectList => "Left/Right BROWSE // Enter INTERACT // Q EXIT",
+            DemoId.TextBox or DemoId.SelectList or DemoId.MultilineTextBox => "Left/Right BROWSE // Enter INTERACT // Q EXIT",
             DemoId.ProgressBar => "Left/Right BROWSE // P RESTART // Q EXIT",
             DemoId.Toast => "Left/Right BROWSE // T TRIGGER // Q EXIT",
             DemoId.Splash => "T REPLAY // Left/Right BROWSE // Q EXIT",

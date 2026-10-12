@@ -8,7 +8,7 @@ public sealed class TextBox : IControl<TextBoxState, TextBoxOutcome>
 {
     public static TextBox Default { get; } = new();
 
-    public static int Height => 2;
+    public static int Height => 4;
 
     public ControlTransition<TextBoxState, TextBoxOutcome> Reduce(TextBoxState state, ControlInput input)
     {
@@ -89,7 +89,7 @@ public sealed class TextBox : IControl<TextBoxState, TextBoxOutcome>
         var outerWidth = Math.Max(3, constraints.ClampedWidth);
         var contentWidth = outerWidth - 2;
         return new Rows(
-            new Text(state.Label.PadRight(outerWidth), new Style(theme.Text, decoration: Decoration.Bold)),
+            new Text(state.Label.PadRight(outerWidth), new Style(theme.Text, decoration: Decoration.Bold)).Ellipsis(),
             new Panel(CreateInput(state, theme, contentWidth))
             {
                 Border = BoxBorder.Square,
@@ -103,19 +103,28 @@ public sealed class TextBox : IControl<TextBoxState, TextBoxOutcome>
     public static string DisplayText(TextBoxState state, int width)
     {
         var contentWidth = Math.Max(1, width);
-        var start = Math.Clamp(state.ClampedCursor - contentWidth + 1, 0, Math.Max(0, state.Text.Length - contentWidth));
+        if (!state.IsEditable)
+        {
+            return state.Text[..Math.Min(state.Text.Length, contentWidth)].PadRight(contentWidth);
+        }
+
+        var start = state.HasSelection
+            ? Math.Clamp(state.ClampedCursor - contentWidth, 0, Math.Max(0, state.Text.Length - contentWidth))
+            : Math.Clamp(state.ClampedCursor - contentWidth + 1, 0, Math.Max(0, state.Text.Length - contentWidth));
         return state.Text.Substring(start, Math.Min(contentWidth, state.Text.Length - start)).PadRight(contentWidth);
     }
 
     private static IRenderable CreateInput(TextBoxState state, ControlTheme theme, int width)
     {
-        var textStyle = new Style(state.IsEditable ? theme.Text : theme.Muted, decoration: Decoration.Bold);
+        var textStyle = new Style(state.IsEditable ? theme.Text : theme.SecondaryText, decoration: Decoration.Bold);
         if (!state.IsEditable)
         {
             return new Text(DisplayText(state, width), textStyle);
         }
 
-        var start = Math.Clamp(state.ClampedCursor - width + 1, 0, Math.Max(0, state.Text.Length - width));
+        var start = state.HasSelection
+            ? Math.Clamp(state.ClampedCursor - width, 0, Math.Max(0, state.Text.Length - width))
+            : Math.Clamp(state.ClampedCursor - width + 1, 0, Math.Max(0, state.Text.Length - width));
         var visible = state.Text.Substring(start, Math.Min(width, state.Text.Length - start));
         if (state.HasSelection)
         {

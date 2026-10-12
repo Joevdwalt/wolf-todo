@@ -27,7 +27,7 @@ public sealed class PlannerOverlayViewFactory
             ? TodoTaskEditorDialog.Create(editor, keyBindings, width, height)
             : null;
 
-    public SelectListView? PlannerSelectList(PlannerView view, TuiKeyBindings bindings)
+    public SelectListState? PlannerSelectList(PlannerView view, TuiKeyBindings bindings)
     {
         if (view.CommandPalette is not null)
         {
@@ -50,7 +50,7 @@ public sealed class PlannerOverlayViewFactory
         var searchText = view.State.Mode == PlannerMode.EditFilter
             ? view.State.FilterDraft
             : view.State.FilterText.Length == 0 ? null : view.State.FilterText;
-        return new SelectListView(
+        return new SelectListState(
             "Unscheduled todos",
             view.PickerTodos
                 .Select(todo => new SelectOption(todo.Todo.Title, $"[{todo.ProjectTitle}]"))
@@ -62,7 +62,7 @@ public sealed class PlannerOverlayViewFactory
             view.State.Error);
     }
 
-    public SelectListView CommandPaletteSelectList(CommandPaletteView palette, TuiKeyBindings bindings) =>
+    public SelectListState CommandPaletteSelectList(CommandPaletteView palette, TuiKeyBindings bindings) =>
         new(
             "Command palette",
             palette.Items.Select(item => new SelectOption(
@@ -75,7 +75,7 @@ public sealed class PlannerOverlayViewFactory
             statusRenderer.CommandPaletteFooter(bindings),
             palette.State.Error);
 
-    public SelectListView? TodoEditorSelectList(
+    public SelectListState? TodoEditorSelectList(
         TodoTaskEditorState editor,
         IReadOnlyList<TodoEditorProjectOption> projects,
         TuiKeyBindings bindings)
@@ -87,7 +87,7 @@ public sealed class PlannerOverlayViewFactory
 
         if (editor.IsChoosingProject)
         {
-            return new SelectListView(
+            return new SelectListState(
                 "Choose project",
                 projects.Select(project => new SelectOption(project.Title)).ToArray(),
                 editor.ProjectPickerIndex,

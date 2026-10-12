@@ -1,4 +1,5 @@
 using Spectre.Console;
+using Wolf.Controls;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
@@ -67,7 +68,7 @@ static int RunDialog()
 
 static int RunTextBox(bool editable)
 {
-    var state = TextBox.Create("Title", editable, "Prepare customer workshop", isActive: editable);
+    var state = TextBoxState.Create("Title", editable, "Prepare customer workshop", isActive: editable);
     var message = editable
         ? "Sandbox only — accepted titles are kept in memory."
         : "Read-only fixture — text input is ignored.";
@@ -81,7 +82,7 @@ static int RunTextBox(bool editable)
                 new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
             new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
             new Text(string.Empty),
-            TextBox.CreateRenderable(state, TuiThemes.Wolf, Math.Max(20, 20)),
+            TuiControlAdapter.Render(state, TuiThemes.Wolf, new ControlConstraints(20, TextBox.Height)),
             new Text(editable ? "Enter ACCEPT  Esc CANCEL" : "Esc CLOSE", new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)));
         AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
 
@@ -91,7 +92,7 @@ static int RunTextBox(bool editable)
             return 0;
         }
 
-        var transition = TextBox.Default.Reduce(state, key, TuiKeyBindings.CreateDefaults(":q"));
+        var transition = TuiControlAdapter.ReduceTextBox(state, key);
         if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
             return 0;
@@ -100,7 +101,7 @@ static int RunTextBox(bool editable)
         if (transition.Outcome == TextBoxOutcome.Accepted)
         {
             message = $"Sandbox captured '{transition.State!.Text.Trim()}'; fixture reset.";
-            state = TextBox.Create("Title", editable, "Prepare customer workshop", isActive: editable);
+            state = TextBoxState.Create("Title", editable, "Prepare customer workshop", isActive: editable);
             continue;
         }
 
@@ -127,14 +128,14 @@ static int RunMultilineTextBox()
             new Text("WOLF TODO COMPONENTS // MULTILINE TEXT BOX", new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
             new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
             new Text(string.Empty),
-            MultilineTextBox.Default.Render(
+            TuiControlAdapter.Render(
                 state,
                 TuiThemes.Wolf,
-                new TuiComponentConstraints(Math.Max(20, Console.WindowWidth - 8), 6),
+                new ControlConstraints(Math.Max(20, Console.WindowWidth - 8), 6),
                 TuiKeyBindings.ShortestDisplayName(bindings.SaveForm)));
         AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
 
-        var transition = MultilineTextBox.Default.Reduce(state, Console.ReadKey(intercept: true), bindings);
+        var transition = TuiControlAdapter.ReduceMultilineTextBox(state, Console.ReadKey(intercept: true), bindings);
         if (transition.Outcome == MultilineTextBoxOutcome.Cancelled)
         {
             return 0;
@@ -155,7 +156,7 @@ static int RunMultilineTextBox()
 static int RunSelectList()
 {
     var bindings = TuiKeyBindings.CreateDefaults(":q");
-    var state = new SelectListView(
+    var state = new SelectListState(
         "Choose priority",
         [new SelectOption("Highest"), new SelectOption("High"), new SelectOption("Medium"), new SelectOption("Low")],
         1,
@@ -172,10 +173,10 @@ static int RunSelectList()
             new Text("WOLF TODO COMPONENTS // SELECT LIST", new Style(TuiThemes.Wolf.Heading, decoration: Decoration.Bold)),
             new Text(message, new Style(TuiThemes.Wolf.Muted, decoration: Decoration.Dim)),
             new Text(string.Empty),
-            SelectList.Default.Render(state, TuiThemes.Wolf, new TuiComponentConstraints(Math.Max(20, Console.WindowWidth - 8), 5)));
+            TuiControlAdapter.Render(state, TuiThemes.Wolf, new ControlConstraints(Math.Max(20, Console.WindowWidth - 8), 5)));
         AnsiConsole.Write(new Align(content, HorizontalAlignment.Center, VerticalAlignment.Middle));
 
-        var transition = SelectList.Default.Reduce(state, Console.ReadKey(intercept: true), bindings);
+        var transition = TuiControlAdapter.ReduceSelectList(state, Console.ReadKey(intercept: true), bindings);
         if (transition.Outcome == SelectListOutcome.Cancelled)
         {
             return 0;

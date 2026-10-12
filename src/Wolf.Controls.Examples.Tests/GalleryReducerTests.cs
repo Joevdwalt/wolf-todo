@@ -15,7 +15,7 @@ public sealed class GalleryReducerTests
         var wrapped = GalleryReducer.Reduce(state, Key(ConsoleKey.LeftArrow), now).State;
 
         numbered.ActiveDemo.Should().Be(DemoId.ProgressBar);
-        wrapped.ActiveDemo.Should().Be(DemoId.Splash);
+        wrapped.ActiveDemo.Should().Be(DemoId.MultilineTextBox);
     }
 
     [Fact]
@@ -57,6 +57,20 @@ public sealed class GalleryReducerTests
         splash.ActiveDemo.Should().Be(DemoId.Splash);
         replayed.SplashBox!.StartedAt.Should().Be(now + TimeSpan.FromSeconds(1));
         replayed.Status.Should().Be("Splash expansion replayed.");
+    }
+
+    [Fact]
+    public void Reduce_edits_multiline_text_and_saves_with_control_s()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var state = GalleryReducer.Reduce(GalleryState.Create(now), Key('7', ConsoleKey.D7), now).State;
+        state = GalleryReducer.Reduce(state, Key(ConsoleKey.Enter), now).State;
+        state = GalleryReducer.Reduce(state, Key(ConsoleKey.Enter), now).State;
+
+        var saved = GalleryReducer.Reduce(state, new ConsoleKeyInfo('\0', ConsoleKey.S, false, false, true), now).State;
+
+        saved.Mode.Should().Be(GalleryMode.Browse);
+        saved.MultilineTextBox.Text.Should().EndWith("\n");
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
