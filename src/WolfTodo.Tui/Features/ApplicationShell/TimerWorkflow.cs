@@ -172,7 +172,7 @@ public sealed class TimerWorkflow(
         return state with
         {
             PomodoroPrompt = new PomodoroPromptState(
-                TextBox.Create(label, true, ((int)duration.TotalMinutes).ToString(System.Globalization.CultureInfo.InvariantCulture), true),
+                TextBoxState.Create(label, true, ((int)duration.TotalMinutes).ToString(System.Globalization.CultureInfo.InvariantCulture), true),
                 target?.TodoIdentity,
                 target?.ProjectTitle,
                 target?.TodoTitle)
@@ -186,7 +186,7 @@ public sealed class TimerWorkflow(
         bool isTodosTabActive)
     {
         var prompt = state.PomodoroPrompt!;
-        var transition = TextBox.Default.Reduce(prompt.Input, key, configuration.KeyBindings);
+        var transition = TuiControlAdapter.ReduceTextBox(prompt.Input, key);
         if (transition.Outcome == TextBoxOutcome.Cancelled)
         {
             return state with { PomodoroPrompt = null };

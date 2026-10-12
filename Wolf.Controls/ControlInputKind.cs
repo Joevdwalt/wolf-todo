@@ -13,6 +13,7 @@ public enum ControlInputKind
     Backspace,
     Delete,
     SelectAll,
+    InsertNewline,
     Accept,
     Cancel
 }

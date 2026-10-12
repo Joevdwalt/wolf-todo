@@ -8,6 +8,7 @@ using Wolf.Controls.Splash;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Features.DayPlanner.Rendering;
 using WolfTodo.Tui.Features.ProjectBrowser;
@@ -102,7 +103,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             "Press any key to continue",
             startedAt,
             logo);
-        var controlTheme = ToControlTheme(theme);
+        var controlTheme = TuiControlAdapter.ToControlTheme(theme) with { AccentBright = theme.Heading };
         var constraints = new ControlConstraints(
             widthProvider(),
             Math.Max(1, heightProvider() - 1));
@@ -366,15 +367,4 @@ public sealed class SpectreTerminalUi : ITerminalUi
         .Split(['\r', '\n'], StringSplitOptions.None)
         .Length;
 
-    private static ControlTheme ToControlTheme(TuiTheme theme) => new(
-        theme.Text,
-        theme.Muted,
-        theme.Accent,
-        theme.Heading,
-        theme.Border,
-        theme.BorderActive,
-        theme.Surface,
-        theme.Success,
-        theme.Warning,
-        theme.Error);
 }

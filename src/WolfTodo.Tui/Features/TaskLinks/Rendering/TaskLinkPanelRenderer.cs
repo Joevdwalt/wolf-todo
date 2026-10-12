@@ -12,7 +12,7 @@ public static class TaskLinkPanelRenderer
     public static IRenderable Render(TaskLinkPanelState panel, TuiTheme theme, int width) =>
         new Rows(
             new Text(panel.Context, new Style(theme.SecondaryText)).Ellipsis(),
-            TextBox.Default.Render(panel.Input, theme, new TuiComponentConstraints(width, TextBox.Height)),
+            TuiControlAdapter.Render(panel.Input, theme, new ControlConstraints(width, TextBox.Height)),
             new Text(panel.IsOpening
                 ? "Enter OPEN · Esc CANCEL"
                 : "Ctrl+A SELECT · Home/End SCROLL · Esc CLOSE", new Style(theme.Muted)).Ellipsis());

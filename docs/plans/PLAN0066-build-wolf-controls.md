@@ -20,5 +20,5 @@ referencing WolfTodo.
 
 ## Deferred
 
-Multiline editing, migration of existing WolfTodo controls, NuGet packaging,
-and a library-owned terminal render loop remain future work.
+NuGet packaging and a library-owned terminal render loop remain future work.
+Multiline editing and WolfTodo control migration are covered by PLAN0088.

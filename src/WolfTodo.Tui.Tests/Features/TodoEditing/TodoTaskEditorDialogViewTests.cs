@@ -11,7 +11,7 @@ public sealed class TodoTaskEditorDialogViewTests
     {
         var view = new TodoTaskEditorDialogView(
             [new TodoTaskEditorDialogLine("Heading", TodoTaskEditorDialogRole.Label)],
-            [TextBox.Create("Title", false, "Plan")],
+            [TextBoxState.Create("Title", false, "Plan")],
             TextBoxWidth: 20);
 
         view.Height.Should().Be(7);

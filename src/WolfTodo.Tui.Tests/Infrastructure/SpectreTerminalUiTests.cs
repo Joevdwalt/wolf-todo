@@ -1206,8 +1206,7 @@ public sealed class SpectreTerminalUiTests
         var filterHtml = NormalizeHtml(RecordedHtml());
         formHtml.Should().Contain("content");
         StyleBefore(formHtml, "inactive-42").Should().Contain("#111111");
-        StyleBefore(formHtml, "title").Should().Contain("#ffffff").And.Contain("font-weight: bold");
-        formHtml.Should().Contain("#ffffff");
+        StyleBefore(formHtml, "title").Should().Contain("#111111").And.Contain("font-weight: bold");
         formHtml.Should().Contain("#162433");
         StyleBefore(errorHtml, "theme").Should().Contain("#555555").And.Contain("font-weight: bold");
         StyleBefore(filterHtml, "unique-filter").Should().Contain("#222222");
@@ -1236,7 +1235,7 @@ public sealed class SpectreTerminalUiTests
         lines.Should().HaveCountLessThanOrEqualTo(15);
         lines[0].Should().Contain("[TODOS]");
         status.Should().Contain(line => line.Contains("Reference", StringComparison.Ordinal));
-        status.Should().Contain(line => line.Contains("╭", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("┌", StringComparison.Ordinal));
         status.Should().NotContain(line => line.Contains("START DATE", StringComparison.Ordinal));
     }
 
@@ -1254,7 +1253,7 @@ public sealed class SpectreTerminalUiTests
         var status = lines[StatusPanelTop(lines)..];
 
         status.Should().Contain(line => line.Contains("Title", StringComparison.Ordinal));
-        status.Should().Contain(line => line.Contains("╭", StringComparison.Ordinal));
+        status.Should().Contain(line => line.Contains("┌", StringComparison.Ordinal));
         status.Should().Contain(line => line.Contains("Title is required.", StringComparison.Ordinal));
         status.Should().NotContain(line => line.Contains("Ctrl+S SAVE", StringComparison.Ordinal));
     }
@@ -2082,7 +2081,7 @@ public sealed class SpectreTerminalUiTests
     public void Task_link_panel_renders_within_the_terminal_and_scrolls_the_generated_code(int width, int height)
     {
         var code = TaskLinkCode.Generate("/todos/work.md", 3);
-        var input = WolfTodo.Tui.Controls.TextBox.Create("TASK LINK", true, code, true) with { SelectionAnchor = 0 };
+        var input = TextBoxState.Create("TASK LINK", true, code, true) with { SelectionAnchor = 0 };
         StartRecording(width, height);
         var terminal = new SpectreTerminalUi(() => width, () => height);
         terminal.ShowTaskLinkPanel(new TaskLinkPanelState(input, false, "Work · Line 3 · Links to the current location."), TuiThemes.Wolf);

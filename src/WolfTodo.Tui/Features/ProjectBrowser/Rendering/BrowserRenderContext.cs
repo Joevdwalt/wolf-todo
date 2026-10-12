@@ -11,7 +11,7 @@ public sealed record BrowserRenderContext(
     int Height,
     bool Compact,
     DateOnly Today,
-    SelectListView? SelectList,
+    SelectListState? SelectList,
     int SelectRows,
     MultilineTextBoxState? TextBox,
     int TextBoxRows,

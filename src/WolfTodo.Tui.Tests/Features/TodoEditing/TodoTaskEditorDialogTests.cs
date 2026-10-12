@@ -62,7 +62,7 @@ public sealed class TodoTaskEditorDialogTests
         var view = TodoTaskEditorDialog.Create(editing, Bindings, 80, 24);
 
         var title = view.TextBoxes!.Single(textBox => textBox.Label == "Title");
-        title.Edit.Should().BeTrue();
+        title.IsEditable.Should().BeTrue();
         title.IsActive.Should().BeTrue();
         view.Lines.Should().ContainSingle(line =>
             line.Text == "Enter ACCEPT  Esc CANCEL" &&
@@ -76,7 +76,7 @@ public sealed class TodoTaskEditorDialogTests
         var view = TodoTaskEditorDialog.Create(Editor() with { SelectedIndex = (int)TodoFormField.Title }, Bindings, 80, 24);
 
         var title = view.TextBoxes!.Single(textBox => textBox.Label == "Title");
-        title.Edit.Should().BeFalse();
+        title.IsEditable.Should().BeFalse();
         title.IsActive.Should().BeTrue();
         view.Lines.Should().NotContain(line => line.Text.Contains("TITLE", StringComparison.Ordinal));
     }
@@ -92,9 +92,9 @@ public sealed class TodoTaskEditorDialogTests
 
         var browseReference = browseView.TextBoxes!.Single(textBox => textBox.Label == "Reference");
         var editReference = editView.TextBoxes!.Single(textBox => textBox.Label == "Reference");
-        browseReference.Edit.Should().BeFalse();
+        browseReference.IsEditable.Should().BeFalse();
         browseReference.IsActive.Should().BeTrue();
-        editReference.Edit.Should().BeTrue();
+        editReference.IsEditable.Should().BeTrue();
         editView.Lines.Should().NotContain(line => line.Text.Contains("REFERENCE", StringComparison.Ordinal));
     }
 

@@ -53,6 +53,16 @@ internal static class GalleryReducer
             });
         }
 
+        if (key.Key == ConsoleKey.Enter && state.ActiveDemo == DemoId.MultilineTextBox)
+        {
+            return new(state with
+            {
+                Mode = GalleryMode.FocusedControl,
+                MultilineTextBoxBeforeFocus = state.MultilineTextBox,
+                Status = "Multiline text box focused. Ctrl+S saves; Esc cancels."
+            });
+        }
+
         if (key.Key == ConsoleKey.P && state.ActiveDemo == DemoId.ProgressBar)
         {
             return new(state with
@@ -132,6 +142,35 @@ internal static class GalleryReducer
             };
         }
 
+        if (state.ActiveDemo == DemoId.MultilineTextBox)
+        {
+            var input = key.Key switch
+            {
+                ConsoleKey.Enter => new ControlInput(ControlInputKind.InsertNewline),
+                ConsoleKey.S when key.Modifiers.HasFlag(ConsoleModifiers.Control) => new ControlInput(ControlInputKind.Accept),
+                _ => ConsoleInputMapper.ToControlInput(key)
+            };
+            var transition = MultilineTextBox.Default.Reduce(state.MultilineTextBox, input);
+            return transition.Outcome switch
+            {
+                MultilineTextBoxOutcome.Accepted => new(state with
+                {
+                    Mode = GalleryMode.Browse,
+                    MultilineTextBox = transition.State!,
+                    MultilineTextBoxBeforeFocus = null,
+                    Status = "Multiline text saved."
+                }),
+                MultilineTextBoxOutcome.Cancelled => new(state with
+                {
+                    Mode = GalleryMode.Browse,
+                    MultilineTextBox = state.MultilineTextBoxBeforeFocus!,
+                    MultilineTextBoxBeforeFocus = null,
+                    Status = "Multiline edit cancelled."
+                }),
+                _ => new(state with { MultilineTextBox = transition.State! })
+            };
+        }
+
         var selectTransition = SelectList.Default.Reduce(state.SelectList, ConsoleInputMapper.ToControlInput(key));
         if (selectTransition.Outcome == SelectListOutcome.Accepted)
         {
@@ -175,6 +214,7 @@ internal static class GalleryReducer
     {
         DemoId.TextBox => "Text box",
         DemoId.SelectList => "Select list",
+        DemoId.MultilineTextBox => "Multiline text box",
         DemoId.ProgressBar => "Progress bar",
         DemoId.Splash => "Splash box",
         _ => demo.ToString()

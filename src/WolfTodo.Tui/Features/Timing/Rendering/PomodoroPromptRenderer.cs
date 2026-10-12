@@ -21,10 +21,10 @@ public static class PomodoroPromptRenderer
             decoration: prompt.Error is null ? Decoration.Dim : Decoration.Bold);
 
         return new Rows(
-            TextBox.Default.Render(
+            TuiControlAdapter.Render(
                 prompt.Input with { Label = Ellipsize(prompt.Input.Label, Math.Max(1, width)) },
                 theme,
-                new TuiComponentConstraints(width, TextBox.Height)),
+                new ControlConstraints(width, TextBox.Height)),
             new Text(footer, footerStyle).Ellipsis());
     }
 

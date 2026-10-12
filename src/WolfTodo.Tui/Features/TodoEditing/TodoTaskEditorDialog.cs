@@ -10,7 +10,7 @@ namespace WolfTodo.Tui.Features.TodoEditing;
 
 public static class TodoTaskEditorDialog
 {
-    public static int Measure(TodoTaskEditorDialogView view, TuiComponentConstraints constraints) =>
+    public static int Measure(TodoTaskEditorDialogView view, ControlConstraints constraints) =>
         view.Lines.Count + 2 + (view.TextBoxes ?? []).Sum(textBox => TextBox.Default.Measure(textBox, constraints));
 
     public static TodoTaskEditorDialogView Create(
@@ -154,7 +154,7 @@ public static class TodoTaskEditorDialog
         Enum.GetValues<TodoFormField>().Select(field =>
         {
             if (editor.FieldTextBox is { } active && field == editor.SelectedField) return active;
-            return TextBox.Create(FieldLabel(field), false, DisplayValue(editor, field), field == editor.SelectedField);
+            return TextBoxState.Create(FieldLabel(field), false, DisplayValue(editor, field), field == editor.SelectedField);
         }).ToArray();
 
     private static string DisplayValue(TodoTaskEditorState editor, TodoFormField field)
@@ -226,8 +226,8 @@ public static class TodoTaskEditorDialog
     public static IRenderable CreateRenderable(TodoTaskEditorDialogView view, TuiTheme theme)
     {
         var rows = view.Lines.Select(line => (IRenderable)new Text(line.Text, Style(line.Role, theme))).ToList();
-        rows.InsertRange(Math.Min(1, rows.Count), (view.TextBoxes ?? []).Select(textBox => TextBox.Default.Render(
-            textBox, theme, new TuiComponentConstraints(view.TextBoxWidth, TextBox.Height))));
+        rows.InsertRange(Math.Min(1, rows.Count), (view.TextBoxes ?? []).Select(textBox => TuiControlAdapter.Render(
+            textBox, theme, new ControlConstraints(view.TextBoxWidth, TextBox.Height))));
         return new Panel(new Rows(rows))
         {
             Border = BoxBorder.Square,

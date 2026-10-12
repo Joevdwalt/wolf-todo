@@ -83,7 +83,7 @@ public sealed class TaskLinkWorkflowTests
         var prompt = workflow.Prompt(State);
         workflow.ReducePanel(prompt, Key(ConsoleKey.Escape), Bindings, Catalog, 0).Browser.Should().Be(State.Browser);
         var typed = prompt with { TaskLinkPanel = prompt.TaskLinkPanel! with
-            { Input = TextBox.Create("OPEN TASK LINK", true, TaskLinkCode.Generate(Project.Path, 4), true) } };
+            { Input = TextBoxState.Create("OPEN TASK LINK", true, TaskLinkCode.Generate(Project.Path, 4), true) } };
         var opened = workflow.ReducePanel(typed, Key(ConsoleKey.Enter), Bindings, Catalog, 0);
         opened.TaskLinkPanel.Should().BeNull();
         opened.Browser.PendingTodoSelection.Should().Be(new TodoIdentity(Project.Path, 4));

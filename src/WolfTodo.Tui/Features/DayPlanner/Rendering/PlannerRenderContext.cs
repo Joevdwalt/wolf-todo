@@ -9,7 +9,7 @@ namespace WolfTodo.Tui.Features.DayPlanner.Rendering;
 public sealed record PlannerRenderContext(
     int Width,
     int Height,
-    SelectListView? SelectList,
+    SelectListState? SelectList,
     int SelectRows,
     MultilineTextBoxState? TextBox,
     int TextBoxRows,

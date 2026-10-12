@@ -71,8 +71,8 @@ task component:multiline
 task component:select-list
 ```
 
-Run the standalone Wolf.Controls gallery to inspect reusable controls and their
-animations without loading Wtodo data:
+Run the standalone Wolf.Controls gallery to inspect reusable controls,
+including multiline editing, and their animations without loading Wtodo data:
 
 ```text
 task controls:examples

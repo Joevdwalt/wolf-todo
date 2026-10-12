@@ -1,29 +1,26 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
-using WolfTodo.Tui.Features.Configuration;
+namespace Wolf.Controls;
 
-namespace WolfTodo.Tui.Controls;
-
-public sealed class MultilineTextBox : ITuiComponent<MultilineTextBoxState, MultilineTextBoxOutcome>
+public sealed class MultilineTextBox : IControl<MultilineTextBoxState, MultilineTextBoxOutcome>
 {
     public static MultilineTextBox Default { get; } = new();
 
-    public TuiComponentTransition<MultilineTextBoxState, MultilineTextBoxOutcome> Reduce(
+    public ControlTransition<MultilineTextBoxState, MultilineTextBoxOutcome> Reduce(
         MultilineTextBoxState state,
-        ConsoleKeyInfo key,
-        TuiKeyBindings bindings)
+        ControlInput input)
     {
-        if (key.Key == ConsoleKey.Escape)
+        if (input.Kind == ControlInputKind.Cancel)
         {
             return new(null, MultilineTextBoxOutcome.Cancelled);
         }
 
-        if (bindings.MatchesSaveForm(key))
+        if (input.Kind == ControlInputKind.Accept)
         {
             return new(state, MultilineTextBoxOutcome.Accepted);
         }
 
-        if (IsSelectAll(key))
+        if (input.Kind == ControlInputKind.SelectAll)
         {
             var selected = state.Text.Length == 0
                 ? state with { SelectionAnchor = null }
@@ -31,20 +28,20 @@ public sealed class MultilineTextBox : ITuiComponent<MultilineTextBoxState, Mult
             return new(selected, MultilineTextBoxOutcome.Editing);
         }
 
-        return new(ReduceEditing(state, key), MultilineTextBoxOutcome.Editing);
+        return new(ReduceEditing(state, input), MultilineTextBoxOutcome.Editing);
     }
 
-    private static MultilineTextBoxState ReduceEditing(MultilineTextBoxState state, ConsoleKeyInfo key)
+    private static MultilineTextBoxState ReduceEditing(MultilineTextBoxState state, ControlInput input)
     {
         var cursor = state.ClampedCursor;
         if (state.HasSelection)
         {
-            if (key.Key is ConsoleKey.LeftArrow or ConsoleKey.UpArrow or ConsoleKey.Home)
+            if (input.Kind is ControlInputKind.MoveLeft or ControlInputKind.MoveUp or ControlInputKind.MoveHome)
             {
                 return state with { Cursor = state.SelectionStart, SelectionAnchor = null };
             }
 
-            if (key.Key is ConsoleKey.RightArrow or ConsoleKey.DownArrow or ConsoleKey.End)
+            if (input.Kind is ControlInputKind.MoveRight or ControlInputKind.MoveDown or ControlInputKind.MoveEnd)
             {
                 return state with
                 {
@@ -53,67 +50,67 @@ public sealed class MultilineTextBox : ITuiComponent<MultilineTextBoxState, Mult
                 };
             }
 
-            if (key.Key is ConsoleKey.Backspace or ConsoleKey.Delete)
+            if (input.Kind is ControlInputKind.Backspace or ControlInputKind.Delete)
             {
                 return ReplaceSelection(state, string.Empty);
             }
 
-            if (key.Key == ConsoleKey.Enter && state.IsMultiline)
+            if (input.Kind == ControlInputKind.InsertNewline && state.IsMultiline)
             {
                 return ReplaceSelection(state, "\n");
             }
 
-            if (!char.IsControl(key.KeyChar))
+            if (input.Kind == ControlInputKind.Character && !char.IsControl(input.Character))
             {
-                return ReplaceSelection(state, key.KeyChar.ToString());
+                return ReplaceSelection(state, input.Character.ToString());
             }
         }
 
-        return key.Key switch
+        return input.Kind switch
         {
-            ConsoleKey.LeftArrow => state with
+            ControlInputKind.MoveLeft => state with
             {
                 Cursor = Math.Max(0, cursor - 1),
                 SelectionAnchor = null
             },
-            ConsoleKey.RightArrow => state with
+            ControlInputKind.MoveRight => state with
             {
                 Cursor = Math.Min(state.Text.Length, cursor + 1),
                 SelectionAnchor = null
             },
-            ConsoleKey.Home => state with
+            ControlInputKind.MoveHome => state with
             {
                 Cursor = LineStart(state.Text, cursor),
                 SelectionAnchor = null
             },
-            ConsoleKey.End => state with
+            ControlInputKind.MoveEnd => state with
             {
                 Cursor = LineEnd(state.Text, cursor),
                 SelectionAnchor = null
             },
-            ConsoleKey.UpArrow => state with
+            ControlInputKind.MoveUp => state with
             {
                 Cursor = MoveLine(state.Text, cursor, -1),
                 SelectionAnchor = null
             },
-            ConsoleKey.DownArrow => state with
+            ControlInputKind.MoveDown => state with
             {
                 Cursor = MoveLine(state.Text, cursor, 1),
                 SelectionAnchor = null
             },
-            ConsoleKey.Backspace when cursor > 0 => state with
+            ControlInputKind.Backspace when cursor > 0 => state with
             {
                 Text = state.Text.Remove(cursor - 1, 1),
                 Cursor = cursor - 1,
                 SelectionAnchor = null
             },
-            ConsoleKey.Delete when cursor < state.Text.Length => state with
+            ControlInputKind.Delete when cursor < state.Text.Length => state with
             {
                 Text = state.Text.Remove(cursor, 1),
                 SelectionAnchor = null
             },
-            ConsoleKey.Enter when state.IsMultiline => Insert(state, "\n"),
-            _ when !char.IsControl(key.KeyChar) => Insert(state, key.KeyChar.ToString()),
+            ControlInputKind.InsertNewline when state.IsMultiline => Insert(state, "\n"),
+            ControlInputKind.Character when !char.IsControl(input.Character) => Insert(state, input.Character.ToString()),
             _ => state
         };
     }
@@ -175,17 +172,13 @@ public sealed class MultilineTextBox : ITuiComponent<MultilineTextBoxState, Mult
         return Math.Min(nextStart + column, LineEnd(text, nextStart));
     }
 
-    public int Measure(MultilineTextBoxState state, TuiComponentConstraints constraints) =>
+    public int Measure(MultilineTextBoxState state, ControlConstraints constraints) =>
         constraints.ClampedMaxRows + 3;
-
-    public IRenderable Render(MultilineTextBoxState state, TuiTheme theme, TuiComponentConstraints constraints) =>
-        Render(state, theme, constraints, "Ctrl+S");
 
     public IRenderable Render(
         MultilineTextBoxState state,
-        TuiTheme theme,
-        TuiComponentConstraints constraints,
-        string saveBinding)
+        ControlTheme theme,
+        ControlConstraints constraints)
     {
         var lines = state.Text.Split('\n');
         var cursorLine = state.Text[..state.ClampedCursor].Count(character => character == '\n');
@@ -226,18 +219,23 @@ public sealed class MultilineTextBox : ITuiComponent<MultilineTextBoxState, Mult
             renderLines.Add(new Text(string.Empty));
         }
 
-        renderLines.Add(new Text($"{saveBinding} SAVE TEXT  Esc CANCEL", new Style(theme.Muted, decoration: Decoration.Dim)));
-        return TuiControlPanel.Create(state.Label, new Rows(renderLines), theme);
+        renderLines.Add(new Text($"{state.SaveHint} SAVE TEXT  Esc CANCEL", new Style(theme.Muted, decoration: Decoration.Dim)));
+        return new Panel(new Rows(renderLines))
+        {
+            Header = new PanelHeader(state.Label.ToUpperInvariant()),
+            Border = BoxBorder.Square,
+            BorderStyle = new Style(theme.BorderActive),
+            Padding = new Padding(1, 0),
+            Width = constraints.ClampedWidth,
+            Expand = false
+        };
     }
-
-    private static bool IsSelectAll(ConsoleKeyInfo key) =>
-        key.Key == ConsoleKey.A && key.Modifiers.HasFlag(ConsoleModifiers.Control);
 
     private static IRenderable CreateSelectedLine(
         string line,
         int lineStart,
         MultilineTextBoxState state,
-        TuiTheme theme)
+        ControlTheme theme)
     {
         var selectionStart = Math.Clamp(state.SelectionStart - lineStart, 0, line.Length);
         var selectionEnd = Math.Clamp(
@@ -245,7 +243,7 @@ public sealed class MultilineTextBox : ITuiComponent<MultilineTextBoxState, Mult
             selectionStart,
             line.Length);
         var textStyle = new Style(theme.Text);
-        var selectionStyle = new Style(theme.Background, theme.AccentBright, Decoration.Bold);
+        var selectionStyle = new Style(theme.Surface, theme.AccentBright, Decoration.Bold);
         return new Columns(
         [
             new Text(line[..selectionStart], textStyle),

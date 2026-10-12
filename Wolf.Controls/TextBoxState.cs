@@ -11,11 +11,13 @@ public sealed record TextBoxState(
 {
     public int ClampedCursor => Math.Clamp(Cursor, 0, Text.Length);
 
-    public bool HasSelection => SelectionAnchor is not null && SelectionAnchor.Value != ClampedCursor;
+    public int ClampedSelectionAnchor => Math.Clamp(SelectionAnchor ?? ClampedCursor, 0, Text.Length);
 
-    public int SelectionStart => Math.Min(SelectionAnchor ?? ClampedCursor, ClampedCursor);
+    public bool HasSelection => SelectionAnchor is not null && ClampedSelectionAnchor != ClampedCursor;
 
-    public int SelectionLength => Math.Abs((SelectionAnchor ?? ClampedCursor) - ClampedCursor);
+    public int SelectionStart => Math.Min(ClampedSelectionAnchor, ClampedCursor);
+
+    public int SelectionLength => Math.Abs(ClampedSelectionAnchor - ClampedCursor);
 
     public static TextBoxState Create(string label, bool isEditable, string text, bool isActive = false) =>
         new(label, isEditable, text, text.Length, isActive);

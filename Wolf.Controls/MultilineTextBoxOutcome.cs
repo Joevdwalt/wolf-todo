@@ -1,4 +1,4 @@
-namespace WolfTodo.Tui.Controls;
+namespace Wolf.Controls;
 
 public enum MultilineTextBoxOutcome
 {

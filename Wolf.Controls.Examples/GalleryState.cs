@@ -10,6 +10,8 @@ internal sealed record GalleryState(
     TextBoxState? TextBoxBeforeFocus,
     SelectListState SelectList,
     SelectListState? SelectListBeforeFocus,
+    MultilineTextBoxState MultilineTextBox,
+    MultilineTextBoxState? MultilineTextBoxBeforeFocus,
     DateTimeOffset ProgressStartedAt,
     double PreviousProgressValue,
     double ProgressValue,
@@ -31,11 +33,13 @@ internal sealed record GalleryState(
             "No options available.",
             "Up/Down MOVE  Enter SELECT  Esc CANCEL"),
         null,
+        MultilineTextBoxState.Create("Notes", "Plan the work\nReview the result", isMultiline: true),
+        null,
         now,
         0,
         0,
         now,
         null,
         SplashBoxState.Create("Wolf Controls", "Press T to replay · Left/Right to browse", now),
-        "Use Left/Right or 1-6 to select a control.");
+        "Use Left/Right or 1-7 to select a control.");
 }

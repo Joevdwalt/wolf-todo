@@ -34,6 +34,14 @@ public sealed class TextBoxTests
     }
 
     [Fact]
+    public void DisplayText_keeps_the_selected_end_visible()
+    {
+        var state = TextBoxState.Create("Task", isEditable: true, "Prepare workshop") with { SelectionAnchor = 0 };
+
+        TextBox.DisplayText(state, 6).Should().Be("rkshop");
+    }
+
+    [Fact]
     public void Reduce_accepts_and_cancels_without_changing_the_original_state()
     {
         var state = TextBoxState.Create("Task", isEditable: true, "Plan");

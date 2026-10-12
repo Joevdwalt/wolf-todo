@@ -7,5 +7,5 @@ public sealed record TodoTaskEditorDialogView(
     IReadOnlyList<TextBoxState>? TextBoxes = null,
     int TextBoxWidth = 3)
 {
-    public int Height => TodoTaskEditorDialog.Measure(this, new TuiComponentConstraints(TextBoxWidth, TextBox.Height));
+    public int Height => TodoTaskEditorDialog.Measure(this, new ControlConstraints(TextBoxWidth, TextBox.Height));
 }

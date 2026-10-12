@@ -7,5 +7,6 @@ internal enum DemoId
     Spinner,
     ProgressBar,
     Toast,
-    Splash
+    Splash,
+    MultilineTextBox
 }
