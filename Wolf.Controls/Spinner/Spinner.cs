@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace Wolf.Controls;
+namespace Wolf.Controls.Spinner;
 
 /// <summary>A host-timed indeterminate spinner using a Braille frame sequence.</summary>
 public sealed class Spinner : IAnimatedControl<SpinnerState>

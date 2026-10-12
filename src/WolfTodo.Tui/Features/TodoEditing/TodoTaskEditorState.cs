@@ -1,5 +1,7 @@
 using WolfTodo.Tui.Features.ProjectBrowser;
 using System.Collections.Immutable;
+using Wolf.Controls.MultilineTextBox;
+using Wolf.Controls.TextBox;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
 

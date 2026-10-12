@@ -1,6 +1,10 @@
 using Wolf.Controls;
+using Wolf.Controls.MultilineTextBox;
 using Wolf.Controls.ProgressBar;
+using Wolf.Controls.SelectList;
 using Wolf.Controls.Splash;
+using Wolf.Controls.TextBox;
+using Wolf.Controls.Toast;
 
 namespace Wolf.Controls.Examples;
 
@@ -121,7 +125,7 @@ internal static class GalleryReducer
     {
         if (state.ActiveDemo == DemoId.TextBox)
         {
-            var transition = TextBox.Default.Reduce(state.TextBox, ConsoleInputMapper.ToControlInput(key));
+            var transition = TextBox.TextBox.Default.Reduce(state.TextBox, ConsoleInputMapper.ToControlInput(key));
             return transition.Outcome switch
             {
                 TextBoxOutcome.Accepted => new(state with
@@ -150,7 +154,7 @@ internal static class GalleryReducer
                 ConsoleKey.S when key.Modifiers.HasFlag(ConsoleModifiers.Control) => new ControlInput(ControlInputKind.Accept),
                 _ => ConsoleInputMapper.ToControlInput(key)
             };
-            var transition = MultilineTextBox.Default.Reduce(state.MultilineTextBox, input);
+            var transition = MultilineTextBox.MultilineTextBox.Default.Reduce(state.MultilineTextBox, input);
             return transition.Outcome switch
             {
                 MultilineTextBoxOutcome.Accepted => new(state with
@@ -171,7 +175,7 @@ internal static class GalleryReducer
             };
         }
 
-        var selectTransition = SelectList.Default.Reduce(state.SelectList, ConsoleInputMapper.ToControlInput(key));
+        var selectTransition = SelectList.SelectList.Default.Reduce(state.SelectList, ConsoleInputMapper.ToControlInput(key));
         if (selectTransition.Outcome == SelectListOutcome.Accepted)
         {
             var selectedState = selectTransition.State!;

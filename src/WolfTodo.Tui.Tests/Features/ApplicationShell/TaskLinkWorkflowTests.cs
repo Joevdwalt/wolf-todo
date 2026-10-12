@@ -1,6 +1,7 @@
 using WolfTodo.Tui.Features.Commands;
 using WolfTodo.Tui.Features.TaskFocus;
 using FluentAssertions;
+using Wolf.Controls.TextBox;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.ApplicationShell;

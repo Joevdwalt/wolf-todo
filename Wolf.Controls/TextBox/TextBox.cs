@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace Wolf.Controls;
+namespace Wolf.Controls.TextBox;
 
 /// <summary>A reusable, single-line terminal text box with cursor-aware editing.</summary>
 public sealed class TextBox : IControl<TextBoxState, TextBoxOutcome>

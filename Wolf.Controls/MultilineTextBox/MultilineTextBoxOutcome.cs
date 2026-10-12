@@ -1,4 +1,4 @@
-namespace Wolf.Controls;
+namespace Wolf.Controls.MultilineTextBox;
 
 public enum MultilineTextBoxOutcome
 {

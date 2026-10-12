@@ -1,4 +1,4 @@
-namespace Wolf.Controls;
+namespace Wolf.Controls.SelectList;
 
 /// <summary>State displayed by a keyboard-navigable select list.</summary>
 public sealed record SelectListState(

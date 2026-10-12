@@ -1,6 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
-namespace Wolf.Controls;
+
+namespace Wolf.Controls.MultilineTextBox;
 
 public sealed class MultilineTextBox : IControl<MultilineTextBoxState, MultilineTextBoxOutcome>
 {
@@ -31,7 +32,7 @@ public sealed class MultilineTextBox : IControl<MultilineTextBoxState, Multiline
         return new(ReduceEditing(state, input), MultilineTextBoxOutcome.Editing);
     }
 
-    private static MultilineTextBoxState ReduceEditing(MultilineTextBoxState state, ControlInput input)
+    public static MultilineTextBoxState ReduceEditing(MultilineTextBoxState state, ControlInput input)
     {
         var cursor = state.ClampedCursor;
         if (state.HasSelection)
@@ -115,7 +116,7 @@ public sealed class MultilineTextBox : IControl<MultilineTextBoxState, Multiline
         };
     }
 
-    private static MultilineTextBoxState Insert(MultilineTextBoxState state, string value)
+    public static MultilineTextBoxState Insert(MultilineTextBoxState state, string value)
     {
         var cursor = state.ClampedCursor;
         return state with
@@ -126,7 +127,7 @@ public sealed class MultilineTextBox : IControl<MultilineTextBoxState, Multiline
         };
     }
 
-    private static MultilineTextBoxState ReplaceSelection(MultilineTextBoxState state, string value)
+    public static MultilineTextBoxState ReplaceSelection(MultilineTextBoxState state, string value)
     {
         var text = state.Text.Remove(state.SelectionStart, state.SelectionLength)
             .Insert(state.SelectionStart, value);
@@ -138,15 +139,15 @@ public sealed class MultilineTextBox : IControl<MultilineTextBoxState, Multiline
         };
     }
 
-    private static int LineStart(string text, int cursor) => text.LastIndexOf('\n', Math.Max(0, cursor - 1)) + 1;
+    public static int LineStart(string text, int cursor) => text.LastIndexOf('\n', Math.Max(0, cursor - 1)) + 1;
 
-    private static int LineEnd(string text, int cursor)
+    public static int LineEnd(string text, int cursor)
     {
         var end = text.IndexOf('\n', cursor);
         return end < 0 ? text.Length : end;
     }
 
-    private static int MoveLine(string text, int cursor, int offset)
+    public static int MoveLine(string text, int cursor, int offset)
     {
         var start = LineStart(text, cursor);
         var column = cursor - start;
@@ -231,7 +232,7 @@ public sealed class MultilineTextBox : IControl<MultilineTextBoxState, Multiline
         };
     }
 
-    private static IRenderable CreateSelectedLine(
+    public static IRenderable CreateSelectedLine(
         string line,
         int lineStart,
         MultilineTextBoxState state,

@@ -1,4 +1,4 @@
-namespace Wolf.Controls;
+namespace Wolf.Controls.Toast;
 
 /// <summary>State for one transient toast notification.</summary>
 public sealed record ToastState(string Message, ToastSeverity Severity, DateTimeOffset VisibleFrom, DateTimeOffset VisibleUntil)

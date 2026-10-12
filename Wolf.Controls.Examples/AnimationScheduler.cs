@@ -1,4 +1,5 @@
 using Wolf.Controls;
+using Wolf.Controls.Spinner;
 using Wolf.Controls.Splash;
 
 namespace Wolf.Controls.Examples;
@@ -10,7 +11,7 @@ internal static class AnimationScheduler
         var frames = new List<DateTimeOffset>();
         if (state.ActiveDemo == DemoId.Spinner)
         {
-            frames.Add(Spinner.Default.NextFrameAt(new SpinnerState("Loading controls"), now)!.Value);
+            frames.Add(Spinner.Spinner.Default.NextFrameAt(new SpinnerState("Loading controls"), now)!.Value);
         }
 
         if (state.ActiveDemo == DemoId.ProgressBar)
@@ -18,7 +19,7 @@ internal static class AnimationScheduler
             frames.Add(now + AnimationTiming.FrameInterval);
         }
 
-        if (state.Toast is not null && Toast.Default.NextFrameAt(state.Toast, now) is { } toastFrame)
+        if (state.Toast is not null && Toast.Toast.Default.NextFrameAt(state.Toast, now) is { } toastFrame)
         {
             frames.Add(toastFrame);
         }

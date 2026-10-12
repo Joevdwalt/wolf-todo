@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace Wolf.Controls;
+namespace Wolf.Controls.Toast;
 
 /// <summary>A transient toast with host-driven horizontal entrance and exit frames.</summary>
 public sealed class Toast : IAnimatedControl<ToastState>

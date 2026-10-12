@@ -1,6 +1,7 @@
 using WolfTodo.Tui.Controls;
 using Spectre.Console;
 using Spectre.Console.Rendering;
+using Wolf.Controls.TextBox;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
