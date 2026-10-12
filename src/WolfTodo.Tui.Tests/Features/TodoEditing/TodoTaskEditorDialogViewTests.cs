@@ -1,5 +1,6 @@
 using WolfTodo.Tui.Features.TodoEditing;
 using FluentAssertions;
+using Wolf.Controls.TextBox;
 using WolfTodo.Tui.Controls;
 
 namespace WolfTodo.Tui.Tests.Features.TodoEditing;

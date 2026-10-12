@@ -1,6 +1,7 @@
 using WolfTodo.Tui.Features.TaskLinks;
 using Spectre.Console;
 using Spectre.Console.Rendering;
+using Wolf.Controls.TextBox;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Rendering;

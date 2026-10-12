@@ -6,6 +6,7 @@ using WolfTodo.Tui.Features.TodoEditing;
 using FluentAssertions;
 using System.Collections.Immutable;
 using Spectre.Console;
+using Wolf.Controls.TextBox;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;

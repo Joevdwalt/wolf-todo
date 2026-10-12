@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Wolf.Controls.TextBox;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;

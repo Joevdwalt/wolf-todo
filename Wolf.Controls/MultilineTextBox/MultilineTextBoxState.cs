@@ -1,4 +1,4 @@
-namespace Wolf.Controls;
+namespace Wolf.Controls.MultilineTextBox;
 
 public sealed record MultilineTextBoxState(
     string Label,

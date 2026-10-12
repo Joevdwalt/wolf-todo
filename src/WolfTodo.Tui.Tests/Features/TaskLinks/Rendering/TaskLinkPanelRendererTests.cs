@@ -2,6 +2,7 @@ using WolfTodo.Tui.Features.TaskLinks.Rendering;
 using WolfTodo.Tui.Features.TaskLinks;
 using FluentAssertions;
 using Spectre.Console;
+using Wolf.Controls.TextBox;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.ApplicationShell.Rendering;

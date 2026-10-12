@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Wolf.Controls.TextBox;
 
 namespace Wolf.Controls.Tests;
 
@@ -9,14 +10,14 @@ public sealed class TextBoxTests
     {
         var state = TextBoxState.Create("Task", isEditable: true, "Plan review");
 
-        state = TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.MoveHome)).State!;
-        state = TextBox.Default.Reduce(state, ControlInput.FromCharacter('A')).State!;
-        state = TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.Delete)).State!;
-        state = TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.MoveLeft)).State!;
+        state = TextBox.TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.MoveHome)).State!;
+        state = TextBox.TextBox.Default.Reduce(state, ControlInput.FromCharacter('A')).State!;
+        state = TextBox.TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.Delete)).State!;
+        state = TextBox.TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.MoveLeft)).State!;
 
         state.Text.Should().Be("Alan review");
         state.Cursor.Should().Be(0);
-        TextBox.DisplayText(state, 6).Should().Be("Alan r");
+        TextBox.TextBox.DisplayText(state, 6).Should().Be("Alan r");
     }
 
     [Fact]
@@ -24,9 +25,9 @@ public sealed class TextBoxTests
     {
         var state = TextBoxState.Create("Task", isEditable: true, "Plan review");
 
-        var selected = TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.SelectAll)).State!;
-        var replaced = TextBox.Default.Reduce(selected, ControlInput.FromCharacter('R')).State!;
-        var deleted = TextBox.Default.Reduce(selected, new ControlInput(ControlInputKind.Delete)).State!;
+        var selected = TextBox.TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.SelectAll)).State!;
+        var replaced = TextBox.TextBox.Default.Reduce(selected, ControlInput.FromCharacter('R')).State!;
+        var deleted = TextBox.TextBox.Default.Reduce(selected, new ControlInput(ControlInputKind.Delete)).State!;
 
         selected.HasSelection.Should().BeTrue();
         replaced.Text.Should().Be("R");
@@ -38,7 +39,7 @@ public sealed class TextBoxTests
     {
         var state = TextBoxState.Create("Task", isEditable: true, "Prepare workshop") with { SelectionAnchor = 0 };
 
-        TextBox.DisplayText(state, 6).Should().Be("rkshop");
+        TextBox.TextBox.DisplayText(state, 6).Should().Be("rkshop");
     }
 
     [Fact]
@@ -46,8 +47,8 @@ public sealed class TextBoxTests
     {
         var state = TextBoxState.Create("Task", isEditable: true, "Plan");
 
-        var accepted = TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.Accept));
-        var cancelled = TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.Cancel));
+        var accepted = TextBox.TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.Accept));
+        var cancelled = TextBox.TextBox.Default.Reduce(state, new ControlInput(ControlInputKind.Cancel));
 
         accepted.Outcome.Should().Be(TextBoxOutcome.Accepted);
         accepted.State.Should().Be(state);
@@ -60,7 +61,7 @@ public sealed class TextBoxTests
     {
         var state = TextBoxState.Create("Task", isEditable: false, "Plan");
 
-        var transition = TextBox.Default.Reduce(state, ControlInput.FromCharacter('x'));
+        var transition = TextBox.TextBox.Default.Reduce(state, ControlInput.FromCharacter('x'));
 
         transition.Outcome.Should().Be(TextBoxOutcome.Editing);
         transition.State.Should().BeSameAs(state);
@@ -69,10 +70,10 @@ public sealed class TextBoxTests
     [Fact]
     public void Component_measures_and_renders_with_clamped_constraints()
     {
-        IControl<TextBoxState, TextBoxOutcome> control = TextBox.Default;
+        IControl<TextBoxState, TextBoxOutcome> control = TextBox.TextBox.Default;
         var state = TextBoxState.Create("Task", isEditable: true, "Plan");
 
-        control.Measure(state, new ControlConstraints(0, 0)).Should().Be(TextBox.Height);
+        control.Measure(state, new ControlConstraints(0, 0)).Should().Be(TextBox.TextBox.Height);
         control.Render(state, ControlTheme.Default, new ControlConstraints(0, 0)).Should().NotBeNull();
     }
 }

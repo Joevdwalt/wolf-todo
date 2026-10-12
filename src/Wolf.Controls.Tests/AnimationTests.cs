@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Wolf.Controls.ProgressBar;
+using Wolf.Controls.Spinner;
+using Wolf.Controls.Toast;
 
 namespace Wolf.Controls.Tests;
 
@@ -10,9 +12,9 @@ public sealed class AnimationTests
     {
         var start = DateTimeOffset.FromUnixTimeMilliseconds(0);
 
-        Spinner.FrameAt(start).Should().Be("⠋");
-        Spinner.FrameAt(start + AnimationTiming.FrameInterval).Should().Be("⠙");
-        Spinner.Default.NextFrameAt(new SpinnerState("Loading"), start).Should().Be(start + AnimationTiming.FrameInterval);
+        Spinner.Spinner.FrameAt(start).Should().Be("⠋");
+        Spinner.Spinner.FrameAt(start + AnimationTiming.FrameInterval).Should().Be("⠙");
+        Spinner.Spinner.Default.NextFrameAt(new SpinnerState("Loading"), start).Should().Be(start + AnimationTiming.FrameInterval);
     }
 
     [Fact]
@@ -35,7 +37,7 @@ public sealed class AnimationTests
 
         state.IsVisibleAt(start).Should().BeTrue();
         state.IsVisibleAt(state.VisibleUntil).Should().BeFalse();
-        Toast.Default.NextFrameAt(state, start).Should().Be(start + AnimationTiming.FrameInterval);
-        Toast.Default.NextFrameAt(state, state.VisibleUntil).Should().BeNull();
+        Toast.Toast.Default.NextFrameAt(state, start).Should().Be(start + AnimationTiming.FrameInterval);
+        Toast.Toast.Default.NextFrameAt(state, state.VisibleUntil).Should().BeNull();
     }
 }

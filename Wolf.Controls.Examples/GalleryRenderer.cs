@@ -2,6 +2,7 @@ using Spectre.Console;
 using Spectre.Console.Rendering;
 using Wolf.Controls;
 using Wolf.Controls.ProgressBar;
+using Wolf.Controls.Spinner;
 using Wolf.Controls.Splash;
 
 namespace Wolf.Controls.Examples;
@@ -60,10 +61,10 @@ internal static class GalleryRenderer
 
     private static IRenderable RenderActiveDemo(GalleryState state, DateTimeOffset now, ControlConstraints constraints) => state.ActiveDemo switch
     {
-        DemoId.TextBox => TextBox.Default.Render(state.TextBox, ControlTheme.Default, constraints),
-        DemoId.SelectList => SelectList.Default.Render(state.SelectList, ControlTheme.Default, constraints),
-        DemoId.MultilineTextBox => MultilineTextBox.Default.Render(state.MultilineTextBox, ControlTheme.Default, constraints),
-        DemoId.Spinner => Spinner.Default.Render(new SpinnerState("Loading controls"), ControlTheme.Default, constraints, now),
+        DemoId.TextBox => TextBox.TextBox.Default.Render(state.TextBox, ControlTheme.Default, constraints),
+        DemoId.SelectList => SelectList.SelectList.Default.Render(state.SelectList, ControlTheme.Default, constraints),
+        DemoId.MultilineTextBox => MultilineTextBox.MultilineTextBox.Default.Render(state.MultilineTextBox, ControlTheme.Default, constraints),
+        DemoId.Spinner => Spinner.Spinner.Default.Render(new SpinnerState("Loading controls"), ControlTheme.Default, constraints, now),
         DemoId.ProgressBar => ProgressBar.ProgressBar.Default.Render(
             new ProgressState("Downloading", state.PreviousProgressValue, state.ProgressValue, state.ProgressChangedAt),
             ControlTheme.Default,
@@ -71,7 +72,7 @@ internal static class GalleryRenderer
             now),
         DemoId.Toast => state.Toast is null
             ? new Text("Press T to show a transient notification.", new Style(ControlTheme.Default.Text))
-            : Toast.Default.Render(state.Toast, ControlTheme.Default, constraints, now),
+            : Toast.Toast.Default.Render(state.Toast, ControlTheme.Default, constraints, now),
         _ => new Text(string.Empty),
     };
 

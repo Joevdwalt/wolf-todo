@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace Wolf.Controls;
+namespace Wolf.Controls.SelectList;
 
 /// <summary>A themed, scrollable terminal selection control.</summary>
 public sealed class SelectList : IControl<SelectListState, SelectListOutcome>
@@ -85,7 +85,7 @@ public sealed class SelectList : IControl<SelectListState, SelectListOutcome>
         };
     }
 
-    private static int FindNextEnabled(IReadOnlyList<SelectOption> options, int selected, int direction)
+    public static int FindNextEnabled(IReadOnlyList<SelectOption> options, int selected, int direction)
     {
         if (options.Count == 0)
         {

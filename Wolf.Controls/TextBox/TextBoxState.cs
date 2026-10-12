@@ -1,4 +1,4 @@
-namespace Wolf.Controls;
+namespace Wolf.Controls.TextBox;
 
 /// <summary>State for a single-line, cursor-aware text box.</summary>
 public sealed record TextBoxState(
