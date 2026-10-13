@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Spectre.Console;
 using Wolf.Controls.Examples;
 
 namespace Wolf.Controls.Examples.Tests;
@@ -15,7 +16,7 @@ public sealed class GalleryReducerTests
         var wrapped = GalleryReducer.Reduce(state, Key(ConsoleKey.LeftArrow), now).State;
 
         numbered.ActiveDemo.Should().Be(DemoId.ProgressBar);
-        wrapped.ActiveDemo.Should().Be(DemoId.MultilineTextBox);
+        wrapped.ActiveDemo.Should().Be(DemoId.TextPrompt);
     }
 
     [Fact]
@@ -71,6 +72,27 @@ public sealed class GalleryReducerTests
 
         saved.Mode.Should().Be(GalleryMode.Browse);
         saved.MultilineTextBox.Text.Should().EndWith("\n");
+    }
+
+    [Theory]
+    [InlineData(7, 40, "EDIT RECORD")]
+    [InlineData(7, 120, "EDIT RECORD")]
+    [InlineData(8, 40, "Search all records")]
+    [InlineData(8, 120, "Search all records")]
+    public void Gallery_renders_new_compositions_at_narrow_and_normal_widths(int demoIndex, int width, string expected)
+    {
+        using var writer = new StringWriter();
+        var console = AnsiConsole.Create(new AnsiConsoleSettings
+        {
+            Ansi = AnsiSupport.No,
+            Out = new AnsiConsoleOutput(writer)
+        });
+        console.Profile.Width = width;
+
+        console.Write(GalleryRenderer.Render(GalleryState.Create(DateTimeOffset.UnixEpoch) with { ActiveDemo = (DemoId)demoIndex },
+            DateTimeOffset.UnixEpoch, width, 24));
+
+        writer.ToString().Should().Contain(expected);
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);

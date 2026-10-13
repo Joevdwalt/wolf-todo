@@ -1,7 +1,7 @@
 using WolfTodo.Tui.Controls;
-using Spectre.Console;
 using Spectre.Console.Rendering;
 using Wolf.Controls.TextBox;
+using Wolf.Controls.FormDialog;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.Configuration;
 using WolfTodo.Tui.Features.ProjectBrowser;
@@ -12,7 +12,7 @@ namespace WolfTodo.Tui.Features.TodoEditing;
 public static class TodoTaskEditorDialog
 {
     public static int Measure(TodoTaskEditorDialogView view, ControlConstraints constraints) =>
-        view.Lines.Count + 2 + (view.TextBoxes ?? []).Sum(textBox => TextBox.Default.Measure(textBox, constraints));
+        FormDialog.Measure(ToFormView(view), constraints);
 
     public static TodoTaskEditorDialogView Create(
         TodoTaskEditorState editor,
@@ -224,29 +224,24 @@ public static class TodoTaskEditorDialog
         TodoTaskEditorDialogRole role) =>
         Wrap(message, width).Select(line => new TodoTaskEditorDialogLine(line, role));
 
-    public static IRenderable CreateRenderable(TodoTaskEditorDialogView view, TuiTheme theme)
-    {
-        var rows = view.Lines.Select(line => (IRenderable)new Text(line.Text, Style(line.Role, theme))).ToList();
-        rows.InsertRange(Math.Min(1, rows.Count), (view.TextBoxes ?? []).Select(textBox => TuiControlAdapter.Render(
-            textBox, theme, new ControlConstraints(view.TextBoxWidth, TextBox.Height))));
-        return new Panel(new Rows(rows))
-        {
-            Border = BoxBorder.Square,
-            BorderStyle = new Style(theme.BorderActive),
-            Expand = true
-        };
-    }
+    public static IRenderable CreateRenderable(TodoTaskEditorDialogView view, TuiTheme theme) =>
+        FormDialog.Render(ToFormView(view), TuiControlAdapter.ToControlTheme(theme));
 
-    private static Style Style(TodoTaskEditorDialogRole role, TuiTheme theme) => role switch
+    private static FormDialogView ToFormView(TodoTaskEditorDialogView view) => new(
+        view.Lines.Select(line => new FormDialogLine(line.Text, ToFormRole(line.Role))).ToArray(),
+        view.TextBoxes,
+        view.TextBoxWidth);
+
+    private static FormDialogRole ToFormRole(TodoTaskEditorDialogRole role) => role switch
     {
-        TodoTaskEditorDialogRole.Label => new(theme.Heading, decoration: Decoration.Bold),
-        TodoTaskEditorDialogRole.Value => new(theme.SecondaryText),
-        TodoTaskEditorDialogRole.ActiveValue => new(theme.AccentBright, decoration: Decoration.Bold),
-        TodoTaskEditorDialogRole.Placeholder => new(theme.Muted, decoration: Decoration.Dim),
-        TodoTaskEditorDialogRole.Hint => new(theme.Muted, decoration: Decoration.Dim),
-        TodoTaskEditorDialogRole.Error => new(theme.Error, decoration: Decoration.Bold),
-        TodoTaskEditorDialogRole.Warning => new(theme.Warning, decoration: Decoration.Bold),
-        _ => new(theme.Text)
+        TodoTaskEditorDialogRole.Label => FormDialogRole.Label,
+        TodoTaskEditorDialogRole.Value => FormDialogRole.Value,
+        TodoTaskEditorDialogRole.ActiveValue => FormDialogRole.ActiveValue,
+        TodoTaskEditorDialogRole.Placeholder => FormDialogRole.Placeholder,
+        TodoTaskEditorDialogRole.Hint => FormDialogRole.Hint,
+        TodoTaskEditorDialogRole.Error => FormDialogRole.Error,
+        TodoTaskEditorDialogRole.Warning => FormDialogRole.Warning,
+        _ => FormDialogRole.Default
     };
 
     private static string Key(System.Collections.Immutable.ImmutableArray<KeyGesture> gestures) =>

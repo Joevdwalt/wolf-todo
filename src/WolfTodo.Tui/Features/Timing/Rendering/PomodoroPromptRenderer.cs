@@ -1,10 +1,9 @@
 using WolfTodo.Tui.Features.Timing;
-using Spectre.Console;
 using Spectre.Console.Rendering;
 using Wolf.Controls.TextBox;
+using Wolf.Controls.TextPrompt;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
-using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Features.Timing.Rendering;
 
@@ -17,40 +16,9 @@ public static class PomodoroPromptRenderer
         var footer = prompt.Error is null
             ? "Enter START · Esc CANCEL"
             : $"{prompt.Error} · Enter START · Esc CANCEL";
-        var footerStyle = new Style(
-            prompt.Error is null ? theme.Muted : theme.Error,
-            decoration: prompt.Error is null ? Decoration.Dim : Decoration.Bold);
-
-        return new Rows(
-            TuiControlAdapter.Render(
-                prompt.Input with { Label = Ellipsize(prompt.Input.Label, Math.Max(1, width)) },
-                theme,
-                new ControlConstraints(width, TextBox.Height)),
-            new Text(footer, footerStyle).Ellipsis());
-    }
-
-    private static string Ellipsize(string value, int maxWidth)
-    {
-        if (value.GetCellWidth() <= maxWidth)
-        {
-            return value;
-        }
-
-        var result = new System.Text.StringBuilder();
-        var width = 0;
-        foreach (var rune in value.EnumerateRunes())
-        {
-            var text = rune.ToString();
-            var runeWidth = text.GetCellWidth();
-            if (width + runeWidth >= maxWidth)
-            {
-                break;
-            }
-
-            result.Append(text);
-            width += runeWidth;
-        }
-
-        return result + "…";
+        return TextPrompt.Render(
+            new TextPromptView(prompt.Input, footer, IsError: prompt.Error is not null, DimFooter: true),
+            TuiControlAdapter.ToControlTheme(theme),
+            new ControlConstraints(width, Height));
     }
 }

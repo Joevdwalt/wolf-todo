@@ -1,6 +1,7 @@
 using WolfTodo.Tui.Features.Timing.Rendering;
 using Spectre.Console;
 using Spectre.Console.Rendering;
+using Wolf.Controls.Rendering;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.ApplicationShell;

@@ -45,5 +45,5 @@ internal sealed record GalleryState(
         now,
         null,
         SplashBoxState.Create("Wolf Controls", "Press T to replay · Left/Right to browse", now),
-        "Use Left/Right or 1-7 to select a control.");
+        "Use Left/Right or 1-9 to select a control.");
 }

@@ -1,8 +1,8 @@
 using FluentAssertions;
 using Spectre.Console;
-using WolfTodo.Tui.Rendering;
+using Wolf.Controls.Rendering;
 
-namespace WolfTodo.Tui.Tests.Rendering;
+namespace Wolf.Controls.Tests.Rendering;
 
 public sealed class HeightConstrainedRenderableTests
 {

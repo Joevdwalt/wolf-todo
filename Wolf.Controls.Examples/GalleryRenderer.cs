@@ -4,6 +4,8 @@ using Wolf.Controls;
 using Wolf.Controls.ProgressBar;
 using Wolf.Controls.Spinner;
 using Wolf.Controls.Splash;
+using Wolf.Controls.FormDialog;
+using Wolf.Controls.TextPrompt;
 
 namespace Wolf.Controls.Examples;
 
@@ -26,7 +28,7 @@ internal static class GalleryRenderer
         var constraints = new ControlConstraints(Math.Max(24, width - 8), 6);
         var content = new Rows(
             new Text("WOLF.CONTROLS // INTERACTIVE GALLERY", new Style(ControlTheme.Default.Text, decoration: Decoration.Bold)),
-            new Text(Navigation(state), new Style(ControlTheme.Default.Muted, decoration: Decoration.Dim)),
+            new Text(Navigation(state, width), new Style(ControlTheme.Default.Muted, decoration: Decoration.Dim)),
             new Text(string.Empty),
             RenderActiveDemo(state, now, constraints),
             new Text(string.Empty),
@@ -64,6 +66,21 @@ internal static class GalleryRenderer
         DemoId.TextBox => TextBox.TextBox.Default.Render(state.TextBox, ControlTheme.Default, constraints),
         DemoId.SelectList => SelectList.SelectList.Default.Render(state.SelectList, ControlTheme.Default, constraints),
         DemoId.MultilineTextBox => MultilineTextBox.MultilineTextBox.Default.Render(state.MultilineTextBox, ControlTheme.Default, constraints),
+        DemoId.FormDialog => FormDialog.FormDialog.Render(
+            new FormDialogView(
+                [new FormDialogLine("EDIT RECORD", FormDialogRole.Label),
+                    new FormDialogLine("Reference: EXAMPLE-42", FormDialogRole.Value),
+                    new FormDialogLine("Enter SAVE · Esc CANCEL", FormDialogRole.Hint)],
+                [TextBox.TextBoxState.Create("Title", true, "Review the plan", true)],
+                constraints.ClampedWidth),
+            ControlTheme.Default),
+        DemoId.TextPrompt => TextPrompt.TextPrompt.Render(
+            new TextPromptView(
+                TextBox.TextBoxState.Create("Search term", true, "example", true),
+                "Enter SEARCH · Esc CANCEL",
+                "Search all records"),
+            ControlTheme.Default,
+            constraints),
         DemoId.Spinner => Spinner.Spinner.Default.Render(new SpinnerState("Loading controls"), ControlTheme.Default, constraints, now),
         DemoId.ProgressBar => ProgressBar.ProgressBar.Default.Render(
             new ProgressState("Downloading", state.PreviousProgressValue, state.ProgressValue, state.ProgressChangedAt),
@@ -76,14 +93,18 @@ internal static class GalleryRenderer
         _ => new Text(string.Empty),
     };
 
-    private static string Navigation(GalleryState state) =>
+    private static string Navigation(GalleryState state, int width) => width < 100
+        ? $"[{(int)state.ActiveDemo + 1}/9 {state.ActiveDemo}] · Left/Right BROWSE · 1-9 JUMP"
+        :
         $"[{(state.ActiveDemo == DemoId.TextBox ? "TEXT BOX" : "1 Text box")}]  " +
         $"[{(state.ActiveDemo == DemoId.SelectList ? "SELECT LIST" : "2 Select list")}]  " +
         $"[{(state.ActiveDemo == DemoId.Spinner ? "SPINNER" : "3 Spinner")}]  " +
         $"[{(state.ActiveDemo == DemoId.ProgressBar ? "PROGRESS" : "4 Progress")}]  " +
-        $"[{(state.ActiveDemo == DemoId.Toast ? "TOAST" : "5 Toast")}]  " +
+        $"[{(state.ActiveDemo == DemoId.Toast ? "TOAST" : "5 Toast")}]\n" +
         $"[{(state.ActiveDemo == DemoId.Splash ? "SPLASH" : "6 Splash")}]  " +
-        $"[{(state.ActiveDemo == DemoId.MultilineTextBox ? "MULTILINE" : "7 Multiline")}]";
+        $"[{(state.ActiveDemo == DemoId.MultilineTextBox ? "MULTILINE" : "7 Multiline")}]  " +
+        $"[{(state.ActiveDemo == DemoId.FormDialog ? "FORM DIALOG" : "8 Form dialog")}]  " +
+        $"[{(state.ActiveDemo == DemoId.TextPrompt ? "TEXT PROMPT" : "9 Text prompt")}]";
 
     private static string Footer(GalleryState state) => state.Mode == GalleryMode.FocusedControl
         ? state.ActiveDemo == DemoId.MultilineTextBox

@@ -28,5 +28,6 @@ public sealed class TaskLinkPanelRendererTests
         console.Write(TaskLinkPanelRenderer.Render(panel, TuiThemes.Wolf, 120));
         writer.ToString().Should().Contain("Work · Line 3").And.Contain("wt1-example")
             .And.Contain(opening ? "Enter OPEN" : "Ctrl+A SELECT");
+        writer.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).Should().HaveCount(6);
     }
 }

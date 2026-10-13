@@ -219,6 +219,8 @@ internal static class GalleryReducer
         DemoId.TextBox => "Text box",
         DemoId.SelectList => "Select list",
         DemoId.MultilineTextBox => "Multiline text box",
+        DemoId.FormDialog => "Form dialog",
+        DemoId.TextPrompt => "Text prompt",
         DemoId.ProgressBar => "Progress bar",
         DemoId.Splash => "Splash box",
         _ => demo.ToString()

@@ -18,7 +18,7 @@ public static class TuiControlAdapter
         theme.Surface,
         theme.Success,
         theme.Warning,
-        theme.Error) { SecondaryText = theme.SecondaryText };
+        theme.Error) { SecondaryText = theme.SecondaryText, Heading = theme.Heading };
 
     public static ControlInput ToTextInput(ConsoleKeyInfo key) => key.Key switch
     {
