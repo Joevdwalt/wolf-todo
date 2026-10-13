@@ -203,7 +203,7 @@ internal static class GalleryReducer
 
     private static bool TryGetDemo(ConsoleKeyInfo key, out DemoId demo)
     {
-        var index = key.KeyChar - '1';
+        var index = key.KeyChar == '0' ? 9 : key.KeyChar - '1';
         if (index < 0 || index >= Demos.Length)
         {
             demo = default;
@@ -223,6 +223,7 @@ internal static class GalleryReducer
         DemoId.TextPrompt => "Text prompt",
         DemoId.ProgressBar => "Progress bar",
         DemoId.Splash => "Splash box",
+        DemoId.Layouts => "Layouts",
         _ => demo.ToString()
     };
 }

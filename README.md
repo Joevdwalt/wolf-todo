@@ -85,6 +85,12 @@ Place each renderable in a `ControlLayer` with canvas coordinates and a
 input order, with the later layer in front. The gallery's Toast demo shows a
 notification over its current view.
 
+`RowLayout` and `ColumnLayout(height, ...)` allocate fixed or weighted child regions;
+`OverlayLayout.Place` positions a popup within a region. For example, compose
+a fixed header, weighted workspace, and fixed status row, then place a
+bottom-centered form over the workspace at a higher z-index. See
+[`SPEC0024`](docs/spec/SPEC0024-control-layers.md) for the compact API example.
+
 The sandbox uses the same dialog renderer and editor reducer as the TUI, but
 captures save actions in memory and never writes files. To debug it in an IDE,
 set `WolfTodo.ComponentHarness` as the startup project and use its `Task edit

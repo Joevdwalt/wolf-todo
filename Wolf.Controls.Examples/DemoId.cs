@@ -10,5 +10,6 @@ internal enum DemoId
     Splash,
     MultilineTextBox,
     FormDialog,
-    TextPrompt
+    TextPrompt,
+    Layouts
 }

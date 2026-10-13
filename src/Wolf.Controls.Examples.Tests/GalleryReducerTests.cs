@@ -16,7 +16,18 @@ public sealed class GalleryReducerTests
         var wrapped = GalleryReducer.Reduce(state, Key(ConsoleKey.LeftArrow), now).State;
 
         numbered.ActiveDemo.Should().Be(DemoId.ProgressBar);
-        wrapped.ActiveDemo.Should().Be(DemoId.TextPrompt);
+        wrapped.ActiveDemo.Should().Be(DemoId.Layouts);
+    }
+
+    [Fact]
+    public void Reduce_selects_the_layout_demo_with_zero()
+    {
+        var state = GalleryReducer.Reduce(
+            GalleryState.Create(DateTimeOffset.UnixEpoch),
+            Key('0', ConsoleKey.D0),
+            DateTimeOffset.UnixEpoch).State;
+
+        state.ActiveDemo.Should().Be(DemoId.Layouts);
     }
 
     [Fact]
@@ -79,6 +90,10 @@ public sealed class GalleryReducerTests
     [InlineData(7, 120, "EDIT RECORD")]
     [InlineData(8, 40, "Search all records")]
     [InlineData(8, 120, "Search all records")]
+    [InlineData(9, 40, "EDIT TASK")]
+    [InlineData(9, 120, "EDIT TASK")]
+    [InlineData(9, 40, "STATUS")]
+    [InlineData(9, 120, "STATUS")]
     public void Gallery_renders_new_compositions_at_narrow_and_normal_widths(int demoIndex, int width, string expected)
     {
         using var writer = new StringWriter();
