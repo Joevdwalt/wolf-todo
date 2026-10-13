@@ -6,6 +6,7 @@ using Wolf.Controls.Spinner;
 using Wolf.Controls.Splash;
 using Wolf.Controls.FormDialog;
 using Wolf.Controls.TextPrompt;
+using Wolf.Controls.Rendering;
 
 namespace Wolf.Controls.Examples;
 
@@ -87,11 +88,25 @@ internal static class GalleryRenderer
             ControlTheme.Default,
             constraints,
             now),
-        DemoId.Toast => state.Toast is null
-            ? new Text("Press T to show a transient notification.", new Style(ControlTheme.Default.Text))
-            : Toast.Toast.Default.Render(state.Toast, ControlTheme.Default, constraints, now),
+        DemoId.Toast => RenderToastDemo(state, now, constraints),
         _ => new Text(string.Empty),
     };
+
+    private static IRenderable RenderToastDemo(GalleryState state, DateTimeOffset now, ControlConstraints constraints)
+    {
+        var background = new Text("Notifications appear above the current view.",
+            new Style(ControlTheme.Default.Text));
+        if (state.Toast is null || !state.Toast.IsVisibleAt(now))
+        {
+            return background;
+        }
+
+        return new LayeredRenderable(constraints.ClampedWidth, 3,
+        [
+            new ControlLayer(background, 0, 1),
+            new ControlLayer(Toast.Toast.Default.Render(state.Toast, ControlTheme.Default, constraints, now), 0, 0, 1)
+        ]);
+    }
 
     private static string Navigation(GalleryState state, int width) => width < 100
         ? $"[{(int)state.ActiveDemo + 1}/9 {state.ActiveDemo}] · Left/Right BROWSE · 1-9 JUMP"

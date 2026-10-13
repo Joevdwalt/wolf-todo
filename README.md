@@ -79,6 +79,12 @@ animations without loading Wtodo data:
 task controls:examples
 ```
 
+Hosts can overlap controls with `LayeredRenderable` in `Wolf.Controls.Rendering`.
+Place each renderable in a `ControlLayer` with canvas coordinates and a
+`ZIndex`; larger values draw in front. Layers with the same value keep their
+input order, with the later layer in front. The gallery's Toast demo shows a
+notification over its current view.
+
 The sandbox uses the same dialog renderer and editor reducer as the TUI, but
 captures save actions in memory and never writes files. To debug it in an IDE,
 set `WolfTodo.ComponentHarness` as the startup project and use its `Task edit
