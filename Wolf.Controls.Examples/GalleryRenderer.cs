@@ -89,6 +89,7 @@ internal static class GalleryRenderer
             constraints,
             now),
         DemoId.Toast => RenderToastDemo(state, now, constraints),
+        DemoId.Layouts => RenderLayoutsDemo(constraints),
         _ => new Text(string.Empty),
     };
 
@@ -108,8 +109,37 @@ internal static class GalleryRenderer
         ]);
     }
 
+    private static IRenderable RenderLayoutsDemo(ControlConstraints constraints)
+    {
+        var width = constraints.ClampedWidth;
+        var height = 12;
+        var workspaceHeight = height - 5;
+        var workspace = new RowLayout(workspaceHeight,
+            new LayoutChild(new Panel(new Text("PROJECTS\nAll\nWork\nPersonal")) { Border = BoxBorder.Rounded }, LayoutSize.Fixed(width / 3)),
+            new LayoutChild(new Panel(new Text("TASKS\nReview the plan\nUpdate the notes\nPrepare the release")) { Border = BoxBorder.Rounded }, LayoutSize.Weighted(2)));
+        var popupWidth = Math.Max(16, width - 6);
+        var popup = new Panel(new Rows(
+            new Text("EDIT TASK", new Style(ControlTheme.Default.Text, decoration: Decoration.Bold)),
+            new Text("Title:  Review the plan"),
+            new Text("Content: Add a short summary"),
+            new Text("Enter SAVE  ·  Esc CANCEL", new Style(ControlTheme.Default.Muted))))
+        {
+            Border = BoxBorder.Rounded,
+            BorderStyle = new Style(ControlTheme.Default.Accent),
+            Width = popupWidth
+        };
+        var layers = new List<ControlLayer> { new(workspace, 0, 0) };
+        layers.Add(OverlayLayout.Place(popup, width, workspaceHeight,
+            OverlayAlignment.Bottom, width: popupWidth, height: 6, bottom: 0, zIndex: 10));
+        var overlaidWorkspace = new LayeredRenderable(width, workspaceHeight, layers);
+        return new ColumnLayout(height,
+            new LayoutChild(new Panel(new Text("HEADER  //  TODOS · PLANNER · FOCUS")) { Border = BoxBorder.Square }, LayoutSize.Fixed(3)),
+            new LayoutChild(overlaidWorkspace, LayoutSize.Weighted()),
+            new LayoutChild(new Panel(new Text("STATUS  ·  Editor hints and errors remain here")) { Border = BoxBorder.Square }, LayoutSize.Fixed(2)));
+    }
+
     private static string Navigation(GalleryState state, int width) => width < 100
-        ? $"[{(int)state.ActiveDemo + 1}/9 {state.ActiveDemo}] · Left/Right BROWSE · 1-9 JUMP"
+        ? $"[{(int)state.ActiveDemo + 1}/10 {state.ActiveDemo}] · Left/Right BROWSE · 1-9,0 JUMP"
         :
         $"[{(state.ActiveDemo == DemoId.TextBox ? "TEXT BOX" : "1 Text box")}]  " +
         $"[{(state.ActiveDemo == DemoId.SelectList ? "SELECT LIST" : "2 Select list")}]  " +
@@ -119,7 +149,8 @@ internal static class GalleryRenderer
         $"[{(state.ActiveDemo == DemoId.Splash ? "SPLASH" : "6 Splash")}]  " +
         $"[{(state.ActiveDemo == DemoId.MultilineTextBox ? "MULTILINE" : "7 Multiline")}]  " +
         $"[{(state.ActiveDemo == DemoId.FormDialog ? "FORM DIALOG" : "8 Form dialog")}]  " +
-        $"[{(state.ActiveDemo == DemoId.TextPrompt ? "TEXT PROMPT" : "9 Text prompt")}]";
+        $"[{(state.ActiveDemo == DemoId.TextPrompt ? "TEXT PROMPT" : "9 Text prompt")}]  " +
+        $"[{(state.ActiveDemo == DemoId.Layouts ? "LAYOUTS" : "0 Layouts")}]";
 
     private static string Footer(GalleryState state) => state.Mode == GalleryMode.FocusedControl
         ? state.ActiveDemo == DemoId.MultilineTextBox
@@ -130,6 +161,7 @@ internal static class GalleryRenderer
             DemoId.TextBox or DemoId.SelectList or DemoId.MultilineTextBox => "Left/Right BROWSE // Enter INTERACT // Q EXIT",
             DemoId.ProgressBar => "Left/Right BROWSE // P RESTART // Q EXIT",
             DemoId.Toast => "Left/Right BROWSE // T TRIGGER // Q EXIT",
+            DemoId.Layouts => "ROW/COLUMN SIZING // BOTTOM OVERLAY // Left/Right BROWSE // Q EXIT",
             DemoId.Splash => "T REPLAY // Left/Right BROWSE // Q EXIT",
             _ => "Left/Right BROWSE // Q EXIT"
         };
