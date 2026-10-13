@@ -15,6 +15,7 @@ public sealed class TuiControlAdapterTests
 
         theme.Accent.Should().Be(TuiThemes.Wolf.Accent);
         theme.SecondaryText.Should().Be(TuiThemes.Wolf.SecondaryText);
+        theme.Heading.Should().Be(TuiThemes.Wolf.Heading);
         theme.Surface.Should().Be(TuiThemes.Wolf.Surface);
         theme.Error.Should().Be(TuiThemes.Wolf.Error);
     }

@@ -1,9 +1,9 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace WolfTodo.Tui.Rendering;
+namespace Wolf.Controls.Rendering;
 
-internal sealed class SurfaceRenderable(
+public sealed class SurfaceRenderable(
     IRenderable content,
     Color background,
     bool expand = false) : IRenderable

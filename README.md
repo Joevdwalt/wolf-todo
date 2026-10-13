@@ -72,7 +72,8 @@ task component:select-list
 ```
 
 Run the standalone Wolf.Controls gallery to inspect reusable controls,
-including multiline editing, and their animations without loading Wtodo data:
+including multiline editing, form dialogs, and text prompts, and their
+animations without loading Wtodo data:
 
 ```text
 task controls:examples

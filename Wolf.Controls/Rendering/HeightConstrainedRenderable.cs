@@ -1,7 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace WolfTodo.Tui.Rendering;
+namespace Wolf.Controls.Rendering;
 
 public sealed class HeightConstrainedRenderable(IRenderable content, int height) : IRenderable
 {

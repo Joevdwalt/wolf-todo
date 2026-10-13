@@ -8,5 +8,7 @@ internal enum DemoId
     ProgressBar,
     Toast,
     Splash,
-    MultilineTextBox
+    MultilineTextBox,
+    FormDialog,
+    TextPrompt
 }

@@ -6,6 +6,7 @@ using Spectre.Console;
 using Spectre.Console.Rendering;
 using Wolf.Controls.MultilineTextBox;
 using Wolf.Controls.SelectList;
+using Wolf.Controls.Rendering;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Features.ApplicationShell;
 using WolfTodo.Tui.Features.ApplicationShell.Rendering;
