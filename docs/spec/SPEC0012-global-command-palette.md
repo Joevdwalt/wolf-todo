@@ -11,8 +11,11 @@ either application tab.
 
 ## Behavior
 
-The configurable `?` gesture or `:help` command opens a shell-owned bottom
-panel. The palette lists Application, Todos, and Planner actions with their
+The configurable `?` gesture or `:help` command opens a shell-owned palette.
+On terminals at least 80 columns wide and 24 rows tall, it floats over the
+Todos, Day Planner, or focus workspace, away from the selected task or slot.
+Narrower or shorter terminals keep the full-width bottom panel. The palette
+lists Application, Todos, and Planner actions with their
 resolved command or shortest configured gesture. Unavailable actions remain
 visible with a reason and cannot execute.
 
@@ -49,8 +52,8 @@ Task focus mode presents a reduced palette containing application actions and
 actions for the highlighted task. Unrelated tab, list, bulk, and planner actions
 are omitted until focus mode closes.
 
-The palette uses the normal status area and reduces active content height so
-the application tab strip remains visible on supported short terminals.
+The palette uses the normal status area. Only the bottom-panel layout reduces
+active content height; the application tab strip remains visible on short terminals.
 
 ## Acceptance Scenarios
 
@@ -64,6 +67,8 @@ the application tab strip remains visible on supported short terminals.
 7. `:config` opens the resolved global configuration in `$EDITOR` from either
    tab and reports an unavailable or failed editor.
 8. Focus mode exposes only application and highlighted-task actions.
+9. Floating layouts keep the selected task or slot visible; narrow and short
+   layouts retain the bottom panel.
 
 ## References
 

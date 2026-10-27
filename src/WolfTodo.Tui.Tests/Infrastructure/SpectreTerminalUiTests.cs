@@ -1296,6 +1296,99 @@ public sealed class SpectreTerminalUiTests
         lines[0].Should().Contain("[DAY PLANNER]");
     }
 
+    [Theory]
+    [InlineData(80, 24, true)]
+    [InlineData(140, 30, true)]
+    [InlineData(70, 30, false)]
+    [InlineData(100, 18, false)]
+    public void ShowBrowser_floats_the_palette_only_when_the_workspace_can_fit_it(
+        int width, int height, bool floating)
+    {
+        var palette = TestPalette();
+        var view = ViewWithTodoCount(25, BrowserFocus.Todos, selectedIndex: 24);
+        var lines = RenderBrowser(view with { CommandPalette = palette }, width, height);
+
+        lines.Should().Contain(line => line.Contains("COMMAND PALETTE", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("Todo 25", StringComparison.Ordinal));
+        lines[0].Should().Contain("[TODOS]");
+        lines.Should().HaveCountLessThanOrEqualTo(height - 1);
+        if (floating)
+        {
+            var paletteRow = Array.FindIndex(lines, line => line.Contains("COMMAND PALETTE", StringComparison.Ordinal));
+            var selectedRow = Array.FindIndex(lines, line => line.Contains("Todo 25", StringComparison.Ordinal));
+            selectedRow.Should().BeGreaterThan(paletteRow);
+        }
+    }
+
+    [Fact]
+    public void ShowBrowser_places_the_palette_below_a_selection_near_the_top()
+    {
+        var view = ViewWithTodoCount(25, BrowserFocus.Todos, selectedIndex: 0)
+            with { CommandPalette = TestPalette() };
+        var lines = RenderBrowser(view, 100, 30);
+
+        var selectedRow = Array.FindIndex(lines, line => line.Contains("> ◯ - Todo 1", StringComparison.Ordinal));
+        var paletteRow = Array.FindIndex(lines, line => line.Contains("COMMAND PALETTE", StringComparison.Ordinal));
+        selectedRow.Should().BeGreaterThan(0).And.BeLessThan(paletteRow);
+    }
+
+    [Fact]
+    public void ShowBrowser_floating_palette_clips_long_disabled_actions_and_shows_errors()
+    {
+        var palette = new CommandPaletteView(
+            CommandPaletteState.Closed with { IsOpen = true, Error = "Action is unavailable" },
+            [new CommandPaletteItem(ApplicationActionId.Exit, "Application",
+                new string('x', 120), "Unavailable action", ":q", false,
+                "Select a concrete project first")]);
+        var view = ViewWithTitle("Selected task");
+        var lines = RenderBrowser(view with
+        {
+            State = view.State with { Focus = BrowserFocus.Todos },
+            CommandPalette = palette
+        }, 80, 24);
+
+        lines.Should().Contain(line => line.Contains("Action is unavailable", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("Selected task", StringComparison.Ordinal));
+        lines.Should().OnlyContain(line => line.GetCellWidth() <= 80);
+    }
+
+    [Theory]
+    [InlineData(80, 24)]
+    [InlineData(140, 30)]
+    public void ShowPlanner_floats_the_palette_without_hiding_the_selected_slot(int width, int height)
+    {
+        var lines = RenderPlanner(width, height, TestPalette());
+
+        lines.Should().Contain(line => line.Contains("COMMAND PALETTE", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains(TodoGlyphs.PlannerSelectedPointer, StringComparison.Ordinal));
+        lines[0].Should().Contain("[DAY PLANNER]");
+        lines.Should().HaveCountLessThanOrEqualTo(height - 1);
+    }
+
+    [Fact]
+    public void ShowFocusedTask_floats_the_palette_over_the_card()
+    {
+        var root = CreateTodoItem("Prepare workshop", 3);
+        var identity = new TodoIdentity("/work.md", 3);
+        var view = new FocusedTaskPresenter().CreateView(
+            new ProjectCatalog([new TodoProject("Work", "/work.md", [root])], []),
+            FocusedTaskState.Create(identity, root))! with { CommandPalette = TestPalette() };
+        StartRecording(100, 30);
+
+        new SpectreTerminalUi(() => 100, () => 30)
+            .ShowFocusedTask(view, DefaultBindings, TuiThemes.Wolf);
+        var lines = RecordedText().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        lines.Should().Contain(line => line.Contains("COMMAND PALETTE", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("Prepare workshop", StringComparison.Ordinal));
+        lines.Should().HaveCountLessThanOrEqualTo(29);
+    }
+
+    private static CommandPaletteView TestPalette() => new(
+        CommandPaletteState.Closed with { IsOpen = true, IsSearching = true, Query = "task" },
+        [new CommandPaletteItem(ApplicationActionId.Exit, "Application", "Task action",
+            "Run an action", ":q", true, null)]);
+
     [Fact]
     public void ShowBrowser_keeps_wide_column_boundaries_when_details_wrap()
     {
