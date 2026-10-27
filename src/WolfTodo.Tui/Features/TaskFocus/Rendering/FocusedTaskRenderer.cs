@@ -1,5 +1,6 @@
 using WolfTodo.Tui.Features.ApplicationShell.Rendering;
 using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.Commands.Rendering;
 using WolfTodo.Tui.Features.TaskFocus;
 using WolfTodo.Tui.Features.Timing.Rendering;
 using WolfTodo.Tui.Features.Timing;
@@ -7,6 +8,7 @@ using WolfTodo.Tui.Features.TodoEditing;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using Wolf.Controls.MultilineTextBox;
+using Wolf.Controls.Rendering;
 using Wolf.Controls.SelectList;
 using WolfTodo.Core.Features.ProjectBrowser;
 using WolfTodo.Tui.Controls;
@@ -35,13 +37,25 @@ public sealed class FocusedTaskRenderer(
             ? null
             : TodoTaskEditorDialog.Create(view.State.Editor, bindings, width, height);
         var statusLines = StatusLines(view, bindings);
-        var overlayHeight = OverlayHeight(view, width, height, bindings);
+        var floatingPalette = view.CommandPalette is not null && FloatingCommandPalette.CanFloat(width, height);
+        var overlayHeight = floatingPalette ? 0 : OverlayHeight(view, width, height, bindings);
         var statusHeight = editorDialog?.Height ?? statusLines.Count + 2;
         var available = Math.Max(1, height - statusHeight - overlayHeight - HeaderAndCardChromeRows);
 
         WriteHeader(theme, width, nowProvider());
-        WriteCard(view, theme, width, available);
-        WriteOverlay(view, bindings, theme, width, height);
+        if (floatingPalette && view.CommandPalette is not null)
+        {
+            var palette = CommandPaletteSelectList(view.CommandPalette, bindings);
+            var workspace = new LayeredRenderable(width, available + 2,
+                [new ControlLayer(Card(view, theme, width, available), 0, 0)]);
+            AnsiConsole.Write(new FloatingCommandPalette(workspace,
+                palette, theme, width, height, "> "));
+        }
+        else
+        {
+            WriteCard(view, theme, width, available);
+            WriteOverlay(view, bindings, theme, width, height);
+        }
 
         if (editorDialog is not null)
         {
@@ -69,7 +83,10 @@ public sealed class FocusedTaskRenderer(
         AnsiConsole.WriteLine();
     }
 
-    private void WriteCard(FocusedTaskView view, TuiTheme theme, int width, int availableRows)
+    private void WriteCard(FocusedTaskView view, TuiTheme theme, int width, int availableRows) =>
+        AnsiConsole.Write(Card(view, theme, width, availableRows));
+
+    private IRenderable Card(FocusedTaskView view, TuiTheme theme, int width, int availableRows)
     {
         var lines = CardLines(view, theme);
         var selectedLine = lines.FindLastIndex(line => line.ItemIdentity == view.State.SelectedIdentity);
@@ -86,7 +103,7 @@ public sealed class FocusedTaskRenderer(
             Padding = new Padding(1, 0),
             Width = cardWidth
         };
-        themeRenderer.WriteSurface(
+        return themeRenderer.OnSurface(
             new Align(themeRenderer.OnSurface(panel, theme.Surface, true), HorizontalAlignment.Center),
             theme.Background,
             true);

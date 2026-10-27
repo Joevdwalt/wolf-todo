@@ -1,4 +1,5 @@
 using WolfTodo.Tui.Features.Commands;
+using WolfTodo.Tui.Features.Commands.Rendering;
 using WolfTodo.Tui.Features.Timing.Rendering;
 using WolfTodo.Tui.Features.TodoEditing;
 using System.Collections.Immutable;
@@ -57,8 +58,23 @@ public sealed class BrowserRenderer
     {
         var context = CreateBrowserRenderContext(view, keyBindings);
         RenderBrowserHeader(tabs, view, keyBindings, theme, context);
-        RenderBrowserBody(view, theme, context);
-        RenderBrowserOverlay(keyBindings, theme, context);
+        if (view.CommandPalette is not null && FloatingCommandPalette.CanFloat(context.Width, context.Height))
+        {
+            var workspace = BrowserBody(view, theme, context);
+            if (workspace is not null && context.SelectList is not null)
+            {
+                AnsiConsole.Write(new FloatingCommandPalette(workspace, context.SelectList, theme,
+                    context.Width, context.Height,
+                    view.State.Focus == BrowserFocus.Projects
+                        ? ">  "
+                        : view.SelectedTodo?.IsCompleted == true ? "> ✓" : "> ◯"));
+            }
+        }
+        else
+        {
+            RenderBrowserBody(view, theme, context);
+            RenderBrowserOverlay(keyBindings, theme, context);
+        }
         statusRenderer.WriteBrowserStatus(context.StatusLines, view, theme, context.EditorDialog);
     }
 
@@ -76,10 +92,11 @@ public sealed class BrowserRenderer
         var editorDialog = CreateBrowserEditorDialog(view, keyBindings, width, height);
         var textBoxRows = TerminalLayout.TextBoxRows(height);
         var statusLines = statusRenderer.BrowserStatus(view, keyBindings, compact, width, height);
+        var floatingPalette = view.CommandPalette is not null && FloatingCommandPalette.CanFloat(width, height);
         var contentHeight = BrowserContentHeight(
             height,
             TerminalLayout.DialogContentHeight(editorDialog) ?? statusLines.Count,
-            TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows) +
+            (floatingPalette ? 0 : TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows)) +
             (view.PomodoroPrompt is null ? 0 : PomodoroPromptRenderer.Height));
 
         return new BrowserRenderContext(
@@ -121,23 +138,26 @@ public sealed class BrowserRenderer
         TuiTheme theme,
         BrowserRenderContext context)
     {
-        if (context.EditorDialog is not null && context.ContentHeight <= 1)
+        var body = BrowserBody(view, theme, context);
+        if (body is not null)
         {
-            return;
+            AnsiConsole.Write(body);
         }
+    }
+
+    private static IRenderable? BrowserBody(BrowserView view, TuiTheme theme, BrowserRenderContext context)
+    {
+        if (context.EditorDialog is not null && context.ContentHeight <= 1) return null;
 
         if (context.Width >= 120 && context.Height >= 24)
         {
-            WriteWide(view, context.Width, context.ContentHeight, theme, context.Today);
+            return WideBody(view, context.Width, context.ContentHeight, theme, context.Today);
         }
-        else if (context.Width >= 80 && context.Height >= 18)
+        if (context.Width >= 80 && context.Height >= 18)
         {
-            WriteMedium(view, context.Width, context.ContentHeight, theme, context.Today);
+            return MediumBody(view, context.Width, context.ContentHeight, theme, context.Today);
         }
-        else
-        {
-            WriteNarrow(view, context.Width, context.ContentHeight, theme, context.Today);
-        }
+        return NarrowBody(view, context.Width, context.ContentHeight, theme, context.Today);
     }
 
     public static void RenderBrowserOverlay(
@@ -289,6 +309,13 @@ public sealed class BrowserRenderer
         int terminalWidth,
         int contentHeight,
         TuiTheme theme,
+        DateOnly today) => AnsiConsole.Write(WideBody(view, terminalWidth, contentHeight, theme, today));
+
+    private static IRenderable WideBody(
+        BrowserView view,
+        int terminalWidth,
+        int contentHeight,
+        TuiTheme theme,
         DateOnly today)
     {
         const int projectWidth = 22;
@@ -306,8 +333,7 @@ public sealed class BrowserRenderer
             twoPaneTable.AddRow(CreateContent(hiddenDetailProjectLines), CreateContent(expandedTodoLines));
             PadToContentHeight(
                 twoPaneTable, contentHeight, hiddenDetailProjectLines.Count, expandedTodoLines.Count);
-            WriteSurface(twoPaneTable, theme.Surface, true);
-            return;
+            return OnSurface(twoPaneTable, theme.Surface, true);
         }
 
         const int frameAndPaddingWidth = 10;
@@ -325,10 +351,17 @@ public sealed class BrowserRenderer
             CreateContent(todoLines),
             ConstrainedDetails(view, theme, contentHeight));
         PadToContentHeight(table, contentHeight, projectLines.Count, todoLines.Count, contentHeight);
-        WriteSurface(table, theme.Surface, true);
+        return OnSurface(table, theme.Surface, true);
     }
 
     public static void WriteMedium(
+        BrowserView view,
+        int terminalWidth,
+        int contentHeight,
+        TuiTheme theme,
+        DateOnly today) => AnsiConsole.Write(MediumBody(view, terminalWidth, contentHeight, theme, today));
+
+    private static IRenderable MediumBody(
         BrowserView view,
         int terminalWidth,
         int contentHeight,
@@ -344,8 +377,7 @@ public sealed class BrowserRenderer
             var navigation = CreatePaneTable(theme, ("Navigation", null, true, true));
             navigation.AddRow(CreateContent(projectLines));
             PadToContentHeight(navigation, contentHeight, projectLines.Count);
-            WriteSurface(navigation, theme.Surface, true);
-            return;
+            return OnSurface(navigation, theme.Surface, true);
         }
 
         if (!view.State.ShowDetails)
@@ -356,8 +388,7 @@ public sealed class BrowserRenderer
                 ($"Tasks // {view.SelectedProjectTitle}", null, true, true));
             tasks.AddRow(CreateContent(taskLines));
             PadToContentHeight(tasks, contentHeight, taskLines.Count);
-            WriteSurface(tasks, theme.Surface, true);
-            return;
+            return OnSurface(tasks, theme.Surface, true);
         }
 
         const int frameAndPaddingWidth = 7;
@@ -371,10 +402,17 @@ public sealed class BrowserRenderer
             ("Inspector", detailWidth, view.State.Focus == BrowserFocus.Details, false));
         table.AddRow(CreateContent(todos), ConstrainedDetails(view, theme, contentHeight));
         PadToContentHeight(table, contentHeight, todos.Count, contentHeight);
-        WriteSurface(table, theme.Surface, true);
+        return OnSurface(table, theme.Surface, true);
     }
 
     public static void WriteNarrow(
+        BrowserView view,
+        int terminalWidth,
+        int contentHeight,
+        TuiTheme theme,
+        DateOnly today) => AnsiConsole.Write(NarrowBody(view, terminalWidth, contentHeight, theme, today));
+
+    private static IRenderable NarrowBody(
         BrowserView view,
         int terminalWidth,
         int contentHeight,
@@ -404,7 +442,7 @@ public sealed class BrowserRenderer
             : CreateContent(lines));
         PadToContentHeight(table, contentHeight, focus == BrowserFocus.Details ? contentHeight : lines.Count);
 
-        WriteSurface(table, theme.Surface, true);
+        return OnSurface(table, theme.Surface, true);
     }
 
     public static Table CreatePaneTable(

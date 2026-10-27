@@ -1,4 +1,5 @@
 using WolfTodo.Tui.Features.Timing.Rendering;
+using WolfTodo.Tui.Features.Commands.Rendering;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using Wolf.Controls.Rendering;
@@ -75,8 +76,20 @@ public sealed class PlannerRenderer
                 context.AvailableRows,
                 theme);
 
-        RenderPlannerBody(view, theme, context, timelineTable);
-        RenderPlannerOverlay(view, keyBindings, theme, context);
+        if (view.CommandPalette is not null && FloatingCommandPalette.CanFloat(context.Width, context.Height))
+        {
+            var workspace = PlannerBody(view, theme, context, timelineTable);
+            if (workspace is not null && context.SelectList is not null)
+            {
+                AnsiConsole.Write(new FloatingCommandPalette(workspace, context.SelectList, theme,
+                    context.Width, context.Height, TodoGlyphs.PlannerSelectedPointer));
+            }
+        }
+        else
+        {
+            RenderPlannerBody(view, theme, context, timelineTable);
+            RenderPlannerOverlay(view, keyBindings, theme, context);
+        }
         statusRenderer.WritePlannerStatus(context.Status, view, theme, context.EditorDialog);
     }
 
@@ -104,7 +117,8 @@ public sealed class PlannerRenderer
             ? view.State.Mode == PlannerMode.Browse && view.State.Editor is null && view.CommandPalette is null && view.GlobalCommand is null
             : IsPlannerCompactDetailsVisible(view, wideSidePanels);
         var narrowAllDayHeight = PlannerNarrowAllDayHeight(view, wideSidePanels, showAllDayPanel);
-        var pickerHeight = TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows);
+        var floatingPalette = view.CommandPalette is not null && FloatingCommandPalette.CanFloat(width, height);
+        var pickerHeight = floatingPalette ? 0 : TerminalLayout.PickerHeight(selectList, width, selectRows, textBox, textBoxRows);
         pickerHeight += view.PomodoroPrompt is null ? 0 : PomodoroPromptRenderer.Height;
         var availableRows = PlannerAvailableRows(
             height,
@@ -173,21 +187,32 @@ public sealed class PlannerRenderer
         PlannerRenderContext context,
         Table timelineTable)
     {
-        if (context.EditorDialog is not null && context.AvailableRows <= 1)
+        var body = PlannerBody(view, theme, context, timelineTable);
+        if (body is not null)
         {
-            return;
+            AnsiConsole.Write(body);
         }
+    }
+
+    private IRenderable? PlannerBody(PlannerView view, TuiTheme theme, PlannerRenderContext context, Table timelineTable)
+    {
+        if (context.EditorDialog is not null && context.AvailableRows <= 1) return null;
 
         if (context.WideSidePanels)
         {
-            RenderPlannerWideBody(view, theme, context, timelineTable);
-            return;
+            return PlannerWideBody(view, theme, context, timelineTable);
         }
 
-        RenderPlannerNarrowBody(view, theme, context, timelineTable);
+        return PlannerNarrowBody(view, theme, context, timelineTable);
     }
 
     public void RenderPlannerWideBody(
+        PlannerView view,
+        TuiTheme theme,
+        PlannerRenderContext context,
+        Table timelineTable) => AnsiConsole.Write(PlannerWideBody(view, theme, context, timelineTable));
+
+    private IRenderable PlannerWideBody(
         PlannerView view,
         TuiTheme theme,
         PlannerRenderContext context,
@@ -227,19 +252,25 @@ public sealed class PlannerRenderer
                 new Rows(sidePanels),
                 theme.Surface2,
                 true));
-        themeRenderer.WriteSurface(shell, theme.Surface, true);
+        return themeRenderer.OnSurface(shell, theme.Surface, true);
     }
 
     public void RenderPlannerNarrowBody(
         PlannerView view,
         TuiTheme theme,
         PlannerRenderContext context,
+        Table timelineTable) => AnsiConsole.Write(PlannerNarrowBody(view, theme, context, timelineTable));
+
+    private IRenderable PlannerNarrowBody(
+        PlannerView view,
+        TuiTheme theme,
+        PlannerRenderContext context,
         Table timelineTable)
     {
-        themeRenderer.WriteSurface(timelineTable, theme.Surface, true);
+        var sections = new List<IRenderable> { themeRenderer.OnSurface(timelineTable, theme.Surface, true) };
         if (context.CompactDetails)
         {
-            themeRenderer.WriteSurface(
+            sections.Add(themeRenderer.OnSurface(
                 new Panel(detailRenderer.PlannerCompactDetail(view, theme))
                 {
                     Header = new PanelHeader("SELECTED"),
@@ -248,12 +279,12 @@ public sealed class PlannerRenderer
                     Expand = true
                 },
                 theme.Surface2,
-                true);
+                true));
         }
 
         if (context.NarrowAllDayHeight > 0)
         {
-            themeRenderer.WriteSurface(
+            sections.Add(themeRenderer.OnSurface(
                 PlannerPanel(
                     "ALL DAY",
                     CreateContent(calendarItemRenderer.AllDayAgendaLines(
@@ -263,8 +294,9 @@ public sealed class PlannerRenderer
                     theme,
                     view.State.Focus == PlannerFocus.AllDay),
                 theme.Surface2,
-                true);
+                true));
         }
+        return new Rows(sections);
     }
 
     public void RenderPlannerOverlay(
