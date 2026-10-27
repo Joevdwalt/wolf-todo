@@ -1352,6 +1352,28 @@ public sealed class SpectreTerminalUiTests
         lines.Should().OnlyContain(line => line.GetCellWidth() <= 80);
     }
 
+    [Fact]
+    public void ShowBrowser_floating_palette_uses_the_secondary_surface()
+    {
+        var view = ViewWithTitle("Selected task");
+        var theme = TuiThemes.Wolf with
+        {
+            Surface = new Color(1, 2, 3),
+            Surface2 = new Color(4, 5, 6)
+        };
+        var palette = new CommandPaletteView(
+            CommandPaletteState.Closed with { IsOpen = true },
+            [new CommandPaletteItem(ApplicationActionId.Exit, "Application", "✣",
+                "Unique palette action", ":q", true, null)]);
+        StartRecording(100, 30);
+
+        new SpectreTerminalUi(() => 100, () => 30)
+            .ShowBrowser(DefaultTabs, view with { CommandPalette = palette }, DefaultBindings, theme);
+        var html = NormalizeHtml(RecordedHtml());
+
+        StyleBefore(html, "✣").Should().Contain("#040506");
+    }
+
     [Theory]
     [InlineData(80, 24)]
     [InlineData(140, 30)]

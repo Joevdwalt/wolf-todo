@@ -14,6 +14,8 @@ either application tab.
 The configurable `?` gesture or `:help` command opens a shell-owned palette.
 On terminals at least 80 columns wide and 24 rows tall, it floats over the
 Todos, Day Planner, or focus workspace, away from the selected task or slot.
+The floating panel uses the theme's secondary surface color to stand out from
+the workspace.
 Narrower or shorter terminals keep the full-width bottom panel. The palette
 lists Application, Todos, and Planner actions with their
 resolved command or shortest configured gesture. Unavailable actions remain
