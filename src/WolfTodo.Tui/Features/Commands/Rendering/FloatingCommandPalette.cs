@@ -5,6 +5,7 @@ using Wolf.Controls.Rendering;
 using Wolf.Controls.SelectList;
 using WolfTodo.Tui.Controls;
 using WolfTodo.Tui.Features.Configuration;
+using WolfTodo.Tui.Rendering;
 
 namespace WolfTodo.Tui.Features.Commands.Rendering;
 
@@ -39,7 +40,9 @@ internal sealed class FloatingCommandPalette(
         var alignment = selectedRow >= 0 && selectedRow < height / 2
             ? OverlayAlignment.Bottom
             : OverlayAlignment.Top;
-        var panel = TuiControlAdapter.Render(displayPalette, theme, constraints);
+        var panel = new SurfaceThemeRenderer().OnSurface(
+            TuiControlAdapter.Render(displayPalette, theme, constraints),
+            theme.Surface2);
         var overlay = OverlayLayout.Place(panel, width, height, alignment,
             width: panelWidth, height: panelHeight, top: 1, bottom: 1, zIndex: 1);
         return new LayeredRenderable(width, height,
