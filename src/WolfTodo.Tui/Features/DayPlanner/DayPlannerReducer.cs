@@ -17,91 +17,64 @@ public sealed class DayPlannerReducer(
         PlannerState state,
         PlannerAction action,
         PlannerView view,
-        TimeSpan? defaultDuration = null) =>
-        action switch
-        {
-            PlannerAction.PreviousDay => Transition(state.ViewMode == PlannerViewMode.SingleDay
-                ? WithVisibleDate(state, state.SelectedDate.AddDays(-1))
-                : state),
-            PlannerAction.NextDay => Transition(state.ViewMode == PlannerViewMode.SingleDay
-                ? WithVisibleDate(state, state.SelectedDate.AddDays(1))
-                : state),
-            PlannerAction.Today => Transition(JumpToNow(state)),
-            PlannerAction.ToggleView => Transition(ToggleView(state)),
-            PlannerAction.IncreaseRange => Transition(ResizeRange(state, 1)),
-            PlannerAction.DecreaseRange => Transition(ResizeRange(state, -1)),
-            PlannerAction.PreviousColumn => Transition(state.ViewMode == PlannerViewMode.MultiDay
-                ? WithVisibleDate(state, state.SelectedDate.AddDays(-1))
-                : state),
-            PlannerAction.NextColumn => Transition(state.ViewMode == PlannerViewMode.MultiDay
-                ? WithVisibleDate(state, state.SelectedDate.AddDays(1))
-                : state),
-            PlannerAction.Create when view.Projects.Length > 0 => Transition(state with
+        TimeSpan? defaultDuration = null) => action switch
+    {
+        PlannerAction.PreviousDay or PlannerAction.PreviousColumn =>
+            Transition(WithVisibleDate(state, state.SelectedDate.AddDays(-1))),
+        PlannerAction.NextDay or PlannerAction.NextColumn =>
+            Transition(WithVisibleDate(state, state.SelectedDate.AddDays(1))),
+        PlannerAction.Today => Transition(JumpToNow(state)),
+        PlannerAction.ToggleView => Transition(ToggleView(state)),
+        PlannerAction.IncreaseRange => Transition(ResizeRange(state, 1)),
+        PlannerAction.DecreaseRange => Transition(ResizeRange(state, -1)),
+        PlannerAction.ToggleDetails => Transition(state with { ShowDetails = !state.ShowDetails, Error = null }),
+        PlannerAction.Create => CreateTodo(state, view, defaultDuration),
+        PlannerAction.Edit => EditTodo(state, view),
+        PlannerAction.EditExternal => SelectedTodoOperation(state, view, PlannerOperation.EditExternal),
+        PlannerAction.ToggleCompleted => SelectedTodoOperation(state, view, PlannerOperation.ToggleCompleted),
+        PlannerAction.Unschedule => SelectedTodoOperation(state, view, PlannerOperation.Unschedule),
+        PlannerAction.AssignOrMove => AssignOrMove(state, view),
+        _ => Transition(state)
+    };
+
+    private PlannerTransition CreateTodo(PlannerState state, PlannerView view, TimeSpan? defaultDuration) =>
+        view.Projects.Length == 0
+            ? Transition(state with { Error = "No valid projects are available." })
+            : Transition(state with
             {
                 Editor = todoEditorReducer.CreateEditor(
-                    null,
-                    true,
-                    SelectedSchedule(state),
-                    ScheduleRequirement(state),
-                    defaultDuration),
+                    null, true, SelectedSchedule(state), ScheduleRequirement(state), defaultDuration),
                 Error = null
-            }),
-            PlannerAction.Create => Transition(state with { Error = "No valid projects are available." }),
-            PlannerAction.ToggleDetails => Transition(state with
+            });
+
+    private PlannerTransition EditTodo(PlannerState state, PlannerView view) =>
+        view.SelectedFocusedAssignment is { } assignment
+            ? Transition(state with
             {
-                ShowDetails = !state.ShowDetails,
+                Editor = todoEditorReducer.EditEditor(assignment.Todo, assignment.Identity),
                 Error = null
-            }),
-            PlannerAction.Edit when view.SelectedFocusedAssignment is not null =>
-                Transition(state with
-            {
-                Editor = todoEditorReducer.EditEditor(
-                    view.SelectedFocusedAssignment.Todo,
-                    view.SelectedFocusedAssignment.Identity),
-                Error = null
-            }),
-            PlannerAction.EditExternal when view.SelectedFocusedAssignment is not null => new PlannerTransition(
-                state with { Error = null },
-                PlannerOperation.EditExternal,
-                view.SelectedFocusedAssignment.Identity,
-                view.SelectedFocusedAssignment.ProjectPath),
-            PlannerAction.ToggleCompleted when view.SelectedFocusedAssignment is not null => new PlannerTransition(
-                state with { Error = null },
-                PlannerOperation.ToggleCompleted,
-                view.SelectedFocusedAssignment.Identity,
-                view.SelectedFocusedAssignment.ProjectPath),
-            PlannerAction.Edit or PlannerAction.EditExternal or
-                PlannerAction.ToggleCompleted => Transition(state with
-                {
-                    Error = SelectionError(view)
-                }),
-            PlannerAction.Unschedule when view.SelectedFocusedAssignment is not null =>
-                new PlannerTransition(
-                    state with { Error = null },
-                    PlannerOperation.Unschedule,
-                    view.SelectedFocusedAssignment.Identity),
-            PlannerAction.Unschedule => Transition(state with
-            {
-                Error = SelectionError(view)
-            }),
-            PlannerAction.AssignOrMove when IsReadOnlyAllDaySelection(view) => Transition(state with
-            {
-                Error = "Calendar all-day items are read-only."
-            }),
-            PlannerAction.AssignOrMove when view.SelectedFocusedAssignment is null => Transition(state with
-            {
-                Mode = PlannerMode.ChooseTodo,
-                PickerIndex = 0,
-                Error = null
-            }),
-            PlannerAction.AssignOrMove => Transition(state with
-            {
-                Mode = PlannerMode.MoveTodo,
-                MovingTodo = view.SelectedFocusedAssignment.Identity,
-                Error = null
-            }),
-            _ => Transition(state)
-        };
+            })
+            : Transition(state with { Error = SelectionError(view) });
+
+    private static PlannerTransition SelectedTodoOperation(
+        PlannerState state, PlannerView view, PlannerOperation operation) =>
+        view.SelectedFocusedAssignment is { } assignment
+            ? new PlannerTransition(
+                state with { Error = null }, operation, assignment.Identity,
+                operation == PlannerOperation.Unschedule ? null : assignment.ProjectPath)
+            : Transition(state with { Error = SelectionError(view) });
+
+    private static PlannerTransition AssignOrMove(PlannerState state, PlannerView view)
+    {
+        if (IsReadOnlyAllDaySelection(view))
+        {
+            return Transition(state with { Error = "Calendar all-day items are read-only." });
+        }
+
+        return view.SelectedFocusedAssignment is { } assignment
+            ? Transition(state with { Mode = PlannerMode.MoveTodo, MovingTodo = assignment.Identity, Error = null })
+            : Transition(state with { Mode = PlannerMode.ChooseTodo, PickerIndex = 0, Error = null });
+    }
 
     public PlannerTransition Reduce(
         PlannerState state,
@@ -128,13 +101,24 @@ public sealed class DayPlannerReducer(
             return ReduceFilter(state, key);
         }
 
+        var navigation = ReduceRangeAndFocus(state, key, bindings);
+        if (navigation is not null) return navigation;
+        if (state.Mode == PlannerMode.ChooseTodo) return ReducePicker(state, key, bindings, view);
+
+        return ReduceTimelineNavigation(state, key, bindings, view)
+               ?? ReduceTaskInput(state, key, bindings, view, defaultDuration)
+               ?? Transition(state);
+    }
+
+    private static PlannerTransition? ReduceRangeAndFocus(
+        PlannerState state, ConsoleKeyInfo key, TuiKeyBindings bindings)
+    {
         if (state.Mode == PlannerMode.Browse && bindings.MatchesPlannerToggleView(key))
         {
             return Transition(ToggleView(state));
         }
 
-        if (state.Mode is PlannerMode.Browse or PlannerMode.MoveTodo &&
-            state.ViewMode == PlannerViewMode.MultiDay)
+        if (state.Mode is PlannerMode.Browse or PlannerMode.MoveTodo)
         {
             if (state.Mode == PlannerMode.Browse &&
                 (bindings.MatchesPlannerIncreaseRange(key) || bindings.MatchesPlannerDecreaseRange(key)))
@@ -170,40 +154,47 @@ public sealed class DayPlannerReducer(
             });
         }
 
-        if (state.Mode == PlannerMode.ChooseTodo)
+        return null;
+    }
+
+    private static PlannerTransition ReducePicker(
+        PlannerState state, ConsoleKeyInfo key, TuiKeyBindings bindings, PlannerView view)
+    {
+        if (bindings.MatchesFilterMode(key))
         {
-            if (bindings.MatchesFilterMode(key))
+            return Transition(state with
             {
-                return Transition(state with
-                {
-                    Mode = PlannerMode.EditFilter,
-                    FilterDraft = state.FilterText,
-                    Error = null
-                });
-            }
-
-            if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
-            {
-                var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
-                return Transition(state with
-                {
-                    PickerIndex = MoveIndex(state.PickerIndex, offset, view.PickerTodos.Length),
-                    Error = null
-                });
-            }
-
-            if (bindings.MatchesOpen(key) && view.SelectedPickerTodo is not null)
-            {
-                return new PlannerTransition(
-                    state with { Mode = PlannerMode.Browse, Error = null },
-                    PlannerOperation.Schedule,
-                    view.SelectedPickerTodo.Identity,
-                    ScheduleTarget: ScheduleTarget(state));
-            }
-
-            return Transition(state);
+                Mode = PlannerMode.EditFilter,
+                FilterDraft = state.FilterText,
+                Error = null
+            });
         }
 
+        if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
+        {
+            var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
+            return Transition(state with
+            {
+                PickerIndex = MoveIndex(state.PickerIndex, offset, view.PickerTodos.Length),
+                Error = null
+            });
+        }
+
+        if (bindings.MatchesOpen(key) && view.SelectedPickerTodo is not null)
+        {
+            return new PlannerTransition(
+                state with { Mode = PlannerMode.Browse, Error = null },
+                PlannerOperation.Schedule,
+                view.SelectedPickerTodo.Identity,
+                ScheduleTarget: ScheduleTarget(state));
+        }
+
+        return Transition(state);
+    }
+
+    private PlannerTransition? ReduceTimelineNavigation(
+        PlannerState state, ConsoleKeyInfo key, TuiKeyBindings bindings, PlannerView view)
+    {
         if (state.Mode == PlannerMode.Browse && bindings.MatchesFilterMode(key))
         {
             return Transition(state with
@@ -217,61 +208,15 @@ public sealed class DayPlannerReducer(
 
         if (bindings.MatchesJumpTop(key) || bindings.MatchesJumpBottom(key))
         {
-            return Transition(state with
-            {
-                SlotIndex = state.Focus == PlannerFocus.Timeline
-                    ? bindings.MatchesJumpTop(key) ? 0 : DayPlannerPresenter.SlotCount - 1
-                    : state.SlotIndex,
-                AllDayIndex = state.Focus == PlannerFocus.AllDay
-                    ? bindings.MatchesJumpTop(key) ? 0 : Math.Max(0, view.CalendarAgenda.AllDayItems.Length - 1)
-                    : state.AllDayIndex,
-                Error = null
-            });
+            return JumpToEdge(state, key, bindings, view);
         }
 
         if (bindings.MatchesMoveUp(key) || bindings.MatchesMoveDown(key))
         {
-            var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
-            if (state.Mode == PlannerMode.Browse &&
-                state.Focus == PlannerFocus.Timeline &&
-                IsStackSelectionKey(key) &&
-                view.SelectedSlot.Items.Length > 1)
-            {
-                var selectedIndex = Array.FindIndex(
-                    view.SelectedSlot.Items.ToArray(),
-                    item => item.Identity == view.SelectedItem?.Identity);
-                var nextIndex = selectedIndex + offset;
-                if (nextIndex >= 0 && nextIndex < view.SelectedSlot.Items.Length)
-                {
-                    return Transition(state with
-                    {
-                        SelectedTimelineItemIdentity = view.SelectedSlot.Items[nextIndex].Identity,
-                        Error = null
-                    });
-                }
-
-                return Transition(state with
-                {
-                    SlotIndex = MoveIndex(state.SlotIndex, offset, DayPlannerPresenter.SlotCount),
-                    SelectedTimelineItemIdentity = null,
-                    Error = null
-                });
-            }
-
-            return Transition(state with
-            {
-                SlotIndex = state.Focus == PlannerFocus.Timeline
-                    ? MoveIndex(state.SlotIndex, offset, DayPlannerPresenter.SlotCount)
-                    : state.SlotIndex,
-                AllDayIndex = state.Focus == PlannerFocus.AllDay
-                    ? MoveIndex(state.AllDayIndex, offset, view.CalendarAgenda.AllDayItems.Length)
-                    : state.AllDayIndex,
-                Error = null
-            });
+            return MoveSelection(state, key, bindings, view);
         }
 
-        if (state.ViewMode == PlannerViewMode.SingleDay &&
-            (bindings.MatchesPlannerPreviousDay(key) || bindings.MatchesPlannerNextDay(key)))
+        if (bindings.MatchesPlannerPreviousDay(key) || bindings.MatchesPlannerNextDay(key))
         {
             var offset = bindings.MatchesPlannerPreviousDay(key) ? -1 : 1;
             return Transition(WithVisibleDate(state, state.SelectedDate.AddDays(offset)));
@@ -282,6 +227,69 @@ public sealed class DayPlannerReducer(
             return Transition(JumpToNow(state));
         }
 
+        return null;
+    }
+
+    private static PlannerTransition JumpToEdge(
+        PlannerState state, ConsoleKeyInfo key, TuiKeyBindings bindings, PlannerView view)
+    {
+        return Transition(state with
+        {
+            SlotIndex = state.Focus == PlannerFocus.Timeline
+                ? bindings.MatchesJumpTop(key) ? 0 : DayPlannerPresenter.SlotCount - 1
+                : state.SlotIndex,
+            AllDayIndex = state.Focus == PlannerFocus.AllDay
+                ? bindings.MatchesJumpTop(key) ? 0 : Math.Max(0, view.CalendarAgenda.AllDayItems.Length - 1)
+                : state.AllDayIndex,
+            Error = null
+        });
+    }
+
+    private static PlannerTransition MoveSelection(
+        PlannerState state, ConsoleKeyInfo key, TuiKeyBindings bindings, PlannerView view)
+    {
+        var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
+        if (state.Mode == PlannerMode.Browse &&
+            state.Focus == PlannerFocus.Timeline &&
+            IsStackSelectionKey(key) &&
+            view.SelectedSlot.Items.Length > 1)
+        {
+            var selectedIndex = Array.FindIndex(
+                view.SelectedSlot.Items.ToArray(),
+                item => item.Identity == view.SelectedItem?.Identity);
+            var nextIndex = selectedIndex + offset;
+            if (nextIndex >= 0 && nextIndex < view.SelectedSlot.Items.Length)
+            {
+                return Transition(state with
+                {
+                    SelectedTimelineItemIdentity = view.SelectedSlot.Items[nextIndex].Identity,
+                    Error = null
+                });
+            }
+
+            return Transition(state with
+            {
+                SlotIndex = MoveIndex(state.SlotIndex, offset, DayPlannerPresenter.SlotCount),
+                SelectedTimelineItemIdentity = null,
+                Error = null
+            });
+        }
+
+        return Transition(state with
+        {
+            SlotIndex = state.Focus == PlannerFocus.Timeline
+                ? MoveIndex(state.SlotIndex, offset, DayPlannerPresenter.SlotCount)
+                : state.SlotIndex,
+            AllDayIndex = state.Focus == PlannerFocus.AllDay
+                ? MoveIndex(state.AllDayIndex, offset, view.CalendarAgenda.AllDayItems.Length)
+                : state.AllDayIndex,
+            Error = null
+        });
+    }
+
+    private PlannerTransition? ReduceTaskInput(
+        PlannerState state, ConsoleKeyInfo key, TuiKeyBindings bindings, PlannerView view, TimeSpan? defaultDuration)
+    {
         if (state.Mode == PlannerMode.Browse && bindings.MatchesToggleDetails(key))
         {
             return Transition(state with { ShowDetails = !state.ShowDetails, Error = null });
@@ -289,38 +297,18 @@ public sealed class DayPlannerReducer(
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesEditTodoExternal(key))
         {
-            return view.SelectedFocusedAssignment is null
-                ? Transition(state with { Error = SelectionError(view) })
-                : new PlannerTransition(
-                    state with { Error = null },
-                    PlannerOperation.EditExternal,
-                    view.SelectedFocusedAssignment.Identity,
-                    view.SelectedFocusedAssignment.ProjectPath);
+            return SelectedTodoOperation(state, view, PlannerOperation.EditExternal);
         }
 
         if (state.Mode == PlannerMode.Browse &&
             (bindings.MatchesEditTodo(key) || bindings.MatchesEditTodoContent(key)))
         {
-            return view.SelectedFocusedAssignment is null
-                ? Transition(state with { Error = SelectionError(view) })
-                : Transition(state with
-                {
-                    Editor = todoEditorReducer.EditEditor(
-                        view.SelectedFocusedAssignment.Todo,
-                        view.SelectedFocusedAssignment.Identity),
-                    Error = null
-                });
+            return EditTodo(state, view);
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesToggleTodo(key))
         {
-            return view.SelectedFocusedAssignment is null
-                ? Transition(state with { Error = SelectionError(view) })
-                : new PlannerTransition(
-                    state with { Error = null },
-                    PlannerOperation.ToggleCompleted,
-                    view.SelectedFocusedAssignment.Identity,
-                    view.SelectedFocusedAssignment.ProjectPath);
+            return SelectedTodoOperation(state, view, PlannerOperation.ToggleCompleted);
         }
 
         if (state.Mode == PlannerMode.MoveTodo && bindings.MatchesOpen(key))
@@ -334,54 +322,20 @@ public sealed class DayPlannerReducer(
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesPlannerUnschedule(key))
         {
-            if (view.SelectedFocusedAssignment is null)
-            {
-                return Transition(state with
-                {
-                    Error = SelectionError(view)
-                });
-            }
-
-            return new PlannerTransition(
-                state with { Error = null },
-                PlannerOperation.Unschedule,
-                view.SelectedFocusedAssignment.Identity);
+            return SelectedTodoOperation(state, view, PlannerOperation.Unschedule);
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesCreateTodo(key))
         {
-            return view.Projects.Length == 0
-                ? Transition(state with { Error = "No valid projects are available." })
-                : Transition(state with
-                {
-                    Editor = todoEditorReducer.CreateEditor(
-                        null,
-                        true,
-                        SelectedSchedule(state),
-                        ScheduleRequirement(state),
-                        defaultDuration),
-                    Error = null
-                });
+            return CreateTodo(state, view, defaultDuration);
         }
 
         if (state.Mode == PlannerMode.Browse && bindings.MatchesOpen(key))
         {
-            if (IsReadOnlyAllDaySelection(view))
-            {
-                return Transition(state with { Error = "Calendar all-day items are read-only." });
-            }
-
-            return view.SelectedFocusedAssignment is null
-                ? Transition(state with { Mode = PlannerMode.ChooseTodo, PickerIndex = 0, Error = null })
-                : Transition(state with
-                {
-                    Mode = PlannerMode.MoveTodo,
-                    MovingTodo = view.SelectedFocusedAssignment.Identity,
-                    Error = null
-                });
+            return AssignOrMove(state, view);
         }
 
-        return Transition(state);
+        return null;
     }
 
     private static PlannerTransition ReduceFilter(PlannerState state, ConsoleKeyInfo key)
@@ -436,12 +390,12 @@ public sealed class DayPlannerReducer(
 
     private static PlannerState ResizeRange(PlannerState state, int delta)
     {
-        if (state.ViewMode != PlannerViewMode.MultiDay)
+        var current = state.ViewMode == PlannerViewMode.SingleDay ? 1 : state.VisibleDayCount;
+        var dayCount = Math.Clamp(current + delta, 1, 3);
+        if (dayCount == 1)
         {
-            return state;
+            return state with { ViewMode = PlannerViewMode.SingleDay, VisibleStartDate = null, Error = null };
         }
-
-        var dayCount = Math.Clamp(state.VisibleDayCount + delta, 1, 3);
         var visibleStart = state.VisibleStartDate ?? state.SelectedDate;
         var visibleEnd = visibleStart.AddDays(dayCount - 1);
         if (state.SelectedDate < visibleStart)
@@ -453,7 +407,7 @@ public sealed class DayPlannerReducer(
             visibleStart = state.SelectedDate.AddDays(1 - dayCount);
         }
 
-        return state with { VisibleDayCount = dayCount, VisibleStartDate = visibleStart, Error = null };
+        return state with { ViewMode = PlannerViewMode.MultiDay, VisibleDayCount = dayCount, VisibleStartDate = visibleStart, Error = null };
     }
 
     private static int MoveIndex(int current, int offset, int count) =>
@@ -464,7 +418,7 @@ public sealed class DayPlannerReducer(
         state = state.SaveActivePane();
         if (state.ViewMode != PlannerViewMode.MultiDay)
         {
-            return state with { SelectedDate = selectedDate, Error = null };
+            return state.RestorePane(selectedDate) with { Error = null };
         }
 
         var visibleStart = state.VisibleStartDate ?? state.SelectedDate;

@@ -87,9 +87,10 @@ public sealed class StatusRendererTests
 
         var lines = renderer.PlannerStatus(view, bindings, 240, 30);
 
-        lines.Should().HaveCount(2);
-        lines[0].Text.Should().Contain("ASSIGN/MOVE").And.Contain("CALENDAR READY");
-        lines[1].Text.Should().Contain("Secondary calendar unavailable").And.Contain("r RETRY");
+        lines.Should().HaveCount(3);
+        lines[0].Text.Should().Contain("RANGE");
+        lines[1].Text.Should().Contain("MOVE");
+        lines[2].Text.Should().Contain("Secondary calendar unavailable").And.Contain("r RETRY");
     }
 
     [Fact]

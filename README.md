@@ -221,9 +221,9 @@ defaults shown above. A configured binding array replaces that action's
 defaults. Bindings accept printable characters, named console keys, and
 `Shift`, `Ctrl`, or `Alt` modifiers such as `Ctrl+K`.
 
-In Day Planner, `s` switches between a day and a two-to-three-day view. In the
-multiday view, `h` and `l` move the active date between columns (scrolling the
-range when needed), while `-` and `+` shrink or grow the visible range.
+Day Planner opens with one date column. `s` switches between one day and the
+last selected two- or three-day range; `-` and `+` adjust the range from one
+to three days. `h` and `l` move the active date, scrolling the range as needed.
 
 The optional `[tui.theme]` table selects the startup theme. Available presets
 are `wolf` (the default), `classic`, and `mono`. The configurable semantic

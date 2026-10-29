@@ -32,7 +32,9 @@ public sealed class PlannerTimelineViewport
         var today = DateOnly.FromDateTime(now);
         var currentTime = TimeOnly.FromDateTime(now);
         var todayColumn = columns.FirstOrDefault(column => column.Date == today);
-        var showNow = todayColumn is not null && availableRows >= 2;
+        var showNow = todayColumn is { Slots.Length: > 0 } && availableRows >= 2 &&
+                      currentTime >= todayColumn.Slots[0].Time &&
+                      currentTime < todayColumn.Slots[^1].Time.AddMinutes(15);
         var markerSlotIndex = todayColumn is null
             ? -1
             : Enumerable.Range(0, todayColumn.Slots.Length)

@@ -41,25 +41,27 @@ public sealed class PlannerMultiDayTimelineRenderer
     public Table CreatePlannerMultiDayTimelineTable(
         PlannerView view,
         int availableRows,
-        TuiTheme theme) =>
+        TuiTheme theme,
+        int? width = null) =>
         CreatePlannerMultiDayTimelineTable(
             view.DayColumns,
             view.State.SlotIndex,
             availableRows,
             theme,
-            view);
+            view, width);
 
     private Table CreatePlannerMultiDayTimelineTable(
         IReadOnlyList<PlannerDayColumnView> columns,
         int selectedSlotIndex,
         int availableRows,
         TuiTheme theme,
-        PlannerView? view)
+        PlannerView? view,
+        int? width = null)
     {
         // Reserve the fixed ruler, borders, and separators before selecting
         // panes. The active pane is always retained when the terminal can
         // show fewer dates than the selected range.
-        var terminalWidth = widthProvider();
+        var terminalWidth = width ?? widthProvider();
         // TIME occupies 10 cells. Reserve borders and two padding cells per
         // date before enforcing its 24-cell content minimum.
         var maxColumns = Math.Max(1, (terminalWidth - 12) / 27);

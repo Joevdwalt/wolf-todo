@@ -81,7 +81,7 @@ public sealed class DayPlannerReducerTests
     }
 
     [Fact]
-    public void Reduce_keeps_previous_and_next_day_controls_single_day_only()
+    public void Reduce_previous_and_next_day_controls_work_for_multiday()
     {
         var reducer = new DayPlannerReducer(() => Today);
         var state = PlannerState.CreateInitial(Today) with { ViewMode = PlannerViewMode.MultiDay };
@@ -90,9 +90,28 @@ public sealed class DayPlannerReducerTests
         var next = reducer.Reduce(state, Key(']'), Bindings, View(state)).State;
         var paletteNext = reducer.ReduceAction(state, PlannerAction.NextDay, View(state)).State;
 
-        previous.SelectedDate.Should().Be(Today);
-        next.SelectedDate.Should().Be(Today);
-        paletteNext.SelectedDate.Should().Be(Today);
+        previous.SelectedDate.Should().Be(Today.AddDays(-1));
+        next.SelectedDate.Should().Be(Today.AddDays(1));
+        paletteNext.SelectedDate.Should().Be(Today.AddDays(1));
+    }
+
+    [Fact]
+    public void Range_controls_grow_from_one_day_and_restore_last_multiday_range()
+    {
+        var reducer = new DayPlannerReducer(() => Today);
+        var state = PlannerState.CreateInitial(Today);
+        var two = reducer.ReduceAction(state, PlannerAction.IncreaseRange, View(state)).State;
+        var three = reducer.ReduceAction(two, PlannerAction.IncreaseRange, View(two)).State;
+        var single = reducer.ReduceAction(three, PlannerAction.ToggleView, View(three)).State;
+        var restored = reducer.ReduceAction(single, PlannerAction.ToggleView, View(single)).State;
+        var smaller = reducer.ReduceAction(two, PlannerAction.DecreaseRange, View(two)).State;
+
+        two.VisibleDayCount.Should().Be(2);
+        three.VisibleDayCount.Should().Be(3);
+        single.ViewMode.Should().Be(PlannerViewMode.SingleDay);
+        restored.VisibleDayCount.Should().Be(3);
+        restored.ViewMode.Should().Be(PlannerViewMode.MultiDay);
+        smaller.ViewMode.Should().Be(PlannerViewMode.SingleDay);
     }
 
     [Fact]
@@ -166,13 +185,13 @@ public sealed class DayPlannerReducerTests
         var increased = reducer.ReduceAction(multi, PlannerAction.IncreaseRange, View(multi)).State;
         var next = reducer.ReduceAction(increased, PlannerAction.NextColumn, View(increased)).State;
         var single = reducer.ReduceAction(next, PlannerAction.ToggleView, View(next)).State;
-        var ignoredColumn = reducer.ReduceAction(single, PlannerAction.PreviousColumn, View(single)).State;
+        var previousColumn = reducer.ReduceAction(single, PlannerAction.PreviousColumn, View(single)).State;
 
         multi.ViewMode.Should().Be(PlannerViewMode.MultiDay);
         increased.VisibleDayCount.Should().Be(3);
         next.SelectedDate.Should().Be(Today.AddDays(1));
         single.ViewMode.Should().Be(PlannerViewMode.SingleDay);
-        ignoredColumn.SelectedDate.Should().Be(next.SelectedDate);
+        previousColumn.SelectedDate.Should().Be(Today);
     }
 
     [Fact]

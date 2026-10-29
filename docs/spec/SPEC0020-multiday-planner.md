@@ -6,23 +6,21 @@ Draft
 
 ## Purpose
 
-Add a multiday overview to Day Planner while keeping its single-day detail view
-and Markdown-file task storage.
+Use one column-based Day Planner for one, two, or three dates while retaining
+task inspection and Markdown-file storage.
 
 ## Rules
 
 ### Existing planner behavior
 
-The overview extends [SPEC0009](SPEC0009-day-planner.md). Its task actions,
-calendar behavior, editor, and visual styling follow the single-day planner
-unless a rule below changes them.
+The planner follows [SPEC0009](SPEC0009-day-planner.md) for task actions,
+calendar behavior, and the editor.
 
 ### Views and state
 
-Day Planner opens in single-day view. The overview compares adjacent dates and
-supports direct actions. View, range, focus, and selection are transient; they
-never change task Markdown by themselves. Switching views retains valid state
-and opens the selected date in single-day view.
+Day Planner opens with one date column. Range, focus, and selection are
+transient and never change task Markdown by themselves. Switching range retains
+the active date and valid selection.
 
 ### Selected range
 
@@ -40,7 +38,7 @@ complete range, and unrendered dates remain reachable by range navigation.
 
 ### Compact width
 
-The existing single-day layout is the visual baseline. Every rendered line,
+Every rendered line,
 including borders and command hints, fits within 80 terminal cells at an
 80-column width. The compact timeline uses a fixed 10-cell time column; date
 columns share the remaining width. Allocate column width before rendering
@@ -140,8 +138,7 @@ an overlapping-item selection only when returning to its original slot.
 
 `h` and `l` move the active date one column at a time, retaining the timeline
 slot and focused pane. Moving beyond the range loads the adjacent date and
-shifts the window one day. In single-day view, `h` and `l` keep their existing
-meaning. The previous-day and next-day bindings remain single-day controls.
+shifts the window one day. `[` and `]` also change the active date.
 
 ### Pane and item navigation
 
@@ -157,7 +154,8 @@ The new configurable `planner_toggle_view` binding defaults to `s`.
 `planner_increase_range` and `planner_decrease_range` default to `+` and `-`
 and adjust the maximum between one and three dates. The configurable
 `planner_previous_column` and `planner_next_column` bindings default to `h`
-and `l` and apply only in multiday view. Show range controls in the contextual
+and `l` for every range. `s` switches between one day and the last
+selected multiday range. Show range controls in the contextual
 command panel.
 
 The existing `planner_today` binding (`T` by default) jumps to the current
@@ -237,7 +235,7 @@ WOLF TODO / DAY PLANNER / MULTIDAY       THU 03–SAT 05 SEP (2 OF 3)
 │THU 03 · 09:30–10:30 · 60m · Write brief (todo)                            │
 └──────────────────────────────────────────────────────────────────────────┘
 ┌─COMMANDS─────────────────────────────────────────────────────────────────┐
-│H/L DATE  J/K ITEM  TAB PANE  +/- DAYS  S SINGLE DAY                      │
+│H/L DATE  J/K ITEM  TAB PANE  +/- DAYS  S 1/MULTI                      │
 │ENTER MOVE  A CREATE  E EDIT  U UNSCHEDULE  / FILTER                      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -295,7 +293,7 @@ the selection marker, item glyph, and cue cannot all fit.
 A wide terminal may show all three dates; each date computes its own overlap
 paths and `+N` window. A narrow terminal may show only the active date, but
 the full range and date position stay visible. `h`/`l` expose hidden dates and
-`s` opens the active date in single-day view.
+`s` switches to the active date alone or restores the last multiday range.
 
 ```text
 WOLF TODO / DAY PLANNER / MULTIDAY / THU 03–SAT 05 SEP
