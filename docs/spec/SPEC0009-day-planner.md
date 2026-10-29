@@ -78,12 +78,11 @@ changes. The same action on an occupied slot starts move mode. `u` unschedules,
 `[`/`]` change dates, `g`/`G` jump to the first/final timeline slots, and `T`
 jumps to today's current quarter-hour, focusing the timeline and clamping to
 06:00 or 21:45 outside planner hours. `/` opens the same picker with its
-filter active and permits intentional overlapping work. Esc or `h` cancels
-modal work.
+filter active and permits intentional overlapping work. Esc cancels modal work.
 
-Show details for the selected assignment by default. Wide terminals place an
-`INSPECTOR` beside the timeline; narrower terminals show a compact `SELECTED`
-summary beneath it. Inspector content wraps within its physical row budget;
+Show details for the selected assignment by default. Wide terminals place an `INSPECTOR` beside the timeline when space allows;
+narrower terminals and three-date layouts show a compact `SELECTED` summary
+beneath it. Inspector content wraps within its physical row budget;
 overflow is clipped at the bottom and marked with an ellipsis. Timeline
 assignments show compact state and priority before their title. `v` hides or
 restores only the Inspector for the current session;

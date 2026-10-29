@@ -30,13 +30,10 @@ public sealed class PlannerWorkflow(
             calendarCache.GetAgenda(configuration.GoogleCalendar, state.SelectedDate),
             configuration.Planner,
             activeFocusBlock);
-        if (state.ViewMode != PlannerViewMode.MultiDay)
-        {
-            return selectedView;
-        }
-
-        var visibleStart = state.VisibleStartDate ?? state.SelectedDate;
-        var columns = Enumerable.Range(0, state.VisibleDayCount)
+        var visibleStart = state.ViewMode == PlannerViewMode.SingleDay
+            ? state.SelectedDate : state.VisibleStartDate ?? state.SelectedDate;
+        var count = state.ViewMode == PlannerViewMode.SingleDay ? 1 : state.VisibleDayCount;
+        var columns = Enumerable.Range(0, count)
             .Select(offset => visibleStart.AddDays(offset))
             .Select(date =>
             {

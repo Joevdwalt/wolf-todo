@@ -65,6 +65,24 @@ public sealed class PlannerTimelineViewportTests
         window.IncludesNow.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(5, 59, false)]
+    [InlineData(6, 0, true)]
+    [InlineData(6, 14, true)]
+    [InlineData(6, 15, true)]
+    [InlineData(22, 0, false)]
+    public void MultiDay_marker_respects_timeline_boundaries(int hour, int minute, bool expected)
+    {
+        var today = new DateOnly(2026, 8, 4);
+        var slots = Enumerable.Range(0, 64)
+            .Select(index => new PlannerSlotView(new TimeOnly(6, 0).AddMinutes(index * 15), [], index == 0))
+            .ToImmutableArray();
+        var columns = new[] { new PlannerDayColumnView(today, slots, PlannerCalendarAgenda.Disabled, true) };
+        var window = new PlannerTimelineViewport().WindowPlannerMultiDayTimeline(
+            columns, 0, 10, new DateTime(2026, 8, 4, hour, minute, 0));
+        window.IncludesNow.Should().Be(expected);
+    }
+
     [Fact]
     public void WindowPlannerTimeline_inserts_now_marker_for_selected_today()
     {

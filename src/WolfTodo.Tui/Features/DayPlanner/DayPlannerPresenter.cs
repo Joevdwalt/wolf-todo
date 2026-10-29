@@ -67,9 +67,7 @@ public sealed class DayPlannerPresenter
                     .Concat(focusItems)
                     .ToImmutableArray();
                 // Multiday paths and j/k selection share chronological lane order.
-                var displayedItems = state.ViewMode == PlannerViewMode.MultiDay
-                    ? timelineItems.OrderBy(item => item.Start).ToImmutableArray()
-                    : timelineItems;
+                var displayedItems = timelineItems.OrderBy(item => item.Start).ToImmutableArray();
                 return new PlannerSlotView(
                     time,
                     items,

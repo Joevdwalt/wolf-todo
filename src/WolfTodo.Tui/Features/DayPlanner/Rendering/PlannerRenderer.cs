@@ -62,8 +62,8 @@ public sealed class PlannerRenderer
         var now = nowProvider();
         RenderPlannerHeader(tabs, view, keyBindings, theme, context, now);
 
-        var timelineTable = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 0
-            ? multiDayTimelineRenderer.CreatePlannerMultiDayTimelineTable(view, context.AvailableRows, theme)
+        var timelineTable = view.DayColumns.Length > 0
+            ? multiDayTimelineRenderer.CreatePlannerMultiDayTimelineTable(view, context.AvailableRows, theme, context.TimelineWidth)
             : singleDayTimelineRenderer.CreatePlannerTimelineTable(
                 viewport.WindowPlannerTimeline(
                     view.Slots,
@@ -106,15 +106,15 @@ public sealed class PlannerRenderer
         var editorDialog = overlayViews.CreatePlannerEditorDialog(view, keyBindings, width, height);
         var status = statusRenderer.PlannerStatus(view, keyBindings, width, height);
         var wideLayout = width >= 120;
-        var isMultiDay = view.State.ViewMode == PlannerViewMode.MultiDay && view.DayColumns.Length > 0;
+        var isMultiDay = view.DayColumns.Length > 0;
         var allDayVisible = view.CalendarAgenda.AllDayItems.Length > 0 ||
                             view.State.Focus == PlannerFocus.AllDay;
         // Multiday owns all-day content inside each date pane. The legacy
         // full-width panel belongs to the single-day layout only.
         var showAllDayPanel = !isMultiDay && (allDayVisible || (wideLayout && view.State.ShowDetails));
-        var wideSidePanels = !isMultiDay && wideLayout && (view.State.ShowDetails || showAllDayPanel);
+        var wideSidePanels = wideLayout && view.State.ShowDetails && (!isMultiDay || view.DayColumns.Length <= 2);
         var compactDetails = isMultiDay
-            ? view.State.Mode == PlannerMode.Browse && view.State.Editor is null && view.CommandPalette is null && view.GlobalCommand is null
+            ? view.State.ShowDetails && !wideSidePanels && view.State.Mode == PlannerMode.Browse && view.State.Editor is null && view.CommandPalette is null && view.GlobalCommand is null
             : IsPlannerCompactDetailsVisible(view, wideSidePanels);
         var narrowAllDayHeight = PlannerNarrowAllDayHeight(view, wideSidePanels, showAllDayPanel);
         var floatingPalette = view.CommandPalette is not null && FloatingCommandPalette.CanFloat(width, height);
