@@ -59,6 +59,8 @@ optionally followed by `asc` or `desc`. Ascending is the default.
 - Hide completed rows unless `:completed` is enabled, including descendants
   shown as context. The sidebar count includes only open tasks that directly
   match the saved query.
+- Temporarily reveal a directly matching descendant and its ancestors when a
+  branch is collapsed. Keep the session's collapse choice for other views.
 - Treat saved views as virtual aggregate views for creation and persistence.
 - After editing, completing, or rescheduling a todo, remove it from the view if
   it no longer matches.

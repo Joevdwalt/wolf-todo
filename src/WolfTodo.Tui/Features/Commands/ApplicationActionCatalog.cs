@@ -173,6 +173,13 @@ public sealed class ApplicationActionCatalog(Func<DateOnly>? todayProvider = nul
             Item(ApplicationActionId.BrowserToggleDetails, "Todos",
                 browser?.State.ShowDetails == false ? "Show details" : "Hide details",
                 "Show or hide the selected todo preview", Shortest(bindings.ToggleDetails), browserReason),
+            Item(ApplicationActionId.BrowserToggleSubtasks, "Todos", "Collapse or expand subtasks",
+                "Toggle the selected task branch", Shortest(bindings.ToggleSubtasks),
+                browser?.State.Focus == BrowserFocus.Todos && browser.SelectedTodoIdentity is { } selected &&
+                browser.ExpandableTodos.Contains(selected) ? browserReason : "Select a task with subtasks"),
+            Item(ApplicationActionId.BrowserToggleAllSubtasks, "Todos", "Collapse or expand all subtasks",
+                "Toggle branches in the selected sidebar view", Shortest(bindings.ToggleAllSubtasks),
+                browser?.ExpandableTodos.IsEmpty == false ? browserReason : "No subtasks in this view"),
             Item(ApplicationActionId.BrowserJumpTop, "Todos", "Jump to top",
                 "Select the first item in the focused list", Shortest(bindings.JumpTop), browserReason),
             Item(ApplicationActionId.BrowserJumpBottom, "Todos", "Jump to bottom",

@@ -34,5 +34,7 @@ public sealed record BrowserView(
 
     public int SelectableTodoCount => Todos.Count(row => row.Todo is not null);
 
+    public ImmutableHashSet<TodoIdentity> ExpandableTodos { get; init; } = [];
+
     public TodoIdentity? SelectedTodoIdentity => Todos.FirstOrDefault(row => row.IsSelected)?.Identity;
 }

@@ -38,6 +38,18 @@ public sealed class TaskLinkWorkflowTests
         opened.Browser.PendingTodoSelection.Should().Be(new TodoIdentity(Project.Path, 4));
     }
 
+    [Fact]
+    public void Open_expands_collapsed_ancestors_of_the_linked_task()
+    {
+        var parent = new TodoIdentity(Project.Path, 3);
+        var state = State with { Browser = State.Browser with { CollapsedTodos = [parent] } };
+
+        var opened = workflow.Open(state, Catalog, TaskLinkCode.Generate(Project.Path, 4), 2);
+
+        opened.Browser.CollapsedTodos.Should().NotContain(parent);
+        opened.Browser.PendingTodoSelection.Should().Be(new TodoIdentity(Project.Path, 4));
+    }
+
     [Theory]
     [InlineData("bad")]
     [InlineData("wt1-00000000")]

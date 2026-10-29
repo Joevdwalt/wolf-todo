@@ -28,6 +28,8 @@ public enum ApplicationActionId
     BrowserClearSelection,
     BrowserRollProjectToday,
     BrowserToggleDetails,
+    BrowserToggleSubtasks,
+    BrowserToggleAllSubtasks,
     BrowserJumpTop,
     BrowserJumpBottom,
     PlannerPreviousDay,

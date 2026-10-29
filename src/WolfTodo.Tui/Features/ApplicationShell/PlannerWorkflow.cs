@@ -142,6 +142,7 @@ public sealed class PlannerWorkflow(
             if (externalResult.Started)
             {
                 catalog = catalogLoader.Load(configuration.ProjectFiles);
+                state = state with { Browser = state.Browser with { CollapsedTodos = [] } };
             }
 
             return externalResult.Error is null
@@ -183,6 +184,7 @@ public sealed class PlannerWorkflow(
             }
 
             catalog = catalogLoader.Load(configuration.ProjectFiles);
+            state = state with { Browser = state.Browser with { CollapsedTodos = [] } };
             return (
                 Success(
                     state,
@@ -229,6 +231,7 @@ public sealed class PlannerWorkflow(
         }
 
         catalog = catalogLoader.Load(configuration.ProjectFiles);
+        state = state with { Browser = state.Browser with { CollapsedTodos = [] } };
         var followedSchedule = transition.Operation switch
         {
             PlannerOperation.Schedule => schedule,

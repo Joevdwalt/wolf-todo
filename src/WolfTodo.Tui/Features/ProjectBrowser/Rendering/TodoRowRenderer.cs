@@ -42,10 +42,12 @@ public sealed class TodoRowRenderer
         var treePrefix = TodoTreeFormatter.Format(row.TreePath);
         var status = StatusGlyph(todo.IsCompleted);
         var priority = PriorityCode(todo.Priority);
-        var prefixWidth = DisplayWidth(treePrefix);
+        var branchGlyph = row.HasVisibleChildren && row.IsCollapsed ? "▶ " : string.Empty;
+        var taskPrefix = treePrefix + branchGlyph;
+        var prefixWidth = DisplayWidth(taskPrefix);
         var visiblePrefix = prefixWidth >= layout.TaskWidth
-            ? FitColumn(treePrefix, layout.TaskWidth)
-            : treePrefix;
+            ? FitColumn(taskPrefix, layout.TaskWidth)
+            : taskPrefix;
         var title = prefixWidth >= layout.TaskWidth
             ? string.Empty
             : FitColumn(todo.Title, layout.TaskWidth - prefixWidth);
@@ -99,9 +101,10 @@ public sealed class TodoRowRenderer
     {
         var todo = row.Todo!;
         var treeContinuation = TodoTreeFormatter.FormatContinuation(row.TreePath);
-        var treeWidth = DisplayWidth(treeContinuation);
+        var treeContinuationWithBranch = treeContinuation + (row.HasVisibleChildren && row.IsCollapsed ? "  " : string.Empty);
+        var treeWidth = DisplayWidth(treeContinuationWithBranch);
         var visibleTreeWidth = Math.Min(treeWidth, Math.Max(0, layout.TaskWidth - 1));
-        var visibleTree = FitColumn(treeContinuation, visibleTreeWidth);
+        var visibleTree = FitColumn(treeContinuationWithBranch, visibleTreeWidth);
         var tagWidth = layout.TaskWidth - visibleTreeWidth;
         var tags = FormatTags(todo.Tags);
         var tagColor = row.IsSelected

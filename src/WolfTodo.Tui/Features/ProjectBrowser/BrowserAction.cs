@@ -13,6 +13,8 @@ public enum BrowserAction
     ClearSelection,
     RollProjectToday,
     ToggleDetails,
+    ToggleSubtasks,
+    ToggleAllSubtasks,
     JumpTop,
     JumpBottom
 }

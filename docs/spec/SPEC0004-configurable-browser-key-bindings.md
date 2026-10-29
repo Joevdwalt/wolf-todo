@@ -24,6 +24,8 @@ the existing keyboard interaction and command syntax.
   dialog.
 - `?` opens the global command palette.
 - `v` hides or shows the Todos detail preview.
+- `c` collapses or expands the selected task's descendants in Todos; `C`
+  collapses or expands all branches in the selected sidebar view.
 - `f` opens the selected todo in task focus mode.
 - `m` marks or unmarks the cursor task, `b` opens the bulk editor for marked
   tasks, and Ctrl+M clears all marks.

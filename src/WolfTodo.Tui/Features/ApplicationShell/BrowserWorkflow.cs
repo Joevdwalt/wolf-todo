@@ -42,6 +42,7 @@ public sealed class BrowserWorkflow(
             Browser = state.Browser with
             {
                 Error = result.Error,
+                CollapsedTodos = result.Succeeded ? [] : state.Browser.CollapsedTodos,
                 Editor = result.Succeeded
                     ? null
                     : state.Browser.Editor is null
@@ -115,6 +116,7 @@ public sealed class BrowserWorkflow(
                     ? new TodoIdentity(target.Path, sourceLine)
                     : null,
                 Error = null,
+                CollapsedTodos = [],
                 MarkedTodos = [],
                 MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
                 BulkEditor = null,
@@ -178,6 +180,7 @@ public sealed class BrowserWorkflow(
             {
                 TodoIndex = 0,
                 PendingTodoSelection = null,
+                CollapsedTodos = [],
                 MarkedTodos = [],
                 MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
                 BulkEditor = null,
@@ -269,7 +272,8 @@ public sealed class BrowserWorkflow(
                         },
                 Error = error,
                 StatusMessage = error is null ? successText : null,
-                PendingTodoSelection = null
+                PendingTodoSelection = null,
+                CollapsedTodos = succeeded.Count > 0 ? [] : state.Browser.CollapsedTodos
             }
         }, catalog);
     }
@@ -303,6 +307,7 @@ public sealed class BrowserWorkflow(
             Browser = state.Browser with
             {
                 PendingTodoSelection = null,
+                CollapsedTodos = result.Started ? [] : state.Browser.CollapsedTodos,
                 Error = result.Error,
                 MarkedTodos = result.Started ? [] : state.Browser.MarkedTodos,
                 MarkedTodoSnapshots = result.Started

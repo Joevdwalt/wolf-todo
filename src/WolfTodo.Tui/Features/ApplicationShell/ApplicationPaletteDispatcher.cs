@@ -46,6 +46,8 @@ public sealed class ApplicationPaletteDispatcher(
             [ApplicationActionId.BrowserClearSelection] = BrowserAction.ClearSelection,
             [ApplicationActionId.BrowserRollProjectToday] = BrowserAction.RollProjectToday,
             [ApplicationActionId.BrowserToggleDetails] = BrowserAction.ToggleDetails,
+            [ApplicationActionId.BrowserToggleSubtasks] = BrowserAction.ToggleSubtasks,
+            [ApplicationActionId.BrowserToggleAllSubtasks] = BrowserAction.ToggleAllSubtasks,
             [ApplicationActionId.BrowserJumpTop] = BrowserAction.JumpTop,
             [ApplicationActionId.BrowserJumpBottom] = BrowserAction.JumpBottom
         };

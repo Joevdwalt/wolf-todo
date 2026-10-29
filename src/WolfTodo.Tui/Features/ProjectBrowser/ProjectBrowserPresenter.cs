@@ -19,11 +19,15 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         var projectRows = BuildProjectRows(catalog, state, today, sidebarItems);
         var selectedProjectIndex = Math.Clamp(state.ProjectIndex, 0, Math.Max(0, projectRows.Length - 1));
         var selectedProject = projectRows[selectedProjectIndex];
-        var todoRows = BuildTodoRows(catalog, selectedProject, state, today);
+        var (todoRows, expandableTodos, ancestors) = BuildTodoRows(catalog, selectedProject, state, today);
         var selectableTodos = todoRows.Where(row => row.Todo is not null).ToArray();
-        var pendingIndex = state.PendingTodoSelection is null
-            ? -1
-            : Array.FindIndex(selectableTodos, row => row.Identity == state.PendingTodoSelection);
+        var pending = state.PendingTodoSelection;
+        var pendingIndex = pending is null ? -1 : Array.FindIndex(selectableTodos, row => row.Identity == pending);
+        while (pendingIndex < 0 && pending is not null && ancestors.TryGetValue(pending, out var ancestor))
+        {
+            pending = ancestor;
+            pendingIndex = Array.FindIndex(selectableTodos, row => row.Identity == pending);
+        }
         var selectedTodoIndex = state.PendingTodoSelection is null
             ? Math.Clamp(state.TodoIndex, 0, Math.Max(0, selectableTodos.Length - 1))
             : Math.Max(0, pendingIndex);
@@ -67,7 +71,10 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
             selectedProject.Title,
             selectedProject.Project?.Path ?? selectedProject.Error?.Path,
             selectedProject.Error?.Message,
-            emptyMessage);
+            emptyMessage)
+        {
+            ExpandableTodos = expandableTodos
+        };
     }
 
     private static ImmutableArray<ProjectRow> BuildProjectRows(
@@ -115,7 +122,8 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         return [.. rows];
     }
 
-    private static ImmutableArray<TodoRow> BuildTodoRows(
+    private static (ImmutableArray<TodoRow> Rows, ImmutableHashSet<TodoIdentity> Expandable,
+        Dictionary<TodoIdentity, TodoIdentity> Ancestors) BuildTodoRows(
         ProjectCatalog catalog,
         ProjectRow selectedProject,
         BrowserState state,
@@ -123,7 +131,7 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
     {
         if (selectedProject.Error is not null)
         {
-            return [];
+            return ([], [], new Dictionary<TodoIdentity, TodoIdentity>());
         }
 
         var sort = selectedProject.SavedView?.Order ?? state.Sort;
@@ -131,6 +139,8 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
             ? OrderProjects(catalog.Projects, sort)
             : [selectedProject.Project];
         var rows = ImmutableArray.CreateBuilder<TodoRow>();
+        var expandable = ImmutableHashSet.CreateBuilder<TodoIdentity>();
+        var ancestors = new Dictionary<TodoIdentity, TodoIdentity>();
         var filter = EffectiveFilter(state);
 
         foreach (var project in projects)
@@ -148,10 +158,19 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
                 today,
                 selectedProject.SavedView,
                 project.Title);
-            var visibleTodos = FlattenVisible(visibleForest).ToArray();
+            var visibleTodos = FlattenVisible(visibleForest, project.Path, state.CollapsedTodos)
+                .ToArray();
+            foreach (var item in visibleTodos)
+            {
+                var identity = new TodoIdentity(project.Path, item.Todo.SourceLine);
+                if (item.HasChildren) expandable.Add(identity);
+                if (item.ParentSourceLine is { } parentLine)
+                    ancestors[identity] = new TodoIdentity(project.Path, parentLine);
+            }
+            var displayedTodos = visibleTodos.Where(item => !item.IsHidden).ToArray();
 
             if ((filter.Length > 0 || selectedProject.Kind == ProjectRowKind.SavedQuery) &&
-                visibleTodos.Length == 0)
+                displayedTodos.Length == 0)
             {
                 continue;
             }
@@ -163,7 +182,7 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
 
             foreach (var sectionPath in sectionPaths)
             {
-                var section = visibleTodos
+                var section = displayedTodos
                     .Where(item => item.Todo.SectionPath == sectionPath)
                     .ToArray();
                 if (section.Length == 0)
@@ -185,13 +204,15 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
                         false,
                         new TodoIdentity(project.Path, item.Todo.SourceLine))
                     {
-                        ProjectTitle = project.Title
+                        ProjectTitle = project.Title,
+                        HasVisibleChildren = item.HasChildren,
+                        IsCollapsed = item.IsCollapsed
                     });
                 }
             }
         }
 
-        return rows.ToImmutable();
+        return (rows.ToImmutable(), expandable.ToImmutable(), ancestors);
     }
 
     private static string EffectiveFilter(BrowserState state) =>
@@ -260,21 +281,32 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
 
             if ((isEligibleInView && (matchesFilter || searchMatchInAncestor)) || children.Length > 0)
             {
-                visible.Add(new VisibleTodo(todo, children));
+                var directlyMatches =
+                    (filter.Length > 0 && isEligibleInView && matchesFilter) ||
+                    (savedView is not null && matchesSavedView);
+                visible.Add(new VisibleTodo(todo, children, directlyMatches,
+                    children.Any(child => child.DirectlyMatches || child.HasMatchingDescendant)));
             }
         }
 
         return visible.ToImmutable();
     }
 
-    private static IEnumerable<(TodoItem Todo, ImmutableArray<TodoTreeSegment> TreePath)> FlattenVisible(
+    private static IEnumerable<FlattenedTodo> FlattenVisible(
         ImmutableArray<VisibleTodo> todos,
+        string projectPath,
+        ImmutableHashSet<TodoIdentity> collapsed,
+        bool hidden = false,
+        int? parentSourceLine = null,
         ImmutableArray<TodoTreeSegment> parentPath = default)
     {
         for (var index = 0; index < todos.Length; index++)
         {
             var item = todos[index];
-            yield return (item.Todo, parentPath.IsDefault ? [] : parentPath);
+            var identity = new TodoIdentity(projectPath, item.Todo.SourceLine);
+            var isCollapsed = collapsed.Contains(identity) && !item.HasMatchingDescendant;
+            yield return new FlattenedTodo(item.Todo, parentPath.IsDefault ? [] : parentPath,
+                item.Children.Length > 0, isCollapsed, hidden, parentSourceLine);
 
             var childParentPath = parentPath.IsDefault ? [] : parentPath;
             for (var childIndex = 0; childIndex < item.Children.Length; childIndex++)
@@ -283,7 +315,8 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
                     childIndex == item.Children.Length - 1
                         ? TodoTreeSegment.LastSibling
                         : TodoTreeSegment.HasFollowingSibling);
-                foreach (var child in FlattenVisible([item.Children[childIndex]], childPath))
+                foreach (var child in FlattenVisible([item.Children[childIndex]], projectPath,
+                             collapsed, hidden || isCollapsed, item.Todo.SourceLine, childPath))
                 {
                     yield return child;
                 }
@@ -424,5 +457,9 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
                  selectedProject.SavedView.Query.Matches(item.Todo, project.Title, today))));
     }
 
-    private sealed record VisibleTodo(TodoItem Todo, ImmutableArray<VisibleTodo> Children);
+    private sealed record VisibleTodo(TodoItem Todo, ImmutableArray<VisibleTodo> Children,
+        bool DirectlyMatches, bool HasMatchingDescendant);
+
+    private sealed record FlattenedTodo(TodoItem Todo, ImmutableArray<TodoTreeSegment> TreePath,
+        bool HasChildren, bool IsCollapsed, bool IsHidden, int? ParentSourceLine);
 }
