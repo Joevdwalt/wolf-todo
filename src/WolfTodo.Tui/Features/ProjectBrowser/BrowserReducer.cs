@@ -61,6 +61,8 @@ public sealed class BrowserReducer
             BrowserAction.ClearSelection => ClearSelection(state),
             BrowserAction.RollProjectToday => RollProjectToday(state, view),
             BrowserAction.ToggleDetails => ToggleDetails(state),
+            BrowserAction.ToggleSubtasks => ToggleSubtasks(state, view),
+            BrowserAction.ToggleAllSubtasks => ToggleAllSubtasks(state, view),
             BrowserAction.JumpTop => Jump(state, view, false),
             BrowserAction.JumpBottom => Jump(state, view, true),
             _ => Transition(state with { Error = "The selected action is not available." })
@@ -197,6 +199,16 @@ public sealed class BrowserReducer
         if (bindings.MatchesToggleDetails(key))
         {
             return ToggleDetails(state);
+        }
+
+        if (bindings.MatchesToggleSubtasks(key))
+        {
+            return ToggleSubtasks(state, view);
+        }
+
+        if (bindings.MatchesToggleAllSubtasks(key))
+        {
+            return ToggleAllSubtasks(state, view);
         }
 
         if (bindings.MatchesJumpTop(key) || bindings.MatchesJumpBottom(key))
@@ -443,6 +455,41 @@ public sealed class BrowserReducer
             : BrowserFocus.Details,
         Error = null
     });
+
+    private static BrowserTransition ToggleSubtasks(BrowserState state, BrowserView view)
+    {
+        var identity = view.SelectedTodoIdentity;
+        if (state.Focus != BrowserFocus.Todos || identity is null ||
+            !view.ExpandableTodos.Contains(identity))
+            return Transition(state with { Error = "Select a todo with visible subtasks to collapse." });
+
+        var collapsed = state.CollapsedTodos.Contains(identity)
+            ? state.CollapsedTodos.Remove(identity)
+            : state.CollapsedTodos.Add(identity);
+        return Transition(state with
+        {
+            CollapsedTodos = collapsed,
+            PendingTodoSelection = identity,
+            Error = null
+        });
+    }
+
+    private static BrowserTransition ToggleAllSubtasks(BrowserState state, BrowserView view)
+    {
+        if (view.ExpandableTodos.IsEmpty)
+            return Transition(state with { Error = "No subtasks in this view to collapse." });
+
+        var allCollapsed = view.ExpandableTodos.All(state.CollapsedTodos.Contains);
+        var collapsed = allCollapsed
+            ? state.CollapsedTodos.Except(view.ExpandableTodos)
+            : state.CollapsedTodos.Union(view.ExpandableTodos);
+        return Transition(state with
+        {
+            CollapsedTodos = collapsed,
+            PendingTodoSelection = view.SelectedTodoIdentity,
+            Error = null
+        });
+    }
 
     private BrowserTransition RollProjectToday(BrowserState state, BrowserView view)
     {

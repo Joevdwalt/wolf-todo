@@ -83,8 +83,8 @@ public sealed class StatusRenderer
             { FilterText.Length: > 0 } =>
                 $"FILTER: /{view.State.FilterText}  {Shortest(keyBindings.FilterMode)} EDIT  " +
                 $"EMPTY Enter CLEARS  {SortHint(view.State, keyBindings)}",
-            _ when compact => CompactStatus(keyBindings, view.State),
-            _ => NormalStatus(keyBindings, view.State)
+            _ when compact => CompactStatus(keyBindings, view.State) + FoldHint(view, keyBindings),
+            _ => NormalStatus(keyBindings, view.State) + FoldHint(view, keyBindings)
         };
 
         return WithTimer(
@@ -370,6 +370,11 @@ public sealed class StatusRenderer
         $"{Shortest(bindings.CommandMode)} COMMANDS  " +
         $"{MarkedHint(state, bindings)}" +
         SortHint(state, bindings);
+
+    private string FoldHint(BrowserView view, TuiKeyBindings bindings) =>
+        view.ExpandableTodos.IsEmpty
+            ? string.Empty
+            : $"  {Shortest(bindings.ToggleSubtasks)}/{Shortest(bindings.ToggleAllSubtasks)} FOLD";
 
     private string MarkedHint(BrowserState state, TuiKeyBindings bindings) =>
         state.MarkedTodos.Count == 0

@@ -13,6 +13,25 @@ public sealed class BrowserReducerTests
     private static readonly ApplicationConfiguration Configuration = new([], ":q");
 
     [Fact]
+    public void Reduce_toggles_selected_and_all_subtask_branches()
+    {
+        var root = new TodoIdentity("/alpha.md", 1);
+        var child = new TodoIdentity("/alpha.md", 2);
+        var todo = new TodoItem(1, false, null, "Root", null, [], null, null, "", [], []);
+        var view = SelectedView(root, todo) with { ExpandableTodos = [root, child] };
+        var state = BrowserState.Initial with { Focus = BrowserFocus.Todos };
+
+        var one = reducer.Reduce(state, Key('c'), Configuration, view);
+        var all = reducer.Reduce(one.State, Key('C'), Configuration, view);
+        var expanded = reducer.Reduce(all.State, Key('C'), Configuration, view);
+
+        one.State.CollapsedTodos.Should().Contain(root).And.NotContain(child);
+        all.State.CollapsedTodos.Should().Contain(root).And.Contain(child);
+        expanded.State.CollapsedTodos.Should().BeEmpty();
+        one.State.PendingTodoSelection.Should().Be(root);
+    }
+
+    [Fact]
     public void Reduce_moves_from_projects_to_todos_on_enter()
     {
         var result = reducer.Reduce(BrowserState.Initial, Key(ConsoleKey.Enter), Configuration, EmptyView());

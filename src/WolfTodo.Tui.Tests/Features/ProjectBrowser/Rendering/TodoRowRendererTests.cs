@@ -14,6 +14,22 @@ public sealed class TodoRowRendererTests
     private readonly TodoRowRenderer renderer = new();
 
     [Fact]
+    public void ListRow_shows_branch_state_within_a_narrow_task_column()
+    {
+        var todo = Todo("A long title for a narrow task row");
+        var layout = renderer.Columns(30, false);
+        var expanded = Render(renderer.ListRow(new TodoRow(null, todo, [TodoTreeSegment.HasFollowingSibling], false)
+            { HasVisibleChildren = true }, layout, TuiThemes.Wolf));
+        var collapsed = Render(renderer.ListRow(new TodoRow(null, todo, [], false)
+            { HasVisibleChildren = true, IsCollapsed = true }, layout, TuiThemes.Wolf));
+
+        expanded.Should().Contain("├─").And.NotContain("▾").And.NotContain("▶");
+        collapsed.Should().Contain("▶");
+        expanded.Length.Should().BeLessThanOrEqualTo(layout.ContentWidth);
+        collapsed.Length.Should().BeLessThanOrEqualTo(layout.ContentWidth);
+    }
+
+    [Fact]
     public void FormatSchedule_includes_time_only_when_present()
     {
         renderer.FormatSchedule(new TodoSchedule(new DateOnly(2026, 8, 4), null))

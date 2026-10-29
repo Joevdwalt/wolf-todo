@@ -163,6 +163,8 @@ toggle_todo_selection = ["m"]
 bulk_edit_todos = ["b"]
 clear_todo_selection = ["Ctrl+M"]
 toggle_details = ["v"]
+toggle_subtasks = ["c"]
+toggle_all_subtasks = ["C"]
 focus_task = ["f"]
 roll_project_today = ["R"]
 remove_content = ["d"]
@@ -540,7 +542,12 @@ selected todo, including its notes and nested subtasks, into the destination
 project's `## Inbox`. Wolf Todo writes the destination before removing the
 source, so a failed source write cannot lose the task.
 
-Nested todos are always expanded in the Todos list and inspector. Unicode
+Nested todos start expanded in the Todos list. Press `c` on a task to collapse
+or expand its descendants, or `C` to collapse or expand all branches in the
+selected sidebar view. This display state is session-only and resets when
+project files reload. The inspector and focus card always show the complete
+tree; filters and saved views
+reveal matching descendants through collapsed ancestors. Unicode
 `├─`, `└─`, and `│` connectors show sibling and ancestor relationships. A
 filter that matches a descendant keeps its visible ancestor path as normal,
 selectable todo rows so the result retains useful tree context. A matching

@@ -15,6 +15,10 @@ public sealed record TodoRow(
 
     public bool IsMarked { get; init; }
 
+    public bool HasVisibleChildren { get; init; }
+
+    public bool IsCollapsed { get; init; }
+
     public int Depth => TreePath.Length;
 }
 

@@ -49,6 +49,8 @@ public sealed record TuiKeyBindings(
     public ImmutableArray<KeyGesture> PlannerNextColumn { get; init; } = Gestures("l");
 
     public ImmutableArray<KeyGesture> FocusTask { get; init; } = Gestures("f");
+    public ImmutableArray<KeyGesture> ToggleSubtasks { get; init; } = Gestures("c");
+    public ImmutableArray<KeyGesture> ToggleAllSubtasks { get; init; } = Gestures("C");
     public static TuiKeyBindings CreateDefaults(string quitCommand) => new(
         quitCommand,
         ":completed",
@@ -166,6 +168,8 @@ public sealed record TuiKeyBindings(
     public bool MatchesStartUntrackedPomodoro(ConsoleKeyInfo key) => Matches(StartUntrackedPomodoro, key);
 
     public bool MatchesFocusTask(ConsoleKeyInfo key) => Matches(FocusTask, key);
+    public bool MatchesToggleSubtasks(ConsoleKeyInfo key) => Matches(ToggleSubtasks, key);
+    public bool MatchesToggleAllSubtasks(ConsoleKeyInfo key) => Matches(ToggleAllSubtasks, key);
 
     public static string ShortestDisplayName(ImmutableArray<KeyGesture> gestures) => gestures
         .Select((gesture, index) => (gesture.DisplayName, Index: index))

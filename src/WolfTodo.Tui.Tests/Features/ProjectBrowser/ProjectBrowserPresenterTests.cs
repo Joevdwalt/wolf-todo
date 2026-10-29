@@ -9,6 +9,52 @@ public sealed class ProjectBrowserPresenterTests
     private readonly ProjectBrowserPresenter presenter = new();
 
     [Fact]
+    public void CreateView_collapses_nested_branches_and_keeps_selection_on_a_visible_ancestor()
+    {
+        var grandchild = Todo("Grandchild") with { SourceLine = 3 };
+        var child = Todo("Child") with { SourceLine = 2, Subtasks = [grandchild] };
+        var root = Todo("Root") with { SourceLine = 1, Subtasks = [child] };
+        var catalog = new ProjectCatalog([Project("Alpha", root)], []);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 1,
+            CollapsedTodos = [new TodoIdentity("/Alpha.md", 1)],
+            PendingTodoSelection = new TodoIdentity("/Alpha.md", 3)
+        };
+
+        var view = presenter.CreateView(catalog, state);
+
+        view.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Root");
+        view.SelectedTodo!.Title.Should().Be("Root");
+        view.Todos.Single(row => row.Todo is not null).IsCollapsed.Should().BeTrue();
+        view.ExpandableTodos.Should().Contain(new TodoIdentity("/Alpha.md", 2));
+    }
+
+    [Fact]
+    public void CreateView_reveals_matching_descendants_without_changing_collapse_state()
+    {
+        var child = Todo("Matching child") with { SourceLine = 2 };
+        var root = Todo("Root") with { SourceLine = 1, Subtasks = [child] };
+        var catalog = new ProjectCatalog([Project("Alpha", root)], []);
+        var state = BrowserState.Initial with
+        {
+            ProjectIndex = 1,
+            FilterText = "matching",
+            CollapsedTodos = [new TodoIdentity("/Alpha.md", 1)]
+        };
+
+        var filtered = presenter.CreateView(catalog, state);
+        var unfiltered = presenter.CreateView(catalog, state with { FilterText = "" });
+
+        filtered.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Root", "Matching child");
+        unfiltered.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title)
+            .Should().Equal("Root");
+        filtered.State.CollapsedTodos.Should().Contain(new TodoIdentity("/Alpha.md", 1));
+    }
+
+    [Fact]
     public void CreateView_projects_marked_identities_independently_from_the_cursor()
     {
         var catalog = new ProjectCatalog(

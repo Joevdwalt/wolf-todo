@@ -72,6 +72,8 @@ public sealed class TaskLinkWorkflow
         var (project, todo) = resolved.Value;
         // An open descendant may be hidden by a completed ancestor.
         var revealCompleted = RequiresCompleted(project.Todos, todo.SourceLine, false);
+        var collapsed = state.Browser.CollapsedTodos;
+        RevealAncestors(project.Todos, todo.SourceLine, project.Path, [], ref collapsed);
         return state with
         {
             Tabs = state.Tabs with { ActiveTab = new TabId("todos") },
@@ -87,6 +89,7 @@ public sealed class TaskLinkWorkflow
                 Focus = BrowserFocus.Todos,
                 FilterText = "", FilterDraft = "", IsFilterMode = false, IsSortMode = false,
                 ShowCompleted = state.Browser.ShowCompleted || revealCompleted,
+                CollapsedTodos = collapsed,
                 Error = null, StatusMessage = null,
                 MarkedTodos = [], MarkedTodoSnapshots = System.Collections.Immutable.ImmutableDictionary<TodoIdentity, TodoItem>.Empty
             }
@@ -100,6 +103,22 @@ public sealed class TaskLinkWorkflow
             var completed = completedAncestor || todo.IsCompleted;
             if (todo.SourceLine == sourceLine) return completed;
             if (RequiresCompleted(todo.Subtasks, sourceLine, completed)) return true;
+        }
+        return false;
+    }
+
+    private static bool RevealAncestors(IEnumerable<TodoItem> todos, int sourceLine, string projectPath,
+        IReadOnlyList<TodoIdentity> ancestors, ref System.Collections.Immutable.ImmutableHashSet<TodoIdentity> collapsed)
+    {
+        foreach (var todo in todos)
+        {
+            if (todo.SourceLine == sourceLine)
+            {
+                collapsed = collapsed.Except(ancestors);
+                return true;
+            }
+            var path = ancestors.Append(new TodoIdentity(projectPath, todo.SourceLine)).ToArray();
+            if (RevealAncestors(todo.Subtasks, sourceLine, projectPath, path, ref collapsed)) return true;
         }
         return false;
     }
