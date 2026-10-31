@@ -31,6 +31,8 @@ public interface ITerminalUi
 
     ScreenDumpResult DumpScreen() => new(null, "Screen dumping is unavailable.");
 
+    (int Width, int Height)? GetDimensions() => null;
+
     ConsoleKeyInfo ReadKey();
 
     ConsoleKeyInfo? ReadKey(TimeSpan timeout);

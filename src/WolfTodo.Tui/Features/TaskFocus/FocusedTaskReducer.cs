@@ -47,6 +47,12 @@ public sealed class FocusedTaskReducer(Func<DateOnly>? todayProvider = null)
                 state.Editor.ExpectedTodo);
         }
 
+        return ReduceBrowse(state, key, bindings, view);
+    }
+
+    private FocusedTaskTransition ReduceBrowse(
+        FocusedTaskState state, ConsoleKeyInfo key, TuiKeyBindings bindings, FocusedTaskView view)
+    {
         if (bindings.MatchesEditTodo(key) || bindings.MatchesEditTodoContent(key))
         {
             return Edit(state, view);

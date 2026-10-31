@@ -21,6 +21,12 @@ public sealed class TodoBulkEditorReducer(Func<DateOnly>? todayProvider = null)
             return ReduceTextBox(state, key, bindings);
         }
 
+        return ReduceBrowse(state, key, bindings);
+    }
+
+    private TodoBulkEditorTransition ReduceBrowse(
+        TodoBulkEditorState state, ConsoleKeyInfo key, TuiKeyBindings bindings)
+    {
         if (bindings.MatchesBack(key))
         {
             return new(null, TodoBulkEditorOutcome.Cancelled);

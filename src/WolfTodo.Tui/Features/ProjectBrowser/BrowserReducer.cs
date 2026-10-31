@@ -28,34 +28,15 @@ public sealed class BrowserReducer
         state = state with { StatusMessage = null };
         return action switch
         {
-            BrowserAction.Filter => Transition(state with
-            {
-                IsFilterMode = true,
-                FilterDraft = state.FilterText,
-                Error = null
-            }),
-            BrowserAction.Sort => Transition(state with { IsSortMode = true, Error = null }),
-            BrowserAction.Create => Transition(state with
-            {
-                Editor = todoEditorReducer.CreateEditor(
-                    view.Projects.FirstOrDefault(project => project.IsSelected)?.Project?.Path,
-                    view.Projects.Any(project => project.Project is not null)),
-                Error = null
-            }),
+            BrowserAction.Filter => OpenFilter(state),
+            BrowserAction.Sort => OpenSort(state),
+            BrowserAction.Create => CreateTodo(state, view),
             BrowserAction.Edit when view.SelectedTodo is not null && view.SelectedTodoIdentity is not null =>
-                Transition(state with
-                {
-                    Editor = todoEditorReducer.EditEditor(view.SelectedTodo, view.SelectedTodoIdentity),
-                    Error = null
-                }),
+                EditTodo(state, view.SelectedTodo, view.SelectedTodoIdentity),
             BrowserAction.EditExternal when view.SelectedTodoIdentity is not null =>
                 ExternalEdit(state, view.SelectedTodoIdentity),
             BrowserAction.ToggleCompleted
-                when view.SelectedTodoIdentity is not null => new BrowserTransition(
-                    state with { Error = null },
-                    BrowserOperation.ToggleCompleted,
-                    view.SelectedTodoIdentity.ProjectPath,
-                    view.SelectedTodoIdentity),
+                when view.SelectedTodoIdentity is not null => ToggleCompleted(state, view.SelectedTodoIdentity),
             BrowserAction.ToggleSelection => ToggleSelection(state, view),
             BrowserAction.BulkEdit => OpenBulkEditor(state),
             BrowserAction.ClearSelection => ClearSelection(state),
@@ -106,23 +87,27 @@ public sealed class BrowserReducer
             return ReduceSort(state, key, view);
         }
 
+        return ReduceBrowse(state, key, bindings, view);
+    }
+
+    private BrowserTransition ReduceBrowse(
+        BrowserState state, ConsoleKeyInfo key, TuiKeyBindings bindings, BrowserView view) =>
+        ReduceBrowseModes(state, key, bindings, view)
+        ?? ReduceTodoActions(state, key, bindings, view)
+        ?? ReduceNavigation(state, key, bindings, view)
+        ?? Transition(state);
+
+    private BrowserTransition? ReduceBrowseModes(
+        BrowserState state, ConsoleKeyInfo key, TuiKeyBindings bindings, BrowserView view)
+    {
         if (bindings.MatchesFilterMode(key))
         {
-            return Transition(state with
-            {
-                IsFilterMode = true,
-                FilterDraft = state.FilterText,
-                Error = null
-            });
+            return OpenFilter(state);
         }
 
         if (bindings.MatchesSortMode(key))
         {
-            return Transition(state with
-            {
-                IsSortMode = true,
-                Error = null
-            });
+            return OpenSort(state);
         }
 
         if (bindings.MatchesToggleTodoSelection(key))
@@ -142,17 +127,15 @@ public sealed class BrowserReducer
 
         if (bindings.MatchesCreateTodo(key))
         {
-            var selectedProject = view.Projects.FirstOrDefault(project => project.IsSelected)?.Project;
-            var projectPath = selectedProject?.Path;
-            return Transition(state with
-            {
-                Editor = todoEditorReducer.CreateEditor(
-                    projectPath,
-                    view.Projects.Any(project => project.Project is not null)),
-                Error = null
-            });
+            return CreateTodo(state, view);
         }
 
+        return null;
+    }
+
+    private BrowserTransition? ReduceTodoActions(
+        BrowserState state, ConsoleKeyInfo key, TuiKeyBindings bindings, BrowserView view)
+    {
         if (bindings.MatchesEditTodoExternal(key))
         {
             if (view.SelectedTodoIdentity is null)
@@ -170,11 +153,7 @@ public sealed class BrowserReducer
                 return Transition(state with { Error = "Select a todo to edit." });
             }
 
-            return Transition(state with
-            {
-                Editor = todoEditorReducer.EditEditor(view.SelectedTodo, view.SelectedTodoIdentity),
-                Error = null
-            });
+            return EditTodo(state, view.SelectedTodo, view.SelectedTodoIdentity);
         }
 
         if (bindings.MatchesToggleTodo(key))
@@ -184,11 +163,7 @@ public sealed class BrowserReducer
                 return Transition(state with { Error = "Select a todo to complete." });
             }
 
-            return new BrowserTransition(
-                state with { Error = null },
-                BrowserOperation.ToggleCompleted,
-                view.SelectedTodoIdentity.ProjectPath,
-                view.SelectedTodoIdentity);
+            return ToggleCompleted(state, view.SelectedTodoIdentity);
         }
 
         if (bindings.MatchesRollProjectToday(key))
@@ -211,6 +186,12 @@ public sealed class BrowserReducer
             return ToggleAllSubtasks(state, view);
         }
 
+        return null;
+    }
+
+    private static BrowserTransition? ReduceNavigation(
+        BrowserState state, ConsoleKeyInfo key, TuiKeyBindings bindings, BrowserView view)
+    {
         if (bindings.MatchesJumpTop(key) || bindings.MatchesJumpBottom(key))
         {
             return Jump(state, view, bindings.MatchesJumpBottom(key));
@@ -229,20 +210,7 @@ public sealed class BrowserReducer
         {
             var offset = bindings.MatchesMoveUp(key) ? -1 : 1;
 
-            return state.Focus == BrowserFocus.Projects
-                ? Transition(state with
-                {
-                    ProjectIndex = MoveIndex(state.ProjectIndex, offset, view.Projects.Length),
-                    TodoIndex = 0,
-                    PendingTodoSelection = null,
-                    Error = null
-                })
-                : Transition(state with
-                {
-                    TodoIndex = MoveIndex(state.TodoIndex, offset, view.SelectableTodoCount),
-                    PendingTodoSelection = null,
-                    Error = null
-                });
+            return MoveSelection(state, view, offset);
         }
 
         if (bindings.MatchesOpen(key))
@@ -269,8 +237,47 @@ public sealed class BrowserReducer
             });
         }
 
-        return Transition(state);
+        return null;
     }
+
+    private static BrowserTransition MoveSelection(BrowserState state, BrowserView view, int offset) =>
+        state.Focus == BrowserFocus.Projects
+        ? Transition(state with
+        {
+            ProjectIndex = MoveIndex(state.ProjectIndex, offset, view.Projects.Length),
+            TodoIndex = 0,
+            PendingTodoSelection = null,
+            Error = null
+        })
+        : Transition(state with
+        {
+            TodoIndex = MoveIndex(state.TodoIndex, offset, view.SelectableTodoCount),
+            PendingTodoSelection = null,
+            Error = null
+        });
+    private static BrowserTransition OpenFilter(BrowserState state) => Transition(state with
+    {
+        IsFilterMode = true,
+        FilterDraft = state.FilterText,
+        Error = null
+    });
+
+    private static BrowserTransition OpenSort(BrowserState state) =>
+        Transition(state with { IsSortMode = true, Error = null });
+
+    private BrowserTransition CreateTodo(BrowserState state, BrowserView view) => Transition(state with
+    {
+        Editor = todoEditorReducer.CreateEditor(
+            view.Projects.FirstOrDefault(project => project.IsSelected)?.Project?.Path,
+            view.Projects.Any(project => project.Project is not null)),
+        Error = null
+    });
+
+    private BrowserTransition EditTodo(BrowserState state, TodoItem todo, TodoIdentity identity) =>
+        Transition(state with { Editor = todoEditorReducer.EditEditor(todo, identity), Error = null });
+
+    private static BrowserTransition ToggleCompleted(BrowserState state, TodoIdentity identity) =>
+        new(state with { Error = null }, BrowserOperation.ToggleCompleted, identity.ProjectPath, identity);
 
     private static IReadOnlyList<TodoEditorProjectOption> EditorProjects(BrowserView view) =>
         view.Projects
@@ -370,21 +377,7 @@ public sealed class BrowserReducer
             return Transition(state with { IsSortMode = false, Error = null });
         }
 
-        var sort = key.KeyChar switch
-        {
-            'n' => new TodoSort(TodoSortProperty.Name, TodoSortDirection.Ascending),
-            'N' => new TodoSort(TodoSortProperty.Name, TodoSortDirection.Descending),
-            'd' => new TodoSort(TodoSortProperty.Schedule, TodoSortDirection.Ascending),
-            'D' => new TodoSort(TodoSortProperty.Schedule, TodoSortDirection.Descending),
-            't' => new TodoSort(TodoSortProperty.Tags, TodoSortDirection.Ascending),
-            'T' => new TodoSort(TodoSortProperty.Tags, TodoSortDirection.Descending),
-            'f' => new TodoSort(TodoSortProperty.File, TodoSortDirection.Ascending),
-            'F' => new TodoSort(TodoSortProperty.File, TodoSortDirection.Descending),
-            'p' => new TodoSort(TodoSortProperty.Priority, TodoSortDirection.Ascending),
-            'P' => new TodoSort(TodoSortProperty.Priority, TodoSortDirection.Descending),
-            'o' => TodoSort.Source,
-            _ => null
-        };
+        var sort = SortDialogKeys.Resolve(key);
 
         return sort is null
             ? Transition(state)

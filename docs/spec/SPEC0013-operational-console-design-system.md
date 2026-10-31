@@ -70,6 +70,10 @@ take precedence while it is selected.
 - Narrow or short: show only the focused view. Navigation, task list, and
   inspector remain reachable using the configured focus/open/back actions.
 
+Terminal width or height changes redraw the active view promptly, including open
+panels and editors, while preserving session state. The previous frame is cleared
+when dimensions change.
+
 The task list has priority when space is constrained. Rendering must reserve
 the final terminal row and keep the header and contextual command panel visible.
 

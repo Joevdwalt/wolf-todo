@@ -6,6 +6,7 @@ public sealed class ApplicationLoopWaiter(
     Func<DateTime>? utcNowProvider = null)
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(50);
+    private (int Width, int Height)? lastDimensions = terminalUi.GetDimensions() is { Width: > 0, Height: > 0 } size ? size : null;
     private readonly Func<DateTime> utcNowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
 
     public ApplicationLoopEvent Wait(TimeSpan? redrawInterval)
@@ -18,6 +19,17 @@ public sealed class ApplicationLoopWaiter(
             if (changes.HasChanges)
             {
                 return ApplicationLoopEvent.ForFiles(changes);
+            }
+
+            var dimensions = terminalUi.GetDimensions();
+            if (dimensions is { Width: > 0, Height: > 0 })
+            {
+                if (lastDimensions is not null && lastDimensions != dimensions)
+                {
+                    lastDimensions = dimensions;
+                    return ApplicationLoopEvent.ForRedraw();
+                }
+                lastDimensions = dimensions;
             }
 
             var wait = deadline is null
