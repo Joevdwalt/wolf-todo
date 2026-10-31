@@ -161,6 +161,33 @@ public sealed class BrowserReducerTests
     }
 
     [Fact]
+    public void Reduce_gives_filter_priority_when_a_key_also_matches_navigation()
+    {
+        var bindings = Configuration.KeyBindings with { FilterMode = [KeyGesture.Parse("j")] };
+        var configuration = new ApplicationConfiguration([], bindings);
+
+        var result = reducer.Reduce(BrowserState.Initial, Key('j'), configuration, NavigationView());
+
+        result.State.IsFilterMode.Should().BeTrue();
+        result.State.ProjectIndex.Should().Be(0);
+    }
+
+    [Fact]
+    public void Reduce_gives_back_priority_over_bulk_edit_when_bindings_overlap()
+    {
+        var bindings = Configuration.KeyBindings with { BulkEditTodos = [KeyGesture.Parse("h")] };
+        var configuration = new ApplicationConfiguration([], bindings);
+        var identity = new TodoIdentity("/work.md", 4);
+        var state = BrowserState.Initial with { Focus = BrowserFocus.Todos, MarkedTodos = [identity] };
+
+        var result = reducer.Reduce(state, Key('h'), configuration, SelectedView(identity));
+
+        result.State.Focus.Should().Be(BrowserFocus.Projects);
+        result.State.BulkEditor.Should().BeNull();
+        result.State.MarkedTodos.Should().Contain(identity);
+    }
+
+    [Fact]
     public void Reduce_uses_configured_focus_open_and_back_bindings()
     {
         var bindings = Configuration.KeyBindings with
@@ -693,6 +720,51 @@ public sealed class BrowserReducerTests
         result.State.ShowDetails.Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData(BrowserAction.Filter, '/')]
+    [InlineData(BrowserAction.Sort, 't')]
+    [InlineData(BrowserAction.Create, 'a')]
+    [InlineData(BrowserAction.Edit, 'e')]
+    public void ReduceAction_matches_keyboard_action_for_a_selected_todo(BrowserAction action, char key)
+    {
+        var view = SelectedView(new TodoIdentity("/work.md", 4));
+        var state = BrowserState.Initial with { FilterText = "work", Error = "old", StatusMessage = "old" };
+
+        var actionResult = reducer.ReduceAction(state, action, view);
+        var keyResult = reducer.Reduce(state, Key(key), Configuration, view);
+
+        actionResult.Should().BeEquivalentTo(keyResult);
+    }
+
+    [Fact]
+    public void ReduceAction_completion_matches_keyboard_and_targets_the_selected_todo()
+    {
+        var identity = new TodoIdentity("/work.md", 4);
+        var view = SelectedView(identity);
+
+        var action = reducer.ReduceAction(BrowserState.Initial, BrowserAction.ToggleCompleted, view);
+        var key = reducer.Reduce(BrowserState.Initial, Key(ConsoleKey.Spacebar), Configuration, view);
+
+        action.Should().BeEquivalentTo(key);
+        action.Operation.Should().Be(BrowserOperation.ToggleCompleted);
+        action.TodoIdentity.Should().Be(identity);
+    }
+
+    [Theory]
+    [InlineData(BrowserAction.Edit)]
+    [InlineData(BrowserAction.EditExternal)]
+    [InlineData(BrowserAction.ToggleCompleted)]
+    public void ReduceAction_reports_unavailable_actions_without_a_selected_todo(BrowserAction action)
+    {
+        var state = BrowserState.Initial with { StatusMessage = "old" };
+
+        var result = reducer.ReduceAction(state, action, EmptyView());
+
+        result.Operation.Should().Be(BrowserOperation.None);
+        result.State.Error.Should().Be("The selected action is not available.");
+        result.State.StatusMessage.Should().BeNull();
+    }
+
     [Fact]
     public void Reduce_marks_tasks_opens_bulk_edit_and_clears_marks()
     {
@@ -730,6 +802,126 @@ public sealed class BrowserReducerTests
         result.Operation.Should().Be(BrowserOperation.BulkUpdate);
         result.TodoIdentities.Should().BeEquivalentTo([first, second]);
         result.BulkUpdate!.Complete.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Reduce_filter_captures_navigation_and_launcher_keys_as_text()
+    {
+        var state = BrowserState.Initial with
+        {
+            IsFilterMode = true, FilterDraft = "work", ProjectIndex = 1,
+            TodoIndex = 2, PendingTodoSelection = new TodoIdentity("/work.md", 3)
+        };
+
+        var moved = reducer.Reduce(state, Key('j'), Configuration, NavigationView());
+        var filtered = reducer.Reduce(moved.State, Key('/'), Configuration, NavigationView());
+
+        filtered.State.FilterDraft.Should().Be("workj/");
+        filtered.State.ProjectIndex.Should().Be(1);
+        filtered.State.TodoIndex.Should().Be(0);
+        filtered.State.PendingTodoSelection.Should().BeNull();
+        filtered.State.IsFilterMode.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Reduce_editor_captures_filter_key_in_its_text_box()
+    {
+        var identity = new TodoIdentity("/work.md", 4);
+        var view = SelectedView(identity);
+        var opened = reducer.Reduce(BrowserState.Initial, Key('e'), Configuration, view);
+        var editing = reducer.Reduce(opened.State, Key('e'), Configuration, view);
+
+        var result = reducer.Reduce(editing.State, Key('/'), Configuration, view);
+        var accepted = reducer.Reduce(result.State, Key(ConsoleKey.Enter), Configuration, view);
+
+        result.State.IsFilterMode.Should().BeFalse();
+        accepted.State.Editor!.Values.Title.Should().Be("Selected/");
+        result.Operation.Should().Be(BrowserOperation.None);
+    }
+
+    [Fact]
+    public void Reduce_bulk_editor_captures_navigation_and_cancels_without_clearing_marks()
+    {
+        var identity = new TodoIdentity("/work.md", 4);
+        var view = SelectedView(identity);
+        var marked = reducer.Reduce(BrowserState.Initial, Key('m'), Configuration, view);
+        var opened = reducer.Reduce(marked.State, Key('b'), Configuration, view);
+
+        var moved = reducer.Reduce(opened.State, Key('j'), Configuration, view);
+        var cancelled = reducer.Reduce(moved.State, Key(ConsoleKey.Escape), Configuration, view);
+
+        moved.State.BulkEditor!.SelectedIndex.Should().Be(1);
+        moved.State.ProjectIndex.Should().Be(0);
+        cancelled.State.BulkEditor.Should().BeNull();
+        cancelled.State.MarkedTodos.Should().ContainSingle().Which.Should().Be(identity);
+        cancelled.State.MarkedTodoSnapshots.Should().ContainKey(identity);
+    }
+
+    [Fact]
+    public void Reduce_mark_and_unmark_tracks_original_snapshots_and_clears_them()
+    {
+        var identity = new TodoIdentity("/work.md", 4);
+        var view = SelectedView(identity);
+        var marked = reducer.Reduce(BrowserState.Initial, Key('m'), Configuration, view);
+        var markedView = view with { Todos = [view.Todos[0] with { IsMarked = true }] };
+
+        var unmarked = reducer.Reduce(marked.State, Key('m'), Configuration, markedView);
+        var cleared = reducer.Reduce(marked.State, Key(ConsoleKey.M, control: true), Configuration, view);
+
+        marked.State.MarkedTodoSnapshots[identity].Should().Be(view.SelectedTodo);
+        unmarked.State.MarkedTodos.Should().BeEmpty();
+        unmarked.State.MarkedTodoSnapshots.Should().BeEmpty();
+        unmarked.State.StatusMessage.Should().Be("No tasks marked.");
+        cleared.State.MarkedTodoSnapshots.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData('e', "Select a todo to edit.")]
+    [InlineData('m', "Select a todo to mark.")]
+    [InlineData('b', "Mark at least one todo before bulk editing.")]
+    [InlineData('c', "Select a todo with visible subtasks to collapse.")]
+    [InlineData('C', "No subtasks in this view to collapse.")]
+    public void Reduce_reports_actions_that_require_a_selection(char key, string error)
+    {
+        var result = reducer.Reduce(BrowserState.Initial, Key(key), Configuration, EmptyView());
+
+        result.Operation.Should().Be(BrowserOperation.None);
+        result.State.Error.Should().Be(error);
+    }
+
+    [Fact]
+    public void Reduce_clamps_navigation_and_clears_stale_pending_selection()
+    {
+        var identity = new TodoIdentity("/work.md", 4);
+        var state = BrowserState.Initial with
+        {
+            Focus = BrowserFocus.Todos, TodoIndex = 0, PendingTodoSelection = identity
+        };
+
+        var up = reducer.Reduce(state, Key('k'), Configuration, EmptyView());
+        var bottom = reducer.Reduce(state, Key('G'), Configuration, EmptyView());
+        var last = reducer.Reduce(state with { TodoIndex = 2 }, Key('j'), Configuration, TodoNavigationView(3));
+
+        up.State.TodoIndex.Should().Be(0);
+        bottom.State.TodoIndex.Should().Be(0);
+        last.State.TodoIndex.Should().Be(2);
+        up.State.PendingTodoSelection.Should().BeNull();
+        bottom.State.PendingTodoSelection.Should().BeNull();
+    }
+
+    [Fact]
+    public void Reduce_bulk_save_preserves_snapshots_for_conflict_detection()
+    {
+        var identity = new TodoIdentity("/work.md", 4);
+        var view = SelectedView(identity);
+        var marked = reducer.Reduce(BrowserState.Initial, Key('m'), Configuration, view);
+        var opened = reducer.Reduce(marked.State, Key('b'), Configuration, view);
+
+        var ready = opened.State with { BulkEditor = opened.State.BulkEditor! with { Complete = true } };
+        var result = reducer.Reduce(ready, Key(ConsoleKey.S, control: true), Configuration, view);
+
+        result.Operation.Should().Be(BrowserOperation.BulkUpdate);
+        result.ExpectedTodos.Should().ContainKey(identity).WhoseValue.Should().Be(view.SelectedTodo);
     }
 
     private static BrowserView EmptyView() => new(

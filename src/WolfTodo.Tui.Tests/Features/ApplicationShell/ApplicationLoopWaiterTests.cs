@@ -33,6 +33,34 @@ public sealed class ApplicationLoopWaiterTests
         result.Key.Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData(100, 24)]
+    [InlineData(80, 30)]
+    public void Wait_redraws_after_dimensions_change_without_input(int width, int height)
+    {
+        var terminal = new StubTerminal { Dimensions = (80, 24) };
+        terminal.OnRead = () => terminal.Dimensions = (width, height);
+        var result = new ApplicationLoopWaiter(terminal, new StubMonitor(ApplicationFileChanges.None)).Wait(null);
+        result.RedrawRequested.Should().BeTrue();
+        terminal.ReadCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void Wait_ignores_unavailable_and_unchanged_dimensions_and_keeps_input()
+    {
+        var key = new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false);
+        var terminal = new StubTerminal { Dimensions = (80, 24) };
+        terminal.OnRead = () =>
+        {
+            if (terminal.ReadCount == 1) terminal.Dimensions = null;
+            if (terminal.ReadCount == 2) terminal.Dimensions = (80, 24);
+            if (terminal.ReadCount == 3) terminal.Key = key;
+        };
+        var result = new ApplicationLoopWaiter(terminal, new StubMonitor(ApplicationFileChanges.None)).Wait(null);
+        result.Key.Should().Be(key);
+        terminal.ReadCount.Should().Be(3);
+    }
+
     private sealed class StubMonitor(ApplicationFileChanges changes) : IApplicationFileChangeMonitor
     {
         public void WatchProjectFiles(IEnumerable<string> paths) { }
@@ -43,8 +71,12 @@ public sealed class ApplicationLoopWaiterTests
     private sealed class StubTerminal(ConsoleKeyInfo? key = null) : ITerminalUi
     {
         public int ReadCount { get; private set; }
-        public ConsoleKeyInfo? ReadKey(TimeSpan timeout) { ReadCount++; return key; }
-        public ConsoleKeyInfo ReadKey() => key!.Value;
+        public (int Width, int Height)? Dimensions { get; set; }
+        public Action? OnRead { get; set; }
+        public ConsoleKeyInfo? Key { get; set; } = key;
+        public (int Width, int Height)? GetDimensions() => Dimensions;
+        public ConsoleKeyInfo? ReadKey(TimeSpan timeout) { ReadCount++; OnRead?.Invoke(); return Key; }
+        public ConsoleKeyInfo ReadKey() => Key!.Value;
         public void ShowSplashAndWaitForDismissal(string logo, TuiTheme theme) { }
         public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings, TuiTheme theme) { }
         public void ShowPlanner(TabStripView tabs, PlannerView view, TuiKeyBindings keyBindings, TuiTheme theme) { }

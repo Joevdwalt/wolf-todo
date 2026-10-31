@@ -58,20 +58,32 @@ public sealed class TodoEditorReducer
 
         if (editor.Mode == TodoTaskEditorMode.ConfirmRemoval)
         {
-            if (bindings.MatchesOpen(key))
-            {
-                return Transition(RemoveSelectedSubtask(editor) with
-                {
-                    Mode = TodoTaskEditorMode.Browse,
-                    Error = null
-                });
-            }
-
-            return bindings.MatchesBack(key)
-                ? Transition(editor with { Mode = TodoTaskEditorMode.Browse, Error = null })
-                : Transition(editor);
+            return ReduceRemovalConfirmation(editor, key, bindings);
         }
 
+        return ReduceBrowse(editor, key, bindings);
+    }
+
+    private static TodoEditorTransition ReduceRemovalConfirmation(
+        TodoTaskEditorState editor, ConsoleKeyInfo key, TuiKeyBindings bindings)
+    {
+        if (bindings.MatchesOpen(key))
+        {
+            return Transition(RemoveSelectedSubtask(editor) with
+            {
+                Mode = TodoTaskEditorMode.Browse,
+                Error = null
+            });
+        }
+
+        return bindings.MatchesBack(key)
+            ? Transition(editor with { Mode = TodoTaskEditorMode.Browse, Error = null })
+            : Transition(editor);
+    }
+
+    private TodoEditorTransition ReduceBrowse(
+        TodoTaskEditorState editor, ConsoleKeyInfo key, TuiKeyBindings bindings)
+    {
         if (bindings.MatchesBack(key))
         {
             return new TodoEditorTransition(null);
@@ -100,82 +112,102 @@ public sealed class TodoEditorReducer
             bindings.MatchesEditTodoContent(key) ||
             bindings.MatchesOpen(key))
         {
-            if (editor.IsFieldSelected)
-            {
-                return Transition(editor with
-                {
-                    FieldTextBox = TextBoxState.Create(
-                        FieldLabel(editor.SelectedField),
-                        true,
-                        SelectedFieldValue(editor),
-                        isActive: true),
-                    Error = null
-                });
-            }
-
-            if (editor.IsContentSelected)
-            {
-                return Transition(editor with
-                {
-                    ContentTextBox = MultilineTextBoxState.Create("Content", editor.Content, true),
-                    Error = null
-                });
-            }
-
-            return BeginSubtaskEdit(editor);
+            return BeginEdit(editor);
         }
 
         if (bindings.MatchesRemoveContent(key))
         {
-            if (!editor.IsSubtaskSelected)
-            {
-                return Transition(editor with { Error = "Select a subtask to remove." });
-            }
-
-            var selected = editor.Subtasks[editor.SelectedSubtaskIndex];
-            return selected.DescendantCount > 0
-                ? Transition(editor with { Mode = TodoTaskEditorMode.ConfirmRemoval, Error = null })
-                : Transition(RemoveSelectedSubtask(editor));
+            return RemoveSubtask(editor);
         }
 
         if (bindings.MatchesToggleTodo(key))
         {
-            if (!editor.IsSubtaskSelected)
-            {
-                return Transition(editor with { Error = "Select a subtask to change completion." });
-            }
-
-            var index = editor.SelectedSubtaskIndex;
-            var subtask = editor.Subtasks[index];
-            return Transition(editor with
-            {
-                Subtasks = editor.Subtasks.SetItem(index, subtask with { IsCompleted = !subtask.IsCompleted }),
-                Error = null
-            });
+            return ToggleSubtask(editor);
         }
 
         if (bindings.MatchesSaveForm(key))
         {
-            if (string.IsNullOrWhiteSpace(editor.Values.Title))
-            {
-                return Transition(editor with { Error = "Title is required." });
-            }
-
-            var schedule = ParseSchedule(editor, todayProvider(), out var scheduleError);
-            if (scheduleError is not null)
-            {
-                return Transition(editor with { Error = scheduleError });
-            }
-
-            return new TodoEditorTransition(
-                null,
-                editor.IsCreate ? TodoEditorOperation.Create : TodoEditorOperation.Update,
-                editor.ProjectPath,
-                editor.Target,
-                editor.ToUpdate(schedule));
+            return Save(editor);
         }
 
         return Transition(editor);
+    }
+
+    private static TodoEditorTransition BeginEdit(TodoTaskEditorState editor)
+    {
+        if (editor.IsFieldSelected)
+        {
+            return Transition(editor with
+            {
+                FieldTextBox = TextBoxState.Create(
+                    FieldLabel(editor.SelectedField),
+                    true,
+                    SelectedFieldValue(editor),
+                    isActive: true),
+                Error = null
+            });
+        }
+
+        if (editor.IsContentSelected)
+        {
+            return Transition(editor with
+            {
+                ContentTextBox = MultilineTextBoxState.Create("Content", editor.Content, true),
+                Error = null
+            });
+        }
+
+        return BeginSubtaskEdit(editor);
+    }
+
+    private static TodoEditorTransition RemoveSubtask(TodoTaskEditorState editor)
+    {
+        if (!editor.IsSubtaskSelected)
+        {
+            return Transition(editor with { Error = "Select a subtask to remove." });
+        }
+
+        var selected = editor.Subtasks[editor.SelectedSubtaskIndex];
+        return selected.DescendantCount > 0
+            ? Transition(editor with { Mode = TodoTaskEditorMode.ConfirmRemoval, Error = null })
+            : Transition(RemoveSelectedSubtask(editor));
+    }
+
+    private static TodoEditorTransition ToggleSubtask(TodoTaskEditorState editor)
+    {
+        if (!editor.IsSubtaskSelected)
+        {
+            return Transition(editor with { Error = "Select a subtask to change completion." });
+        }
+
+        var index = editor.SelectedSubtaskIndex;
+        var subtask = editor.Subtasks[index];
+        return Transition(editor with
+        {
+            Subtasks = editor.Subtasks.SetItem(index, subtask with { IsCompleted = !subtask.IsCompleted }),
+            Error = null
+        });
+    }
+
+    private TodoEditorTransition Save(TodoTaskEditorState editor)
+    {
+        if (string.IsNullOrWhiteSpace(editor.Values.Title))
+        {
+            return Transition(editor with { Error = "Title is required." });
+        }
+
+        var schedule = ParseSchedule(editor, todayProvider(), out var scheduleError);
+        if (scheduleError is not null)
+        {
+            return Transition(editor with { Error = scheduleError });
+        }
+
+        return new TodoEditorTransition(
+            null,
+            editor.IsCreate ? TodoEditorOperation.Create : TodoEditorOperation.Update,
+            editor.ProjectPath,
+            editor.Target,
+            editor.ToUpdate(schedule));
     }
 
     private static TodoEditorTransition ReduceProjectPicker(

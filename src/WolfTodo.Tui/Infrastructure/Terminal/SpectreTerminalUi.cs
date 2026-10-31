@@ -3,6 +3,7 @@ using WolfTodo.Tui.Features.TaskFocus;
 using WolfTodo.Tui.Features.TaskLinks.Rendering;
 using WolfTodo.Tui.Features.TaskLinks;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 using Wolf.Controls;
 using Wolf.Controls.Splash;
 using WolfTodo.Tui.Features.ApplicationShell;
@@ -32,6 +33,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
     private readonly Func<DateTimeOffset> animationClock;
     private string? lastRenderedFrame;
     private bool browserRendered;
+    private (int Width, int Height)? frameDimensions;
 
     public SpectreTerminalUi()
         : this(SafeWindowWidth, SafeWindowHeight, null, null)
@@ -83,69 +85,58 @@ public sealed class SpectreTerminalUi : ITerminalUi
         browserRendered = false;
         AnsiConsole.Clear();
 
-        if (widthProvider() < LongestLine(logo) + 2 || heightProvider() < LogoLineCount(logo) + 5)
-        {
-            AnsiConsole.Write(themeRenderer.OnSurface(
-                new Text("Wolf Todo\n", themeRenderer.Style(theme.Heading, Decoration.Bold)),
-                theme.Background,
-                true));
-            AnsiConsole.Write(themeRenderer.OnSurface(
-                new Text("Press any key to continue\n", themeRenderer.Style(theme.Muted, Decoration.Dim)),
-                theme.Background,
-                true));
-            inputReader.ReadKey();
-            return;
-        }
-
         var startedAt = animationClock();
-        var state = SplashBoxState.Create(
-            "Wolf Todo",
-            "Press any key to continue",
-            startedAt,
-            logo);
+        var state = SplashBoxState.Create("Wolf Todo", "Press any key to continue", startedAt, logo);
         var controlTheme = TuiControlAdapter.ToControlTheme(theme) with { AccentBright = theme.Heading };
-        var constraints = new ControlConstraints(
-            widthProvider(),
-            Math.Max(1, heightProvider() - 1));
+
+        IRenderable RenderSplash(DateTimeOffset now)
+        {
+            var width = Math.Max(1, widthProvider());
+            var height = Math.Max(1, heightProvider());
+            if (width < LongestLine(logo) + 2 || height < LogoLineCount(logo) + 5)
+            {
+                return themeRenderer.OnSurface(
+                    new Rows(new Text("Wolf Todo", themeRenderer.Style(theme.Heading, Decoration.Bold)),
+                        new Text("Press any key to continue", themeRenderer.Style(theme.Muted, Decoration.Dim))),
+                    theme.Background, true);
+            }
+            return themeRenderer.OnSurface(
+                SplashBox.Default.Render(state, controlTheme, new ControlConstraints(width, Math.Max(1, height - 1)), now),
+                theme.Background, true);
+        }
 
         if (!AnsiConsole.Profile.Out.IsTerminal)
         {
-            AnsiConsole.Write(themeRenderer.OnSurface(
-                SplashBox.Default.Render(state, controlTheme, constraints, startedAt + SplashBox.ExpansionDuration),
-                theme.Background,
-                true));
+            AnsiConsole.Write(RenderSplash(startedAt + SplashBox.ExpansionDuration));
             inputReader.ReadKey();
             return;
         }
 
-        AnsiConsole.Live(new Text(string.Empty))
-            .AutoClear(false)
-            .Overflow(VerticalOverflow.Crop)
-            .Start(context =>
+        // Redraw the full splash on each animation frame or dimension change, even
+        // after the animation has finished.
+        (int Width, int Height)? previous = null;
+        DateTimeOffset? nextFrame = startedAt;
+        while (true)
+        {
+            var now = animationClock();
+            var dimensions = GetDimensions();
+            if (previous != dimensions || (nextFrame is not null && now >= nextFrame))
             {
-                while (true)
-                {
-                    var now = animationClock();
-                    context.UpdateTarget(themeRenderer.OnSurface(
-                        SplashBox.Default.Render(state, controlTheme, constraints, now),
-                        theme.Background,
-                        true));
-                    context.Refresh();
+                BeginUpdate(true);
+                if (previous is not null && dimensions is not null && previous != dimensions)
+                    AnsiConsole.Clear();
+                AnsiConsole.Write(RenderSplash(now));
+                EndFrame(true);
+                previous = dimensions;
+                nextFrame = SplashBox.Default.NextFrameAt(state, now);
+            }
 
-                    var nextFrame = SplashBox.Default.NextFrameAt(state, now);
-                    if (nextFrame is null)
-                    {
-                        inputReader.ReadKey();
-                        return;
-                    }
-
-                    var wait = nextFrame.Value - now;
-                    if (wait > TimeSpan.Zero && inputReader.ReadKey(wait) is not null)
-                    {
-                        return;
-                    }
-                }
-            });
+            var wait = TimeSpan.FromMilliseconds(50);
+            if (nextFrame is not null && nextFrame.Value - now < wait)
+                wait = nextFrame.Value - now;
+            if (wait > TimeSpan.Zero && inputReader.ReadKey(wait) is not null)
+                return;
+        }
     }
 
     public void ShowBrowser(TabStripView tabs, BrowserView view, TuiKeyBindings keyBindings) =>
@@ -262,6 +253,20 @@ public sealed class SpectreTerminalUi : ITerminalUi
         }
     }
 
+    public (int Width, int Height)? GetDimensions()
+    {
+        try
+        {
+            var width = widthProvider();
+            var height = heightProvider();
+            return width > 0 && height > 0 ? (width, height) : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
     public ConsoleKeyInfo ReadKey() => inputReader.ReadKey();
 
     public ConsoleKeyInfo? ReadKey(TimeSpan timeout) => inputReader.ReadKey(timeout);
@@ -289,6 +294,9 @@ public sealed class SpectreTerminalUi : ITerminalUi
         if (browserRendered)
         {
             BeginUpdate(useSynchronizedUpdate);
+            var dimensions = GetDimensions();
+            if (dimensions is not null && frameDimensions is not null && dimensions != frameDimensions)
+                AnsiConsole.Clear();
         }
         else
         {
@@ -296,6 +304,7 @@ public sealed class SpectreTerminalUi : ITerminalUi
             browserRendered = true;
         }
 
+        frameDimensions = GetDimensions() ?? frameDimensions;
         return useSynchronizedUpdate;
     }
 

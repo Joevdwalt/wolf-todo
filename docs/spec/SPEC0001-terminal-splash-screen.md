@@ -54,7 +54,9 @@ transitions to the project browser defined by SPEC0002. The keypress that
 dismisses the splash screen must not be passed to the browser.
 
 If the terminal is too small for the centered content, render a readable
-fallback containing the title and continuation prompt instead of failing.
+fallback containing the title and continuation prompt instead of failing. Resize
+the splash promptly while it is visible, switching between the centered and
+fallback layouts as space changes.
 
 ## Command Mode
 

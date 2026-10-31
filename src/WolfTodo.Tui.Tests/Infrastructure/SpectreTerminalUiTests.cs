@@ -31,6 +31,52 @@ public sealed class SpectreTerminalUiTests
     private static Recorder recording = null!;
 
     [Fact]
+    public void ShowSplash_updates_animation_frames_without_clearing_the_screen_each_time()
+    {
+        var original = AnsiConsole.Console;
+        var writer = new StringWriter();
+        var now = DateTime.UnixEpoch;
+        try
+        {
+            AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings
+            {
+                Ansi = AnsiSupport.Yes,
+                Out = new TerminalOutput(writer)
+            });
+            var input = new TerminalInputReader(
+                () => new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false),
+                () => now >= DateTime.UnixEpoch.AddMilliseconds(80),
+                () => now,
+                delay => now += delay);
+            new SpectreTerminalUi(
+                () => 140, () => 30,
+                new BrowserRenderer(() => 140, () => 30),
+                new PlannerRenderer(() => 140, () => 30),
+                input, new SurfaceThemeRenderer(),
+                animationClock: () => new DateTimeOffset(now))
+                .ShowSplashAndWaitForDismissal("WOLF", TuiThemes.Wolf);
+
+            var output = writer.ToString();
+            output.Split("\u001b[2J").Length.Should().Be(2);
+            output.Split("\u001b[?2026h").Length.Should().BeGreaterThan(2);
+            output.Split("\u001b[?2026l").Length.Should().Be(output.Split("\u001b[?2026h").Length);
+        }
+        finally
+        {
+            AnsiConsole.Console = original;
+        }
+    }
+
+    private sealed class TerminalOutput(TextWriter writer) : IAnsiConsoleOutput
+    {
+        public TextWriter Writer => writer;
+        public bool IsTerminal => true;
+        public int Width => 140;
+        public int Height => 30;
+        public void SetEncoding(System.Text.Encoding encoding) { }
+    }
+
+    [Fact]
     public void ShowSplash_applies_the_configured_semantic_colors()
     {
         var theme = TuiThemes.Wolf with
