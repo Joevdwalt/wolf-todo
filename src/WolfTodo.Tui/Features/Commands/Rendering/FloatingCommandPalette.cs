@@ -1,4 +1,3 @@
-using System.Globalization;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using Wolf.Controls.Rendering;
@@ -71,20 +70,5 @@ internal sealed class FloatingCommandPalette(
         };
     }
 
-    private static string Fit(string value, int width)
-    {
-        if (value.GetCellWidth() <= width) return value;
-        var remaining = Math.Max(0, width - 1);
-        var result = new System.Text.StringBuilder();
-        var elements = StringInfo.GetTextElementEnumerator(value);
-        while (elements.MoveNext())
-        {
-            var glyph = elements.GetTextElement();
-            var glyphWidth = glyph.GetCellWidth();
-            if (glyphWidth > remaining) break;
-            result.Append(glyph);
-            remaining -= glyphWidth;
-        }
-        return result.Append('…').ToString();
-    }
+    private static string Fit(string value, int width) => TerminalText.Ellipsize(value, width);
 }

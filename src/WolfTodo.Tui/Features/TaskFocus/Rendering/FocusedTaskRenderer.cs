@@ -281,14 +281,8 @@ public sealed class FocusedTaskRenderer(
         TuiKeyBindings.ShortestDisplayName(gestures);
 
     private static IReadOnlyList<IRenderable> FitLines(
-        IReadOnlyList<IRenderable> lines,
-        int contentHeight,
-        int selectedIndex)
-    {
-        if (lines.Count <= contentHeight) return lines;
-        var start = Math.Clamp(selectedIndex - contentHeight + 1, 0, lines.Count - contentHeight);
-        return lines.Skip(start).Take(contentHeight).ToArray();
-    }
+        IReadOnlyList<IRenderable> lines, int contentHeight, int selectedIndex) =>
+        ListViewport.Fit(lines, contentHeight, selectedIndex);
 
     private static SelectListState CommandPaletteSelectList(
         CommandPaletteView palette,

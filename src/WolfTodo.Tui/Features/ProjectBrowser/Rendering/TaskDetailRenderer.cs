@@ -72,20 +72,8 @@ public sealed class TaskDetailRenderer
     }
 
     public static IEnumerable<(TodoItem Todo, ImmutableArray<TodoTreeSegment> TreePath)> FlattenSubtasks(
-        ImmutableArray<TodoItem> todos, ImmutableArray<TodoTreeSegment> parentPath = default)
-    {
-        for (var index = 0; index < todos.Length; index++)
-        {
-            var path = (parentPath.IsDefault ? ImmutableArray<TodoTreeSegment>.Empty : parentPath).Add(
-                index == todos.Length - 1 ? TodoTreeSegment.LastSibling : TodoTreeSegment.HasFollowingSibling);
-            var todo = todos[index];
-            yield return (todo, path);
-            foreach (var descendant in FlattenSubtasks(todo.Subtasks, path))
-            {
-                yield return descendant;
-            }
-        }
-    }
+        ImmutableArray<TodoItem> todos, ImmutableArray<TodoTreeSegment> parentPath = default) =>
+        TodoRowRenderer.Default.FlattenSubtasks(todos, parentPath);
 
     public void AddField(List<IRenderable> lines, string name, string? value, TuiTheme theme, Color valueColor)
     {

@@ -602,18 +602,8 @@ public sealed class BrowserRenderer
         TerminalLayout.DialogContentHeight(dialog);
 
     public static IReadOnlyList<IRenderable> FitLines(
-        IReadOnlyList<IRenderable> lines,
-        int contentHeight,
-        int selectedIndex)
-    {
-        if (lines.Count <= contentHeight)
-        {
-            return lines;
-        }
-
-        var start = Math.Clamp(selectedIndex - contentHeight + 1, 0, lines.Count - contentHeight);
-        return lines.Skip(start).Take(contentHeight).ToArray();
-    }
+        IReadOnlyList<IRenderable> lines, int contentHeight, int selectedIndex) =>
+        ListViewport.Fit(lines, contentHeight, selectedIndex);
 
     public static IReadOnlyList<IRenderable> FitTodoLines(
         BrowserView view,
@@ -705,11 +695,7 @@ public sealed class BrowserRenderer
         }
     }
 
-    public static string FitColumn(string value, int width)
-    {
-        var result = Truncate(value, width);
-        return result + new string(' ', Math.Max(0, width - DisplayWidth(result)));
-    }
+    public static string FitColumn(string value, int width) => TerminalText.PadColumn(value, width);
 
     public static string FormatSchedule(TodoSchedule schedule) =>
         TodoRowRenderer.Default.FormatSchedule(schedule);
@@ -722,30 +708,7 @@ public sealed class BrowserRenderer
     public static string TodoStatusGlyph(bool isCompleted) =>
         TodoRowRenderer.Default.StatusGlyph(isCompleted);
 
-    public static string Truncate(string value, int width)
-    {
-        if (DisplayWidth(value) <= width)
-        {
-            return value;
-        }
-
-        var result = new System.Text.StringBuilder();
-        var remainingWidth = Math.Max(0, width - 1);
-
-        foreach (var rune in value.EnumerateRunes())
-        {
-            var runeWidth = rune.ToString().GetCellWidth();
-            if (runeWidth > remainingWidth)
-            {
-                break;
-            }
-
-            result.Append(rune.ToString());
-            remainingWidth -= runeWidth;
-        }
-
-        return result.Append('…').ToString();
-    }
+    public static string Truncate(string value, int width) => TerminalText.Ellipsize(value, width);
 
     public static int DisplayWidth(string value) => value.GetCellWidth();
 

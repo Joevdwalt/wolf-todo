@@ -1,3 +1,4 @@
+using Wolf.Controls.Rendering;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using WolfTodo.Core.Features.ProjectBrowser;
@@ -193,18 +194,8 @@ public sealed class CalendarItemRenderer
     }
 
     public IReadOnlyList<IRenderable> FitLines(
-        IReadOnlyList<IRenderable> lines,
-        int contentHeight,
-        int selectedIndex)
-    {
-        if (lines.Count <= contentHeight)
-        {
-            return lines;
-        }
-
-        var start = Math.Clamp(selectedIndex - contentHeight + 1, 0, lines.Count - contentHeight);
-        return lines.Skip(start).Take(contentHeight).ToArray();
-    }
+        IReadOnlyList<IRenderable> lines, int contentHeight, int selectedIndex) =>
+        ListViewport.Fit(lines, contentHeight, selectedIndex);
 
     public void AddField(
         List<IRenderable> lines,
