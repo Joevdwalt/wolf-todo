@@ -88,22 +88,12 @@ public sealed class CalendarItemRenderer
         if (item.Assignment is { } assignment)
         {
             var todo = assignment.Todo;
-            var lines = new List<IRenderable>
-            {
-                new Text(todo.Title, themeRenderer.Style(theme.Heading, Decoration.Bold))
-            };
-            AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
-            AddField(lines, "Link", TaskLinkCode.Generate(assignment.Identity.ProjectPath, assignment.Identity.SourceLine), theme, theme.Info);
-            AddField(lines, "Scheduled", $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY", theme, theme.Date);
-            AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
-            AddField(lines, "Priority", todo.Priority?.ToString(), theme, todoRowRenderer.PriorityColor(todo.Priority, theme));
-            AddField(
-                lines,
-                "Tags",
-                todo.Tags.Length == 0 ? null : todoRowRenderer.FormatTags(todo.Tags, ", "),
-                theme,
-                theme.Tag);
-            AddField(lines, "Duration", todoRowRenderer.FormatDuration(todo.Duration), theme, theme.Info);
+            var lines = new List<IRenderable>();
+            var details = new TaskDetailRenderer();
+            details.AddTitle(lines, todo, theme);
+            details.AddIdentity(lines, assignment.ProjectTitle, assignment.Identity, theme);
+            details.AddField(lines, "Scheduled", $"{view.State.SelectedDate:yyyy-MM-dd} · ALL DAY", theme, theme.Date);
+            details.AddMetadata(lines, todo, theme, includeSection: false, includeSchedule: false);
             return lines;
         }
 
@@ -223,14 +213,6 @@ public sealed class CalendarItemRenderer
         TuiTheme theme,
         Color valueColor)
     {
-        if (string.IsNullOrEmpty(value))
-        {
-            return;
-        }
-
-        var line = new System.Text.StringBuilder();
-        themeRenderer.AppendStyled(line, $"{name.ToUpperInvariant()}: ", theme.Heading, Decoration.Bold);
-        themeRenderer.AppendStyled(line, value, valueColor);
-        lines.Add(new Markup(line.ToString()));
+        new TaskDetailRenderer().AddField(lines, name, value, theme, valueColor);
     }
 }

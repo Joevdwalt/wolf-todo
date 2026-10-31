@@ -574,64 +574,11 @@ public sealed class BrowserRenderer
         else
         {
             var todo = view.SelectedTodo;
-            lines.Add(new Text(todo.Title, ThemeStyle(theme.Heading, Decoration.Bold)));
-            AddField(lines, "Project", view.SelectedProjectTitle, theme, theme.Text);
-            if (view.SelectedTodoIdentity is { } identity)
-            {
-                AddField(lines, "Link", TaskLinkCode.Generate(identity.ProjectPath, identity.SourceLine), theme, theme.Info);
-            }
-
-            if (!string.IsNullOrEmpty(todo.SectionPath))
-            {
-                AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
-            }
-
-            AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
-            AddField(
-                lines,
-                "Priority",
-                todo.Priority?.ToString(),
-                theme,
-                PriorityColor(todo.Priority, theme));
-            AddField(
-                lines,
-                "Tags",
-                todo.Tags.Length == 0 ? null : TodoRowRenderer.Default.FormatTags(todo.Tags, ", "),
-                theme,
-                theme.Tag);
-            AddField(
-                lines,
-                "Scheduled",
-                todo.Schedule is null
-                    ? null
-                    : FormatSchedule(todo.Schedule),
-                theme,
-                theme.Date);
-            AddField(lines, "Duration", FormatDuration(todo.Duration), theme, theme.Info);
-
-            if (todo.Notes.Length == 0 && todo.Subtasks.Length == 0)
-            {
-                lines.Add(new Text(string.Empty));
-                lines.Add(new Text("NO ADDITIONAL DETAILS", ThemeStyle(theme.Muted)));
-            }
-            else
-            {
-                if (todo.Notes.Length > 0)
-                {
-                    lines.Add(new Text(string.Empty));
-                    lines.Add(new Text("NOTES", ThemeStyle(theme.Heading, Decoration.Bold)));
-                    lines.AddRange(todo.Notes.Select(note =>
-                        new Text($"{TodoGlyphs.NoteBullet} {note.Text}", ThemeStyle(theme.Text))));
-                }
-
-                if (todo.Subtasks.Length > 0)
-                {
-                    lines.Add(new Text(string.Empty));
-                    lines.Add(new Text("SUBTASKS", ThemeStyle(theme.Heading, Decoration.Bold)));
-                    lines.AddRange(FlattenSubtasks(todo.Subtasks)
-                        .Select(item => DetailedTodoLine(item.Todo, item.TreePath, false, theme)));
-                }
-            }
+            var details = new TaskDetailRenderer();
+            details.AddTitle(lines, todo, theme);
+            details.AddIdentity(lines, view.SelectedProjectTitle, view.SelectedTodoIdentity, theme);
+            details.AddMetadata(lines, todo, theme);
+            details.AddContent(lines, todo, theme, recursiveSubtasks: true, dimEmpty: false);
         }
 
         return lines;
@@ -804,23 +751,8 @@ public sealed class BrowserRenderer
 
     public static IEnumerable<(TodoItem Todo, ImmutableArray<TodoTreeSegment> TreePath)> FlattenSubtasks(
         ImmutableArray<TodoItem> todos,
-        ImmutableArray<TodoTreeSegment> parentPath = default)
-    {
-        for (var index = 0; index < todos.Length; index++)
-        {
-            var path = (parentPath.IsDefault ? ImmutableArray<TodoTreeSegment>.Empty : parentPath).Add(
-                index == todos.Length - 1
-                    ? TodoTreeSegment.LastSibling
-                    : TodoTreeSegment.HasFollowingSibling);
-            var todo = todos[index];
-            yield return (todo, path);
-
-            foreach (var descendant in FlattenSubtasks(todo.Subtasks, path))
-            {
-                yield return descendant;
-            }
-        }
-    }
+        ImmutableArray<TodoTreeSegment> parentPath = default) =>
+        TaskDetailRenderer.FlattenSubtasks(todos, parentPath);
 
     public static IRenderable DetailedTodoLine(
         TodoItem todo,
