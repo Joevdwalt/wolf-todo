@@ -1,3 +1,4 @@
+using Wolf.Controls.Rendering;
 using System.Collections.Immutable;
 using Spectre.Console;
 using Spectre.Console.Rendering;
@@ -216,36 +217,9 @@ public sealed class TodoRowRenderer
     public string StatusGlyph(bool isCompleted) =>
         isCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
 
-    public string FitColumn(string value, int width)
-    {
-        var result = Truncate(value, width);
-        return result + new string(' ', Math.Max(0, width - DisplayWidth(result)));
-    }
+    public string FitColumn(string value, int width) => TerminalText.PadColumn(value, width);
 
-    public string Truncate(string value, int width)
-    {
-        if (DisplayWidth(value) <= width)
-        {
-            return value;
-        }
-
-        var result = new System.Text.StringBuilder();
-        var remainingWidth = Math.Max(0, width - 1);
-
-        foreach (var rune in value.EnumerateRunes())
-        {
-            var runeWidth = rune.ToString().GetCellWidth();
-            if (runeWidth > remainingWidth)
-            {
-                break;
-            }
-
-            result.Append(rune.ToString());
-            remainingWidth -= runeWidth;
-        }
-
-        return result.Append('…').ToString();
-    }
+    public string Truncate(string value, int width) => TerminalText.Ellipsize(value, width);
 
     public int DisplayWidth(string value) =>
         value.GetCellWidth();

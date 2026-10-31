@@ -1,3 +1,4 @@
+using Wolf.Controls.Rendering;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using Wolf.Controls.TextBox;
@@ -28,21 +29,5 @@ public static class TextPrompt
         return new Rows(rows);
     }
 
-    private static string Ellipsize(string value, int maxWidth)
-    {
-        if (value.GetCellWidth() <= maxWidth) return value;
-
-        var result = new System.Text.StringBuilder();
-        var width = 0;
-        foreach (var rune in value.EnumerateRunes())
-        {
-            var glyph = rune.ToString();
-            var glyphWidth = glyph.GetCellWidth();
-            if (width + glyphWidth >= maxWidth) break;
-            result.Append(glyph);
-            width += glyphWidth;
-        }
-
-        return result + "…";
-    }
+    private static string Ellipsize(string value, int maxWidth) => TerminalText.Ellipsize(value, maxWidth);
 }

@@ -1,5 +1,4 @@
-using System.Globalization;
-using System.Text;
+using Wolf.Controls.Rendering;
 using Spectre.Console;
 using WolfTodo.Tui.Features.DayPlanner;
 using WolfTodo.Tui.Rendering;
@@ -238,34 +237,7 @@ public sealed class PlannerMultiDayCellLayout
 
     private static string TruncateTitle(string title, int width)
     {
-        if (width <= 0)
-        {
-            return string.Empty;
-        }
-
-        if (title.GetCellWidth() <= width)
-        {
-            return title;
-        }
-
-        if (width == 1)
-        {
-            return "…";
-        }
-
-        var result = new StringBuilder();
-        var elements = StringInfo.GetTextElementEnumerator(title);
-        while (elements.MoveNext())
-        {
-            var next = elements.GetTextElement();
-            if ((result.ToString() + next).GetCellWidth() > width - 1)
-            {
-                break;
-            }
-
-            result.Append(next);
-        }
-
-        return result.ToString().TrimEnd() + "…";
+        if (width <= 0) return string.Empty;
+        return title.GetCellWidth() <= width ? title : TerminalText.Clip(title, width - 1).TrimEnd() + "…";
     }
 }
