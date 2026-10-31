@@ -55,10 +55,9 @@ public sealed class PlannerDetailRenderer
 
         var assignment = view.SelectedAssignment;
         var todo = assignment.Todo;
-        var lines = new List<IRenderable>
-        {
-            new Text(todo.Title, themeRenderer.Style(theme.Heading, Decoration.Bold))
-        };
+        var lines = new List<IRenderable>();
+        var details = new TaskDetailRenderer();
+        details.AddTitle(lines, todo, theme);
         if (view.SelectedSlot.Assignments.Length > 1)
         {
             lines.Add(new Text(
@@ -66,28 +65,8 @@ public sealed class PlannerDetailRenderer
                 themeRenderer.Style(theme.Info, Decoration.Bold)));
         }
 
-        calendarItemRenderer.AddField(lines, "Project", assignment.ProjectTitle, theme, theme.Text);
-        calendarItemRenderer.AddField(lines, "Link", TaskLinkCode.Generate(assignment.Identity.ProjectPath, assignment.Identity.SourceLine), theme, theme.Info);
-        if (!string.IsNullOrEmpty(todo.SectionPath))
-        {
-            calendarItemRenderer.AddField(lines, "Section", todo.SectionPath, theme, theme.Text);
-        }
-
-        calendarItemRenderer.AddField(lines, "Reference", todo.ExternalReference, theme, theme.Info);
-        calendarItemRenderer.AddField(lines, "Priority", todo.Priority?.ToString(), theme, todoRowRenderer.PriorityColor(todo.Priority, theme));
-        calendarItemRenderer.AddField(
-            lines,
-            "Tags",
-            todo.Tags.Length == 0 ? null : todoRowRenderer.FormatTags(todo.Tags, ", "),
-            theme,
-            theme.Tag);
-        calendarItemRenderer.AddField(
-            lines,
-            "Scheduled",
-            todo.Schedule is null ? null : todoRowRenderer.FormatSchedule(todo.Schedule),
-            theme,
-            theme.Date);
-        calendarItemRenderer.AddField(lines, "Duration", todoRowRenderer.FormatDuration(todo.Duration), theme, theme.Info);
+        details.AddIdentity(lines, assignment.ProjectTitle, assignment.Identity, theme);
+        details.AddMetadata(lines, todo, theme);
         calendarItemRenderer.AddField(
             lines,
             "Calendar",
@@ -98,26 +77,7 @@ public sealed class PlannerDetailRenderer
             theme,
             theme.Info);
 
-        if (todo.Notes.Length > 0)
-        {
-            lines.Add(new Text(string.Empty));
-            lines.Add(new Text("NOTES", themeRenderer.Style(theme.Heading, Decoration.Bold)));
-            lines.AddRange(todo.Notes.Select(note =>
-                new Text($"{TodoGlyphs.NoteBullet} {note.Text}", themeRenderer.Style(theme.Text))));
-        }
-
-        if (todo.Subtasks.Length > 0)
-        {
-            lines.Add(new Text(string.Empty));
-            lines.Add(new Text("SUBTASKS", themeRenderer.Style(theme.Heading, Decoration.Bold)));
-            lines.AddRange(todo.Subtasks.Select(subtask => todoRowRenderer.DetailLine(subtask, [], false, theme)));
-        }
-
-        if (todo.Notes.Length == 0 && todo.Subtasks.Length == 0)
-        {
-            lines.Add(new Text(string.Empty));
-            lines.Add(new Text("NO ADDITIONAL DETAILS", themeRenderer.Style(theme.Muted, Decoration.Dim)));
-        }
+        details.AddContent(lines, todo, theme, recursiveSubtasks: false, dimEmpty: true);
 
         return lines;
     }
