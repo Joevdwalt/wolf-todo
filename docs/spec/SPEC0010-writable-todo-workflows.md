@@ -23,6 +23,9 @@ Markdown todos.
   unchanged. The command palette exposes one Edit todo action.
 - Spacebar toggles the selected Markdown checkbox. `:completed` continues to
   control completed-todo visibility only.
+- In Todos, completing a task retains selection when completed tasks are
+  visible. Otherwise select the nearest remaining task above, or below if none
+  remains above; an empty list has no selection.
 - The unified editor uses configured movement and open/back gestures. Ctrl+S
   saves the draft and cancellation performs no write. Its presentation,
   multiline Content behavior, subtask-only Add action, validation, and removal
