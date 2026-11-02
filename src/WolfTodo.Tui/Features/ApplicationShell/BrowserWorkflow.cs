@@ -9,7 +9,8 @@ public sealed class BrowserWorkflow(
     ProjectCatalogLoader catalogLoader,
     IExternalEditorLauncher? externalEditorLauncher,
     ITerminalUi terminalUi,
-    Func<DateOnly> todayProvider)
+    Func<DateOnly> todayProvider,
+    ProjectBrowserPresenter presenter)
 {
     public (ApplicationState State, ProjectCatalog Catalog) ApplyTransition(
         ApplicationState state,
@@ -34,40 +35,62 @@ public sealed class BrowserWorkflow(
             return ApplyBulkUpdate(state, transition, catalog, configuration, mutationService);
         }
 
+        return ApplySingleUpdate(new BrowserSingleUpdateRequest(state, transition, catalog, configuration, mutationService));
+    }
+
+    public (ApplicationState State, ProjectCatalog Catalog) ApplySingleUpdate(BrowserSingleUpdateRequest request)
+    {
+        var (state, transition, catalog, configuration, mutationService) = request;
+        state = state with { Browser = transition.State };
+        var before = transition.Operation == BrowserOperation.ToggleCompleted
+            ? presenter.CreateView(catalog, state.Browser, configuration.SidebarItems)
+            : null;
         var expectedCatalog = catalog;
         catalog = catalogLoader.Load(configuration.ProjectFiles);
         var result = ApplyOperation(transition, expectedCatalog, mutationService, todayProvider());
-        state = state with
-        {
-            Browser = state.Browser with
-            {
-                Error = result.Error,
-                CollapsedTodos = result.Succeeded ? [] : state.Browser.CollapsedTodos,
-                Editor = result.Succeeded
-                    ? null
-                    : state.Browser.Editor is null
-                        ? null
-                        : state.Browser.Editor with { Error = result.Error },
-                PendingTodoSelection = result.Succeeded && result.SourceLine is not null &&
-                                       transition.ProjectPath is not null
-                    ? new TodoIdentity(transition.ProjectPath, result.SourceLine.Value)
-                    : result.Succeeded && transition.Operation == BrowserOperation.RollProjectToday
-                        ? transition.TodoIdentity
-                        : null,
-                MarkedTodos = result.Succeeded ? [] : state.Browser.MarkedTodos,
-                MarkedTodoSnapshots = result.Succeeded
-                    ? ImmutableDictionary<TodoIdentity, TodoItem>.Empty
-                    : state.Browser.MarkedTodoSnapshots,
-                BulkEditor = result.Succeeded ? null : state.Browser.BulkEditor,
-                StatusMessage = result.Succeeded ? "Todo update saved." : null
-            }
-        };
+        state = state with { Browser = ApplyMutationResult(state.Browser, transition, result) };
         if (result.Succeeded)
         {
             catalog = catalogLoader.Load(configuration.ProjectFiles);
+            if (before is not null && transition.TodoIdentity is { } identity)
+            {
+                var after = presenter.CreateView(catalog, state.Browser, configuration.SidebarItems);
+                var selected = TodoSelectionResolver.AfterCompletion(before, after, identity);
+                state = state with { Browser = state.Browser with { PendingTodoSelection = selected, TodoIndex = 0 } };
+            }
         }
 
         return (state, catalog);
+    }
+
+    public static BrowserState ApplyMutationResult(
+        BrowserState state, BrowserTransition transition, TodoMutationResult result)
+    {
+        if (!result.Succeeded)
+        {
+            return state with
+            {
+                Error = result.Error,
+                Editor = state.Editor is null ? null : state.Editor with { Error = result.Error },
+                PendingTodoSelection = null,
+                StatusMessage = null
+            };
+        }
+
+        var selection = result.SourceLine is { } line && transition.ProjectPath is { } path
+            ? new TodoIdentity(path, line)
+            : transition.Operation == BrowserOperation.RollProjectToday ? transition.TodoIdentity : null;
+        return state with
+        {
+            Error = result.Error,
+            CollapsedTodos = [],
+            Editor = null,
+            PendingTodoSelection = selection,
+            MarkedTodos = [],
+            MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
+            BulkEditor = null,
+            StatusMessage = "Todo update saved."
+        };
     }
 
     public (ApplicationState State, ProjectCatalog Catalog) MoveSelectedTodoToProject(
@@ -217,19 +240,7 @@ public sealed class BrowserWorkflow(
         foreach (var group in transition.TodoIdentities.GroupBy(identity => identity.ProjectPath))
         {
             var groupIdentities = group.ToArray();
-            var expected = groupIdentities
-                .Select(identity => transition.ExpectedTodos?.GetValueOrDefault(identity) ??
-                                    TodoTree.FindBySourceLine(expectedCatalog, identity.ProjectPath, identity.SourceLine))
-                .ToArray();
-            TodoMutationResult result;
-            if (expected.Any(todo => todo is null))
-            {
-                result = TodoMutationResult.Failure("A selected todo cannot be found.");
-            }
-            else
-            {
-                result = mutationService.UpdateMany(group.Key, expected.Select(todo => todo!).ToArray(), transition.BulkUpdate);
-            }
+            var result = ApplyBulkProject(group.Key, groupIdentities, transition, expectedCatalog, mutationService);
 
             if (result.Succeeded)
             {
@@ -278,12 +289,26 @@ public sealed class BrowserWorkflow(
         }, catalog);
     }
 
-    private (ApplicationState State, ProjectCatalog Catalog) ApplyExternalEdit(
+    private static TodoMutationResult ApplyBulkProject(
+        string projectPath, TodoIdentity[] identities, BrowserTransition transition,
+        ProjectCatalog expectedCatalog, ProjectTodoMutationService mutationService)
+    {
+        var expected = identities
+            .Select(identity => transition.ExpectedTodos?.GetValueOrDefault(identity) ??
+                                TodoTree.FindBySourceLine(expectedCatalog, identity.ProjectPath, identity.SourceLine))
+            .ToArray();
+        return expected.Any(todo => todo is null)
+            ? TodoMutationResult.Failure("A selected todo cannot be found.")
+            : mutationService.UpdateMany(projectPath, expected.Select(todo => todo!).ToArray(), transition.BulkUpdate!);
+    }
+
+    public (ApplicationState State, ProjectCatalog Catalog) ApplyExternalEdit(
         ApplicationState state,
         BrowserTransition transition,
         ProjectCatalog catalog,
         ApplicationConfiguration configuration)
     {
+        state = state with { Browser = transition.State };
         if (externalEditorLauncher is null ||
             transition.ProjectPath is null ||
             transition.TodoIdentity is null)

@@ -503,7 +503,8 @@ the entire task in one conflict-safe Markdown write. Notes open in a multiline
 bottom text box: Enter inserts a line break, Ctrl+S accepts the note into the
 task draft, and Escape cancels the text edit. Removing a subtask with descendants
 requires confirmation. Space outside the editor changes the selected task's
-Markdown checkbox.
+Markdown checkbox. Completed tasks remain selected when `:completed` is on;
+otherwise selection moves to the task above, or the task below if necessary.
 
 Ctrl+E opens the selected todo's Markdown project at its source line in the
 terminal editor named by `$EDITOR`. Wolf Todo waits for the editor, then reloads

@@ -121,7 +121,8 @@ public sealed class TuiApplication
             catalogLoader,
             externalEditorLauncher,
             terminalUi,
-            this.todayProvider);
+            this.todayProvider,
+            browserPresenter);
         this.timerWorkflow = timerWorkflow ?? new TimerWorkflow(
             weeklyTimeLogService,
             resolvedNowProvider,

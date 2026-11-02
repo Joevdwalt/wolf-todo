@@ -21,16 +21,7 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         var selectedProject = projectRows[selectedProjectIndex];
         var (todoRows, expandableTodos, ancestors) = BuildTodoRows(catalog, selectedProject, state, today);
         var selectableTodos = todoRows.Where(row => row.Todo is not null).ToArray();
-        var pending = state.PendingTodoSelection;
-        var pendingIndex = pending is null ? -1 : Array.FindIndex(selectableTodos, row => row.Identity == pending);
-        while (pendingIndex < 0 && pending is not null && ancestors.TryGetValue(pending, out var ancestor))
-        {
-            pending = ancestor;
-            pendingIndex = Array.FindIndex(selectableTodos, row => row.Identity == pending);
-        }
-        var selectedTodoIndex = state.PendingTodoSelection is null
-            ? Math.Clamp(state.TodoIndex, 0, Math.Max(0, selectableTodos.Length - 1))
-            : Math.Max(0, pendingIndex);
+        var selectedTodoIndex = TodoSelectionResolver.ResolveIndex(selectableTodos, state, ancestors);
         var selectedTodo = selectableTodos.Length == 0 ? null : selectableTodos[selectedTodoIndex].Todo;
         var markedRows = todoRows
             .Select(row => row.Todo is null
