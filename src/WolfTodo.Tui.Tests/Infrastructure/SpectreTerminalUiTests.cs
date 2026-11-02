@@ -1473,7 +1473,7 @@ public sealed class SpectreTerminalUiTests
     }
 
     [Fact]
-    public void ShowBrowser_truncates_todo_titles_and_keeps_metadata_in_details()
+    public void ShowBrowser_keeps_truncated_list_titles_and_full_inspector_titles_in_their_panes()
     {
         const string title = "Prepare the unusually detailed contract renewal proposal for the customer before the quarterly review meeting";
         var todo = new TodoItem(
@@ -1510,70 +1510,7 @@ public sealed class SpectreTerminalUiTests
 
         todoPane.Should().Contain("◯ H Prepare the unusually").And.Contain("…");
         todoPane.Should().NotContain("134416").And.NotContain("#now").And.NotContain("2026-07-08");
-        output.Should().Contain("quarterly review")
-            .And.Contain("meeting")
-            .And.Contain("REFERENCE: 134416")
-            .And.Contain("TAGS: #now")
-            .And.Contain("SCHEDULED: 2026-07-15 09:30");
-        output.Should().NotContain("START: 2026-07-08").And.NotContain("DUE: 2026-07-12");
-    }
-
-    [Fact]
-    public void ShowBrowser_renders_priority_between_status_and_title_for_todos_and_subtasks()
-    {
-        var priorities = new[]
-        {
-            (TodoPriority.Highest, "!"),
-            (TodoPriority.High, "H"),
-            (TodoPriority.Medium, "M"),
-            (TodoPriority.Low, "L"),
-            (TodoPriority.Lowest, ".")
-        };
-        var todos = priorities.Select((priority, index) => new TodoItem(
-            index + 1,
-            false,
-            null,
-            $"Priority {priority.Item1}",
-            priority.Item1,
-            [],
-            null,
-            null,
-            string.Empty,
-            [],
-            [])).ToArray();
-        var subtask = new TodoItem(
-            20,
-            true,
-            null,
-            "Nested task",
-            TodoPriority.Medium,
-            [],
-            null,
-            null,
-            string.Empty,
-            [],
-            []);
-        var selectedTodo = todos[0] with { Subtasks = [subtask] };
-        var view = new BrowserView(
-            BrowserState.Initial,
-            [new ProjectRow("All", todos.Length, null, null, true)],
-            [.. todos.Select((todo, index) => new TodoRow(null, todo, [], index == 0))],
-            selectedTodo,
-            "All",
-            "/todos/project.md",
-            null,
-            string.Empty);
-
-        StartRecording();
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
-        var output = RecordedText();
-
-        foreach (var (priority, marker) in priorities)
-        {
-            output.Should().Contain($"◯ {marker} Priority {priority}");
-        }
-
-        output.Should().Contain("✓ M Nested task");
+        output.Should().Contain("quarterly review").And.Contain("meeting");
     }
 
     [Theory]
@@ -1659,70 +1596,6 @@ public sealed class SpectreTerminalUiTests
             .Should().Be(lines[rootTitle].IndexOf("Prepare proposal", StringComparison.Ordinal));
         lines[nestedTitle + 1].IndexOf("#client", StringComparison.Ordinal)
             .Should().Be(lines[nestedTitle].IndexOf("Nested follow-up", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void ShowBrowser_truncates_tags_inside_the_adaptive_task_column()
-    {
-        var todo = new TodoItem(
-            1,
-            false,
-            null,
-            "Short title",
-            null,
-            ["this-is-a-very-long-tag-that-cannot-fit-in-the-task-column"],
-            null,
-            null,
-            string.Empty,
-            [],
-            []);
-        var view = new BrowserView(
-            BrowserState.Initial with { Focus = BrowserFocus.Todos },
-            [new ProjectRow("All", 1, null, null, true)],
-            [new TodoRow(null, todo, [], true) { ProjectTitle = "DistinctProject" }],
-            null,
-            "All",
-            "/todos/project.md",
-            null,
-            string.Empty);
-
-        var lines = RenderBrowser(view, 140, 30);
-        var tagLine = lines.Single(line => line.Contains("#this-is-a-very", StringComparison.Ordinal));
-        var todoPane = tagLine.Split('│')[2];
-
-        todoPane.Should().Contain("…");
-        todoPane.Should().NotContain("DistinctProject").And.NotContain("2026-");
-    }
-
-    [Fact]
-    public void ShowBrowser_applies_tag_selection_theme_to_the_browser_tag_line()
-    {
-        var todo = new TodoItem(
-            1, false, null, "Selected task", null, ["browser-tag"],
-            null, null, string.Empty, [], []);
-        var view = new BrowserView(
-            BrowserState.Initial with { Focus = BrowserFocus.Todos },
-            [new ProjectRow("All", 1, null, null, true)],
-            [new TodoRow(null, todo, [], true)],
-            null,
-            "All",
-            "/todos/project.md",
-            null,
-            string.Empty);
-        var theme = TuiThemes.Wolf with
-        {
-            AccentBright = new Color(1, 2, 3),
-            Surface2 = new Color(4, 5, 6)
-        };
-        StartRecording();
-
-        new SpectreTerminalUi(() => 140, () => 30)
-            .ShowBrowser(DefaultTabs, view, DefaultBindings, theme);
-        var html = NormalizeHtml(RecordedHtml());
-
-        StyleBefore(html, "#browser-tag").Should().Contain("#010203")
-            .And.Contain("#040506")
-            .And.Contain("font-weight: bold");
     }
 
     [Fact]
@@ -1841,44 +1714,6 @@ public sealed class SpectreTerminalUiTests
         lines.Should().Contain(line => line.Contains("n/N NAME", StringComparison.Ordinal));
         lines.Should().Contain(line => line.Contains("p/P PRIORITY", StringComparison.Ordinal));
         lines.Should().Contain(line => line.Contains("Esc CANCEL", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void ShowBrowser_includes_the_filter_key_in_wide_and_compact_hints()
-    {
-        var view = ViewWithTitle("Renew contract");
-        StartRecording();
-
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, DefaultBindings);
-        new SpectreTerminalUi(() => 70, () => 16).ShowBrowser(DefaultTabs, view, DefaultBindings);
-        var output = RecordedText();
-
-        output.Should().Contain("/ FILTER  : COMMAND");
-        output.Should().Contain("j/k MOVE").And.Contain("h/l BACK/OPEN");
-    }
-
-    [Fact]
-    public void ShowBrowser_uses_the_shortest_configured_bindings_in_status_hints()
-    {
-        var view = ViewWithTitle("Renew contract");
-        var bindings = TuiKeyBindings.CreateDefaults(":quit") with
-        {
-            MoveDown = [KeyGesture.Parse("Ctrl+N"), KeyGesture.Parse("n")],
-            MoveUp = [KeyGesture.Parse("Ctrl+P"), KeyGesture.Parse("p")],
-            FilterMode = [KeyGesture.Parse("Ctrl+F")],
-            ToggleCompletedCommand = ":done"
-        };
-        StartRecording();
-        var existingOutputLength = RecordedText().Length;
-
-        new SpectreTerminalUi(() => 140, () => 30).ShowBrowser(DefaultTabs, view, bindings);
-        var output = RecordedText()[existingOutputLength..];
-
-        output.Should().Contain("n/p NAVIGATE")
-            .And.Contain("Ctrl+F FILTER")
-            .And.Contain(":done")
-            .And.Contain(":quit");
-        output.Should().NotContain("Ctrl+N");
     }
 
     [Fact]

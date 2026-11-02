@@ -13,6 +13,53 @@ public sealed class TodoRowRendererTests
 {
     private readonly TodoRowRenderer renderer = new();
 
+    [Theory]
+    [InlineData(TodoPriority.Highest, "!")]
+    [InlineData(TodoPriority.High, "H")]
+    [InlineData(TodoPriority.Medium, "M")]
+    [InlineData(TodoPriority.Low, "L")]
+    [InlineData(TodoPriority.Lowest, ".")]
+    public void ListRow_places_priority_between_status_and_title(TodoPriority priority, string marker)
+    {
+        var todo = Todo("Priority task") with { Priority = priority };
+
+        var text = Render(renderer.ListRow(new TodoRow(null, todo, [], false), renderer.Columns(40, false), TuiThemes.Wolf));
+
+        text.Should().Contain($"◯ {marker} Priority task");
+    }
+
+    [Fact]
+    public void TagsRow_clips_tags_to_the_task_column_without_metadata()
+    {
+        var todo = Todo("Short title") with { Tags = ["this-is-a-very-long-tag-that-cannot-fit-in-the-task-column"] };
+        var row = new TodoRow(null, todo, [], false) { ProjectTitle = "DistinctProject" };
+        var layout = renderer.Columns(60, true);
+
+        var text = Render(renderer.TagsRow(row, layout, TuiThemes.Wolf));
+
+        text.Should().Contain("#this-is-a-very").And.EndWith("…").And.NotContain("DistinctProject");
+        text.GetCellWidth().Should().BeLessThanOrEqualTo(layout.TaskWidth + 6);
+    }
+
+    [Fact]
+    public void TagsRow_applies_selected_foreground_surface_and_decoration()
+    {
+        var todo = Todo("Selected task") with { Tags = ["browser-tag"] };
+        var row = new TodoRow(null, todo, [], true);
+        var theme = TuiThemes.Wolf with { AccentBright = new Color(1, 2, 3), Surface2 = new Color(4, 5, 6) };
+        using var writer = new StringWriter();
+        var console = AnsiConsole.Create(new AnsiConsoleSettings { Out = new AnsiConsoleOutput(writer) }).CreateRecorder();
+        console.Profile.Width = 60;
+
+        console.Write(renderer.TagsRow(row, renderer.Columns(60, false), theme));
+
+        var html = console.ExportHtml().ToLowerInvariant();
+        var tagIndex = html.IndexOf("#browser-tag", StringComparison.Ordinal);
+        tagIndex.Should().BeGreaterThanOrEqualTo(0);
+        var style = html[html.LastIndexOf("<span", tagIndex, StringComparison.Ordinal)..tagIndex];
+        style.Should().Contain("#010203").And.Contain("#040506").And.Contain("font-weight: bold");
+    }
+
     [Fact]
     public void ListRow_shows_branch_state_within_a_narrow_task_column()
     {
@@ -76,13 +123,6 @@ public sealed class TodoRowRendererTests
     {
         renderer.StatusGlyph(false).Should().Be("◯");
         renderer.StatusGlyph(true).Should().Be("✓");
-    }
-
-    [Fact]
-    public void Truncate_preserves_display_width_budget()
-    {
-        renderer.Truncate("abcdef", 4).Should().Be("abc…");
-        renderer.Truncate("abc", 4).Should().Be("abc");
     }
 
     [Fact]

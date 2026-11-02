@@ -13,22 +13,65 @@ public sealed class TaskDetailRendererTests
     private readonly TaskDetailRenderer renderer = new();
 
     [Fact]
-    public void Details_render_identity_metadata_and_omit_missing_fields()
+    public void AddTitle_preserves_literal_title_text()
+    {
+        var lines = new List<IRenderable>();
+        renderer.AddTitle(lines, Todo("Prepare [draft]"), TuiThemes.Wolf);
+        Render(lines).TrimEnd().Should().Be("Prepare [draft]");
+    }
+
+    [Fact]
+    public void AddIdentity_shows_project_and_exact_task_link()
+    {
+        var lines = new List<IRenderable>();
+        renderer.AddIdentity(lines, "Work", new TodoIdentity("/work.md", 1), TuiThemes.Wolf);
+        Render(lines).Should().Contain("PROJECT: Work")
+            .And.Contain("LINK: " + TaskLinkCode.Generate("/work.md", 1));
+    }
+
+    [Fact]
+    public void AddIdentity_omits_missing_project_and_identity()
+    {
+        var lines = new List<IRenderable>();
+        renderer.AddIdentity(lines, null, null, TuiThemes.Wolf);
+        lines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AddMetadata_shows_task_fields_and_excludes_start_and_due_dates()
     {
         var todo = Todo("Prepare") with
         {
-            ExternalReference = "REF-1", Tags = ["work"], Schedule = new TodoSchedule(new DateOnly(2026, 8, 4), null),
-            Duration = TimeSpan.FromMinutes(30)
+            ExternalReference = "REF-1", Priority = TodoPriority.High, Tags = ["work", "now"], SectionPath = "Renewals",
+            StartDate = new DateOnly(2026, 7, 8), DueDate = new DateOnly(2026, 7, 12),
+            Schedule = new TodoSchedule(new DateOnly(2026, 8, 4), new TimeOnly(9, 30)), Duration = TimeSpan.FromMinutes(30)
         };
         var lines = new List<IRenderable>();
-        renderer.AddTitle(lines, todo, TuiThemes.Wolf);
-        renderer.AddIdentity(lines, "Work", new TodoIdentity("/work.md", 1), TuiThemes.Wolf);
         renderer.AddMetadata(lines, todo, TuiThemes.Wolf);
-        var text = Render(lines);
-        text.Should().Contain("Prepare").And.Contain("PROJECT: Work").And.Contain("LINK:")
-            .And.Contain("REFERENCE: REF-1").And.Contain("TAGS: #work")
-            .And.Contain("SCHEDULED: 2026-08-04").And.Contain("DURATION: 30m")
-            .And.NotContain("PRIORITY:").And.NotContain("SECTION:");
+        Render(lines).Should().Contain("REFERENCE: REF-1").And.Contain("PRIORITY: High")
+            .And.Contain("SECTION: Renewals").And.Contain("TAGS: #work, #now")
+            .And.Contain("SCHEDULED: 2026-08-04 09:30").And.Contain("DURATION: 30m")
+            .And.NotContain("2026-07-08").And.NotContain("2026-07-12");
+    }
+
+    [Fact]
+    public void AddMetadata_omits_missing_optional_fields()
+    {
+        var lines = new List<IRenderable>();
+        renderer.AddMetadata(lines, Todo("Empty"), TuiThemes.Wolf);
+        lines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AddMetadata_can_omit_section_and_schedule_for_all_day_composition()
+    {
+        var todo = Todo("Prepare") with
+        {
+            SectionPath = "Renewals", Schedule = new TodoSchedule(new DateOnly(2026, 8, 4)), ExternalReference = "REF-1"
+        };
+        var lines = new List<IRenderable>();
+        renderer.AddMetadata(lines, todo, TuiThemes.Wolf, includeSection: false, includeSchedule: false);
+        Render(lines).TrimEnd().Should().Be("REFERENCE: REF-1");
     }
 
     [Theory]
