@@ -17,18 +17,23 @@ public sealed class PlannerDetailRendererTests
     {
         var date = new DateOnly(2026, 8, 4);
         var schedule = new TodoSchedule(date, new TimeOnly(6, 0));
-        var first = Todo("First") with { Schedule = schedule };
-        var second = Todo("Second") with { SourceLine = 2, Schedule = schedule };
-        var view = new DayPlannerPresenter().CreateView(
-            new ProjectCatalog([new TodoProject("Work", "/todos/work.md", [first, second])], []),
-            PlannerState.CreateInitial(date) with
-            {
-                SelectedTimelineItemIdentity = "task:/todos/work.md:2"
-            });
+        var first = new PlannerAssignment(new TodoIdentity("/todos/work.md", 1), "Work", "/todos/work.md", Todo("First") with { Schedule = schedule });
+        var second = new PlannerAssignment(new TodoIdentity("/todos/work.md", 2), "Work", "/todos/work.md", Todo("Second") with { SourceLine = 2, Schedule = schedule });
+        var slot = new PlannerSlotView(new TimeOnly(6, 0), [first, second], true)
+        {
+            Items = [new PlannerTimelineItemView(PlannerItemType.Task, "selected", "Second", new TimeOnly(6, 0),
+                new TimeOnly(6, 0), PlannerTimeShape.Instant, PlannerIntervalState.Instant, false, true, second)]
+        };
+        var view = new PlannerView(PlannerState.CreateInitial(date), [slot], [], []);
+        using var writer = new StringWriter();
+        var console = AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.No, Out = new AnsiConsoleOutput(writer) });
+        console.Profile.Width = 140;
 
-        var lines = new PlannerDetailRenderer().PlannerDetailLines(view, TuiThemes.Wolf);
+        console.Write(new Rows(new PlannerDetailRenderer().PlannerDetailLines(view, TuiThemes.Wolf)));
 
-        lines.Should().HaveCountGreaterThan(2);
+        writer.ToString().Should().Contain("Second").And.Contain("2 STACKED TASKS · J/K SELECT")
+            .And.Contain("LINK: " + TaskLinkCode.Generate(second.Identity.ProjectPath, second.Identity.SourceLine))
+            .And.NotContain("First");
     }
 
     [Theory]

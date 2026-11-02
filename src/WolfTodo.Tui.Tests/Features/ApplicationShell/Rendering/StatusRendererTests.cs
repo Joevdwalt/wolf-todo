@@ -13,6 +13,39 @@ public sealed class StatusRendererTests
     private readonly StatusRenderer renderer = new();
 
     [Fact]
+    public void NormalStatus_includes_navigation_filter_and_command_hints()
+    {
+        var text = renderer.NormalStatus(TuiKeyBindings.CreateDefaults(":q"), BrowserState.Initial);
+
+        text.Should().Contain("j/k NAVIGATE").And.Contain("/ FILTER  : COMMAND");
+    }
+
+    [Fact]
+    public void CompactStatus_includes_navigation_and_filter_hints()
+    {
+        var text = renderer.CompactStatus(TuiKeyBindings.CreateDefaults(":q"), BrowserState.Initial);
+
+        text.Should().Contain("j/k MOVE").And.Contain("h/l BACK/OPEN").And.Contain("/ FILTER");
+    }
+
+    [Fact]
+    public void NormalStatus_uses_the_shortest_configured_bindings()
+    {
+        var bindings = TuiKeyBindings.CreateDefaults(":quit") with
+        {
+            MoveDown = [KeyGesture.Parse("Ctrl+N"), KeyGesture.Parse("n")],
+            MoveUp = [KeyGesture.Parse("Ctrl+P"), KeyGesture.Parse("p")],
+            FilterMode = [KeyGesture.Parse("Ctrl+F")],
+            ToggleCompletedCommand = ":done"
+        };
+
+        var text = renderer.NormalStatus(bindings, BrowserState.Initial);
+
+        text.Should().Contain("n/p NAVIGATE").And.Contain("Ctrl+F FILTER")
+            .And.Contain(":done").And.Contain(":quit").And.NotContain("Ctrl+N");
+    }
+
+    [Fact]
     public void Wrap_splits_long_status_text_inside_width()
     {
         renderer.Wrap("alpha beta gamma", 10)
