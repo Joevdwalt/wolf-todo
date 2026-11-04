@@ -86,15 +86,15 @@ public sealed class FocusedTaskRenderer(
     private void WriteCard(FocusedTaskView view, TuiTheme theme, int width, int availableRows) =>
         AnsiConsole.Write(Card(view, theme, width, availableRows));
 
-    private IRenderable Card(FocusedTaskView view, TuiTheme theme, int width, int availableRows)
+    public IRenderable Card(FocusedTaskView view, TuiTheme theme, int width, int availableRows)
     {
-        var lines = CardLines(view, theme);
+        var cardWidth = Math.Max(1, Math.Min(width - 4, 100));
+        var lines = CardLines(view, theme, Math.Max(1, cardWidth - 4));
         var selectedLine = lines.FindLastIndex(line => line.ItemIdentity == view.State.SelectedIdentity);
         var visible = FitLines(
             lines.Select(line => line.Renderable).ToArray(),
             availableRows,
             Math.Max(0, selectedLine));
-        var cardWidth = Math.Max(1, Math.Min(width - 4, 100));
         var panel = new Panel(new Rows(visible))
         {
             Border = BoxBorder.Rounded,
@@ -109,14 +109,14 @@ public sealed class FocusedTaskRenderer(
             true);
     }
 
-    private List<CardLine> CardLines(FocusedTaskView view, TuiTheme theme)
+    private List<CardLine> CardLines(FocusedTaskView view, TuiTheme theme, int contentWidth)
     {
         var lines = new List<CardLine>();
         var root = view.Items[0];
         lines.Add(ItemLine(root, theme, title: true));
         if (root.IsSelected)
         {
-            lines.Add(TaskLinkLine(root, theme));
+            lines.Add(TaskLinkLine(root, theme, contentWidth));
         }
 
         var metadata = Metadata(root.Todo);
@@ -142,7 +142,7 @@ public sealed class FocusedTaskRenderer(
                 lines.Add(ItemLine(item, theme, title: false));
                 if (item.IsSelected)
                 {
-                    lines.Add(TaskLinkLine(item, theme));
+                    lines.Add(TaskLinkLine(item, theme, contentWidth));
                 }
             }
         }
@@ -158,9 +158,12 @@ public sealed class FocusedTaskRenderer(
 
     private CardLine ItemLine(FocusedTaskItem item, TuiTheme theme, bool title)
     {
-        var prefix = item.IsSelected ? $"{TodoGlyphs.SelectedGlyph} " : "  ";
-        var tree = title ? string.Empty : TodoTreeFormatter.Format(item.TreePath);
-        var glyph = item.Todo.IsCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
+        var prefix = title && item.IsSelected ? $"{TodoGlyphs.SelectedGlyph} " : "  ";
+        var tree = title ? string.Empty : TodoTreeFormatter.Format(item.TreePath)
+            .Replace(TodoGlyphs.TreeEndBranchGlyph, "╰─", StringComparison.Ordinal);
+        var glyph = item.Todo.IsCompleted
+            ? TodoGlyphs.CompletedTodoGlyph
+            : !title && item.IsSelected ? "●" : TodoGlyphs.OpenTodoGlyph;
         var style = item.IsSelected
             ? themeRenderer.Style(theme.AccentBright, Decoration.Bold)
             : item.Todo.IsCompleted
@@ -169,11 +172,15 @@ public sealed class FocusedTaskRenderer(
         return new CardLine(new Text($"{prefix}{tree}{glyph} {item.Todo.Title}", style), item.Identity);
     }
 
-    private CardLine TaskLinkLine(FocusedTaskItem item, TuiTheme theme) =>
-        new(
-            new Text($"   LINK: {TaskLinkCode.Generate(item.Identity.ProjectPath, item.Identity.SourceLine)}",
-                themeRenderer.Style(theme.Info)),
+    private CardLine TaskLinkLine(FocusedTaskItem item, TuiTheme theme, int contentWidth)
+    {
+        var link = $"LINK: {TaskLinkCode.Generate(item.Identity.ProjectPath, item.Identity.SourceLine)}";
+        var prefix = TerminalText.Clip($"  {TodoTreeFormatter.FormatContinuation(item.TreePath)} ",
+            Math.Max(0, contentWidth - link.GetCellWidth()));
+        return new CardLine(
+            new Text(prefix + link, themeRenderer.Style(theme.Info)),
             item.Identity);
+    }
 
     private static string Metadata(TodoItem todo)
     {
