@@ -22,6 +22,12 @@ includes the live local time. The card shows the project, root task, metadata,
 direct notes, and the complete nested subtask tree. It remains readable at
 narrow sizes and windows long content around the selected item.
 
+The checklist uses `├─` for siblings with following items, `╰─` for final
+children, and `│` to connect ancestor branches through descendants and link
+rows. The root remains in the card's title position. Open checklist items use
+`◯`, with `●` for the selected open item. Completed items always use `✓`,
+including when selected. Selection retains the existing color and emphasis.
+
 The root and every nested subtask are selectable. Configured movement and jump
 bindings move through them in source order. The configured completion binding
 toggles the highlighted item. The existing edit bindings open the unified task
@@ -31,6 +37,7 @@ mode and restores the unchanged originating tab state.
 
 The focus card shows `LINK: <code>` for the highlighted root task or subtask.
 The displayed location code follows selection as focus moves through the tree.
+Link indentation contracts in narrow cards to keep the label and code together.
 
 Stopwatch and linked Pomodoro actions target the highlighted item. Entering
 focus does not start either. The timer row appears only while a timer is active
@@ -66,6 +73,10 @@ available in the originating view.
    recoverable message.
 7. Custom `focus_task` gestures replace `f` and participate in conflict
    validation and command-palette hints.
+8. Sibling and nested checklist branches remain connected, with rounded final
+   branches. Moving selection updates the open-item dot and task link; selected
+   completed items retain their checkmark. The selected item and its link remain
+   visible in short and narrow terminals.
 
 ## References
 
