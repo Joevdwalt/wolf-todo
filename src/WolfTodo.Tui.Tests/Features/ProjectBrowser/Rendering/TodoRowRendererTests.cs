@@ -28,6 +28,82 @@ public sealed class TodoRowRendererTests
         text.Should().Contain($"◯ {marker} Priority task");
     }
 
+    [Theory]
+    [InlineData(false, false, "  ◯ H ╰─ Task")]
+    [InlineData(false, true, "> ● H ╰─ Task")]
+    [InlineData(true, false, "  ✓ H ╰─ Task")]
+    [InlineData(true, true, "> ✓ H ╰─ Task")]
+    public void ListRow_keeps_status_priority_and_tree_columns_when_selection_changes(
+        bool completed, bool selected, string expected)
+    {
+        var todo = Todo("Task") with { IsCompleted = completed, Priority = TodoPriority.High };
+        var row = new TodoRow(null, todo, [TodoTreeSegment.LastSibling], selected);
+
+        Render(renderer.ListRow(row, renderer.Columns(40, false), TuiThemes.Wolf)).Should().Be(expected);
+    }
+
+    [Fact]
+    public void ListRow_and_TagsRow_connect_nested_siblings_in_the_same_gutter()
+    {
+        var todo = Todo("Child") with { Tags = ["work"] };
+        var row = new TodoRow(null, todo,
+            [TodoTreeSegment.HasFollowingSibling, TodoTreeSegment.HasFollowingSibling, TodoTreeSegment.LastSibling], false);
+        var layout = renderer.Columns(40, false);
+
+        Render(renderer.ListRow(row, layout, TuiThemes.Wolf)).Should().Contain("│  │  ╰─ Child");
+        Render(renderer.TagsRow(row, layout, TuiThemes.Wolf)).Should().Be("      │  │     #work");
+    }
+
+    [Theory]
+    [InlineData(16)]
+    [InlineData(30)]
+    [InlineData(60)]
+    [InlineData(90)]
+    public void ListRow_clips_rounded_branches_and_preserves_selected_status_and_metadata(int width)
+    {
+        var todo = Todo("A title too long for the available task column") with
+        {
+            Priority = TodoPriority.High,
+            Schedule = new TodoSchedule(new DateOnly(2026, 8, 4), new TimeOnly(9, 30))
+        };
+        var row = new TodoRow(null, todo,
+            [TodoTreeSegment.HasFollowingSibling, TodoTreeSegment.LastSibling], true)
+        {
+            HasVisibleChildren = true, IsCollapsed = true, IsMarked = true, ProjectTitle = "Work"
+        };
+        var layout = renderer.Columns(width, true);
+        var output = Render(renderer.ListRow(row, layout, TuiThemes.Wolf));
+
+        output.Should().StartWith("> ● H │").And.Contain("*");
+        output.GetCellWidth().Should().BeLessThanOrEqualTo(width);
+        if (layout.TaskWidth >= 8) output.Should().Contain("│  ╰─ ▶");
+        if (layout.ShowProject) output.Should().Contain("Work");
+        if (layout.ShowSchedule) output.Should().Contain("2026-08-04 09:30");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ListRow_preserves_selected_styles_for_open_and_completed_rows(bool completed)
+    {
+        var row = new TodoRow(null, Todo("Selected") with { IsCompleted = completed }, [], true);
+        var theme = TuiThemes.Wolf with
+        {
+            AccentBright = new Color(1, 2, 3), Muted = new Color(7, 8, 9), Surface2 = new Color(4, 5, 6)
+        };
+        using var writer = new StringWriter();
+        var console = AnsiConsole.Create(new AnsiConsoleSettings { Out = new AnsiConsoleOutput(writer) }).CreateRecorder();
+        console.Profile.Width = 40;
+
+        console.Write(renderer.ListRow(row, renderer.Columns(40, false), theme));
+
+        var html = console.ExportHtml().ToLowerInvariant();
+        var titleIndex = html.IndexOf("Selected", StringComparison.OrdinalIgnoreCase);
+        var style = html[html.LastIndexOf("<span", titleIndex, StringComparison.Ordinal)..titleIndex];
+        style.Should().Contain(completed ? "#070809" : "#010203")
+            .And.Contain("#040506").And.Contain("font-weight: bold");
+    }
+
     [Fact]
     public void TagsRow_clips_tags_to_the_task_column_without_metadata()
     {
@@ -123,6 +199,8 @@ public sealed class TodoRowRendererTests
     {
         renderer.StatusGlyph(false).Should().Be("◯");
         renderer.StatusGlyph(true).Should().Be("✓");
+        renderer.StatusGlyph(false, isSelected: true).Should().Be("●");
+        renderer.StatusGlyph(true, isSelected: true).Should().Be("✓");
     }
 
     [Fact]

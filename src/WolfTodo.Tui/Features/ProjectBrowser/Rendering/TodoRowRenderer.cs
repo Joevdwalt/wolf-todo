@@ -40,8 +40,8 @@ public sealed class TodoRowRenderer
         var todo = row.Todo!;
         var cursor = row.IsSelected ? TodoGlyphs.SelectedGlyph : " ";
         var mark = row.IsMarked ? TodoGlyphs.MarkedGlyph : " ";
-        var treePrefix = TodoTreeFormatter.Format(row.TreePath);
-        var status = StatusGlyph(todo.IsCompleted);
+        var treePrefix = TodoTreeFormatter.Format(row.TreePath, TodoGlyphs.RoundedTreeEndBranchGlyph);
+        var status = StatusGlyph(todo.IsCompleted, row.IsSelected);
         var priority = PriorityCode(todo.Priority);
         var branchGlyph = row.HasVisibleChildren && row.IsCollapsed ? "▶ " : string.Empty;
         var taskPrefix = treePrefix + branchGlyph;
@@ -214,8 +214,9 @@ public sealed class TodoRowRenderer
         _ => "-"
     };
 
-    public string StatusGlyph(bool isCompleted) =>
-        isCompleted ? TodoGlyphs.CompletedTodoGlyph : TodoGlyphs.OpenTodoGlyph;
+    public string StatusGlyph(bool isCompleted, bool isSelected = false) =>
+        isCompleted ? TodoGlyphs.CompletedTodoGlyph
+            : isSelected ? TodoGlyphs.SelectedOpenTodoGlyph : TodoGlyphs.OpenTodoGlyph;
 
     public string FitColumn(string value, int width) => TerminalText.PadColumn(value, width);
 

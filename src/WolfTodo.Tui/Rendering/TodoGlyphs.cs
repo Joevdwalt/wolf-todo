@@ -3,6 +3,7 @@ namespace WolfTodo.Tui.Rendering;
 public static class TodoGlyphs
 {
     public const string OpenTodoGlyph = "◯";
+    public const string SelectedOpenTodoGlyph = "●";
     public const string CompletedTodoGlyph = "✓";
     public const string SelectedGlyph = ">";
     public const string MarkedGlyph = "*";
@@ -11,6 +12,7 @@ public static class TodoGlyphs
     public const string TreeBranchGlyph = "├─";
     public const string TreeContinuationGlyph = "│";
     public const string TreeEndBranchGlyph = "└─";
+    public const string RoundedTreeEndBranchGlyph = "╰─";
     public const string NoteBullet = "•";
     public const string PlannerOpenTaskStatus = "○";
     public const string PlannerMeetingStatus = "⬥";

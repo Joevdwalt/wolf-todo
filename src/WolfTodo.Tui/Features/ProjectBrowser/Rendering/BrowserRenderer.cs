@@ -67,7 +67,7 @@ public sealed class BrowserRenderer
                     context.Width, context.Height,
                     view.State.Focus == BrowserFocus.Projects
                         ? ">  "
-                        : view.SelectedTodo?.IsCompleted == true ? "> ✓" : "> ◯"));
+                        : $"{TodoGlyphs.SelectedGlyph} {TodoRowRenderer.Default.StatusGlyph(view.SelectedTodo?.IsCompleted == true, isSelected: true)}"));
             }
         }
         else

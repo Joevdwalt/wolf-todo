@@ -37,11 +37,12 @@ identifiers, sync claims, or system metrics are forbidden.
 
 The task list uses adaptive columns headed `S P TASK`, followed by `PROJECT`
 and `SCHEDULED` when space permits. `PROJECT` appears for the aggregate All view only.
-State uses `◯` for open and `✓` for completed. Priority uses `!`, `H`, `M`, `L`,
+State uses `◯` for open, `●` for the selected open row, and `✓` for completed
+rows, including selected completed rows. Priority uses `!`, `H`, `M`, `L`,
 `.`, or `-`. The selected row uses the elevated surface with bright accent text
 and bold emphasis; a completed row is muted
 and dim. Scheduled values use the date role without coloring the entire row.
-Always-expanded subtasks use restrained Unicode `├─`, `└─`, and `│` connectors
+Subtasks start expanded and use restrained Unicode `├─`, `╰─`, and `│` connectors
 inside the adaptive `TASK` column. Connector width participates in truncation
 and column layout. Tagged todos add one non-wrapping tag line beneath the title,
 aligned after the state, priority, and tree indentation. Tag lines use the
