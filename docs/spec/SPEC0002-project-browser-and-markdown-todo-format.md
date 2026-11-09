@@ -237,8 +237,10 @@ todos within their original project and heading groups.
 Todo title lines use adaptive `S P TASK`, optional `PROJECT`, and optional
 `SCHEDULED`
 columns as defined by SPEC0013. Nested subtasks use the same state, priority,
-then title order. They start expanded and use Unicode `├─`, `└─`, and `│`
-connectors calculated from the visible sibling tree. Keep each title on one
+then title order. Open rows use `◯`, with `●` in the selected row's state
+column; completed rows retain `✓` even when selected. Keep the selection cursor
+and existing selection styling. Subtasks start expanded and use Unicode
+`├─`, `╰─`, and `│` connectors calculated from the visible sibling tree. Keep each title on one
 line and truncate overflowing text with an ellipsis. When a todo has tags,
 render them in source order as a single `#work #now` line beneath its title.
 Indent the tag line to the title position, keep it within the adaptive `TASK`
@@ -246,8 +248,9 @@ column, and truncate it with an ellipsis rather than wrapping. Keep the title
 and tag lines together while scrolling. The scheduled column displays
 `YYYY-MM-DD HH:mm` or `-` and uses the semantic date color. The detail preview displays the complete title,
 external reference, project, heading path, priority, tags, schedule, notes, and
-the complete recursive subtask tree using the same connectors. Parsed start and due metadata remain preserved in Markdown but
-are not presented or edited by the normal TUI.
+the complete recursive subtask tree using `├─`, `└─`, and `│` connectors.
+Parsed start and due metadata remain preserved in Markdown but are not
+presented or edited by the normal TUI.
 
 In the Todos list, a collapsed task with visible children has a `▶` indicator.
 `c` toggles the selected branch; `C` collapses every branch in the selected

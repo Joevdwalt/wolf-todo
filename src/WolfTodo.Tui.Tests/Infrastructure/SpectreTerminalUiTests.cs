@@ -1373,7 +1373,7 @@ public sealed class SpectreTerminalUiTests
             with { CommandPalette = TestPalette() };
         var lines = RenderBrowser(view, 100, 30);
 
-        var selectedRow = Array.FindIndex(lines, line => line.Contains("> ◯ - Todo 1", StringComparison.Ordinal));
+        var selectedRow = Array.FindIndex(lines, line => line.Contains("> ● - Todo 1", StringComparison.Ordinal));
         var paletteRow = Array.FindIndex(lines, line => line.Contains("COMMAND PALETTE", StringComparison.Ordinal));
         selectedRow.Should().BeGreaterThan(0).And.BeLessThan(paletteRow);
     }
@@ -1508,7 +1508,7 @@ public sealed class SpectreTerminalUiTests
             .Last(line => line.Contains("Prepare the unusually", StringComparison.Ordinal));
         var todoPane = todoLine.Split('│')[2];
 
-        todoPane.Should().Contain("◯ H Prepare the unusually").And.Contain("…");
+        todoPane.Should().Contain("● H Prepare the unusually").And.Contain("…");
         todoPane.Should().NotContain("134416").And.NotContain("#now").And.NotContain("2026-07-08");
         output.Should().Contain("quarterly review").And.Contain("meeting");
     }
@@ -1545,13 +1545,13 @@ public sealed class SpectreTerminalUiTests
             string.Empty);
 
         var lines = RenderBrowser(view, width, height);
-        var scheduledTitle = Array.FindIndex(lines, line => line.Contains("◯ H Prepare proposal", StringComparison.Ordinal));
+        var scheduledTitle = Array.FindIndex(lines, line => line.Contains("● H Prepare proposal", StringComparison.Ordinal));
         var nestedTitle = Array.FindIndex(lines, line => line.Contains("Nested follow-up", StringComparison.Ordinal));
 
         scheduledTitle.Should().BeGreaterThanOrEqualTo(0);
         lines[scheduledTitle].Should().Contain("2026-07-15 09:30");
         nestedTitle.Should().BeGreaterThanOrEqualTo(0);
-        lines[nestedTitle].Should().Contain("✓ - └─ Nested follow-up");
+        lines[nestedTitle].Should().Contain("✓ - ╰─ Nested follow-up");
         lines[nestedTitle].Should().Contain("2026-07-16 10:00");
     }
 
@@ -1584,9 +1584,9 @@ public sealed class SpectreTerminalUiTests
 
         var lines = RenderBrowser(view, width, height);
         var rootTitle = Array.FindIndex(lines, line =>
-            line.Contains("> ◯ H Prepare proposal", StringComparison.Ordinal));
+            line.Contains("> ● H Prepare proposal", StringComparison.Ordinal));
         var nestedTitle = Array.FindIndex(lines, line =>
-            line.Contains("✓ - └─ Nested follow-up", StringComparison.Ordinal));
+            line.Contains("✓ - ╰─ Nested follow-up", StringComparison.Ordinal));
 
         rootTitle.Should().BeGreaterThanOrEqualTo(0);
         nestedTitle.Should().BeGreaterThanOrEqualTo(0);
@@ -1632,8 +1632,10 @@ public sealed class SpectreTerminalUiTests
         var output = string.Join('\n', RenderBrowser(view, 140, 30));
 
         output.Should().Contain("├─ First child")
-            .And.Contain("│  └─ Grandchild")
-            .And.Contain("└─ Last child")
+            .And.Contain("│  ╰─ Grandchild")
+            .And.Contain("╰─ Last child")
+            .And.Contain("│  └─ ◯ - Grandchild")
+            .And.Contain("└─ ◯ - Last child")
             .And.Contain("│  #branch")
             .And.Contain("│     #deep");
     }
@@ -1852,7 +1854,7 @@ public sealed class SpectreTerminalUiTests
     {
         var lines = RenderBrowser(ViewWithTodoCount(25, BrowserFocus.Todos, selectedIndex: 5), 140, 24);
 
-        lines.Should().Contain(line => line.Contains("> ◯ - Todo 6", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("> ● - Todo 6", StringComparison.Ordinal));
         lines.Should().Contain(line => line.Contains("Todo 16", StringComparison.Ordinal));
         lines.Should().NotContain(line => line.Contains("Todo 1 ", StringComparison.Ordinal));
         lines.Should().NotContain(line => line.Contains("Todo 2 ", StringComparison.Ordinal));
@@ -1866,7 +1868,7 @@ public sealed class SpectreTerminalUiTests
             140,
             24);
 
-        lines.Should().Contain(line => line.Contains("> ◯ - Todo 6", StringComparison.Ordinal));
+        lines.Should().Contain(line => line.Contains("> ● - Todo 6", StringComparison.Ordinal));
         lines.Should().Contain(line => line.Contains("Todo 11", StringComparison.Ordinal));
         lines.Should().NotContain(line => line.Contains("Todo 1 ", StringComparison.Ordinal));
     }
@@ -1879,7 +1881,7 @@ public sealed class SpectreTerminalUiTests
             140,
             24);
         var selectedLine = Array.FindIndex(lines, line =>
-            line.Contains("> ◯ - Todo 25", StringComparison.Ordinal));
+            line.Contains("> ● - Todo 25", StringComparison.Ordinal));
         var firstTodoContent = Array.FindIndex(lines, line =>
             line.Contains("Todo ", StringComparison.Ordinal) || line.Contains("⏳", StringComparison.Ordinal));
 
@@ -1897,7 +1899,7 @@ public sealed class SpectreTerminalUiTests
             140,
             24);
         var selectedLine = Array.FindIndex(lines, line =>
-            line.Contains("> ◯ - Todo 25", StringComparison.Ordinal));
+            line.Contains("> ● - Todo 25", StringComparison.Ordinal));
 
         lines.Should().HaveCount(23);
         selectedLine.Should().BeGreaterThanOrEqualTo(0);

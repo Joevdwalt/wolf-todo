@@ -548,8 +548,10 @@ or expand its descendants, or `C` to collapse or expand all branches in the
 selected sidebar view. This display state is session-only and resets when
 project files reload. The inspector and focus card always show the complete
 tree; filters and saved views
-reveal matching descendants through collapsed ancestors. Unicode
-`├─`, `└─`, and `│` connectors show sibling and ancestor relationships. A
+reveal matching descendants through collapsed ancestors. The Todos list and
+focus checklist use `├─`, `╰─`, and `│` connectors; inspectors retain `└─`
+for final branches. The Todos state column shows `●` for the selected open task,
+`◯` for other open tasks, and `✓` for completed tasks, including selected ones. A
 filter that matches a descendant keeps its visible ancestor path as normal,
 selectable todo rows so the result retains useful tree context. A matching
 task also reveals its eligible nested subtasks, even when they do not match.

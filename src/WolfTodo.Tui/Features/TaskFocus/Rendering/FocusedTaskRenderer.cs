@@ -159,11 +159,10 @@ public sealed class FocusedTaskRenderer(
     private CardLine ItemLine(FocusedTaskItem item, TuiTheme theme, bool title)
     {
         var prefix = title && item.IsSelected ? $"{TodoGlyphs.SelectedGlyph} " : "  ";
-        var tree = title ? string.Empty : TodoTreeFormatter.Format(item.TreePath)
-            .Replace(TodoGlyphs.TreeEndBranchGlyph, "╰─", StringComparison.Ordinal);
+        var tree = title ? string.Empty : TodoTreeFormatter.Format(item.TreePath, TodoGlyphs.RoundedTreeEndBranchGlyph);
         var glyph = item.Todo.IsCompleted
             ? TodoGlyphs.CompletedTodoGlyph
-            : !title && item.IsSelected ? "●" : TodoGlyphs.OpenTodoGlyph;
+            : !title && item.IsSelected ? TodoGlyphs.SelectedOpenTodoGlyph : TodoGlyphs.OpenTodoGlyph;
         var style = item.IsSelected
             ? themeRenderer.Style(theme.AccentBright, Decoration.Bold)
             : item.Todo.IsCompleted
