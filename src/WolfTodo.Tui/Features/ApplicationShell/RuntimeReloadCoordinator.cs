@@ -44,7 +44,7 @@ public sealed class RuntimeReloadCoordinator(
                 {
                     ProjectIndex = SidebarIndexResolver.Resolve(selection, catalog, configuration.SidebarItems),
                     PendingTodoSelection = null,
-                    CollapsedTodos = [],
+                    CollapsedTodos = [], ResultCollapsedTodos = [], ResultCollapseContext = null,
                     StatusMessage = null
                 }
             };

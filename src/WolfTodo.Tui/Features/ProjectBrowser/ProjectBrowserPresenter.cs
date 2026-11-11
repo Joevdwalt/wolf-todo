@@ -149,7 +149,10 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
                 today,
                 selectedProject.SavedView,
                 project.Title);
-            var visibleTodos = FlattenVisible(visibleForest, project.Path, state.CollapsedTodos)
+            var context = ResultContext(state, selectedProject);
+            var collapsed = context is null ? state.CollapsedTodos :
+                context == state.ResultCollapseContext ? state.ResultCollapsedTodos : [];
+            var visibleTodos = FlattenVisible(visibleForest, project.Path, collapsed)
                 .ToArray();
             foreach (var item in visibleTodos)
             {
@@ -283,6 +286,13 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         return visible.ToImmutable();
     }
 
+    internal static string? ResultContext(BrowserState state, ProjectRow project)
+    {
+        var filter = EffectiveFilter(state);
+        return filter.Length == 0 && project.Kind != ProjectRowKind.SavedQuery
+            ? null : $"{state.ProjectIndex}:{project.Title}:{filter}";
+    }
+
     private static IEnumerable<FlattenedTodo> FlattenVisible(
         ImmutableArray<VisibleTodo> todos,
         string projectPath,
@@ -295,7 +305,7 @@ public sealed class ProjectBrowserPresenter(Func<DateOnly>? todayProvider = null
         {
             var item = todos[index];
             var identity = new TodoIdentity(projectPath, item.Todo.SourceLine);
-            var isCollapsed = collapsed.Contains(identity) && !item.HasMatchingDescendant;
+            var isCollapsed = collapsed.Contains(identity);
             yield return new FlattenedTodo(item.Todo, parentPath.IsDefault ? [] : parentPath,
                 item.Children.Length > 0, isCollapsed, hidden, parentSourceLine);
 

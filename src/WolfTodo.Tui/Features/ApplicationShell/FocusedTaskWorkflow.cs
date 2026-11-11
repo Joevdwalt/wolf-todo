@@ -58,7 +58,7 @@ public sealed class FocusedTaskWorkflow(
 
         catalog = catalogLoader.Load(configuration.ProjectFiles);
         var focus = state.FocusedTask!;
-        state = state with { Browser = state.Browser with { CollapsedTodos = [] } };
+        state = state with { Browser = state.Browser with { CollapsedTodos = [], ResultCollapsedTodos = [], ResultCollapseContext = null } };
         var updatedIdentity = result.SourceLine is { } line
             ? new TodoIdentity(transition.Identity.ProjectPath, line)
             : transition.Identity;
@@ -111,7 +111,7 @@ public sealed class FocusedTaskWorkflow(
 
         catalog = catalogLoader.Load(configuration.ProjectFiles);
         var identity = new TodoIdentity(target.Path, result.SourceLine.Value);
-        state = state with { Browser = state.Browser with { CollapsedTodos = [] } };
+        state = state with { Browser = state.Browser with { CollapsedTodos = [], ResultCollapsedTodos = [], ResultCollapseContext = null } };
         var moved = TodoTree.FindBySourceLine(catalog, identity.ProjectPath, identity.SourceLine);
         if (moved is null)
         {
@@ -154,7 +154,7 @@ public sealed class FocusedTaskWorkflow(
         if (result.Started)
         {
             catalog = catalogLoader.Load(configuration.ProjectFiles);
-            state = state with { Browser = state.Browser with { CollapsedTodos = [] } };
+            state = state with { Browser = state.Browser with { CollapsedTodos = [], ResultCollapsedTodos = [], ResultCollapseContext = null } };
         }
 
         return result.Error is null

@@ -60,7 +60,8 @@ optionally followed by `asc` or `desc`. Ascending is the default.
   shown as context. The sidebar count includes only open tasks that directly
   match the saved query.
 - Temporarily reveal a directly matching descendant and its ancestors when a
-  branch is collapsed. Keep the session's collapse choice for other views.
+  branch is collapsed. Allow explicit collapse within results, independently of
+  the normal view; reset result collapse choices when the query or view changes.
 - Treat saved views as virtual aggregate views for creation and persistence.
 - After editing, completing, or rescheduling a todo, remove it from the view if
   it no longer matches.

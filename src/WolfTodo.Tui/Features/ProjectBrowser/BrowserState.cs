@@ -32,6 +32,10 @@ public sealed record BrowserState(
 
     public ImmutableHashSet<TodoIdentity> CollapsedTodos { get; init; } = [];
 
+    public ImmutableHashSet<TodoIdentity> ResultCollapsedTodos { get; init; } = [];
+
+    public string? ResultCollapseContext { get; init; }
+
     public static BrowserState Initial { get; } = new(
         BrowserFocus.Projects,
         0,

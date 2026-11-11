@@ -60,6 +60,10 @@ completed-todo visibility and the saved-view eligibility rule.
 If completion visibility hides an ancestor, promote its visible descendants to
 the nearest visible level and recalculate their tree connectors.
 
+Initially reveal matching paths; `c` and `C` can then collapse result branches
+without changing normal-view collapse choices. Changing the query or sidebar
+view resets result collapse choices; canceling a draft restores them.
+
 Apply the active session sort after filtering. Changing or clearing a filter
 does not reset the selected sort property or direction.
 
