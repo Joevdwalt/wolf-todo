@@ -83,7 +83,7 @@ public sealed class BrowserWorkflow(
         return state with
         {
             Error = result.Error,
-            CollapsedTodos = [],
+            CollapsedTodos = [], ResultCollapsedTodos = [], ResultCollapseContext = null,
             Editor = null,
             PendingTodoSelection = selection,
             MarkedTodos = [],
@@ -139,7 +139,7 @@ public sealed class BrowserWorkflow(
                     ? new TodoIdentity(target.Path, sourceLine)
                     : null,
                 Error = null,
-                CollapsedTodos = [],
+                CollapsedTodos = [], ResultCollapsedTodos = [], ResultCollapseContext = null,
                 MarkedTodos = [],
                 MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
                 BulkEditor = null,
@@ -203,7 +203,7 @@ public sealed class BrowserWorkflow(
             {
                 TodoIndex = 0,
                 PendingTodoSelection = null,
-                CollapsedTodos = [],
+                CollapsedTodos = [], ResultCollapsedTodos = [], ResultCollapseContext = null,
                 MarkedTodos = [],
                 MarkedTodoSnapshots = ImmutableDictionary<TodoIdentity, TodoItem>.Empty,
                 BulkEditor = null,
@@ -284,7 +284,8 @@ public sealed class BrowserWorkflow(
                 Error = error,
                 StatusMessage = error is null ? successText : null,
                 PendingTodoSelection = null,
-                CollapsedTodos = succeeded.Count > 0 ? [] : state.Browser.CollapsedTodos
+                CollapsedTodos = succeeded.Count > 0 ? [] : state.Browser.CollapsedTodos,
+                ResultCollapseContext = succeeded.Count > 0 ? null : state.Browser.ResultCollapseContext
             }
         }, catalog);
     }
@@ -333,6 +334,7 @@ public sealed class BrowserWorkflow(
             {
                 PendingTodoSelection = null,
                 CollapsedTodos = result.Started ? [] : state.Browser.CollapsedTodos,
+                ResultCollapseContext = result.Started ? null : state.Browser.ResultCollapseContext,
                 Error = result.Error,
                 MarkedTodos = result.Started ? [] : state.Browser.MarkedTodos,
                 MarkedTodoSnapshots = result.Started

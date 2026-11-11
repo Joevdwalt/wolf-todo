@@ -55,6 +55,53 @@ public sealed class ProjectBrowserPresenterTests
     }
 
     [Fact]
+    public void Filtered_results_can_be_collapsed_without_changing_normal_view()
+    {
+        var child = Todo("Matching child") with { SourceLine = 2 };
+        var root = Todo("Root") with { SourceLine = 1, Subtasks = [child] };
+        var catalog = new ProjectCatalog([Project("Alpha", root)], []);
+        var identity = new TodoIdentity("/Alpha.md", 1);
+        var state = BrowserState.Initial with { ProjectIndex = 1, Focus = BrowserFocus.Todos,
+            FilterText = "matching", CollapsedTodos = [identity] };
+        var initial = presenter.CreateView(catalog, state);
+        var reducer = new BrowserReducer();
+        var config = new WolfTodo.Tui.Features.Configuration.ApplicationConfiguration([], ":q");
+        var collapsed = reducer.Reduce(initial.State, new ConsoleKeyInfo('c', ConsoleKey.C, false, false, false), config, initial);
+        var view = presenter.CreateView(catalog, collapsed.State);
+        view.Todos.Where(row => row.Todo is not null).Select(row => row.Todo!.Title).Should().Equal("Root");
+        view.Todos.Single(row => row.Todo is not null).IsCollapsed.Should().BeTrue();
+        view.State.CollapsedTodos.Should().Contain(identity);
+        var expanded = reducer.Reduce(view.State, new ConsoleKeyInfo('c', ConsoleKey.C, false, false, false), config, view);
+        presenter.CreateView(catalog, expanded.State).Todos.Count(row => row.Todo is not null).Should().Be(2);
+        presenter.CreateView(catalog, collapsed.State with { FilterText = "child" }).Todos
+            .Count(row => row.Todo is not null).Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Collapse_all_works_in_saved_view_with_or_without_search(bool search)
+    {
+        var today = new DateOnly(2026, 7, 19);
+        var child = Todo("Matching child") with { SourceLine = 2 };
+        var root = ScheduledTodo("Root", today, 9) with { SourceLine = 1, Subtasks = [child] };
+        var catalog = new ProjectCatalog([Project("Alpha", root)], []);
+        var renderer = new ProjectBrowserPresenter(() => today);
+        var state = BrowserState.Initial with { ProjectIndex = 1, Focus = BrowserFocus.Todos,
+            FilterText = search ? "matching" : "" };
+        var views = System.Collections.Immutable.ImmutableArray.Create(TodayView());
+        var initial = renderer.CreateView(catalog, state, views);
+        initial.Todos.Count(row => row.Todo is not null).Should().Be(2);
+        var reducer = new BrowserReducer();
+        var config = new WolfTodo.Tui.Features.Configuration.ApplicationConfiguration([], ":q");
+        var collapsed = reducer.Reduce(initial.State, new ConsoleKeyInfo('C', ConsoleKey.C, true, false, false), config, initial);
+        var result = renderer.CreateView(catalog, collapsed.State, views);
+        result.Todos.Count(row => row.Todo is not null).Should().Be(1);
+        var expanded = reducer.Reduce(result.State, new ConsoleKeyInfo('C', ConsoleKey.C, true, false, false), config, result);
+        renderer.CreateView(catalog, expanded.State, views).Todos.Count(row => row.Todo is not null).Should().Be(2);
+    }
+
+    [Fact]
     public void CreateView_projects_marked_identities_independently_from_the_cursor()
     {
         var catalog = new ProjectCatalog(

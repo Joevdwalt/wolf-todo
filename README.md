@@ -547,8 +547,9 @@ Nested todos start expanded in the Todos list. Press `c` on a task to collapse
 or expand its descendants, or `C` to collapse or expand all branches in the
 selected sidebar view. This display state is session-only and resets when
 project files reload. The inspector and focus card always show the complete
-tree; filters and saved views
-reveal matching descendants through collapsed ancestors. The Todos list and
+tree; filters and saved views initially
+reveal matching descendants through collapsed ancestors. Use `c` or `C` to collapse
+results independently; changing the query or sidebar view resets result collapse choices. The Todos list and
 focus checklist use `├─`, `╰─`, and `│` connectors; inspectors retain `└─`
 for final branches. The Todos state column shows `●` for the selected open task,
 `◯` for other open tasks, and `✓` for completed tasks, including selected ones. A

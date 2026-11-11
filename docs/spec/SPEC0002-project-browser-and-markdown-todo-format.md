@@ -257,7 +257,9 @@ In the Todos list, a collapsed task with visible children has a `▶` indicator.
 sidebar view if any is expanded, or expands them all otherwise. Collapse state
 is session-only, resets when project files reload, and changes no Markdown or
 sidebar counts. An active filter or saved view temporarily reveals a matching descendant's
-ancestor path. Opening a task link expands ancestors needed to select it.
+ancestor path. Result branches can be collapsed independently of the normal view;
+changing the query or sidebar view resets their collapse choices. Opening a task
+link expands ancestors needed to select it.
 
 Selecting an error entry replaces the todo/detail content with its diagnostic,
 including the source path and actionable reason. Duplicate project titles are

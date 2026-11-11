@@ -32,6 +32,18 @@ public sealed class BrowserReducerTests
     }
 
     [Fact]
+    public void Canceling_filter_edit_preserves_result_collapse_state()
+    {
+        var identity = new TodoIdentity("/alpha.md", 1);
+        var state = BrowserState.Initial with { IsFilterMode = true, FilterText = "old",
+            FilterDraft = "new", ResultCollapseContext = "0:All:old", ResultCollapsedTodos = [identity] };
+        var result = reducer.Reduce(state, Key(ConsoleKey.Escape), Configuration, EmptyView());
+        result.State.ResultCollapseContext.Should().Be("0:All:old");
+        result.State.ResultCollapsedTodos.Should().Contain(identity);
+        result.State.FilterDraft.Should().Be("old");
+    }
+
+    [Fact]
     public void Reduce_moves_from_projects_to_todos_on_enter()
     {
         var result = reducer.Reduce(BrowserState.Initial, Key(ConsoleKey.Enter), Configuration, EmptyView());

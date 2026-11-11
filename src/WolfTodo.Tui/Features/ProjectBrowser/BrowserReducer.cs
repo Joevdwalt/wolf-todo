@@ -245,6 +245,7 @@ public sealed class BrowserReducer
         ? Transition(state with
         {
             ProjectIndex = MoveIndex(state.ProjectIndex, offset, view.Projects.Length),
+            ResultCollapseContext = MoveIndex(state.ProjectIndex, offset, view.Projects.Length) == state.ProjectIndex ? state.ResultCollapseContext : null,
             TodoIndex = 0,
             PendingTodoSelection = null,
             Error = null
@@ -410,6 +411,7 @@ public sealed class BrowserReducer
             {
                 IsFilterMode = false,
                 FilterText = filter,
+                ResultCollapseContext = filter == state.FilterText ? state.ResultCollapseContext : null,
                 FilterDraft = filter,
                 TodoIndex = 0,
                 PendingTodoSelection = null,
@@ -456,12 +458,15 @@ public sealed class BrowserReducer
             !view.ExpandableTodos.Contains(identity))
             return Transition(state with { Error = "Select a todo with visible subtasks to collapse." });
 
-        var collapsed = state.CollapsedTodos.Contains(identity)
-            ? state.CollapsedTodos.Remove(identity)
-            : state.CollapsedTodos.Add(identity);
+        var context = ProjectBrowserPresenter.ResultContext(state, view.Projects.First(row => row.IsSelected));
+        var current = context is null ? state.CollapsedTodos :
+            context == state.ResultCollapseContext ? state.ResultCollapsedTodos : [];
+        var collapsed = current.Contains(identity) ? current.Remove(identity) : current.Add(identity);
         return Transition(state with
         {
-            CollapsedTodos = collapsed,
+            CollapsedTodos = context is null ? collapsed : state.CollapsedTodos,
+            ResultCollapsedTodos = context is null ? state.ResultCollapsedTodos : collapsed,
+            ResultCollapseContext = context,
             PendingTodoSelection = identity,
             Error = null
         });
@@ -472,13 +477,16 @@ public sealed class BrowserReducer
         if (view.ExpandableTodos.IsEmpty)
             return Transition(state with { Error = "No subtasks in this view to collapse." });
 
-        var allCollapsed = view.ExpandableTodos.All(state.CollapsedTodos.Contains);
-        var collapsed = allCollapsed
-            ? state.CollapsedTodos.Except(view.ExpandableTodos)
-            : state.CollapsedTodos.Union(view.ExpandableTodos);
+        var context = ProjectBrowserPresenter.ResultContext(state, view.Projects.First(row => row.IsSelected));
+        var current = context is null ? state.CollapsedTodos :
+            context == state.ResultCollapseContext ? state.ResultCollapsedTodos : [];
+        var allCollapsed = view.ExpandableTodos.All(current.Contains);
+        var collapsed = allCollapsed ? current.Except(view.ExpandableTodos) : current.Union(view.ExpandableTodos);
         return Transition(state with
         {
-            CollapsedTodos = collapsed,
+            CollapsedTodos = context is null ? collapsed : state.CollapsedTodos,
+            ResultCollapsedTodos = context is null ? state.ResultCollapsedTodos : collapsed,
+            ResultCollapseContext = context,
             PendingTodoSelection = view.SelectedTodoIdentity,
             Error = null
         });
@@ -522,6 +530,7 @@ public sealed class BrowserReducer
             ? Transition(state with
             {
                 ProjectIndex = bottom ? Math.Max(0, view.Projects.Length - 1) : 0,
+                ResultCollapseContext = null,
                 TodoIndex = 0,
                 PendingTodoSelection = null,
                 Error = null
